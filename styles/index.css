@@ -281,7 +281,8 @@ header {
 
 @media screen and (max-width: 576px) {
   .welcome {
-    padding: 60px 40px;
+    padding: 40px 40px;
+    height: auto;
   }
 
   .welcome__hello .emoji, .welcome__bio .emoji {
