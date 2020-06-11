@@ -5,6 +5,7 @@
 
   .container {
     flex-direction: column;
+    padding: 0 64px;
   }
 
   &__title {
@@ -37,12 +38,23 @@
     }
   }
 
-  @media screen and (max-width: 768px) {
-    margin-bottom: 60px;
-
+  @media screen and (max-width: 1024px) {
     .container {
       flex-direction: column;
       margin: 0 64px;
+      padding: 0;
+    }
+  }
+
+  @media screen and (max-width: 768px) {
+    margin-bottom: 60px;
+
+    &__title {
+      margin-bottom: $margin + 8;
+    }
+
+    .container {
+      margin: 0 48px;
     }
 
     &__content {
@@ -54,12 +66,16 @@
     &__skills {
       width: 100%;
     }
+
+    .skills {
+      margin-top: $margin;
+      margin-bottom: $margin * 2;
+    }
   }
 
   @media screen and (max-width: 576px) {
     .container {
-      flex-direction: column;
-      margin: 0 40px;
+      margin: 0 24px;
     }
   }
 }

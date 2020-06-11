@@ -73,8 +73,7 @@ a {
   display: flex;
   max-width: $width;
   margin: 0 auto;
-  padding-right: $padding;
-  padding-left: $padding;
+  overflow: hidden;
 }
 
 .not-found {

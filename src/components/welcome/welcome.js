@@ -2,7 +2,6 @@ import React from "react"
 
 import { useHover } from "@hooks/use-hover"
 
-import devBadge from "./images/dev-badge.svg"
 import "./welcome.scss"
 
 const links = [
@@ -65,22 +64,6 @@ const Welcome = () => {
               </a>
             </li>
           ))}
-          <li>
-            <a
-              href="https://dev.to/ldiego73"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Dev.to"
-            >
-              <img
-                className="devto"
-                src={devBadge}
-                alt="Luis Diego"
-                height="48"
-                width="48"
-              />
-            </a>
-          </li>
         </ul>
       </div>
     </section>

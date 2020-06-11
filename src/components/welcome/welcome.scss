@@ -3,7 +3,7 @@
 .welcome {
   display: flex;
   flex-direction: column;
-  justify-content: space-around;
+  justify-content: center;
   padding: 120px 100px;
   margin: 0 auto;
   height: calc(100vh - #{$header-height});
@@ -78,18 +78,12 @@
   }
 
   &__bio {
+    margin-bottom: 48px;
     .name {
       font-weight: 700;
     }
     .technologist {
       background-image: url(./images/technologist.png);
-    }
-  }
-
-  &__tags {
-    .tag {
-      margin-right: 8px;
-      margin-bottom: 16px;
     }
   }
 
@@ -113,17 +107,11 @@
     em {
       color: #fafafa;
       padding: 8px;
-      font-size: 3rem;
-    }
-
-    .devto {
-      margin-bottom: -0.3rem;
+      font-size: 48px;
     }
   }
 
   @media screen and (max-width: 1024px) {
-    padding: 80px 60px;
-
     &__hello,
     &__bio {
       font-size: 2rem;
@@ -131,25 +119,16 @@
   }
 
   @media screen and (max-width: 768px) {
-    padding: 80px 40px;
+    padding: 100px 80px;
 
     &__hello,
     &__bio {
       font-size: 1.75rem;
     }
-
-    &__social ul {
-      text-align: center;
-    }
-
-    &__tags .tag {
-      font-size: 1.25rem;
-    }
   }
 
   @media screen and (max-width: 576px) {
     padding: 40px 40px;
-    height: auto;
 
     &__hello .emoji,
     &__bio .emoji {
@@ -162,10 +141,17 @@
       font-size: 1.5rem;
     }
 
-    &__tags .tag {
-      font-size: 1rem;
-      margin-bottom: 4px;
-      margin-bottom: 8px;
+    &__social {
+      ul {
+        li {
+          padding: 4px;
+        }
+      }
+
+      em {
+        padding: 4px;
+        font-size: 36px;
+      }
     }
   }
 }
