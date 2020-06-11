@@ -5,16 +5,6 @@ import { useHover } from "@hooks/use-hover"
 import devBadge from "./images/dev-badge.svg"
 import "./welcome.scss"
 
-const tags = [
-  "Microservices",
-  "Microfrontends",
-  "Serverless",
-  "DevOps",
-  "Full Stack",
-  "Web",
-  "Mobile",
-]
-
 const links = [
   {
     url: "https://github.com/ldiego73",
@@ -61,13 +51,6 @@ const Welcome = () => {
         and application development.&nbsp;
         <span className="emoji technologist"></span>
       </h2>
-      <div className="welcome__tags">
-        {tags.map(t => (
-          <span key={t} className="tag">
-            {t}
-          </span>
-        ))}
-      </div>
       <div className="welcome__social">
         <ul>
           {links.map(l => (

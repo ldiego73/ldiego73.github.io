@@ -32,8 +32,9 @@ $profile-size: 320px;
     @include center;
 
     h3 {
-      font-size: 36px;
+      font-size: $title-size;
       margin: 0;
+      text-transform: uppercase;
     }
   }
 

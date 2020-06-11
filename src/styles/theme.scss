@@ -1,5 +1,12 @@
 @import "variables";
 @import "button";
+@import "timeline";
+@import "skills";
+
+::after,
+::before {
+  box-sizing: border-box;
+}
 
 * {
   box-sizing: border-box;

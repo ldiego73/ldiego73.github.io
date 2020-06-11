@@ -1,0 +1,73 @@
+.skills {
+  padding-left: 30px;
+  position: relative;
+  height: 100%;
+  float: left;
+  margin-left: 57px;
+  width: 80%;
+
+  &:before {
+    content: "";
+    width: 1px;
+    border-left: 1px solid $color;
+    height: 100%;
+    position: absolute;
+    left: 0px;
+    top: 5px;
+  }
+
+  &__bar {
+    width: 100%;
+    margin: 10px 0px;
+    float: left;
+
+    &-outer {
+      height: 6px;
+      background: rgba($tertiary, 0.2);
+      position: relative;
+      width: 100%;
+      float: left;
+      margin-top: 8px;
+      display: block;
+    }
+
+    &-inner {
+      width: 0;
+      height: 6px;
+      background: $quaternary;
+    }
+
+    &-bubble {
+      position: absolute;
+      top: -1.8em;
+      min-width: 2.5em;
+      border-radius: 0.3em;
+      background: $color;
+
+      text-align: center;
+      font-size: 0.75em;
+      line-height: 1.3em;
+      color: $primary;
+
+      &:after {
+        border: 0.5em solid transparent;
+        border-top-color: $color;
+        content: "";
+        margin-left: -0.5em;
+        position: absolute;
+        top: 100%;
+        left: 50%;
+      }
+    }
+  }
+
+  &__name {
+    text-transform: uppercase;
+    margin-bottom: 0.25em;
+    color: $color;
+    display: block;
+    height: auto;
+    float: left;
+    width: 100%;
+  }
+}

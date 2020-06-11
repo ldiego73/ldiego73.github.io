@@ -1,0 +1,66 @@
+.timeline {
+  list-style: none;
+  margin-left: 50px;
+
+  > li {
+    position: relative;
+    padding-bottom: 30px;
+    padding-right: 20px;
+
+    &:before {
+      content: "";
+      width: 1px;
+      border-left: 1px solid $color;
+      height: 100%;
+      position: absolute;
+      left: -8px;
+      top: 5px;
+    }
+
+    &:after {
+      content: "";
+      width: 19px;
+      height: 19px;
+      background: $color;
+      border: 5px solid $primary;
+      border-radius: 10px;
+      position: absolute;
+      left: -17px;
+      top: 2px;
+    }
+
+    &:last-child {
+      padding-bottom: 0px;
+    }
+  }
+
+  &__item {
+    position: relative;
+    padding-left: 20px;
+  }
+
+  &__date {
+    position: absolute;
+    color: $color;
+    left: -60px;
+    top: 2px;
+  }
+
+  &__position {
+    color: $color;
+    display: block;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  &__company {
+    color: $quaternary;
+    display: block;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  &__experience {
+    font-size: 14px;
+  }
+}

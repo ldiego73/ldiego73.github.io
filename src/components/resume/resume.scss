@@ -1,0 +1,65 @@
+@import "../../styles/variables";
+
+.resume {
+  margin-bottom: 120px;
+
+  .container {
+    flex-direction: column;
+  }
+
+  &__title {
+    font-size: $title-size;
+    margin: 0;
+    margin-bottom: $padding * 2;
+    text-transform: uppercase;
+  }
+
+  &__subtitle {
+    font-size: $subtitle-size;
+    margin: 0;
+
+    em {
+      margin-right: 8px;
+    }
+  }
+
+  &__content {
+    display: flex;
+  }
+
+  &__experience,
+  &__education,
+  &__skills {
+    width: 50%;
+
+    .timeline {
+      padding: $padding;
+    }
+  }
+
+  @media screen and (max-width: 768px) {
+    margin-bottom: 60px;
+
+    .container {
+      flex-direction: column;
+      margin: 0 64px;
+    }
+
+    &__content {
+      flex-direction: column;
+    }
+
+    &__experience,
+    &__education,
+    &__skills {
+      width: 100%;
+    }
+  }
+
+  @media screen and (max-width: 576px) {
+    .container {
+      flex-direction: column;
+      margin: 0 40px;
+    }
+  }
+}
