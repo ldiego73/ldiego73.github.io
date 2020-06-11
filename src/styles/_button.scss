@@ -1,0 +1,39 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding-bottom: calc(0.5em - 1px);
+  padding-left: 1em;
+  padding-right: 1em;
+  padding-top: calc(0.5em - 1px);
+
+  -webkit-appearance: none;
+  box-shadow: none;
+
+  background: $color;
+  border-width: 1px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+
+  text-decoration: none;
+  text-align: center;
+  font-size: 1.25rem;
+  white-space: nowrap;
+  color: $secondary;
+
+  cursor: pointer;
+
+  &:hover,
+  &:focus {
+    background: $secondary;
+    border: 1px solid $secondary;
+    text-decoration: none;
+    color: $color;
+  }
+
+  &:active {
+    background: $tertiary;
+    border: 1px solid $tertiary;
+  }
+}

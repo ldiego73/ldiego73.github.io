@@ -1,0 +1,66 @@
+@import "../../styles/variables";
+
+$profile-size: 320px;
+
+@mixin center {
+  flex: 0 0 50%;
+  max-width: 50%;
+  padding: $padding;
+}
+
+.about {
+  margin: 120px 0;
+
+  .container {
+    align-items: center;
+  }
+
+  &__profile {
+    @include center;
+    height: $profile-size;
+
+    text-align: center;
+
+    img {
+      height: $profile-size;
+      border-radius: $border-radius;
+      box-shadow: $box-shadow;
+    }
+  }
+
+  &__details {
+    @include center;
+
+    h3 {
+      font-size: 36px;
+      margin: 0;
+    }
+  }
+
+  @media screen and (max-width: 768px) {
+    margin: 60px 0;
+
+    .container {
+      flex-direction: column;
+    }
+
+    &__profile, &__details {
+      width: auto;
+      max-width: none;
+    }
+
+    &__details {
+      padding: $padding 72px;
+
+      a {
+        display: block;
+      }
+    }
+  }
+
+  @media screen and (max-width: 576px) {
+    &__details {
+      padding: $padding 40px;
+    }
+  }
+}

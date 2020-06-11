@@ -1,4 +1,9 @@
 @import "variables";
+@import "button";
+
+* {
+  box-sizing: border-box;
+}
 
 ::-moz-selection {
   background: $color;
@@ -6,6 +11,18 @@
 
 ::selection {
   background: $color;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+}
+::-webkit-scrollbar-track {
+  background: $secondary;
+}
+::-webkit-scrollbar-thumb {
+  background-color: $color;
+  border-radius: 6px;
+  border: 3px solid $secondary;
 }
 
 body {
@@ -16,6 +33,10 @@ body {
   color: $color;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+a {
+  transition: $theme-transition;
 }
 
 .emoji {
@@ -39,6 +60,14 @@ body {
   padding-left: 0.75em;
   padding-right: 0.75em;
   white-space: nowrap;
+}
+
+.container {
+  display: flex;
+  max-width: $width;
+  margin: 0 auto;
+  padding-right: $padding;
+  padding-left: $padding;
 }
 
 .not-found {

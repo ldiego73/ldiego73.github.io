@@ -1,9 +1,14 @@
 $primary: #252526;
 $secondary: #1e1e1e;
+$tertiary: #0a0a0a;
 $color: #ccc;
 
-$width: 1440px;
+$width: 1140px;
 $padding: 16px;
 $margin: 16px;
 $size: 14px;
-$header-height: 59px;
+$header-height: 56px;
+$border-radius: 4px;
+
+$box-shadow: rgba($secondary, 0.7) 0px 10px 30px -10px;
+$theme-transition: color 0.3s, background-color 0.3s, border-color 0.3s;
