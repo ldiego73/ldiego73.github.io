@@ -1,0 +1,91 @@
+@import "../../styles/variables";
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: $padding;
+  background: $secondary;
+}
+
+.header {
+  &__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 auto;
+    width: $width;
+    max-width: 100%;
+  }
+
+  &__logo {
+    display: flex;
+    align-items: flex-start;
+    text-decoration: none;
+    font-family: monospace, sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: $color;
+
+    &__mark {
+      margin-right: 5px;
+    }
+
+    &__text {
+      font-size: 1.125rem;
+    }
+
+    &__cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1.25rem;
+      background: $color;
+      margin-left: 5px;
+      border-radius: 1px;
+      animation: cursor 1s infinite;
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+      }
+
+      @keyframes cursor {
+        0% {
+          opacity: 0;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+    }
+  }
+
+  &__right {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.nav {
+  &__separator {
+    border: 1px solid $color;
+    height: 24px;
+    margin-right: 16px;
+  }
+
+  &__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  &__toggler {
+    fill: currentColor;
+  }
+}
