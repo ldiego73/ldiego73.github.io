@@ -5,3 +5,19 @@
  */
 
 // You can delete this file if you're not using it
+
+export const onServiceWorkerUpdateReady = () => {
+  let answer
+
+  if (process.env.NODE_ENV !== "production") {
+    answer = window.confirm(
+      "This application has been updated. Reload to display the latest version?"
+    )
+  } else {
+    answer = true
+  }
+
+  if (answer === true) {
+    window.location.reload()
+  }
+}
