@@ -35,8 +35,6 @@ const TopButton = () => {
       window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  console.log(showScroll)
-
   return (
     <button
       className="top-button"
