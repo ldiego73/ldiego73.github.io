@@ -1,0 +1,23 @@
+@import "../../styles/variables";
+
+.top-button {
+  display: none;
+  background: 0 0;
+  border: none;
+  outline: 0;
+  width: 40px;
+  position: fixed;
+  bottom: 25px;
+  right: 10px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.02, 0.01, 0.47, 1);
+
+  img {
+    width: 100%;
+  }
+
+  &:hover,
+  &:focus {
+    transform: translateY(-10px);
+  }
+}
