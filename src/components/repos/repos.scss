@@ -1,0 +1,120 @@
+@import "../../styles/variables";
+
+.repos {
+  margin-bottom: 120px;
+
+  .container {
+    flex-direction: column;
+    padding: 0 64px;
+  }
+
+  &__title {
+    font-size: $title-size;
+    margin: 0;
+    margin-bottom: $margin * 2;
+    text-transform: uppercase;
+  }
+
+  &__projects {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 auto;
+  }
+
+  &__project {
+    display: flex;
+    justify-content: space-between;
+    flex-direction: column;
+    width: calc(33.33% - #{$padding});
+    background: $secondary;
+    border-radius: $border-radius;
+    margin: 8px;
+    padding: $padding * 2;
+    transition: all 0.25s cubic-bezier(0.02, 0.01, 0.47, 1);
+
+    &:hover,
+    &:focus {
+      transform: translateY(-5px);
+    }
+  }
+
+  &__name {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    margin-bottom: 16px;
+
+    a {
+      font-weight: 700;
+      color: $color;
+      text-decoration: none;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    em {
+      margin-right: 8px;
+    }
+  }
+
+  &__description {
+    font-size: 14px;
+    margin-bottom: $margin * 2;
+  }
+
+  &__stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+
+    .language {
+      margin-right: 16px;
+    }
+
+    .start {
+      margin-right: 16px;
+
+      em {
+        margin-right: 4px;
+      }
+    }
+
+    .fork {
+      em {
+        margin-right: 4px;
+      }
+    }
+
+    &-left {
+      flex-grow: 1;
+      display: flex;
+    }
+  }
+
+  @media screen and (max-width: 1024px) {
+    .container {
+      margin: 0 64px;
+      padding: 0;
+    }
+
+    &__project {
+      width: calc(50% - #{$padding});
+    }
+  }
+
+  @media screen and (max-width: 768px) {
+    .container {
+      margin: 0 48px;
+    }
+
+    &__project {
+      width: 100%;
+    }
+  }
+
+  @media screen and (max-width: 576px) {
+    .container {
+      margin: 0 24px;
+    }
+  }
+}
