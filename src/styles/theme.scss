@@ -1,11 +1,12 @@
 @import "variables";
-@import "input";
-@import "button";
-@import "container";
+@import "components/input";
+@import "components/button";
+@import "components/container";
 
-@import "timeline";
-@import "skills";
-@import "not-found";
+@import "components/timeline";
+@import "components/skills";
+
+@import "pages/not-found";
 
 ::after,
 ::before {

@@ -1,7 +1,7 @@
 {
   "name": "personal-site",
   "private": true,
-  "description": "Personal Site using Github Pages with Gatsby",
+  "description": "Personal Site using Gatsby and Github Pages",
   "version": "1.0.0",
   "author": "Luis Diego <lfdiego7@gmail.com>",
   "dependencies": {
