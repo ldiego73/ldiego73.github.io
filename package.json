@@ -35,7 +35,8 @@
   ],
   "license": "MIT",
   "scripts": {
-    "build": "gatsby build && gh-pages -d public -b master",
+    "build": "gatsby build",
+    "deploy": "gh-pages -d public -b master",
     "develop": "gatsby develop",
     "format": "prettier --write \"**/*.{js,jsx,json,md}\"",
     "start": "npm run develop",
@@ -45,9 +46,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gatsbyjs/gatsby-starter-default"
+    "url": "https://github.com/ldiego73/ldiego73.github.io"
   },
   "bugs": {
-    "url": "https://github.com/gatsbyjs/gatsby/issues"
+    "url": "https://github.com/ldiego73/ldiego73.github.io/issues"
   }
 }
