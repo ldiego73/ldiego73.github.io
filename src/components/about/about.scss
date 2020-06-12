@@ -22,7 +22,7 @@ $profile-size: 320px;
     text-align: center;
 
     img {
-      height: $profile-size;
+      height: 100%;
       border-radius: $border-radius;
       box-shadow: $box-shadow;
     }
@@ -38,6 +38,12 @@ $profile-size: 320px;
     }
   }
 
+  @media screen and (max-width: 1024px) {
+    .container {
+      flex-direction: row;
+    }
+  }
+
   @media screen and (max-width: 768px) {
     margin: 60px 0;
 
@@ -50,18 +56,16 @@ $profile-size: 320px;
       max-width: none;
     }
 
+    &__profile {
+      height: 360px;
+    }
+
     &__details {
-      padding: $padding 72px;
+      padding: 0;
 
       a {
         display: block;
       }
-    }
-  }
-
-  @media screen and (max-width: 576px) {
-    &__details {
-      padding: $padding 24px;
     }
   }
 }
