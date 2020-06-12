@@ -20,7 +20,6 @@
     "gatsby-plugin-webfonts": "^1.1.2",
     "gatsby-source-filesystem": "^2.3.8",
     "gatsby-transformer-sharp": "^2.5.3",
-    "gh-pages": "^3.0.0",
     "node-sass": "^4.14.1",
     "prop-types": "^15.7.2",
     "react": "^16.12.0",
@@ -36,7 +35,6 @@
   "license": "MIT",
   "scripts": {
     "build": "gatsby build",
-    "deploy": "gh-pages -d public -b master",
     "develop": "gatsby develop",
     "format": "prettier --write \"**/*.{js,jsx,json,md}\"",
     "start": "npm run develop",
