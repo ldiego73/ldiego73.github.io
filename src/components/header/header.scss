@@ -1,5 +1,8 @@
 @import "../../styles/variables";
 
+$linear: all 0.5s ease-out;
+$cubic: cubic-bezier(0.4, 0.01, 0.165, 0.99);
+
 header {
   display: flex;
   align-items: center;
@@ -8,6 +11,7 @@ header {
   padding: $padding;
   background: $secondary;
   box-shadow: $box-shadow;
+  height: $header-height;
 }
 
 .header {
@@ -75,9 +79,17 @@ header {
     text-decoration: none;
     color: $color;
     text-transform: uppercase;
-    padding: .5rem .75rem;
+    padding: 0.5rem 0.75rem;
 
-    &:hover, &:focus {
+    &.mobile {
+      display: block;
+      width: 100%;
+      line-height: 2.35;
+      font-size: 1.5rem;
+    }
+
+    &:hover,
+    &:focus {
       background: $primary;
     }
 
@@ -85,24 +97,124 @@ header {
       background: $tertiary;
     }
   }
-}
 
-.nav {
-  &__separator {
-    border: 1px solid $color;
-    height: 24px;
-    margin-right: 16px;
-  }
-
-  &__toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
+  &__menu {
+    color: $color;
     cursor: pointer;
+    display: block;
+    height: 52px;
+    position: relative;
+    width: 52px;
+    margin-top: -16px;
+    margin-bottom: -16px;
+    margin-right: -12px;
+    display: none;
+
+    &:hover,
+    &:focus {
+      background: $primary;
+    }
+
+    &:active {
+      background: $tertiary;
+    }
+
+    span {
+      background-color: $color;
+      display: block;
+      height: 1px;
+      left: calc(50% - 8px);
+      position: absolute;
+      transform-origin: center;
+      transition-duration: 86ms;
+      transition-property: background-color, opacity, transform;
+      transition-timing-function: ease-out;
+      width: 16px;
+
+      &:nth-child(1) {
+        top: calc(50% - 6px);
+      }
+
+      &:nth-child(2) {
+        top: calc(50% - 1px);
+      }
+
+      &:nth-child(3) {
+        top: calc(50% + 4px);
+      }
+    }
+
+    &.is-active {
+      span {
+        &:nth-child(1) {
+          transform: translateY(5px) rotate(45deg);
+        }
+
+        &:nth-child(2) {
+          opacity: 0;
+        }
+
+        &:nth-child(3) {
+          transform: translateY(-5px) rotate(-45deg);
+        }
+      }
+    }
   }
 
-  &__toggler {
-    fill: currentColor;
+  &__mobile {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    top: $header-height;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: calc(100vh - #{$header-height});
+    background: $secondary;
+    padding: 8%;
+    opacity: 0;
+    visibility: hidden;
+    z-index: 1000;
+    transition: $linear;
+
+    a.header__link {
+      opacity: 0;
+      transition: transform 0.5s $cubic, opacity 0.6s $cubic;
+      transform: scale(1.15) translateY(-30px);
+
+      @for $i from 1 through 4 {
+        &:nth-child(#{$i}) {
+          transition-delay: #{0.56 - ($i * 0.07)}s;
+        }
+      }
+    }
+
+    &.open {
+      opacity: 1;
+      visibility: visible;
+
+      a.header__link {
+        transform: scale(1) translateY(0px);
+        opacity: 1;
+        @for $i from 1 through 4 {
+          &:nth-child(#{$i}) {
+            transition-delay: #{0.07 * $i + 0.2}s;
+          }
+        }
+      }
+    }
+  }
+
+  @media screen and (max-width: 768px) {
+    &__link {
+      display: none;
+    }
+
+    &__menu {
+      display: block;
+    }
   }
 }
