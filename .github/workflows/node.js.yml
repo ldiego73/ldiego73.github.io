@@ -18,6 +18,9 @@ jobs:
         uses: actions/checkout@v2
         with:
           persist-credentials: false
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
 
       - name: Use Node.js
         uses: actions/setup-node@v1
@@ -31,4 +34,4 @@ jobs:
         run: yarn build
 
       - name: Deploy
-        run: yarn deploy -r https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        run: yarn deploy
