@@ -69,6 +69,22 @@ header {
     flex-direction: row;
     align-items: center;
   }
+
+  &__link {
+    line-height: 1.5;
+    text-decoration: none;
+    color: $color;
+    text-transform: uppercase;
+    padding: .5rem .75rem;
+
+    &:hover, &:focus {
+      background: $primary;
+    }
+
+    &:active {
+      background: $tertiary;
+    }
+  }
 }
 
 .nav {

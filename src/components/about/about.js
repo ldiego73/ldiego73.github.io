@@ -8,7 +8,7 @@ const resumeLink =
   "https://docs.google.com/document/d/17UguL4pk7N8iv3PJltWHz7reYeM2xXoaMyR1x3cWg40/edit?usp=sharing"
 
 const About = () => (
-  <section className="about">
+  <section id="about" className="about">
     <div className="container">
       <div className="about__profile">
         <img src={profile} alt="Luis Diego" />

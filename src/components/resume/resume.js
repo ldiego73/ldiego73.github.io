@@ -109,7 +109,7 @@ const personalSkills = [
 ]
 
 const Resume = () => (
-  <section className="resume">
+  <section id="resume" className="resume">
     <div className="container">
       <h3 className="resume__title">Resume</h3>
       <div className="resume__content">

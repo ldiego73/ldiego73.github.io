@@ -32,7 +32,7 @@ const Repos = () => {
   }, [])
 
   return (
-    <section className="repos">
+    <section id="repos" className="repos">
       <div className="container">
         <h3 className="repos__title">Repositories</h3>
         <div className="repos__projects">
