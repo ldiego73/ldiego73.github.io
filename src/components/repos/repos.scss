@@ -103,6 +103,12 @@
   }
 
   @media screen and (max-width: 768px) {
+    margin-bottom: 60px;
+
+    &__title {
+      margin-bottom: $margin + 8;
+    }
+
     .container {
       margin: 0 48px;
     }

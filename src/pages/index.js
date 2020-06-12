@@ -5,6 +5,7 @@ import { Welcome } from "@components/welcome"
 import { About } from "@components/about"
 import { Resume } from "@components/resume"
 import { Repos } from "@components/repos"
+import { Contact } from "@components/contact"
 import { SEO } from "@components/seo"
 
 const IndexPage = () => (
@@ -14,6 +15,7 @@ const IndexPage = () => (
     <About />
     <Resume />
     <Repos />
+    <Contact />
   </Layout>
 )
 

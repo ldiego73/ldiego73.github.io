@@ -1,0 +1,144 @@
+@import "../../styles/variables";
+
+.contact {
+  margin-bottom: 120px;
+
+  .container {
+    flex-direction: column;
+    padding: 0 64px;
+  }
+
+  &__title {
+    font-size: $title-size;
+    margin: 0;
+    margin-bottom: $margin * 2;
+    text-transform: uppercase;
+  }
+
+  &__content {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  &__address {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__phone,
+  &__email {
+    display: flex;
+    flex-direction: row;
+  }
+
+  &__icon {
+    margin-right: 24px;
+
+    em {
+      font-size: 24px;
+    }
+  }
+
+  &__detail {
+    h5 {
+      margin: 0;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin: 0;
+      margin-bottom: $margin * 2;
+    }
+  }
+
+  &__form {
+    flex-grow: 1;
+
+    form {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    &__group {
+      max-width: 50%;
+      flex: 0 0 50%;
+      padding: 0 $padding;
+    }
+
+    &__message {
+      max-width: 100%;
+      flex: 0 0 100%;
+      padding: 0 $padding;
+
+      p {
+        margin-bottom: 0;
+      }
+
+      .error {
+        color: $color-error;
+      }
+    }
+
+    &__send {
+      max-width: 100%;
+      flex: 0 0 100%;
+      text-align: right;
+      padding: $padding;
+    }
+  }
+
+  &__name,
+  &__email {
+    width: 304px;
+    margin-bottom: $margin;
+  }
+
+  &__message {
+    height: 188px;
+  }
+
+  @media screen and (max-width: 1024px) {
+    .container {
+      flex-direction: column;
+      margin: 0 64px;
+      padding: 0;
+    }
+
+    &__content {
+      flex-direction: column;
+    }
+
+    &__form__group {
+      max-width: 100%;
+      flex: 0 0 100%;
+    }
+
+    &__name,
+    &__email {
+      width: 100%;
+    }
+
+    &__captcha {
+      margin-bottom: $margin;
+    }
+  }
+
+  @media screen and (max-width: 768px) {
+    margin-bottom: 60px;
+
+    &__title {
+      margin-bottom: $margin + 8;
+    }
+
+    .container {
+      margin: 0 48px;
+    }
+  }
+
+  @media screen and (max-width: 576px) {
+    .container {
+      margin: 0 24px;
+    }
+  }
+}

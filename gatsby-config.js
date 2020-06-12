@@ -1,3 +1,7 @@
+require("dotenv").config({
+  path: `.env`,
+})
+
 module.exports = {
   siteMetadata: {
     title: `Luis Diego`,
@@ -20,7 +24,11 @@ module.exports = {
     {
       resolve: `gatsby-plugin-preconnect`,
       options: {
-        domains: [`https://fonts.gstatic.com`, `https://use.fontawesome.com`],
+        domains: [
+          `https://fonts.gstatic.com`,
+          `https://www.google.com`,
+          `https://use.fontawesome.com`,
+        ],
       },
     },
     {

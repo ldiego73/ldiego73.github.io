@@ -23,6 +23,7 @@
   color: $secondary;
 
   cursor: pointer;
+  transition: $theme-transition;
 
   &:hover,
   &:focus {
