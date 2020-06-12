@@ -5,22 +5,16 @@
   overflow: hidden;
 
   @media screen and (max-width: 1024px) {
-    .container {
-      flex-direction: column;
-      margin: 0 64px;
-      padding: 0;
-    }
+    flex-direction: column;
+    margin: 0 64px;
+    padding: 0;
   }
 
   @media screen and (max-width: 768px) {
-    .container {
-      margin: 0 48px;
-    }
+    margin: 0 48px;
   }
 
   @media screen and (max-width: 576px) {
-    .container {
-      margin: 0 24px;
-    }
+    margin: 0 24px;
   }
 }
