@@ -7,11 +7,14 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
+  position: fixed;
+  top: 0;
   padding: $padding;
+  width: 100%;
+  height: $header-height;
   background: $secondary;
   box-shadow: $box-shadow;
-  height: $header-height;
+  z-index: 1000;
 }
 
 .header {
@@ -177,7 +180,6 @@ header {
     padding: 8%;
     opacity: 0;
     visibility: hidden;
-    z-index: 1000;
     transition: $linear;
 
     a.header__link {

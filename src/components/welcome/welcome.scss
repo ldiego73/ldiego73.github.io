@@ -6,6 +6,7 @@
   justify-content: center;
   padding: 120px 100px;
   margin: 0 auto;
+  margin-top: $header-height;
   height: calc(100vh - #{$header-height});
   max-width: $width;
   box-sizing: border-box;
