@@ -50,6 +50,7 @@ module.exports = {
       options: {
         alias: {
           "@src": `src`,
+          "@data": `src/data`,
           "@components": `src/components`,
           "@hooks": `src/hooks`,
           "@images": `src/images`,

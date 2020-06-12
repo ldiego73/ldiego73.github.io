@@ -99,12 +99,6 @@
   }
 
   @media screen and (max-width: 1024px) {
-    .container {
-      flex-direction: column;
-      margin: 0 64px;
-      padding: 0;
-    }
-
     &__content {
       flex-direction: column;
     }
@@ -129,16 +123,6 @@
 
     &__title {
       margin-bottom: $margin + 8;
-    }
-
-    .container {
-      margin: 0 48px;
-    }
-  }
-
-  @media screen and (max-width: 576px) {
-    .container {
-      margin: 0 24px;
     }
   }
 }

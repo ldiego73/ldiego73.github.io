@@ -3,34 +3,7 @@ import React from "react"
 import { useHover } from "@hooks/use-hover"
 
 import "./welcome.scss"
-
-const links = [
-  {
-    url: "https://github.com/ldiego73",
-    name: "Github",
-    icon: "fab fa-github",
-  },
-  {
-    url: "https://pe.linkedin.com/in/ldiego73",
-    name: "Linkedin",
-    icon: "fab fa-linkedin",
-  },
-  {
-    url: "https://twitter.com/ldiego73",
-    name: "Twitter",
-    icon: "fab fa-twitter",
-  },
-  {
-    url: "https://www.instagram.com/ldiego73",
-    name: "Instagram",
-    icon: "fab fa-instagram",
-  },
-  {
-    url: "mailto:lfdiego7@gmail.com",
-    name: "Email",
-    icon: "far fa-envelope",
-  },
-]
+import links from "@data/links.json"
 
 const Welcome = () => {
   const [hoverRef, isHovered] = useHover()

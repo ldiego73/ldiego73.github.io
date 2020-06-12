@@ -92,11 +92,6 @@
   }
 
   @media screen and (max-width: 1024px) {
-    .container {
-      margin: 0 64px;
-      padding: 0;
-    }
-
     &__project {
       width: calc(50% - #{$padding});
     }
@@ -109,18 +104,8 @@
       margin-bottom: $margin + 8;
     }
 
-    .container {
-      margin: 0 48px;
-    }
-
     &__project {
       width: 100%;
-    }
-  }
-
-  @media screen and (max-width: 576px) {
-    .container {
-      margin: 0 24px;
     }
   }
 }

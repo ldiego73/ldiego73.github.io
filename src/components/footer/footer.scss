@@ -1,0 +1,40 @@
+@import "../../styles/variables";
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 48px 0 24px;
+  background: $secondary;
+  box-shadow: $box-shadow;
+
+  .container {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+.footer__links {
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li {
+      display: inline-block;
+      padding: 8px;
+    }
+
+    a {
+      display: inline-block;
+      text-decoration: none;
+    }
+
+    em {
+      color: #fafafa;
+      padding: 8px;
+      font-size: 24px;
+    }
+  }
+}
