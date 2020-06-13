@@ -46,6 +46,12 @@ jobs:
           name: public
           path: public
 
+      - name: Archive test results
+        uses: actions/upload-artifact@v1
+        with:
+          name: test-report
+          path: reports/test.html
+
       - name: Archive code coverage results
         uses: actions/upload-artifact@v1
         with:

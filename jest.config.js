@@ -19,6 +19,17 @@ module.exports = {
   globals: {
     __PATH_PREFIX__: ``,
   },
+  reporters: [
+    `default`,
+    [
+      `jest-html-reporters`,
+      {
+        publicPath: `reports`,
+        filename: `test.html`,
+        pageTitle: `Personal Site Test`
+      },
+    ],
+  ],
   collectCoverage: true,
   collectCoverageFrom: [`src/**/*.js`, `!**/node_modules/**`],
   coverageReporters: [`json`, `text`, `html`],
