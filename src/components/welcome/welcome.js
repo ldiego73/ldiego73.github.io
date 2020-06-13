@@ -14,6 +14,7 @@ const Welcome = () => {
         Hello!, I'm Luis Diego{" "}
         <span
           ref={hoverRef}
+          data-testid="welcome-wave"
           className={`emoji wave-hand animated ${isHovered ? "wave" : ""}`}
         ></span>
       </h1>

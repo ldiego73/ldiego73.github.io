@@ -3,15 +3,17 @@ import axios from "axios"
 
 import "./repos.scss"
 
+export const URL = "https://api.github.com/users/ldiego73/repos?per_page=100"
+
 const Repos = () => {
   const [repos, setRepos] = useState(null)
 
   const getRepos = async () => {
-    const { data } = await axios.get(
-      "https://api.github.com/users/ldiego73/repos?per_page=100"
-    )
+    const { data } = await axios.get(URL)
 
     const filters = data.filter(d => d.fork === false)
+
+    /* istanbul ignore next */
     const sorted = filters.sort((x, y) => {
       if (x.stargazers_count < y.stargazers_count) {
         return 1
@@ -38,7 +40,11 @@ const Repos = () => {
         <div className="repos__projects">
           {repos &&
             repos.map((r, i) => (
-              <div key={`repo-${i}`} className="repos__project">
+              <div
+                key={`repo-${i}`}
+                className="repos__project"
+                data-testid={`repo-project-${i}`}
+              >
                 <div className="repos__top">
                   <div className="repos__name">
                     <a

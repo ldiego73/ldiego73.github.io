@@ -13,6 +13,7 @@ const TopButton = () => {
       window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
+  /* istanbul ignore next */
   const handleScroll = () => {
     if (typeof window !== "undefined") {
       if (
@@ -41,6 +42,7 @@ const TopButton = () => {
       aria-label="Top Button"
       onClick={scrollTop}
       style={{ display: showScroll ? "block" : "none" }}
+      data-testid="top-button"
     >
       <img src={pointingUp} alt="Top Button" />
     </button>

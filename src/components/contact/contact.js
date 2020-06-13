@@ -3,6 +3,8 @@ import axios from "axios"
 
 import "./contact.scss"
 
+export const URL = "https://getform.io/f/22a53547-bbe8-47ae-a1f0-d079486df4c4"
+
 const Contact = () => {
   const [serverState, setServerState] = useState({
     submitting: false,
@@ -28,7 +30,7 @@ const Contact = () => {
 
     axios({
       method: "post",
-      url: "https://getform.io/f/22a53547-bbe8-47ae-a1f0-d079486df4c4",
+      url: URL,
       data: new FormData(form),
     })
       .then(r => {
@@ -100,14 +102,14 @@ const Contact = () => {
                 ></textarea>
               </div>
               {serverState.status && (
-                <div className="contact__form__message">
+                <div className="contact__form__message" data-testid="server-status">
                   <p className={!serverState.status.ok ? "error" : ""}>
                     {serverState.status.msg}
                   </p>
                 </div>
               )}
               <div className="contact__form__send">
-                <button className="button" disabled={serverState.submitting}>
+                <button className="button" disabled={serverState.submitting} data-testid="send">
                   Send Message
                 </button>
               </div>

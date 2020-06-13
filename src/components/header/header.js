@@ -69,6 +69,7 @@ const Header = () => {
             aria-label="menu"
             aria-expanded="false"
             onClick={handleToogle}
+            data-testid="header-menu"
           >
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
