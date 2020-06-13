@@ -1,8 +1,8 @@
 import * as React from "react"
-import { render } from "@testing-library/react"
 import { Helmet } from "react-helmet"
+import { render } from "@testing-library/react"
 
-import { SEO } from "../seo"
+import Index from "../index"
 
 import { useStaticQuery } from "../../../__mocks__/gatsby"
 
@@ -16,13 +16,13 @@ useStaticQuery.mockImplementation(() => ({
   site,
 }))
 
-describe(`SEO`, () => {
+describe(`Index`, () => {
   it("renders correctly", () => {
-    const siteTitle = "Home"
+    const { container } = render(<Index />)
 
-    render(<SEO title={siteTitle} />)
     const helmet = Helmet.peek()
 
-    expect(helmet.title).toBe(`${siteTitle} | ${site.siteMetadata.title}`)
+    expect(container).toBeInTheDocument()
+    expect(helmet.title).toBe(`Home | ${site.siteMetadata.title}`)
   })
 })

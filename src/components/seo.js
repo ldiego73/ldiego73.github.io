@@ -10,7 +10,21 @@ import PropTypes from "prop-types"
 import { Helmet } from "react-helmet"
 import { useStaticQuery, graphql } from "gatsby"
 
-const PureSEO = ({ site, description, lang, meta, title }) => {
+const SEO = ({ description, lang, meta, title }) => {
+  const { site } = useStaticQuery(
+    graphql`
+      query {
+        site {
+          siteMetadata {
+            title
+            description
+            author
+          }
+        }
+      }
+    `
+  )
+
   const metaDescription = description || site.siteMetadata.description
 
   return (
@@ -69,39 +83,6 @@ const PureSEO = ({ site, description, lang, meta, title }) => {
   )
 }
 
-/* istanbul ignore next */
-const SEO = ({ description, lang, meta, title }) => {
-  const { site } = useStaticQuery(
-    graphql`
-      query {
-        site {
-          siteMetadata {
-            title
-            description
-            author
-          }
-        }
-      }
-    `
-  )
-
-  return (
-    <PureSEO
-      site={site}
-      description={description}
-      lang={lang}
-      meta={meta}
-      title={title}
-    />
-  )
-}
-
-PureSEO.defaultProps = {
-  lang: `en`,
-  meta: [],
-  description: ``,
-}
-
 SEO.defaultProps = {
   lang: `en`,
   meta: [],
@@ -115,4 +96,4 @@ SEO.propTypes = {
   title: PropTypes.string.isRequired,
 }
 
-export { PureSEO, SEO }
+export { SEO }

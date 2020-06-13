@@ -10,6 +10,7 @@ export function useHover() {
     const handleMouseOut = () => setValue(false)
     const element = ref && ref.current
 
+    /* istanbul ignore next */
     if (element) {
       element.addEventListener("mouseover", handleMouseOver)
       element.addEventListener("mouseout", handleMouseOut)

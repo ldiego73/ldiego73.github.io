@@ -34,6 +34,7 @@ const Header = () => {
     setOpen(false)
   }
 
+  /* istanbul ignore next */
   useEffect(() => {
     if (typeof window !== "undefined") {
       if (opened) {
