@@ -36,6 +36,7 @@ module.exports = {
   collectCoverageFrom: [`src/**/*.js`, `!**/node_modules/**`],
   coverageReporters: [`json`, `text`, `lcov`, `html`],
   coverageDirectory: `reports/coverage`,
+  testResultsProcessor: `jest-sonar-reporter`,
   testURL: `http://localhost`,
   setupFilesAfterEnv: [`<rootDir>/jest.setup.js`],
   setupFiles: [`<rootDir>/loadershim.js`],
