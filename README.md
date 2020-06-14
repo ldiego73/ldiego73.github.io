@@ -1,6 +1,8 @@
 # Personal Site
 
 ![Personal Site](https://github.com/ldiego73/ldiego73.github.io/workflows/Personal%20Site%20CI/badge.svg)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ldiego73_ldiego73.github.io&metric=alert_status)](https://sonarcloud.io/dashboard?id=ldiego73_ldiego73.github.io)
+[![Coverage Status](https://coveralls.io/repos/github/ldiego73/ldiego73.github.io/badge.svg?branch=develop)](https://coveralls.io/github/ldiego73/ldiego73.github.io?branch=develop)
 
 Personal Site using Gatsby and Github Pages
 

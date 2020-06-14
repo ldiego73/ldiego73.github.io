@@ -43,11 +43,16 @@ jobs:
           publish_branch: master
           publish_dir: ./public
 
+      - name: Code Quality
+        uses: sonarsource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
       - name: Coverage
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          flag-name: Unit
           path-to-lcov: reports/coverage/lcov.info
 
       - name: Archive production artifacts
