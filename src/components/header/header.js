@@ -48,7 +48,12 @@ const Header = () => {
   return (
     <header>
       <div className="header__inner">
-        <Link to="/" aria-label="Home" className="header__logo">
+        <Link
+          to="/"
+          aria-label="Home"
+          className="header__logo"
+          data-testid="header-home"
+        >
           <span className="header__logo__mark">&gt;</span>
           <span className="header__logo__text">/home</span>
           <span className="header__logo__cursor"> </span>
@@ -60,6 +65,7 @@ const Header = () => {
               href={l.to}
               className="header__link"
               arial-label={l.title}
+              data-testid={l.title.toLowerCase()}
             >
               {l.title}
             </a>

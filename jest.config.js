@@ -16,7 +16,7 @@ module.exports = {
     "^@styles(.*)$": "<rootDir>/src/styles$1",
     "^@utils(.*)$": "<rootDir>/src/utils$1",
   },
-  testPathIgnorePatterns: [`node_modules`, `.cache`],
+  testPathIgnorePatterns: [`node_modules`, `.cache`, `cypress`],
   transformIgnorePatterns: [`node_modules/(?!(gatsby)/)`],
   globals: {
     __PATH_PREFIX__: ``,
@@ -26,9 +26,9 @@ module.exports = {
     [
       `jest-html-reporters`,
       {
-        publicPath: `reports`,
-        filename: `test.html`,
-        pageTitle: `Personal Site Test`
+        publicPath: `reports/test`,
+        filename: `result.html`,
+        pageTitle: `Personal Site - Unit Test`,
       },
     ],
   ],

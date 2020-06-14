@@ -1,0 +1,14 @@
+{
+  "baseUrl": "http://localhost:8000/",
+  "integrationFolder": "cypress/e2e",
+  "screenshotsFolder": "reports/e2e/screenshots",
+  "videosFolder": "reports/e2e/videos",
+  "videoCompression": 23,
+  "reporter": "mochawesome",
+  "reporterOptions": {
+    "reportDir": "reports/e2e/results",
+    "overwrite": false,
+    "html": false,
+    "json": true
+  }
+}

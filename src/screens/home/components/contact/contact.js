@@ -18,8 +18,10 @@ const Contact = () => (
               <em className="fas fa-phone" />
             </div>
             <div className="contact__detail">
-              <h5>{data.contact.phone}</h5>
-              <p>{data.contact.availability}</p>
+              <div className="contact__detail__title">{data.contact.phone}</div>
+              <p className="contact_detail__info">
+                {data.contact.availability}
+              </p>
             </div>
           </div>
           <div className="contact__email">
@@ -27,8 +29,8 @@ const Contact = () => (
               <em className="fas fa-envelope" />
             </div>
             <div className="contact__detail">
-              <h5>{data.contact.email}</h5>
-              <p>{data.contact.query}</p>
+              <div className="contact__detail__title">{data.contact.email}</div>
+              <p className="contact_detail__info">{data.contact.query}</p>
             </div>
           </div>
         </div>

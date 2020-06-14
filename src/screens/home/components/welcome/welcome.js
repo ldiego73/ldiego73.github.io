@@ -38,6 +38,7 @@ const Welcome = () => {
                 href={l.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                data-testid={l.name.toLowerCase()}
                 aria-label={l.name}
               >
                 <em className={l.icon} />

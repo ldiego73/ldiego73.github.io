@@ -40,13 +40,13 @@
   }
 
   &__detail {
-    h5 {
+    &__title {
       margin: 0;
       font-size: 16px;
       margin-bottom: 8px;
     }
 
-    p {
+    &__info {
       margin: 0;
       margin-bottom: $margin * 2;
     }

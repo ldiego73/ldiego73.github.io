@@ -27,10 +27,14 @@
     "react-helmet": "^6.0.0"
   },
   "devDependencies": {
+    "@testing-library/cypress": "^6.0.0",
     "@testing-library/jest-dom": "^5.10.0",
     "@testing-library/react": "^10.2.1",
+    "axe-core": "^3.5.4",
     "babel-jest": "^26.0.1",
     "babel-preset-gatsby": "^0.4.9",
+    "cypress": "^4.8.0",
+    "cypress-axe": "^0.8.1",
     "eslint": "^7.2.0",
     "eslint-config-airbnb": "^18.1.0",
     "eslint-config-prettier": "^6.11.0",
@@ -43,9 +47,13 @@
     "identity-obj-proxy": "^3.0.0",
     "jest": "^26.0.1",
     "jest-html-reporters": "^1.2.1",
+    "mochawesome": "^6.1.1",
+    "mochawesome-merge": "^4.1.0",
+    "mochawesome-report-generator": "^5.1.0",
     "msw": "^0.19.1",
     "prettier": "2.0.5",
-    "react-test-renderer": "^16.13.1"
+    "react-test-renderer": "^16.13.1",
+    "start-server-and-test": "^1.11.0"
   },
   "keywords": [
     "gatsby",
@@ -56,13 +64,18 @@
   "license": "MIT",
   "scripts": {
     "lint": "eslint --ignore-path .gitignore src -f stylish",
+    "format": "prettier --write \"**/*.{js,jsx,json,md}\"",
     "build": "gatsby build",
     "develop": "gatsby develop",
-    "format": "prettier --write \"**/*.{js,jsx,json,md}\"",
-    "start": "npm run develop",
+    "cy:open": "cypress open",
+    "cy:run": "cypress run",
+    "start": "yarn develop",
     "serve": "gatsby serve",
     "clean": "gatsby clean",
-    "test": "jest --passWithNoTests"
+    "test:unit": "jest --passWithNoTests",
+    "test:e2e": "start-server-and-test develop http://localhost:8000 cy:open",
+    "test:e2e:ci": "start-server-and-test develop http://localhost:8000 cy:run",
+    "posttest:e2e:ci": "node cypress-report"
   },
   "repository": {
     "type": "git",

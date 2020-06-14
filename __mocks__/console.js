@@ -14,4 +14,3 @@ const mockConsoleMethod = realConsoleMethod => {
 
 console.warn = jest.fn(mockConsoleMethod(console.warn))
 console.error = jest.fn(mockConsoleMethod(console.error))
-

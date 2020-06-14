@@ -25,6 +25,7 @@ const About = () => (
           rel="noopener noreferrer"
           aria-label="Resume"
           className="button"
+          data-testid="resume-download"
         >
           {data.about.download}
         </a>

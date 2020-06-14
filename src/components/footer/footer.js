@@ -18,6 +18,7 @@ const Footer = () => (
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={l.name}
+                data-testid={`footer-${l.name.toLowerCase()}`}
               >
                 <em className={l.icon} />
               </a>
