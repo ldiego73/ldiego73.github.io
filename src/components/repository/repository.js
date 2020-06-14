@@ -12,8 +12,9 @@ const Repository = ({
   forks,
   size,
   className,
+  ...props
 }) => (
-  <div className={`repository ${className}`}>
+  <div className={`repository ${className}`} {...props}>
     <div className="repository__top">
       <div className="repository__name">
         <a

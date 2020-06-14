@@ -66,6 +66,9 @@ rules:
   react/display-name: 0
   react/jsx-filename-extension: 0
   react/jsx-key: 1
+  react/jsx-props-no-spreading:
+    - 2
+    - html: "ignore"
   react/no-array-index-key: 0
   react/no-unescaped-entities: 0
   react/prop-types: 0
