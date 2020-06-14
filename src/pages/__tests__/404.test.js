@@ -1,10 +1,9 @@
+import { render } from "@testing-library/react"
 import * as React from "react"
 import { Helmet } from "react-helmet"
-import { render } from "@testing-library/react"
-
-import NotFound from "../404"
 
 import { useStaticQuery } from "../../../__mocks__/gatsby"
+import NotFound from "../404"
 
 const site = {
   siteMetadata: {

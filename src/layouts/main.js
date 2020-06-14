@@ -1,10 +1,10 @@
-import React from "react"
-import PropTypes from "prop-types"
-
-import { Header } from "@components/header"
-import { Footer } from "@components/footer"
-import { TopButton } from "@components/top-button"
 import "@styles/theme.scss"
+
+import { Footer } from "@components/footer"
+import { Header } from "@components/header"
+import { TopButton } from "@components/top-button"
+import PropTypes from "prop-types"
+import React from "react"
 
 const Layout = ({ children }) => {
   return (

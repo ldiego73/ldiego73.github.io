@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react"
-import PropTypes from "prop-types"
-import { Link } from "gatsby"
-
 import "./header.scss"
+
+import { Link } from "gatsby"
+import React, { useEffect, useState } from "react"
 
 const links = [
   {
@@ -64,18 +63,17 @@ const Header = () => {
               {l.title}
             </a>
           ))}
-          <a
-            role="button"
+          <button
+            type="button"
             className={opened ? "header__menu is-active" : "header__menu"}
             aria-label="menu"
-            aria-expanded="false"
             onClick={handleToogle}
             data-testid="header-menu"
           >
-            <span aria-hidden="true"></span>
-            <span aria-hidden="true"></span>
-            <span aria-hidden="true"></span>
-          </a>
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+          </button>
         </div>
       </div>
       <div className={opened ? "header__mobile open" : "header__mobile"}>
@@ -93,14 +91,6 @@ const Header = () => {
       </div>
     </header>
   )
-}
-
-Header.propTypes = {
-  siteTitle: PropTypes.string,
-}
-
-Header.defaultProps = {
-  siteTitle: ``,
 }
 
 export { Header }

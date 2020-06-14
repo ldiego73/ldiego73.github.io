@@ -1,6 +1,5 @@
-import React from "react"
-
 import { NotFound } from "@screens/not-found"
+import React from "react"
 
 const NotFoundPage = () => <NotFound />
 

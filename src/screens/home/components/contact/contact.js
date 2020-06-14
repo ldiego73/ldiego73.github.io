@@ -1,7 +1,7 @@
-import React, { useState } from "react"
-import axios from "axios"
-
 import "./contact.scss"
+
+import axios from "axios"
+import React, { useState } from "react"
 
 export const URL = "https://getform.io/f/22a53547-bbe8-47ae-a1f0-d079486df4c4"
 
@@ -33,7 +33,7 @@ const Contact = () => {
       url: URL,
       data: new FormData(form),
     })
-      .then(r => {
+      .then(() => {
         handleServerResponse(true, "Thanks!", form)
       })
       .catch(r => {
@@ -89,7 +89,7 @@ const Contact = () => {
                     className="g-recaptcha"
                     data-theme="dark"
                     data-sitekey={process.env.GATSBY_RECAPTCHA_KEY}
-                  ></div>
+                  />
                 </div>
               </div>
               <div className="contact__form__group">
@@ -99,17 +99,25 @@ const Contact = () => {
                   name="message"
                   aria-label="Message"
                   placeholder="Enter your message"
-                ></textarea>
+                />
               </div>
               {serverState.status && (
-                <div className="contact__form__message" data-testid="server-status">
+                <div
+                  className="contact__form__message"
+                  data-testid="server-status"
+                >
                   <p className={!serverState.status.ok ? "error" : ""}>
                     {serverState.status.msg}
                   </p>
                 </div>
               )}
               <div className="contact__form__send">
-                <button className="button" disabled={serverState.submitting} data-testid="send">
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={serverState.submitting}
+                  data-testid="send"
+                >
                   Send Message
                 </button>
               </div>

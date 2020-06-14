@@ -112,14 +112,19 @@ header {
     margin-bottom: -16px;
     margin-right: -12px;
     display: none;
+    background: $secondary;
+    border: 0;
+    transition: $theme-transition;
 
     &:hover,
     &:focus {
       background: $primary;
+      outline: none;
     }
 
     &:active {
       background: $tertiary;
+      outline: none;
     }
 
     span {

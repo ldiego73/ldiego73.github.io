@@ -1,8 +1,8 @@
+import "./about.scss"
+
 import React from "react"
 
 import profile from "../../../../images/profile.jpeg"
-
-import "./about.scss"
 
 const resumeLink =
   "https://docs.google.com/document/d/17UguL4pk7N8iv3PJltWHz7reYeM2xXoaMyR1x3cWg40/edit?usp=sharing"

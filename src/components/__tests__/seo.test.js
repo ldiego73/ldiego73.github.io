@@ -1,10 +1,9 @@
-import * as React from "react"
 import { render } from "@testing-library/react"
+import * as React from "react"
 import { Helmet } from "react-helmet"
 
-import { SEO } from "../seo"
-
 import { useStaticQuery } from "../../../__mocks__/gatsby"
+import { SEO } from "../seo"
 
 const site = {
   siteMetadata: {

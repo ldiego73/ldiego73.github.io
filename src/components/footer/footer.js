@@ -1,7 +1,7 @@
-import React from "react"
-
 import "./footer.scss"
+
 import links from "@data/links.json"
+import React from "react"
 
 const Footer = () => (
   <footer>
@@ -19,7 +19,7 @@ const Footer = () => (
                 rel="noopener noreferrer"
                 aria-label={l.name}
               >
-                <em className={l.icon}></em>
+                <em className={l.icon} />
               </a>
             </li>
           ))}

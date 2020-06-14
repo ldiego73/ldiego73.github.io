@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react"
-import axios from "axios"
-
 import "./repos.scss"
+
+import axios from "axios"
+import React, { useEffect, useState } from "react"
 
 export const URL = "https://api.github.com/users/ldiego73/repos?per_page=100"
 

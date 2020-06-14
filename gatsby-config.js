@@ -58,6 +58,7 @@ module.exports = {
           "@layouts": `src/layouts`,
           "@screens": `src/screens`,
           "@styles": `src/styles`,
+          "@utils": `src/utils`,
         },
         extensions: [`js`],
       },

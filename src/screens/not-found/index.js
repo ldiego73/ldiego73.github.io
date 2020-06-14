@@ -1,7 +1,6 @@
-import React from "react"
-
-import { Layout } from "@layouts/main"
 import { SEO } from "@components/seo"
+import { Layout } from "@layouts/main"
+import React from "react"
 
 import notFound from "../../images/not-found.svg"
 

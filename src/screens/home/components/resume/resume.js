@@ -1,66 +1,8 @@
-import React from "react"
-
 import "./resume.scss"
 
-const experiences = [
-  {
-    year: 2016,
-    position: "Solutions Architect",
-    company: "Belcorp, Lima",
-    descriptions: [
-      "Implementation of the first DevOps platform for mobile applications.",
-      "Standards documentation of the main technologies .Net, Java, Kotlin, JavaScript, etc.",
-      "Using clean architecture for mobile application development.",
-      "Implementation of microservices architecture, vision and apis platform.",
-    ],
-  },
-  {
-    year: 2016,
-    position: "Associate Consultant",
-    company: "Hundred, Lima",
-    descriptions: [
-      `50% reduction in time in the synchronization process for the App "Gestiona tu Negocio".`,
-      "Implementation of an optional and/or mandatory update model for mobile applications.",
-      "First implementation of the modular pattern in Belcorp apps.",
-    ],
-  },
-  {
-    year: 2014,
-    position: "Technical Leader Mobile",
-    company: "Avances Tecnológicos",
-    descriptions: [
-      "Implementation of Architecture for Yanbal applications for Consultants (Orders, Kiosk).",
-      "Launch of the first hybrid app for Yanbal using Ionic and Angular.",
-      "Winner of the Fincyt contest for the idea of Cuponeo for MYPEs.",
-      "Definition and development of the first microservices architecture using NodeJS for the company.",
-    ],
-  },
-]
-
-const educations = [
-  {
-    year: 2014,
-    position: "Systems Engineer",
-    institute: "Universidad Peruana de las Américas, Lima",
-    descriptions: [
-      "Management and project management using PMBOK.",
-      "Installation and configuration of operating systems.",
-      "Analysis, documentation of applications.",
-      "Security and business applications.",
-    ],
-  },
-  {
-    year: 2009,
-    position: "Professional Computer and Systems Technician",
-    institute: "Cimas, Lima",
-    descriptions: [
-      "Development of web applications using PHP, ASP. NET, etc.",
-      "Development of desktop applications using Java and .Net.",
-      "Advanced use of Linux networks for server administration.",
-      "Advanced Office Management.",
-    ],
-  },
-]
+import educations from "@data/educations.json"
+import experiences from "@data/experiences.json"
+import React from "react"
 
 const technicalSkills = [
   {
@@ -126,8 +68,8 @@ const Resume = () => (
                   <span className="timeline__position">{e.position}</span>
                   <span className="timeline__company">{e.company}</span>
                   <ul className="timeline__experience">
-                    {e.descriptions.map((d, i) => (
-                      <li key={`experience-description-${i}`}>{d}</li>
+                    {e.descriptions.map((d, j) => (
+                      <li key={`experience-description-${j}`}>{d}</li>
                     ))}
                   </ul>
                 </div>
@@ -148,8 +90,8 @@ const Resume = () => (
                   <span className="timeline__position">{e.position}</span>
                   <span className="timeline__company">{e.institute}</span>
                   <ul className="timeline__experience">
-                    {e.descriptions.map((d, i) => (
-                      <li key={`education-description-${i}`}>{d}</li>
+                    {e.descriptions.map((d, j) => (
+                      <li key={`education-description-${j}`}>{d}</li>
                     ))}
                   </ul>
                 </div>
@@ -178,7 +120,7 @@ const Resume = () => (
                   <div
                     className="skills__bar-inner"
                     style={{ width: t.percentage }}
-                  ></div>
+                  />
                 </div>
               </div>
             ))}
@@ -203,7 +145,7 @@ const Resume = () => (
                   <div
                     className="skills__bar-inner"
                     style={{ width: t.percentage }}
-                  ></div>
+                  />
                 </div>
               </div>
             ))}

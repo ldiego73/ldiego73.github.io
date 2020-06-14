@@ -1,10 +1,10 @@
+import "../../../../__mocks__/console"
+
+import { act, render, waitFor } from "@testing-library/react"
 import axios from "axios"
 import * as React from "react"
-import { act, render, waitFor } from "@testing-library/react"
 
 import { Repos } from "../components/repos"
-
-import "../../../../__mocks__/console"
 
 jest.mock("axios")
 

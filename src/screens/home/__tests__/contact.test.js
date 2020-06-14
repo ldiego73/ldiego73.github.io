@@ -1,7 +1,7 @@
-import * as React from "react"
+import { fireEvent, render, waitFor } from "@testing-library/react"
 import { rest } from "msw"
 import { setupServer } from "msw/node"
-import { render, fireEvent, waitFor } from "@testing-library/react"
+import * as React from "react"
 
 import { Contact, URL } from "../components/contact"
 

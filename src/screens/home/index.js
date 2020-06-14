@@ -1,12 +1,12 @@
+import { SEO } from "@components/seo"
+import { Layout } from "@layouts/main"
 import React from "react"
 
-import { Layout } from "@layouts/main"
-import { SEO } from "@components/seo"
-import { Welcome } from "./components/welcome"
 import { About } from "./components/about"
-import { Resume } from "./components/resume"
-import { Repos } from "./components/repos"
 import { Contact } from "./components/contact"
+import { Repos } from "./components/repos"
+import { Resume } from "./components/resume"
+import { Welcome } from "./components/welcome"
 
 const Home = () => (
   <Layout>

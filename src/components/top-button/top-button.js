@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react"
-
 import "./top-button.scss"
+
+import { isBrowser } from "@utils/browser"
+import React, { useEffect, useState } from "react"
 
 import pointingUp from "../../images/pointing-up.png"
 
@@ -9,13 +10,12 @@ const TopButton = () => {
   const offset = 100
 
   const scrollTop = () => {
-    typeof window !== "undefined" &&
-      window.scrollTo({ top: 0, behavior: "smooth" })
+    isBrowser() && window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   /* istanbul ignore next */
   const handleScroll = () => {
-    if (typeof window !== "undefined") {
+    if (isBrowser()) {
       if (
         document.body.scrollTop > offset ||
         document.documentElement.scrollTop > offset
@@ -28,16 +28,16 @@ const TopButton = () => {
   }
 
   useEffect(() => {
-    typeof window !== "undefined" &&
+    isBrowser() &&
       window.addEventListener("scroll", handleScroll, { passive: true })
 
     return () =>
-      typeof window !== "undefined" &&
-      window.removeEventListener("scroll", handleScroll)
+      isBrowser() && window.removeEventListener("scroll", handleScroll)
   }, [])
 
   return (
     <button
+      type="button"
       className="top-button"
       aria-label="Top Button"
       onClick={scrollTop}

@@ -1,9 +1,8 @@
-import React from "react"
-
-import { useHover } from "@hooks/use-hover"
-
 import "./welcome.scss"
+
 import links from "@data/links.json"
+import { useHover } from "@hooks/use-hover"
+import React from "react"
 
 const Welcome = () => {
   const [hoverRef, isHovered] = useHover()
@@ -16,13 +15,13 @@ const Welcome = () => {
           ref={hoverRef}
           data-testid="welcome-wave"
           className={`emoji wave-hand animated ${isHovered ? "wave" : ""}`}
-        ></span>
+        />
       </h1>
       <h2 className="welcome__bio">
         I'm a <span className="name">Solutions Architect</span> with extensive
         experience in digital transformation projects, enterprise architecture
         and application development.&nbsp;
-        <span className="emoji technologist"></span>
+        <span className="emoji technologist" />
       </h2>
       <div className="welcome__social">
         <ul>
@@ -34,7 +33,7 @@ const Welcome = () => {
                 rel="noopener noreferrer"
                 aria-label={l.name}
               >
-                <em className={l.icon}></em>
+                <em className={l.icon} />
               </a>
             </li>
           ))}
