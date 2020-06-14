@@ -28,8 +28,7 @@
     display: flex;
   }
 
-  &__experience,
-  &__education,
+  &__timeline,
   &__skills {
     width: 50%;
 
@@ -49,8 +48,7 @@
       flex-direction: column;
     }
 
-    &__experience,
-    &__education,
+    &__timeline,
     &__skills {
       width: 100%;
     }
