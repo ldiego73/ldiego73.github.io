@@ -1,0 +1,21 @@
+{
+  "name": "Luis Diego",
+  "position": "Solutions Architect",
+  "bio": "I'm a {POSITION} with extensive experience in digital transformation projects, enterprise architecture and application development.",
+  "about": {
+    "me": "I'm an engineer passionate about technologies, the development of fantastic applications whether they are websites, mobile applications or anything else. <br /> My goal is to always build applications that are scalable, secure, and reliable, offering an excellent user experience. <br /> In my free time I like to travel and get to know new places, cultures and people. Backpacker at heart, good music and adventure.",
+    "download": "Download CV"
+  },
+  "contact": {
+    "phone": "+51 943527457",
+    "availability": "Mon to Fri 9am to 6 pm",
+    "email": "lfdiego7@gmail.com",
+    "query": "Send us your query anytime!",
+    "form": {
+      "name": "Enter your name",
+      "email": "Enter your email",
+      "message": "Enter your message",
+      "send": "Send message"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import "./contact.scss"
 
+import data from "@data/home.json"
 import axios from "axios"
 import React, { useState } from "react"
 
@@ -51,8 +52,8 @@ const Contact = () => {
                 <em className="fas fa-phone" />
               </div>
               <div className="contact__detail">
-                <h5>+51 943527457</h5>
-                <p>Mon to Fri 9am to 6 pm</p>
+                <h5>{data.contact.phone}</h5>
+                <p>{data.contact.availability}</p>
               </div>
             </div>
             <div className="contact__email">
@@ -60,8 +61,8 @@ const Contact = () => {
                 <em className="fas fa-envelope" />
               </div>
               <div className="contact__detail">
-                <h5>lfdiego7@gmail.com</h5>
-                <p>Send us your query anytime!</p>
+                <h5>{data.contact.email}</h5>
+                <p>{data.contact.query}</p>
               </div>
             </div>
           </div>
@@ -73,16 +74,16 @@ const Contact = () => {
                   required
                   type="text"
                   name="name"
-                  aria-label="Name"
-                  placeholder="Enter your name"
+                  aria-label={data.contact.form.name}
+                  placeholder={data.contact.form.name}
                 />
                 <input
                   className="contact__email"
                   required
                   type="email"
                   name="email"
-                  aria-label="Email"
-                  placeholder="Enter your email"
+                  aria-label={data.contact.form.email}
+                  placeholder={data.contact.form.email}
                 />
                 <div className="contact__captcha">
                   <div
@@ -97,8 +98,8 @@ const Contact = () => {
                   className="contact__message"
                   required
                   name="message"
-                  aria-label="Message"
-                  placeholder="Enter your message"
+                  aria-label={data.contact.form.message}
+                  placeholder={data.contact.form.message}
                 />
               </div>
               {serverState.status && (
@@ -118,7 +119,7 @@ const Contact = () => {
                   disabled={serverState.submitting}
                   data-testid="send"
                 >
-                  Send Message
+                  {data.contact.form.send}
                 </button>
               </div>
             </form>

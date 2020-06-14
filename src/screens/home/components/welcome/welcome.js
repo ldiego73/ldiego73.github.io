@@ -1,5 +1,8 @@
+/* eslint-disable react/no-danger */
+
 import "./welcome.scss"
 
+import data from "@data/home.json"
 import links from "@data/links.json"
 import { useHover } from "@hooks/use-hover"
 import React from "react"
@@ -7,10 +10,15 @@ import React from "react"
 const Welcome = () => {
   const [hoverRef, isHovered] = useHover()
 
+  const bioHtml = data.bio.replace(
+    "{POSITION}",
+    `<span class="name">${data.position}</span>`
+  )
+
   return (
     <section className="welcome">
       <h1 className="welcome__hello">
-        Hello!, I'm Luis Diego{" "}
+        Hello!, I'm {data.name}{" "}
         <span
           ref={hoverRef}
           data-testid="welcome-wave"
@@ -18,9 +26,8 @@ const Welcome = () => {
         />
       </h1>
       <h2 className="welcome__bio">
-        I'm a <span className="name">Solutions Architect</span> with extensive
-        experience in digital transformation projects, enterprise architecture
-        and application development.&nbsp;
+        <span dangerouslySetInnerHTML={{ __html: bioHtml }} />
+        &nbsp;
         <span className="emoji technologist" />
       </h2>
       <div className="welcome__social">

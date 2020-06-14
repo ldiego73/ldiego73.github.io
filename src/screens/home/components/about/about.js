@@ -1,5 +1,8 @@
+/* eslint-disable react/no-danger */
+
 import "./about.scss"
 
+import data from "@data/home.json"
 import React from "react"
 
 import profile from "../../../../images/profile.jpeg"
@@ -15,16 +18,7 @@ const About = () => (
       </div>
       <div className="about__details">
         <h3>ABOUT ME</h3>
-        <p>
-          I'm an engineer passionate about technologies, the development of
-          fantastic applications whether they are websites, mobile applications
-          or anything else. <br />
-          My goal is to always build applications that are scalable, secure, and
-          reliable, offering an excellent user experience.
-          <br />
-          In my free time I like to travel and get to know new places, cultures
-          and people. Backpacker at heart, good music and adventure.
-        </p>
+        <p dangerouslySetInnerHTML={{ __html: data.about.me }} />
         <a
           href={resumeLink}
           target="_blank"
@@ -32,7 +26,7 @@ const About = () => (
           aria-label="Resume"
           className="button"
         >
-          Download CV
+          {data.about.download}
         </a>
       </div>
     </div>
