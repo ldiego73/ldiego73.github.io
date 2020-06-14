@@ -9,7 +9,6 @@ describe("Home", () => {
     cy.visit("/")
 
     cy.wait("@loadUsers")
-    cy.wait(1000)
 
     cy.fixture("user.json").then(user => {
       this.user = user
