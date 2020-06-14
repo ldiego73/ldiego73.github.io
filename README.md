@@ -71,6 +71,7 @@ This project is structured by the next components.
 ```
 ├── src
 │   ├── components
+│   │   ├── __tests__
 │   │   ├── about
 │   │   ├── contact
 │   │   ├── footer
@@ -81,15 +82,29 @@ This project is structured by the next components.
 │   │   ├── welcome
 │   │   └── seo.js
 │   ├── data
-│   │   └── links.js
+│   │   ├── educations.json
+│   │   ├── experiences.json
+│   │   ├── home.json
+│   │   ├── links.json
+│   │   ├── personal.skills.json
+│   │   └── technical.skills.json
 │   ├── hooks
 │   │   └── use-hover.js
 │   ├── images
 │   ├── layouts
+│   │   ├── __tests__
 │   │   └── main.js
 │   ├── pages
+│   │   ├── __tests__
 │   │   ├── 404.js
 │   │   └── index.js
+│   ├── screens
+│   │   ├── home
+│   │   │   ├── __tests__
+│   │   │   ├── components
+│   │   │   └── index.js
+│   │   └── not-found
+│   │   │   └── index.js
 │   └── styles
 │   │   ├── componentes
 │   │   ├── pages
