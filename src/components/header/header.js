@@ -6,19 +6,19 @@ import "./header.scss"
 
 const links = [
   {
-    to: "#about",
+    to: "/#about",
     title: "About",
   },
   {
-    to: "#resume",
+    to: "/#resume",
     title: "Resume",
   },
   {
-    to: "#repos",
+    to: "/#repos",
     title: "Repositories",
   },
   {
-    to: "#contact",
+    to: "/#contact",
     title: "Contact",
   },
 ]

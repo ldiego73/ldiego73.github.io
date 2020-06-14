@@ -3,7 +3,7 @@ import { rest } from "msw"
 import { setupServer } from "msw/node"
 import { render, fireEvent, waitFor } from "@testing-library/react"
 
-import { Contact, URL } from "../contact"
+import { Contact, URL } from "../components/contact"
 
 const server = setupServer(
   rest.post(URL, (_, res, ctx) => {

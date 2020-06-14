@@ -1,7 +1,7 @@
 import * as React from "react"
 import { render } from "@testing-library/react"
 
-import { About } from "../about"
+import { About } from "../components/about"
 
 describe(`About`, () => {
   it("renders correctly", () => {

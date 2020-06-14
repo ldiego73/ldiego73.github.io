@@ -12,6 +12,7 @@ module.exports = {
     "^@images(.*)$": "<rootDir>/src/images$1",
     "^@pages(.*)$": "<rootDir>/src/pages$1",
     "^@layouts(.*)$": "<rootDir>/src/layouts$1",
+    "^@screens(.*)$": "<rootDir>/src/screens$1",
     "^@styles(.*)$": "<rootDir>/src/styles$1",
   },
   testPathIgnorePatterns: [`node_modules`, `.cache`],

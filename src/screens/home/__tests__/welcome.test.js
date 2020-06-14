@@ -1,7 +1,7 @@
 import * as React from "react"
-import { render, fireEvent, act } from "@testing-library/react"
+import { render, fireEvent } from "@testing-library/react"
 
-import { Welcome } from "../welcome"
+import { Welcome } from "../components/welcome"
 
 describe(`Welcome`, () => {
   it("renders correctly", () => {

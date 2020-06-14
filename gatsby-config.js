@@ -56,6 +56,7 @@ module.exports = {
           "@images": `src/images`,
           "@pages": `src/pages`,
           "@layouts": `src/layouts`,
+          "@screens": `src/screens`,
           "@styles": `src/styles`,
         },
         extensions: [`js`],
