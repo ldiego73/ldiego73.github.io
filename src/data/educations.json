@@ -1,9 +1,9 @@
 [
   {
     "year": 2014,
-    "position": "Systems Engineer",
-    "institute": "Universidad Peruana de las Américas, Lima",
-    "descriptions": [
+    "title": "Systems Engineer",
+    "subtitle": "Universidad Peruana de las Américas, Lima",
+    "details": [
       "Management and project management using PMBOK.",
       "Installation and configuration of operating systems.",
       "Analysis, documentation of applications.",
@@ -12,9 +12,9 @@
   },
   {
     "year": 2009,
-    "position": "Professional Computer and Systems Technician",
-    "institute": "Cimas, Lima",
-    "descriptions": [
+    "title": "Professional Computer and Systems Technician",
+    "subtitle": "Cimas, Lima",
+    "details": [
       "Development of web applications using PHP, ASP. NET, etc.",
       "Development of desktop applications using Java and .Net.",
       "Advanced use of Linux networks for server administration.",

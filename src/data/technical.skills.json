@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Microservices",
+    "percentage": 0.9
+  },
+  {
+    "name": "Serverless",
+    "percentage": 0.9
+  },
+  {
+    "name": "DevOps",
+    "percentage": 0.7
+  },
+  {
+    "name": "Web development",
+    "percentage": 0.85
+  },
+  {
+    "name": "Mobile Applications",
+    "percentage": 0.7
+  }
+]

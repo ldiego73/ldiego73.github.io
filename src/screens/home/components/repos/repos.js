@@ -1,5 +1,6 @@
 import "./repos.scss"
 
+import { Repository } from "@components/repository"
 import axios from "axios"
 import React, { useEffect, useState } from "react"
 
@@ -40,40 +41,18 @@ const Repos = () => {
         <div className="repos__projects">
           {repos &&
             repos.map((r, i) => (
-              <div
+              <Repository
                 key={`repo-${i}`}
-                className="repos__project"
                 data-testid={`repo-project-${i}`}
-              >
-                <div className="repos__top">
-                  <div className="repos__name">
-                    <a
-                      href={r.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={r.name}
-                    >
-                      <em className="fab fa-github" />
-                      {r.name}
-                    </a>
-                  </div>
-                  <div className="repos__description">{r.description}</div>
-                </div>
-                <div className="repos__stats">
-                  <div className="repos__stats-left">
-                    <span className="language">{r.language}</span>
-                    <span className="start">
-                      <em className="fas fa-star" />
-                      {r.stargazers_count}
-                    </span>
-                    <span className="fork">
-                      <em className="fas fa-code-branch" />
-                      {r.forks}
-                    </span>
-                  </div>
-                  <div className="repos__stats-right">{r.size} KB</div>
-                </div>
-              </div>
+                name={r.name}
+                url={r.html_url}
+                description={r.description}
+                language={r.language}
+                starts={r.stargazers_count}
+                forks={r.forks}
+                size={r.size}
+                className="repos__project"
+              />
             ))}
         </div>
       </div>

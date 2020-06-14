@@ -1,0 +1,71 @@
+@import "../../styles/variables";
+
+.repository {
+  display: flex;
+  justify-content: space-between;
+  flex-direction: column;
+  width: 100%;
+  background: $secondary;
+  border-radius: $border-radius;
+  margin: 8px;
+  padding: $padding * 2;
+  transition: all 0.25s cubic-bezier(0.02, 0.01, 0.47, 1);
+
+  &:hover,
+  &:focus {
+    transform: translateY(-5px);
+  }
+
+  &__name {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    margin-bottom: 16px;
+
+    a {
+      font-weight: 700;
+      color: $color;
+      text-decoration: none;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    em {
+      margin-right: 8px;
+    }
+  }
+
+  &__description {
+    font-size: 14px;
+    margin-bottom: $margin * 2;
+  }
+
+  &__bottom {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+
+  &__stats {
+    flex-grow: 1;
+    display: flex;
+  }
+
+  &__language {
+    margin-right: 16px;
+  }
+
+  &__start {
+    margin-right: 16px;
+
+    em {
+      margin-right: 4px;
+    }
+  }
+
+  &__fork {
+    em {
+      margin-right: 4px;
+    }
+  }
+}

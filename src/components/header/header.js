@@ -1,5 +1,6 @@
 import "./header.scss"
 
+import { isBrowser } from "@utils/browser"
 import { Link } from "gatsby"
 import React, { useEffect, useState } from "react"
 
@@ -35,7 +36,7 @@ const Header = () => {
 
   /* istanbul ignore next */
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (isBrowser()) {
       if (opened) {
         window.document.body.classList.add("no-scroll")
       } else {

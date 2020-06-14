@@ -1,9 +1,9 @@
 [
   {
     "year": 2016,
-    "position": "Solutions Architect",
-    "company": "Belcorp, Lima",
-    "descriptions": [
+    "title": "Solutions Architect",
+    "subtitle": "Belcorp, Lima",
+    "details": [
       "Implementation of the first DevOps platform for mobile applications.",
       "Standards documentation of the main technologies .Net, Java, Kotlin, JavaScript, etc.",
       "Using clean architecture for mobile application development.",
@@ -12,9 +12,9 @@
   },
   {
     "year": 2016,
-    "position": "Associate Consultant",
-    "company": "Hundred, Lima",
-    "descriptions": [
+    "title": "Associate Consultant",
+    "subtitle": "Hundred, Lima",
+    "details": [
       "50% reduction in time in the synchronization process for the App \"Gestiona tu Negocio\".",
       "Implementation of an optional and/or mandatory update model for mobile applications.",
       "First implementation of the modular pattern in Belcorp apps."
@@ -22,9 +22,9 @@
   },
   {
     "year": 2014,
-    "position": "Technical Leader Mobile",
-    "company": "Avances Tecnológicos",
-    "descriptions": [
+    "title": "Technical Leader Mobile",
+    "subtitle": "Avances Tecnológicos",
+    "details": [
       "Implementation of Architecture for Yanbal applications for Consultants (Orders, Kiosk).",
       "Launch of the first hybrid app for Yanbal using Ionic and Angular.",
       "Winner of the Fincyt contest for the idea of Cuponeo for MYPEs.",

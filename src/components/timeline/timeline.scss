@@ -1,3 +1,5 @@
+@import "../../styles/variables";
+
 .timeline {
   list-style: none;
   margin-left: 50px;
@@ -46,21 +48,21 @@
     top: 2px;
   }
 
-  &__position {
+  &__title {
     color: $color;
     display: block;
     font-weight: 700;
     margin-bottom: 10px;
   }
 
-  &__company {
+  &__subtitle {
     color: $quaternary;
     display: block;
     font-size: 14px;
     margin-bottom: 10px;
   }
 
-  &__experience {
+  &__details {
     font-size: 14px;
   }
 }

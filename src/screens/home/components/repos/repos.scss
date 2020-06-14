@@ -22,78 +22,12 @@
   }
 
   &__project {
-    display: flex;
-    justify-content: space-between;
-    flex-direction: column;
-    width: calc(33.33% - #{$padding});
-    background: $secondary;
-    border-radius: $border-radius;
-    margin: 8px;
-    padding: $padding * 2;
-    transition: all 0.25s cubic-bezier(0.02, 0.01, 0.47, 1);
-
-    &:hover,
-    &:focus {
-      transform: translateY(-5px);
-    }
-  }
-
-  &__name {
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow: hidden;
-    margin-bottom: 16px;
-
-    a {
-      font-weight: 700;
-      color: $color;
-      text-decoration: none;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    em {
-      margin-right: 8px;
-    }
-  }
-
-  &__description {
-    font-size: 14px;
-    margin-bottom: $margin * 2;
-  }
-
-  &__stats {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-
-    .language {
-      margin-right: 16px;
-    }
-
-    .start {
-      margin-right: 16px;
-
-      em {
-        margin-right: 4px;
-      }
-    }
-
-    .fork {
-      em {
-        margin-right: 4px;
-      }
-    }
-
-    &-left {
-      flex-grow: 1;
-      display: flex;
-    }
+    width: calc(33.33% - #{$padding}) !important;
   }
 
   @media screen and (max-width: 1024px) {
     &__project {
-      width: calc(50% - #{$padding});
+      width: calc(50% - #{$padding}) !important;
     }
   }
 
@@ -105,7 +39,7 @@
     }
 
     &__project {
-      width: 100%;
+      width: 100% !important;
     }
   }
 }
