@@ -34,7 +34,7 @@ module.exports = {
   ],
   collectCoverage: true,
   collectCoverageFrom: [`src/**/*.js`, `!**/node_modules/**`],
-  coverageReporters: [`json`, `text`, `html`],
+  coverageReporters: [`json`, `text`, `lcov`, `html`],
   coverageDirectory: `reports/coverage`,
   testURL: `http://localhost`,
   setupFilesAfterEnv: [`<rootDir>/jest.setup.js`],
