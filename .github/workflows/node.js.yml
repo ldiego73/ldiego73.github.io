@@ -33,6 +33,9 @@ jobs:
       - name: Build
         run: yarn build
 
+      - name: E2E Test
+        run: yarn test:e2e:ci
+
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -57,3 +60,9 @@ jobs:
         with:
           name: code-coverage-report
           path: reports/coverage
+
+      - name: Archive E2E results
+        uses: actions/upload-artifact@v1
+        with:
+          name: e2e-report
+          path: reports/e2e
