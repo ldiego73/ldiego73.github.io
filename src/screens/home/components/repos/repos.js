@@ -4,7 +4,7 @@ import { Repository } from "@components/repository"
 import axios from "axios"
 import React, { useEffect, useState } from "react"
 
-export const URL = "https://api.github.com/users/ldiego73/repos?per_page=100"
+export const URL = `https://api.github.com/users/${process.env.GATSBY_GITHUB_USER}/repos?per_page=100`
 
 const Repos = () => {
   const [repos, setRepos] = useState(null)
