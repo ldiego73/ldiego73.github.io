@@ -30,11 +30,11 @@ jobs:
       - name: Unit Test
         run: yarn test:unit
 
-      - name: Build
-        run: yarn build
-
       - name: E2E Test
         run: yarn test:e2e:ci
+
+      - name: Build
+        run: yarn build
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
