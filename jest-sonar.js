@@ -5,13 +5,13 @@ const replace = require("replace-in-file")
 
 async function run() {
   try {
-    const regex = new RegExp(
-      "/home/ldiego/Documents/Github/ldiego73.github.io",
-      "gi"
-    )
+    const regex = path => new RegExp(path, "gi")
     const results = await replace({
       files: "reports/test/result.xml",
-      from: regex,
+      from: [
+        regex("/home/ldiego/Documents/Github/ldiego73.github.io"),
+        regex("/home/runner/work/ldiego73.github.io/ldiego73.github.io"),
+      ],
       to: "/github/workspace",
     })
     console.log("Replacement results:", results)
