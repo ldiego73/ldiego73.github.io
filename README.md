@@ -1,6 +1,7 @@
 # Personal Site
 
-![Personal Site](https://github.com/ldiego73/ldiego73.github.io/workflows/Personal%20Site%20CI/badge.svg)
+[![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ldiego73/ldiego73.github.io/blob/develop/LICENSE)
+[![Personal Site](https://github.com/ldiego73/ldiego73.github.io/workflows/Personal%20Site%20CI/badge.svg)](https://github.com/ldiego73/ldiego73.github.io/actions)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=ldiego73_ldiego73.github.io&metric=ncloc)](https://sonarcloud.io/dashboard?id=ldiego73_ldiego73.github.io)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ldiego73_ldiego73.github.io&metric=alert_status)](https://sonarcloud.io/dashboard?id=ldiego73_ldiego73.github.io)
 [![Coverage Status](https://coveralls.io/repos/github/ldiego73/ldiego73.github.io/badge.svg?branch=develop)](https://coveralls.io/github/ldiego73/ldiego73.github.io?branch=develop)
