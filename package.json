@@ -54,6 +54,7 @@
     "msw": "^0.19.1",
     "prettier": "2.0.5",
     "react-test-renderer": "^16.13.1",
+    "replace-in-file": "^6.1.0",
     "start-server-and-test": "^1.11.0"
   },
   "keywords": [
@@ -76,6 +77,7 @@
     "test:unit": "jest --passWithNoTests",
     "test:e2e": "start-server-and-test develop http://localhost:8000 cy:open",
     "test:e2e:ci": "start-server-and-test develop http://localhost:8000 cy:run",
+    "posttest:unit": "node jest-sonar",
     "posttest:e2e:ci": "node cypress-report"
   },
   "repository": {
