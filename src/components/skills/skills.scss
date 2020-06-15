@@ -14,13 +14,13 @@
     border-left: 1px solid $color;
     height: 100%;
     position: absolute;
-    left: 0px;
+    left: 0;
     top: 5px;
   }
 
   &__bar {
     width: 100%;
-    margin: 10px 0px;
+    margin: 10px 0;
     float: left;
 
     &-outer {

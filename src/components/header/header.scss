@@ -203,7 +203,7 @@ header {
       visibility: visible;
 
       a.header__link {
-        transform: scale(1) translateY(0px);
+        transform: scale(1) translateY(0);
         opacity: 1;
         @for $i from 1 through 4 {
           &:nth-child(#{$i}) {
