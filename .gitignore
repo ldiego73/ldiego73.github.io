@@ -68,3 +68,9 @@ yarn-error.log
 # Cypress
 cypress/screenshots/
 cypress/videos/
+
+# Sonar Scanner
+.scannerwork
+
+# Environment
+.env.local
