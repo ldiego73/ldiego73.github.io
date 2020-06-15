@@ -5,6 +5,9 @@
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=ldiego73.github.io&metric=ncloc)](https://sonarcloud.io/dashboard?id=ldiego73.github.io)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ldiego73.github.io&metric=alert_status)](https://sonarcloud.io/dashboard?id=ldiego73.github.io)
 [![Coverage Status](https://coveralls.io/repos/github/ldiego73/ldiego73.github.io/badge.svg?branch=develop)](https://coveralls.io/github/ldiego73/ldiego73.github.io?branch=develop)
+[![Tests](https://img.shields.io/sonar/tests/ldiego73.github.io?compact_message&server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/dashboard?id=ldiego73.github.io)
+[![Tests Execution Time](https://img.shields.io/sonar/test_execution_time/ldiego73.github.io?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/dashboard?id=ldiego73.github.io)
+
 
 Personal Site using Gatsby and Github Pages
 
