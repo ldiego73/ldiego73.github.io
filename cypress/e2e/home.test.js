@@ -1,6 +1,11 @@
 /// <reference types="Cypress" />
 
 describe("Home", () => {
+  const getId = id => cy.get(id)
+  const performClick = id => getId(id).click({ force: true })
+  const scrollBottomAndClick = id =>
+    cy.scrollTo("bottom").get(id).click({ force: true })
+
   beforeEach(() => {
     cy.server()
     cy.route("GET", "https://api.github.com/users/**").as("loadUsers")
@@ -12,55 +17,55 @@ describe("Home", () => {
 
   describe("Welcome", () => {
     it("Hover on the wave", () => {
-      cy.get(".wave-hand").trigger("mouseover")
+      getId(".wave-hand").trigger("mouseover")
     })
 
     it("Redirect to Github", () => {
-      cy.get('[data-testid="github"]').click()
+      performClick('[data-testid="github"]')
     })
 
     it("Redirect to Linkedin", () => {
-      cy.get('[data-testid="linkedin"]').click()
+      performClick('[data-testid="linkedin"]')
     })
 
     it("Redirect to Twitter", () => {
-      cy.get('[data-testid="twitter"]').click()
+      performClick('[data-testid="twitter"]')
     })
 
     it("Redirect to Instagram", () => {
-      cy.get('[data-testid="instagram"]').click()
+      performClick('[data-testid="instagram"]')
     })
 
     it("Redirect to Email", () => {
-      cy.get('[data-testid="email"]').click()
+      performClick('[data-testid="email"]')
     })
   })
 
   describe("About", () => {
     it("Move to About", () => {
-      cy.get('[data-testid="about"]').click()
+      performClick('[data-testid="about"]')
     })
 
     it("Download CV", () => {
-      cy.get('[data-testid="resume-download"]').click({ force: true })
+      performClick('[data-testid="resume-download"]')
     })
   })
 
   describe("Resume", () => {
     it("Move to Resume", () => {
-      cy.get('[data-testid="resume"]').click()
+      performClick('[data-testid="resume"]')
     })
   })
 
   describe("Repositories", () => {
     it("Move to Repositories", () => {
-      cy.get('[data-testid="repositories"]').click()
+      performClick('[data-testid="repositories"]')
     })
   })
 
   describe("Contact", () => {
     it("Move to Contact", () => {
-      cy.get('[data-testid="contact"]').click()
+      performClick('[data-testid="contact"]')
     })
   })
 
@@ -70,39 +75,27 @@ describe("Home", () => {
     })
 
     it("Move to Top", () => {
-      cy.scrollTo("bottom")
-        .get('[data-testid="top-button"]')
-        .click({ force: true })
+      scrollBottomAndClick('[data-testid="top-button"]')
     })
 
     it("Redirect to Github", () => {
-      cy.scrollTo("bottom")
-        .get('[data-testid="footer-github"]')
-        .click({ force: true })
+      scrollBottomAndClick('[data-testid="footer-github"]')
     })
 
     it("Redirect to Linkedin", () => {
-      cy.scrollTo("bottom")
-        .get('[data-testid="footer-linkedin"]')
-        .click({ force: true })
+      scrollBottomAndClick('[data-testid="footer-linkedin"]')
     })
 
     it("Redirect to Twitter", () => {
-      cy.scrollTo("bottom")
-        .get('[data-testid="footer-twitter"]')
-        .click({ force: true })
+      scrollBottomAndClick('[data-testid="footer-twitter"]')
     })
 
     it("Redirect to Instagram", () => {
-      cy.scrollTo("bottom")
-        .get('[data-testid="footer-instagram"]')
-        .click({ force: true })
+      scrollBottomAndClick('[data-testid="footer-instagram"]')
     })
 
     it("Redirect to Email", () => {
-      cy.scrollTo("bottom")
-        .get('[data-testid="footer-email"]')
-        .click({ force: true })
+      scrollBottomAndClick('[data-testid="footer-email"]')
     })
   })
 })
