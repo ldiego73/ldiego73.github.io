@@ -1,0 +1,67 @@
+{
+  "name": "Luis Diego",
+  "position": "Arquitecto de Soluciones",
+  "header": {
+    "home": "/home",
+    "links": [
+      {
+        "title": "Sobre mí",
+        "to": "#about"
+      },
+      {
+        "title": "Currículum",
+        "to": "#resume"
+      },
+      {
+        "title": "Repositorios",
+        "to": "#repos"
+      },
+      {
+        "title": "Contacto",
+        "to": "#contact"
+      }
+    ]
+  },
+  "hello": "Hola!, Soy {{name}}",
+  "welcome": "Soy un <1>{{position}}</1> con una amplia experiencia en proyectos de transformación digital, arquitectura empresarial y desarrollo de aplicaciones.",
+  "about": {
+    "title": "Sobre mí",
+    "me": "Soy un ingeniero apasionado por las tecnologías, el desarrollo de aplicaciones fantásticas, ya sean sitios web, aplicaciones móviles o cualquier otra cosa. <br /> Mi objetivo es crear siempre aplicaciones que sean escalables, seguras y confiables, ofreciendo una excelente experiencia de usuario. <br /> En mi tiempo libre me gusta viajar y conocer nuevos lugares, culturas y personas. Mochilero de corazón, la buena música y la aventura.",
+    "download": "Descargar CV",
+    "cv": "https://docs.google.com/document/d/17UguL4pk7N8iv3PJltWHz7reYeM2xXoaMyR1x3cWg40/edit?usp=sharing"
+  },
+  "resume": {
+    "title": "Currículum",
+    "education": "Educación",
+    "experience": "Experiencia",
+    "skills": {
+      "personal": "Habilidades personales",
+      "technical": "Habilidades técnicas"
+    }
+  },
+  "repositories": {
+    "title": "Repositorios"
+  },
+  "contact": {
+    "title": "Contacto",
+    "phone": "+51 943527457",
+    "availability": "Lun a Vie 9am a 6pm",
+    "email": "lfdiego7@gmail.com",
+    "query": "¡Envíenos su consulta en cualquier momento!",
+    "form": {
+      "name": "Ingrese su nombre",
+      "email": "Ingrese su correo",
+      "message": "Ingrese su mensaje",
+      "send": "Enviar mensaje",
+      "thanks": "Gracias!"
+    }
+  },
+  "footer": {
+    "title": "Derechos de autor ©{{year}}. Todos los derechos reservados"
+  },
+  "not-found": {
+    "siteTitle": "Not found",
+    "title": "Esta página no existe",
+    "message": "Lo sentimos, no se encontró la página. Podría haber escrito mal la URL o la página se ha movido."
+  }
+}

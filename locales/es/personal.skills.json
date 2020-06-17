@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "name": "TRABAJO EN EQUIPO",
+      "percentage": 0.9
+    },
+    {
+      "name": "COMUNICACIÓN",
+      "percentage": 0.7
+    },
+    {
+      "name": "CREATIVO",
+      "percentage": 0.8
+    },
+    {
+      "name": "ORGANIZACIÓN",
+      "percentage": 0.75
+    },
+    {
+      "name": "INGLÉS",
+      "percentage": 0.3
+    }
+  ]
+}
