@@ -350,7 +350,15 @@ The colors are:
 | $color       | ![#cccccc](https://via.placeholder.com/10/cccccc?text=+) `#cccccc` |
 | $color-error | ![#b71c1c](https://via.placeholder.com/10/b71c1c?text=+) `#b71c1c` |
 
-### How to change favicon ?
+### How to change favicon?
 
 - Change the file `icon.png` in the **src/images** folder.
 - Change the file `icon.png` in the **images** folder.
+
+### How can you improve?
+
+- Use a CMS for content management. By example https://www.sanity.io
+- Add more templates, pages or improve existing.
+- Add additionals tests.
+- Unify files within `data` into `static/locales` files.
+- Other improvements.
