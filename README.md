@@ -71,7 +71,7 @@ Change the values of the `.env` file for yours
 
 ### Update your languages
 
-Inside the `static / locales` path you can update your site information.
+Inside the `static/locales` path you can update your site information.
 
 | locale resource       | description                                                        |
 |-----------------------|--------------------------------------------------------------------|
@@ -170,7 +170,7 @@ You can see the result inside the `reports/test/result.html` path
 
 ![Report Test](images/report-test.png)
 
-**1. result.xml**
+**2. result.xml**
 
 This report is generated in order to upload the results in sonar cloud. The `jest-sonar-reporter` dependency has been used to generate the report. 
 
@@ -180,7 +180,7 @@ You can see the result inside the `reports/test/result.xml` path.
 
 If you want to remove this report when running the test, perform the next steps:
 
-1. Remove this configuration into the `package.json`
+- Remove this configuration into the `package.json`
 
 ```json
 "jestSonar": {
@@ -190,14 +190,14 @@ If you want to remove this report when running the test, perform the next steps:
 }
 ```
 
-2. Remove execution after running unit tests into the `package.json`
+- Remove execution after running unit tests into the `package.json`
 
 ```json
 "posttest:unit": "node jest-sonar",
 ```
 
-3. Remove the file `jest-sonar.js`
-4. Remove the dependency `jest-sonar-reporter`
+- Remove the file `jest-sonar.js`
+- Remove the dependency `jest-sonar-reporter`
 
 ```json
 yarn remove jest-sonar-reporter
