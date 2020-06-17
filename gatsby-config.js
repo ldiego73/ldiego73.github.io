@@ -82,7 +82,7 @@ module.exports = {
         background_color: `#252526`,
         theme_color: `#252526`,
         display: `minimal-ui`,
-        icon: `src/images/ldiego-icon.png`, // This path is relative to the root of the site.
+        icon: `src/images/icon.png`, // This path is relative to the root of the site.
       },
     },
     // this (optional) plugin enables Progressive Web App + Offline functionality
