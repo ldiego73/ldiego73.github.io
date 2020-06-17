@@ -353,4 +353,4 @@ The colors are:
 ### How to change favicon ?
 
 - Change the file `icon.png` in the **src/images** folder.
-- Change the file `icon.png` in the images folder.
+- Change the file `icon.png` in the **images** folder.
