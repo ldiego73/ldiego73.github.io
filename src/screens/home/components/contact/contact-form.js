@@ -1,41 +1,40 @@
-import data from "@data/home.json"
 import axios from "axios"
 import PropTypes from "prop-types"
 import React, { useState } from "react"
 
-const ContactForm = ({ url }) => {
+const ContactForm = ({ url, form }) => {
   const [serverState, setServerState] = useState({
     submitting: false,
     status: null,
   })
 
-  const handleServerResponse = (ok, msg, form) => {
+  const handleServerResponse = (ok, msg, submitForm) => {
     setServerState({
       submitting: false,
       status: { ok, msg },
     })
     if (ok) {
-      form.reset()
+      submitForm.reset()
     }
   }
 
   const handleOnSubmit = e => {
     e.preventDefault()
 
-    const form = e.target
+    const submitForm = e.target
 
     setServerState({ submitting: true })
 
     axios({
       method: "post",
       url,
-      data: new FormData(form),
+      data: new FormData(submitForm),
     })
       .then(() => {
-        handleServerResponse(true, "Thanks!", form)
+        handleServerResponse(true, form.thanks, submitForm)
       })
       .catch(r => {
-        handleServerResponse(false, r.response.data.error, form)
+        handleServerResponse(false, r.response.data.error, submitForm)
       })
   }
   return (
@@ -47,16 +46,18 @@ const ContactForm = ({ url }) => {
             required
             type="text"
             name="name"
-            aria-label={data.contact.form.name}
-            placeholder={data.contact.form.name}
+            aria-label={form.name}
+            placeholder={form.name}
+            data-testid="contact-name"
           />
           <input
             className="contact__email"
             required
             type="email"
             name="email"
-            aria-label={data.contact.form.email}
-            placeholder={data.contact.form.email}
+            aria-label={form.email}
+            placeholder={form.email}
+            data-testid="contact-email"
           />
           <div className="contact__captcha">
             <div
@@ -71,8 +72,9 @@ const ContactForm = ({ url }) => {
             className="contact__message"
             required
             name="message"
-            aria-label={data.contact.form.message}
-            placeholder={data.contact.form.message}
+            aria-label={form.message}
+            placeholder={form.message}
+            data-testid="contact-message"
           />
         </div>
         {serverState.status && (
@@ -87,9 +89,9 @@ const ContactForm = ({ url }) => {
             type="submit"
             className="button"
             disabled={serverState.submitting}
-            data-testid="send"
+            data-testid="contact-send"
           >
-            {data.contact.form.send}
+            {form.send}
           </button>
         </div>
       </form>
@@ -99,6 +101,12 @@ const ContactForm = ({ url }) => {
 
 ContactForm.propTypes = {
   url: PropTypes.string.isRequired,
+  form: PropTypes.shape({
+    name: PropTypes.string.isRequired,
+    email: PropTypes.string.isRequired,
+    message: PropTypes.string.isRequired,
+    send: PropTypes.string.isRequired,
+  }).isRequired,
 }
 
 export { ContactForm }

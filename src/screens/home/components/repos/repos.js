@@ -1,46 +1,25 @@
 import "./repos.scss"
 
 import { Repository } from "@components/repository"
-import axios from "axios"
-import React, { useEffect, useState } from "react"
+import { useFetch } from "@hooks/use-fetch"
+import React from "react"
+import { useTranslation } from "react-i18next"
 
 export const URL = `https://api.github.com/users/${process.env.GATSBY_GITHUB_USER}/repos?per_page=100`
 
 const Repos = () => {
-  const [repos, setRepos] = useState(null)
-
-  const getRepos = async () => {
-    const { data } = await axios.get(URL)
-
-    const filters = data.filter(d => d.fork === false)
-
-    /* istanbul ignore next */
-    const sorted = filters.sort((x, y) => {
-      if (x.stargazers_count < y.stargazers_count) {
-        return 1
-      }
-
-      if (x.stargazers_count > y.stargazers_count) {
-        return -1
-      }
-
-      return 0
-    })
-
-    setRepos(sorted)
-  }
-
-  useEffect(() => {
-    getRepos()
-  }, [])
+  const { t } = useTranslation()
+  const [response] = useFetch(URL)
 
   return (
     <section id="repos" className="repos">
       <div className="container">
-        <h3 className="repos__title">Repositories</h3>
+        <h3 className="repos__title">
+          {t("repositories.title", "Repositories")}
+        </h3>
         <div className="repos__projects">
-          {repos &&
-            repos.map((r, i) => (
+          {response &&
+            response.map((r, i) => (
               <Repository
                 key={`repo-${i}`}
                 data-testid={`repo-project-${i}`}

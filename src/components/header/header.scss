@@ -101,6 +101,33 @@ header {
     }
   }
 
+  &__separator {
+    border: 1px solid $color;
+    height: 24px;
+    margin: 0 16px;
+  }
+
+  &__language {
+    padding: $padding;
+    color: $color;
+    cursor: pointer;
+    background: $secondary;
+    border: 0;
+    text-transform: uppercase;
+    transition: $theme-transition;
+
+    &:hover,
+    &:focus {
+      background: $primary;
+      outline: none;
+    }
+
+    &:active, &.active {
+      background: $tertiary;
+      outline: none;
+    }
+  }
+
   &__menu {
     color: $color;
     cursor: pointer;
@@ -216,6 +243,10 @@ header {
 
   @media screen and (max-width: 768px) {
     &__link {
+      display: none;
+    }
+
+    &__separator {
       display: none;
     }
 

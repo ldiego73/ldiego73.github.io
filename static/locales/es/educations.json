@@ -1,0 +1,26 @@
+{
+  "data": [
+    {
+      "year": 2014,
+      "title": "Ingeniero de sistemas",
+      "subtitle": "Universidad Peruana de las Américas, Lima",
+      "details": [
+        "Gestión y gestión de proyectos utilizando PMBOK",
+        "Instalación y configuración de sistemas operativos",
+        "Análisis, documentación de aplicaciones",
+        "Seguridad y aplicaciones empresariales"
+      ]
+    },
+    {
+      "year": 2009,
+      "title": "Técnico Profesional en Computación y Sistemas",
+      "subtitle": "CIMAS, Lima",
+      "details": [
+        "Desarrollo de aplicaciones web usando PHP, ASP. NET, etc.",
+        "Desarrollo de aplicaciones de escritorio utilizando Java y .Net",
+        "Uso avanzado de redes Linux para la administración del servidor",
+        "Gestión avanzada de la Microsoft Office"
+      ]
+    }
+  ]
+}

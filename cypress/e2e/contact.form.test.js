@@ -23,7 +23,7 @@ describe("Home", () => {
     cy.get('input[name="name"]').type(this.user.name, { force: true })
     cy.get('input[name="email"]').type(this.user.email, { force: true })
     cy.get('textarea[name="message"]').type(this.user.message, { force: true })
-    cy.get('[data-testid="send"]').click({ force: true })
+    cy.get('[data-testid="contact-send"]').click({ force: true })
 
     cy.wait("@postContactForm")
 

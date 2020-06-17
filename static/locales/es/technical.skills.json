@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "name": "Microservicios",
+      "percentage": 0.9
+    },
+    {
+      "name": "Serverless",
+      "percentage": 0.9
+    },
+    {
+      "name": "DevOps",
+      "percentage": 0.7
+    },
+    {
+      "name": "Desarrollo web",
+      "percentage": 0.85
+    },
+    {
+      "name": "Aplicaciones móviles",
+      "percentage": 0.7
+    }
+  ]
+}

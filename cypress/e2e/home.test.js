@@ -15,6 +15,12 @@ describe("Home", () => {
     cy.wait("@loadUsers")
   })
 
+  describe("Header", () => {
+    it("Change language to english to spanish", () => {
+      performClick('[data-testid="header-language-es"]')
+    })
+  })
+
   describe("Welcome", () => {
     it("Hover on the wave", () => {
       getId(".wave-hand").trigger("mouseover")

@@ -1,0 +1,36 @@
+{
+  "data": [
+    {
+      "year": 2016,
+      "title": "Arquitecto de Soluciones",
+      "subtitle": "Belcorp, Lima",
+      "details": [
+        "Implementación de la primera plataforma DevOps para aplicaciones móviles",
+        "Documentación de estándares de las principales tecnologías .Net, Java, Kotlin, JavaScript, etc.",
+        "Uso de una arquitectura limpia para el desarrollo de aplicaciones móviles",
+        "Implementación de la arquitectura de microservicios, visión y la plataforma de APIs"
+      ]
+    },
+    {
+      "year": 2016,
+      "title": "Associate Consultant",
+      "subtitle": "Hundred, Lima",
+      "details": [
+        "Reducción del 50% del tiempo en el proceso de sincronización de la aplicación \"Gestiona tu Negocio\".",
+        "Implementación de un modelo de actualización opcional y / u obligatorio para aplicaciones móviles",
+        "Primera implementación del patrón modular en las aplicaciones de Belcorp"
+      ]
+    },
+    {
+      "year": 2014,
+      "title": "Technical Leader Mobile",
+      "subtitle": "Avances Tecnológicos",
+      "details": [
+        "Implementación de Arquitectura para aplicaciones Yanbal para Consultores (Pedidos, Quiosco)",
+        "Lanzamiento de la primera aplicación híbrida para Yanbal usando Ionic y Angular",
+        "Ganador del concurso Fincyt por la idea de Cuponeo para MYPE",
+        "Definición y desarrollo de la primera arquitectura de microservicios utilizando NodeJS para la empresa"
+      ]
+    }
+  ]
+}

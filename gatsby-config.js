@@ -1,3 +1,5 @@
+/* eslint-disable import/no-extraneous-dependencies */
+
 require("dotenv").config({
   path: `.env`,
 })
@@ -52,6 +54,7 @@ module.exports = {
           "@src": `src`,
           "@data": `src/data`,
           "@components": `src/components`,
+          "@context": `src/context`,
           "@hooks": `src/hooks`,
           "@images": `src/images`,
           "@pages": `src/pages`,

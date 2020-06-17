@@ -48,13 +48,14 @@ const Repository = ({
 
 Repository.defaultProps = {
   description: "",
+  language: "",
 }
 
 Repository.propTypes = {
   name: PropTypes.string.isRequired,
   url: PropTypes.string.isRequired,
   description: PropTypes.string,
-  language: PropTypes.string.isRequired,
+  language: PropTypes.string,
   starts: PropTypes.number.isRequired,
   forks: PropTypes.number.isRequired,
   size: PropTypes.number.isRequired,

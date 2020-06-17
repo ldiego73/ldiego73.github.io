@@ -12,4 +12,9 @@ module.exports = {
   ),
   StaticQuery: jest.fn(),
   useStaticQuery: jest.fn(),
+  site: {
+    siteMetadata: {
+      title: "Luis Diego",
+    },
+  },
 }

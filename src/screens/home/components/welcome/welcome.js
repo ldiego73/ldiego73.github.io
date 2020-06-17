@@ -2,23 +2,24 @@
 
 import "./welcome.scss"
 
-import data from "@data/home.json"
-import links from "@data/links.json"
+import linksSocialNetworks from "@data/social_networks.json"
 import { useHover } from "@hooks/use-hover"
 import React from "react"
+import { Trans, useTranslation } from "react-i18next"
 
 const Welcome = () => {
+  const { t } = useTranslation()
   const [hoverRef, isHovered] = useHover()
 
-  const bioHtml = data.bio.replace(
-    "{POSITION}",
-    `<span class="name">${data.position}</span>`
-  )
+  const name = t("name")
+  const position = t("position")
 
   return (
     <section className="welcome">
       <h1 className="welcome__hello">
-        Hello!, I'm {data.name}{" "}
+        <Trans t={t} i18nKey="hello">
+          Hello!, I'm {{ name }}
+        </Trans>
         <span
           ref={hoverRef}
           data-testid="welcome-wave"
@@ -26,13 +27,17 @@ const Welcome = () => {
         />
       </h1>
       <h2 className="welcome__bio">
-        <span dangerouslySetInnerHTML={{ __html: bioHtml }} />
+        <Trans t={t} i18nKey="welcome">
+          Hello!, I'm a <span className="name">{{ position }}</span> with
+          extensive experience in digital transformation projects, enterprise
+          architecture and application development.
+        </Trans>
         &nbsp;
         <span className="emoji technologist" />
       </h2>
       <div className="welcome__social">
         <ul>
-          {links.map(l => (
+          {linksSocialNetworks.map(l => (
             <li key={l.name}>
               <a
                 href={l.url}

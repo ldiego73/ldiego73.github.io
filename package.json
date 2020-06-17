@@ -20,16 +20,22 @@
     "gatsby-plugin-webfonts": "^1.1.2",
     "gatsby-source-filesystem": "^2.3.11",
     "gatsby-transformer-sharp": "^2.5.5",
+    "i18next": "^19.4.5",
+    "i18next-chained-backend": "^2.0.1",
+    "i18next-http-backend": "^1.0.15",
+    "i18next-localstorage-backend": "^3.1.1",
     "node-sass": "^4.14.1",
     "prop-types": "^15.7.2",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
-    "react-helmet": "^6.1.0"
+    "react-helmet": "^6.1.0",
+    "react-i18next": "^11.5.1"
   },
   "devDependencies": {
     "@testing-library/cypress": "^6.0.0",
     "@testing-library/jest-dom": "^5.10.1",
     "@testing-library/react": "^10.2.1",
+    "@testing-library/react-hooks": "^3.3.0",
     "axe-core": "^3.5.4",
     "babel-jest": "^26.0.1",
     "babel-preset-gatsby": "^0.4.9",
