@@ -1,5 +1,8 @@
 import { useFetch } from "@hooks/use-fetch"
 import { act, renderHook } from "@testing-library/react-hooks"
+import axios from "axios"
+
+jest.mock("axios")
 
 beforeEach(() => {
   jest.useFakeTimers()
@@ -11,7 +14,9 @@ afterEach(() => {
 
 describe(`Use Fetch`, () => {
   it("Load todos correctly", async () => {
-    const url = "https://jsonplaceholder.typicode.com/todos"
+    axios.get.mockImplementationOnce(() => Promise.resolve({ data: [] }))
+
+    const url = "https://URL_SUCCESS"
     const { result, waitForNextUpdate } = renderHook(() => useFetch(url))
 
     setImmediate(() => {
@@ -30,6 +35,10 @@ describe(`Use Fetch`, () => {
   })
 
   it("Load todos with error", async () => {
+    axios.get.mockImplementationOnce(() =>
+      Promise.reject(new Error("Network Error"))
+    )
+
     const url = "https://NOT_FOUND_URL"
     const { result, waitForNextUpdate } = renderHook(() => useFetch(url))
 
