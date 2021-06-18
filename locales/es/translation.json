@@ -1,6 +1,6 @@
 {
   "name": "Luis Diego",
-  "position": "Arquitecto de Soluciones",
+  "position": "Principal Architect",
   "header": {
     "home": "/home",
     "links": [
@@ -23,7 +23,7 @@
     ]
   },
   "hello": "Hola!, Soy {{name}}",
-  "welcome": "Soy un <1>{{position}}</1> con una amplia experiencia en proyectos de transformación digital, arquitectura empresarial y desarrollo de aplicaciones.",
+  "welcome": "Soy <1>{{position}}</1> con una amplia experiencia en proyectos de transformación digital, arquitectura empresarial y desarrollo de aplicaciones.",
   "about": {
     "title": "Sobre mí",
     "me": "Soy un ingeniero apasionado por las tecnologías, el desarrollo de aplicaciones fantásticas, ya sean sitios web, aplicaciones móviles o cualquier otra cosa. <br /> Mi objetivo es crear siempre aplicaciones que sean escalables, seguras y confiables, ofreciendo una excelente experiencia de usuario. <br /> En mi tiempo libre me gusta viajar y conocer nuevos lugares, culturas y personas. Mochilero de corazón, la buena música y la aventura.",
