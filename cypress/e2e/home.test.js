@@ -7,8 +7,7 @@ describe("Home", () => {
     cy.scrollTo("bottom").get(id).click({ force: true })
 
   beforeEach(() => {
-    cy.server()
-    cy.route("GET", "https://api.github.com/users/**").as("loadUsers")
+    cy.intercept("GET", "https://api.github.com/users/**").as("loadUsers")
 
     cy.visit("/")
 
@@ -23,7 +22,7 @@ describe("Home", () => {
 
   describe("Welcome", () => {
     it("Hover on the wave", () => {
-      getId(".wave-hand").trigger("mouseover")
+      getId(".wave-hand").trigger("mouseover", { force: true })
     })
 
     it("Redirect to Github", () => {

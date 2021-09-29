@@ -6,6 +6,9 @@ describe("Accessibility Home", () => {
   })
 
   it("Has no detectable accessibility violations on load", () => {
+    cy.configureAxe({
+      rules: [{ id: "color-contrast", enabled: false }],
+    })
     cy.checkA11y()
   })
 })
