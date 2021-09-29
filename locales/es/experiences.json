@@ -1,6 +1,32 @@
 {
   "data": [
     {
+      "year": 2021,
+      "title": "Principal Architect",
+      "subtitle": "Belcorp, Lima",
+      "details": [
+        "Liderar el equipo de Arquitectura Digital y DevSecOps.",
+        "Liderar las decisiones de toda la empresa hacia la visión y la estrategia de la tecnología.",
+        "Preparar el roadmap, documentación y presentaciones de arquitectura para toda la organización.",
+        "Liderar el Centro de Excelencia (CoE) de arquitectura.",
+        "Proveer gobierno, orientación y capacitaciones de diferentes arquitectos y equipos de negocios sobre Well Architect, Arquitectura MACH, etc.",
+        "Proponer nuevas soluciones digitales que puedan ayudar en la transformación e innovación de AUNA.",
+        "Asegurar de que se mantengan los principios de la arquitectura y el QOA (Quality of Architecture).",
+        "Apoyar el desarrollo del equipo de Arquitectos mediante coaching, mentoring, capacitaciones y brindar oportunidades para mantener el mayor talento."
+      ]
+    },
+    {
+      "year": 2020,
+      "title": "Arquitecto de Soluciones",
+      "subtitle": "Auna, Lima",
+      "details": [
+        "Lanzamiento de la primera aplicación de transformación digital usando nuevas tecnologías orientadas a Serverless.",
+        "Implementación de Validación de identidad usando biometría para el control, accesos y firma digital de una persona en las soluciones digitales.",
+        "Implementación de Identity Broker para el manejo de autentificación y autorización.",
+        "Implementación de Payment Broker para todas las soluciones digitales"
+      ]
+    },
+    {
       "year": 2016,
       "title": "Arquitecto de Soluciones",
       "subtitle": "Belcorp, Lima",
