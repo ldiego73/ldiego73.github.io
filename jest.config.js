@@ -18,6 +18,7 @@ module.exports = {
     "^@styles(.*)$": "<rootDir>/src/styles$1",
     "^@utils(.*)$": "<rootDir>/src/utils$1",
   },
+  testEnvironment: "jsdom",
   testPathIgnorePatterns: ["node_modules", ".cache", "cypress"],
   transformIgnorePatterns: ["node_modules/(?!(gatsby)/)"],
   globals: {

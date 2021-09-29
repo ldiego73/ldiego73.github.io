@@ -19,11 +19,11 @@ describe(`Use Fetch`, () => {
     const url = "https://URL_SUCCESS"
     const { result, waitForNextUpdate } = renderHook(() => useFetch(url))
 
-    setImmediate(() => {
+    setTimeout(() => {
       act(() => {
         jest.runAllTimers()
       })
-    })
+    }, 0)
 
     await waitForNextUpdate()
 
@@ -42,11 +42,11 @@ describe(`Use Fetch`, () => {
     const url = "https://NOT_FOUND_URL"
     const { result, waitForNextUpdate } = renderHook(() => useFetch(url))
 
-    setImmediate(() => {
+    setTimeout(() => {
       act(() => {
         jest.runAllTimers()
       })
-    })
+    }, 0)
 
     await waitForNextUpdate()
 
