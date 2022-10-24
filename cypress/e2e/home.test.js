@@ -40,10 +40,6 @@ describe("Home", () => {
     it("Redirect to Instagram", () => {
       performClick('[data-testid="instagram"]')
     })
-
-    it("Redirect to Email", () => {
-      performClick('[data-testid="email"]')
-    })
   })
 
   describe("About", () => {
@@ -97,10 +93,6 @@ describe("Home", () => {
 
     it("Redirect to Instagram", () => {
       scrollBottomAndClick('[data-testid="footer-instagram"]')
-    })
-
-    it("Redirect to Email", () => {
-      scrollBottomAndClick('[data-testid="footer-email"]')
     })
   })
 })
