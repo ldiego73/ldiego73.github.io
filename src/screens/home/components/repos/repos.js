@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next"
 
 export const URL = `https://api.github.com/users/${process.env.GATSBY_GITHUB_USER}/repos?per_page=100`
 
-const Repos = () => {
+function Repos() {
   const { t } = useTranslation()
   const [response] = useFetch(URL)
 

@@ -1,10 +1,12 @@
+/* eslint-disable max-len */
 module.exports = {
   transform: {
     "^.+\\.jsx?$": "<rootDir>/jest-preprocess.js",
   },
   moduleNameMapper: {
     ".+\\.(css|styl|less|sass|scss)$": "identity-obj-proxy",
-    ".+\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/__mocks__/file-mock.js",
+    ".+\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$":
+      "<rootDir>/__mocks__/file-mock.js",
     "^@mocks(.*)$": "<rootDir>/__mocks__$1",
     "^@src(.*)$": "<rootDir>/src$1",
     "^@data(.*)$": "<rootDir>/src/data$1",
@@ -40,7 +42,9 @@ module.exports = {
   coverageReporters: ["json", "text", "lcov", "html"],
   coverageDirectory: "reports/coverage",
   testResultsProcessor: "jest-sonar-reporter",
-  testURL: "http://localhost",
+  testEnvironmentOptions: {
+    url: "http://localhost",
+  },
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
   setupFiles: ["<rootDir>/loadershim.js"],
 }

@@ -2,7 +2,7 @@ import axios from "axios"
 import PropTypes from "prop-types"
 import React, { useState } from "react"
 
-const ContactForm = ({ url, form }) => {
+function ContactForm({ url, form }) {
   const [serverState, setServerState] = useState({
     submitting: false,
     status: null,

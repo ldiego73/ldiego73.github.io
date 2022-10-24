@@ -1,8 +1,8 @@
 import PropTypes from "prop-types"
 import React from "react"
 
-const TimelineItem = ({ year, title, subtitle, details }) => (
-  <li>
+function TimelineItem({ year, title, subtitle, details }) {
+  return <li>
     <div className="timeline__item">
       <span className="timeline__date">{year}</span>
       <span className="timeline__title">{title}</span>
@@ -14,7 +14,7 @@ const TimelineItem = ({ year, title, subtitle, details }) => (
       </ul>
     </div>
   </li>
-)
+}
 
 TimelineItem.defaultProps = {
   details: [],

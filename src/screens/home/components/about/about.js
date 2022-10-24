@@ -7,7 +7,7 @@ import { Trans, useTranslation } from "react-i18next"
 
 import profile from "../../../../images/profile.jpeg"
 
-const About = () => {
+function About() {
   const { t } = useTranslation()
 
   return (

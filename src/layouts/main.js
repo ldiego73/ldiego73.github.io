@@ -7,7 +7,7 @@ import { TranslationProvider } from "@context/translation.provider"
 import PropTypes from "prop-types"
 import React from "react"
 
-const Layout = ({ children }) => {
+function Layout({ children }) {
   return (
     <TranslationProvider>
       <Header />

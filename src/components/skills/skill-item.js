@@ -1,7 +1,7 @@
 import PropTypes from "prop-types"
 import React from "react"
 
-const SkillItem = ({ name, percentage }) => {
+function SkillItem({ name, percentage }) {
   const percentageToString = `${percentage * 100}%`
 
   return (

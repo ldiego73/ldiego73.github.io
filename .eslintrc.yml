@@ -1,16 +1,15 @@
 extends:
   - airbnb
+  - plugin:import/recommended
   - eslint:recommended
   - plugin:react/recommended
   - plugin:jsx-a11y/recommended
   - prettier
-  - prettier/react
 plugins:
-  - prettier
+  - import
   - react
   - filenames
   - jsx-a11y
-  - "simple-import-sort"
 parserOptions:
   sourceType: module
   ecmaFeatures:
@@ -62,7 +61,6 @@ rules:
     - methods
     - ignoreConstructors: true
       avoidExplicitReturnArrows: true
-  prettier/prettier: 2
   react/display-name: 0
   react/jsx-filename-extension: 0
   react/jsx-key: 1
@@ -73,6 +71,5 @@ rules:
   react/no-unescaped-entities: 0
   react/prop-types: 0
   require-jsdoc: 0
-  simple-import-sort/sort: "error"
   sort-imports: 0
   use-isnan: 2

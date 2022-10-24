@@ -7,7 +7,7 @@ import { useHover } from "@hooks/use-hover"
 import React from "react"
 import { Trans, useTranslation } from "react-i18next"
 
-const Welcome = () => {
+function Welcome() {
   const { t } = useTranslation()
   const [hoverRef, isHovered] = useHover()
 

@@ -1,6 +1,8 @@
 import { NotFound } from "@screens/not-found"
 import React from "react"
 
-const NotFoundPage = () => <NotFound />
+function NotFoundPage() {
+  return <NotFound />
+}
 
 export default NotFoundPage

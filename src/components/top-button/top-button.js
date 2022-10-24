@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react"
 
 import pointingUp from "../../images/pointing-up.png"
 
-const TopButton = () => {
+function TopButton() {
   const [showScroll, setShowScroll] = useState(false)
   const offset = 100
 

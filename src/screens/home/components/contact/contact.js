@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next"
 
 import { ContactForm } from "./contact-form"
 
-const Contact = ({ url }) => {
+function Contact({ url }) {
   const URL = url || process.env.GATSBY_GETFORM_URL
   const { t } = useTranslation()
 
