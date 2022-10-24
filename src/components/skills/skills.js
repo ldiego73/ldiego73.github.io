@@ -5,8 +5,8 @@ import React from "react"
 
 import { SkillItem } from "./skill-item"
 
-const Skills = ({ data, children }) => (
-  <div className="skills">
+function Skills({ data, children }) {
+  return <div className="skills">
     {data.map((row, i) => (
       <SkillItem
         key={`skill-${i}`}
@@ -16,7 +16,7 @@ const Skills = ({ data, children }) => (
     ))}
     {children}
   </div>
-)
+}
 
 Skills.defaultProps = {
   data: [],

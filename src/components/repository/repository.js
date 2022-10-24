@@ -3,7 +3,7 @@ import "./repository.scss"
 import PropTypes from "prop-types"
 import React from "react"
 
-const Repository = ({
+function Repository({
   name,
   url,
   description,
@@ -13,8 +13,8 @@ const Repository = ({
   size,
   className,
   ...props
-}) => (
-  <div className={`repository ${className}`} {...props}>
+}) {
+  return <div className={`repository ${className}`} {...props}>
     <div className="repository__top">
       <div className="repository__name">
         <a
@@ -44,7 +44,7 @@ const Repository = ({
       <div className="repository__size">{size} KB</div>
     </div>
   </div>
-)
+}
 
 Repository.defaultProps = {
   description: "",

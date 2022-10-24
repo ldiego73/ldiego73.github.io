@@ -8,8 +8,8 @@ import { Repos } from "./components/repos"
 import { Resume } from "./components/resume"
 import { Welcome } from "./components/welcome"
 
-const Home = () => (
-  <Layout>
+function Home() {
+  return <Layout>
     <SEO title="Home" />
     <Welcome />
     <About />
@@ -17,6 +17,6 @@ const Home = () => (
     <Repos />
     <Contact />
   </Layout>
-)
+}
 
 export { Home }

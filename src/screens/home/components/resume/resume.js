@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next"
 import { ResumeSkills } from "./resume-skills"
 import { ResumeTimeline } from "./resume-timeline"
 
-const Resume = () => {
+function Resume() {
   const { t } = useTranslation([
     "translation",
     "educations",

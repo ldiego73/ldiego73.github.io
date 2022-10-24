@@ -4,7 +4,7 @@ import linksSocialNetworks from "@data/social_networks.json"
 import React from "react"
 import { useTranslation } from "react-i18next"
 
-const Footer = () => {
+function Footer() {
   const { t } = useTranslation()
   const year = new Date().getFullYear()
 

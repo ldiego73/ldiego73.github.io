@@ -1,3 +1,4 @@
+/* eslint-disable react/jsx-no-constructed-context-values */
 import { changeLanguage, selectedLanguage, setupI18n } from "@utils/i18n"
 import React, { useLayoutEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -6,7 +7,7 @@ import { TranslationContext } from "./translation.context"
 
 setupI18n()
 
-const TranslationProvider = ({ children }) => {
+function TranslationProvider({ children }) {
   const { i18n } = useTranslation()
   const [language, setLanguage] = useState(selectedLanguage())
 

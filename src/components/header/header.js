@@ -7,7 +7,7 @@ import { Link } from "gatsby"
 import React, { useContext, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-const Header = () => {
+function Header() {
   const { t } = useTranslation()
   const { language, updateLanguage } = useContext(TranslationContext)
   const [opened, setOpen] = useState(false)
@@ -54,7 +54,7 @@ const Header = () => {
                 key={`header-link-${i}`}
                 href={l.to}
                 className="header__link"
-                arial-label={l.title}
+                aria-label={l.title}
                 data-testid={l.title.toLowerCase()}
               >
                 {l.title}
@@ -92,7 +92,7 @@ const Header = () => {
               key={`header-link-${i}`}
               href={l.to}
               className="header__link mobile"
-              arial-label={l.title}
+              aria-label={l.title}
               onClick={closeMenu}
             >
               {l.title}

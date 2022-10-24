@@ -1,3 +1,4 @@
+/* eslint-disable react/forbid-prop-types */
 /**
  * SEO component that queries for data with
  *  Gatsby's useStaticQuery React hook
@@ -10,7 +11,7 @@ import PropTypes from "prop-types"
 import React from "react"
 import { Helmet } from "react-helmet"
 
-const SEO = ({ description, lang, meta, title }) => {
+function SEO({ description, lang, meta, title }) {
   const { site } = useStaticQuery(
     graphql`
       query {

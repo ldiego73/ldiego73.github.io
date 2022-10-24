@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next"
 
 import notFound from "../../images/not-found.svg"
 
-const NotFound = () => {
+function NotFound() {
   const { t } = useTranslation()
   const title = t("not-found.siteTitle", "Not found")
 

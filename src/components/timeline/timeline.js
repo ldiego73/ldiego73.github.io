@@ -5,8 +5,8 @@ import React from "react"
 
 import { TimelineItem } from "./timeline-item"
 
-const Timeline = ({ data, children }) => (
-  <ul className="timeline">
+function Timeline({ data, children }) {
+  return <ul className="timeline">
     {data.map((row, i) => (
       <TimelineItem
         key={`timeline-${i}`}
@@ -18,7 +18,7 @@ const Timeline = ({ data, children }) => (
     ))}
     {children}
   </ul>
-)
+}
 
 Timeline.defaultProps = {
   data: [],
