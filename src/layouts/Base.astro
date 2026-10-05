@@ -53,6 +53,8 @@ const enUrl = lang === "en" ? canonical : altUrl;
     <Font cssVariable="--font-jetbrains" />
     <Font cssVariable="--font-pixel" />
     <script is:inline>
+      // Remove the previous Gatsby site's service worker so returning visitors stop seeing the cached old site.
+      navigator.serviceWorker?.getRegistrations?.().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
       try {
         const t = localStorage.getItem("theme");
         if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
