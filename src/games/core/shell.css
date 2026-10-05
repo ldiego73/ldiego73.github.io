@@ -249,3 +249,32 @@
 .cabinet [hidden] {
   display: none !important;
 }
+
+/* Audio control slot (the engine's createAudioControl, compact). Blocky like the other cabinet buttons. */
+.cab-audio {
+  display: inline-flex;
+  align-items: center;
+  --au-bg: var(--floor);
+  --au-fg: var(--ink);
+  --au-dim: var(--dim);
+  --au-accent: var(--neon);
+  --au-edge: var(--edge);
+  --au-border: var(--edge);
+  --au-radius: 2px;
+  --au-shade: inset 0 -3px 0 var(--edge);
+}
+.cab-audio[hidden],
+.cab-audio:empty {
+  display: none;
+}
+.cab-audio > * {
+  border: 3px solid var(--edge);
+  border-radius: 2px;
+  box-shadow: inset 0 -3px 0 var(--edge);
+  max-width: 100%;
+}
+.cab-btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+  animation: none;
+}

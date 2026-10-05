@@ -18,6 +18,7 @@ const first = GAMES[mid]!;
   <div class="block-world">
     <section class="hall" data-hall data-state="loading" data-board={t(lang, "arcade.leaderboard")} aria-labelledby="arcade-h1">
       <div class="hall-stage" data-lobby aria-hidden="true"></div>
+      <div class="hall-audio" data-hall-audio></div>
       <div class="hall-ui">
         <div class="hall-head">
           <h1 id="arcade-h1" class="hall-title">{t(lang, "arcade.title")}</h1>
@@ -143,6 +144,9 @@ const first = GAMES[mid]!;
 <script>
   import { ACHIEVEMENTS, GAMES } from "../../../games/registry";
   import { leaderboard, load } from "../../../games/core/store";
+  import { getMusic } from "../../../audio";
+  import { ARCADE_TRACKS } from "../../../audio/tracks/arcade";
+  import { mountAudioControl } from "../../../games/core/audio-control";
 
   const state = load();
   const lang = document.documentElement.lang === "en" ? "en" : "es";
@@ -213,6 +217,39 @@ const first = GAMES[mid]!;
     if (next === -2) return;
     e.preventDefault();
     links[Math.max(0, Math.min(links.length - 1, next))]?.focus();
+  });
+
+  // Lobby music: starts after the first user gesture, fades out when leaving for a game.
+  const audioSlot = document.querySelector<HTMLElement>("[data-hall-audio]");
+  if (audioSlot) mountAudioControl(audioSlot);
+  const music = getMusic();
+  let lobbyOn = false;
+  const startLobby = () => {
+    if (lobbyOn) return;
+    lobbyOn = true;
+    removeEventListener("pointerdown", startLobby);
+    removeEventListener("keydown", startLobby);
+    try {
+      const track = ARCADE_TRACKS.lobby;
+      const ready = music.unlock();
+      Promise.resolve(ready)
+        .catch(() => {})
+        .then(() => {
+          if (track && lobbyOn) music.play(track, { intensity: 0.2 });
+        });
+    } catch {
+      /* audio unavailable */
+    }
+  };
+  addEventListener("pointerdown", startLobby, { passive: true });
+  addEventListener("keydown", startLobby);
+  addEventListener("pagehide", () => {
+    lobbyOn = false;
+    try {
+      music.stop(500);
+    } catch {
+      /* ignore */
+    }
   });
 
   const webgl = (() => {
@@ -305,6 +342,28 @@ const first = GAMES[mid]!;
   }
   .hall[data-state="fallback"] .hall-stage {
     display: none;
+  }
+  .hall-audio {
+    position: absolute;
+    z-index: 2;
+    top: var(--space-3);
+    right: var(--gutter);
+    --au-bg: var(--floor);
+    --au-fg: var(--ink);
+    --au-dim: var(--dim);
+    --au-accent: var(--cyan);
+    --au-edge: #121318;
+    --au-border: #121318;
+    --au-radius: 2px;
+    --au-shade: inset 0 -3px 0 #121318;
+  }
+  .hall-audio:empty {
+    display: none;
+  }
+  .hall-audio :global(> *) {
+    border: 3px solid #121318;
+    border-radius: 2px;
+    box-shadow: inset 0 -3px 0 #121318;
   }
   .hall-ui {
     position: relative;

@@ -26,3 +26,6 @@ pnpm-debug.log*
 # test artifacts
 test-results/
 playwright-report/
+
+# local audition renders (scripts/audio-qa.ts --wav=music-preview)
+music-preview/

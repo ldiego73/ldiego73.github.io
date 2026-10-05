@@ -114,8 +114,15 @@ const { lang } = Astro.props;
   .row::-webkit-scrollbar {
     display: none;
   }
+  .row li {
+    display: flex;
+    min-width: 0;
+  }
   .row a {
     display: grid;
+    grid-template-rows: auto auto 1fr;
+    flex: 1;
+    min-width: 0;
     gap: 0;
     text-decoration: none;
     border-radius: 2px;
@@ -128,11 +135,13 @@ const { lang } = Astro.props;
       box-shadow 0.35s var(--ease-out);
   }
   .mq {
-    padding: 10px 6px 9px;
+    padding: 10px 4px 9px;
     text-align: center;
-    font: 800 0.74rem / 1 var(--font-arcade-stack);
-    letter-spacing: 0.1em;
+    font: 800 0.62rem / 1 var(--font-arcade-stack);
+    letter-spacing: 0.05em;
     white-space: nowrap;
+    overflow: hidden;
+    min-width: 0;
     color: var(--void);
     background: var(--dye);
     box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.22);
@@ -162,6 +171,8 @@ const { lang } = Astro.props;
     padding: 10px 10px 12px;
     font-size: 0.8rem;
     line-height: 1.25;
+    /* Two lines for every card so names of different length never change the card height. */
+    min-height: calc(2 * 1.25em + 22px);
     color: var(--dim);
   }
   .row a:hover,

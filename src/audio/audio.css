@@ -1,0 +1,72 @@
+/* Theme with --au-fg, --au-bg, --au-border (all optional). */
+.au-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--au-fg, currentColor);
+}
+.au-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--au-border, color-mix(in srgb, currentColor 35%, transparent));
+  border-radius: 999px;
+  background: var(--au-bg, transparent);
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.au-compact .au-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+.au-btn:hover {
+  background: var(--au-bg-hover, color-mix(in srgb, currentColor 14%, var(--au-bg, transparent)));
+}
+.au-btn:focus-visible,
+.au-volume:focus-visible {
+  outline: 2px solid var(--au-focus, currentColor);
+  outline-offset: 2px;
+}
+.au-icon {
+  display: block;
+}
+.au-x {
+  display: none;
+}
+.au-control[data-muted="true"] .au-x {
+  display: inline;
+}
+.au-control[data-muted="true"] .au-wave {
+  display: none;
+}
+.au-volume {
+  width: 0;
+  opacity: 0;
+  margin: 0;
+  accent-color: var(--au-accent, currentColor);
+  transition:
+    width 0.2s ease,
+    opacity 0.2s ease;
+}
+.au-control:hover .au-volume,
+.au-control:focus-within .au-volume {
+  width: 5.5rem;
+  opacity: 1;
+}
+@media (hover: none) {
+  .au-volume {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .au-btn,
+  .au-volume {
+    transition: none;
+  }
+}

@@ -593,3 +593,43 @@
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------- music control (engine's createAudioControl, compact) */
+.kw-audio {
+  display: inline-flex;
+  align-items: center;
+  --au-bg: var(--kw-paper);
+  --au-fg: var(--kw-ink);
+  --au-dim: color-mix(in srgb, var(--kw-ink) 55%, var(--kw-paper));
+  --au-accent: var(--kw-ochre);
+  --au-edge: var(--kw-ink);
+  --au-border: var(--kw-ink);
+  --au-radius: 6px;
+  --au-shade: 2px 3px 0 var(--kw-ink);
+}
+.kw-audio:empty {
+  display: none;
+}
+.kw-audio .au-control {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+}
+.kw-audio .au-btn {
+  min-width: 42px;
+  min-height: 42px;
+  color: var(--kw-ink);
+  background: var(--kw-paper);
+  border: 2px solid var(--kw-ink);
+  border-radius: 6px;
+  box-shadow: 2px 3px 0 var(--kw-ink);
+  cursor: pointer;
+}
+.kw-audio .au-btn:hover {
+  background: #fbf4e6;
+}
+.kw-audio .au-btn:active {
+  transform: translate(1px, 2px);
+  box-shadow: 1px 1px 0 var(--kw-ink);
+}

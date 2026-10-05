@@ -23,7 +23,9 @@ export type GameEvent =
   /** Cumulative stat used by achievement rules, e.g. { key: "bugs", inc: 1 }. */
   | { type: "stat"; key: string; inc: number }
   /** Short status line for the HUD, e.g. "Wave 3" or "Uptime 99.98%". */
-  | { type: "status"; text: string };
+  | { type: "status"; text: string }
+  /** Optional music intensity 0..1 (tension). The shell uses max(this, its time/score baseline). */
+  | { type: "intensity"; value: number };
 
 export interface GameContext {
   lang: Lang;

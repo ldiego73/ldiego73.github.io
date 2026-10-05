@@ -364,8 +364,15 @@ const mod: GameModule = {
         ctx.emit({ type: "score", value: score });
       }
     };
+    const tension = () => {
+      const faults = s.comps.filter((c2) => c2.fault).length;
+      const margin = uptime(s) - s.d.target;
+      const v = Math.round(Math.min(1, 0.2 + 0.18 * faults + (margin < 0.02 ? 0.25 : 0)) * 20) / 20;
+      ctx.emit({ type: "intensity", value: v });
+    };
     const status = () => {
       emitScore();
+      tension();
       ctx.emit({ type: "status", text: `Uptime ${fmtUptime(uptime(s), 2)}% · ${Math.ceil(s.d.duration - s.t)}s` });
     };
 

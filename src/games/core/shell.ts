@@ -1,4 +1,8 @@
+import { getMusic } from "../../audio";
+import { ARCADE_TRACKS } from "../../audio/tracks/arcade";
 import { ACHIEVEMENTS, GAMES } from "../registry";
+import { mountAudioControl } from "./audio-control";
+import { createIntensity } from "./intensity";
 import { NEON } from "./neon";
 import { onThemeChange } from "./palette";
 import { evaluate, load, recordEnd, recordStart, recordStat, save } from "./store";
@@ -85,6 +89,7 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
       <span class="cab-stat"><span class="cab-k">${c.score}</span> <b data-score>0</b></span>
       <span class="cab-stat"><span class="cab-k">${c.best}</span> <b data-best>${fmt(best0, lang)}</b></span>
       <span class="cab-status" data-status></span>
+      <span class="cab-audio" data-audio></span>
       <button class="cab-btn cab-pause" type="button" data-restart hidden>${c.restartNow}</button>
       <button class="cab-btn cab-pause" type="button" data-pause hidden>${c.pause}</button>
     </div>
@@ -123,6 +128,7 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
   const statusEl = $("[data-status]");
   const live = $("[data-live]");
   const toasts = $("[data-toasts]");
+  mountAudioControl($("[data-audio]"));
 
   for (const b of diffBox.querySelectorAll<HTMLButtonElement>("[data-d]")) {
     b.addEventListener("click", () => {
@@ -153,6 +159,58 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
     action.hidden = true;
     return () => {};
   }
+
+  // ---- music: tied to the play session (see docs in report). Every audio call is best-effort.
+  const music = getMusic();
+  const safe = (fn: () => void) => {
+    try {
+      fn();
+    } catch {
+      /* audio is never allowed to break a game */
+    }
+  };
+  const meter = createIntensity(difficulty);
+  let pushState: "none" | "pending" | "pushed" = "none";
+  let destroyed = false;
+  let musicTimer = 0;
+  let lastTick = 0;
+  const startMusic = () => {
+    if (pushState !== "none") return;
+    const track = ARCADE_TRACKS[meta.slug];
+    if (!track) return;
+    pushState = "pending";
+    // unlock() is called synchronously so it still counts as inside the click/key gesture.
+    let unlocked: Promise<void> = Promise.resolve();
+    try {
+      unlocked = music.unlock();
+    } catch {
+      /* unavailable */
+    }
+    unlocked
+      .catch(() => {})
+      .then(() => {
+        if (destroyed) return;
+        safe(() => music.push(track, { intensity: meter.value }));
+        pushState = "pushed";
+      });
+  };
+  const musicLevel = () => safe(() => music.setIntensity(meter.value));
+  const musicTick = () => {
+    const now = performance.now();
+    if (phase === "playing") {
+      meter.tick((now - lastTick) / 1000);
+      musicLevel();
+    }
+    lastTick = now;
+  };
+  const musicReset = () => {
+    meter.reset(difficulty);
+    lastTick = performance.now();
+    safe(() => music.duck(1, 200));
+    musicLevel();
+    window.clearInterval(musicTimer);
+    musicTimer = window.setInterval(musicTick, 250);
+  };
 
   let game: GameInstance;
   let phase: "idle" | "playing" | "paused" | "ended" = "idle";
@@ -189,12 +247,22 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
     const msg = `${c.score}: ${fmt(final, lang)}${newBest ? ` · ${c.newBest}` : ""}`;
     live.textContent = `${won ? c.win : c.over}. ${msg}`;
     host.dataset.end = won ? "win" : "over";
+    window.clearInterval(musicTimer);
+    safe(() => {
+      music.stinger(won ? "win" : "gameover");
+      music.setIntensity(0.1);
+      music.duck(0.4, 400);
+    });
     showOverlay(won ? c.win : c.over, msg, c.restart, true);
   };
   const emit = (e: GameEvent) => {
     switch (e.type) {
+      case "intensity":
+        meter.game(e.value);
+        break;
       case "score":
         score = e.value;
+        meter.score(e.value);
         scoreEl.textContent = fmt(score, lang);
         break;
       case "status":
@@ -214,6 +282,8 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
   };
 
   try {
+    // The Play button exists before the game module has loaded; keep it inert until its handler is attached.
+    action.disabled = true;
     const mod = await meta.load();
     game = mod.default.mount(root, {
       lang,
@@ -229,6 +299,7 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
   }
 
   const start = () => {
+    startMusic();
     overlay.hidden = true;
     pauseBtn.hidden = false;
     restartBtn.hidden = false;
@@ -238,12 +309,14 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
     recordStart(state, meta.slug);
     commit();
     phase = "playing";
+    musicReset();
     game.start(difficulty);
     screen.focus({ preventScroll: true });
   };
   const pause = () => {
     if (phase !== "playing") return;
     phase = "paused";
+    safe(() => music.pause());
     game.pause();
     showOverlay(c.paused, `${c.score}: ${fmt(score, lang)}`, c.resume, false);
     overlayRestart.hidden = false;
@@ -253,14 +326,20 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
     pauseBtn.hidden = false;
     restartBtn.hidden = false;
     phase = "playing";
+    lastTick = performance.now();
+    safe(() => music.resume());
     game.resume();
     screen.focus({ preventScroll: true });
   };
+  action.disabled = false;
   action.addEventListener("click", () => (phase === "paused" ? resume() : start()));
   pauseBtn.addEventListener("click", pause);
   // Restart mid-run: the current run counts as abandoned (no loss recorded), then a fresh start.
   const restart = () => {
-    if (phase === "paused") game.resume();
+    if (phase === "paused") {
+      safe(() => music.resume());
+      game.resume();
+    }
     start();
   };
   restartBtn.addEventListener("click", restart);
@@ -285,6 +364,16 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
   const offTheme = onThemeChange(() => game.onThemeChange?.());
 
   return () => {
+    destroyed = true;
+    window.clearInterval(musicTimer);
+    if (pushState === "pushed") {
+      // Leave nothing behind: unfreeze, un-duck, then hand the music back to whoever was playing.
+      safe(() => {
+        music.resume();
+        music.duck(1, 0);
+        music.pop();
+      });
+    }
     document.removeEventListener("visibilitychange", onVis);
     window.removeEventListener("blur", pause);
     offTheme();

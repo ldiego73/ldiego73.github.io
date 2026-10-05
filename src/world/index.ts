@@ -36,6 +36,7 @@ import { createEnv } from "./env";
 import { createInput } from "./input";
 import { createTitle } from "./intro";
 import { buildLayout, type Layout } from "./layout";
+import { createWorldMusic } from "./music";
 import { createSky } from "./sky";
 import { createScenery } from "./terrain";
 import { disposeTextures, redrawAll } from "./tex";
@@ -302,7 +303,10 @@ function start(
   input.enabled = false;
   const cam = createFollowCam(camera, layout.heightAt);
   let runHold = false;
+  const music = createWorldMusic(env);
+  cleanups.push(() => music.dispose());
   const chrome = createChrome(host, lang, {
+    musicControl: music.createControl(lang === "es" ? "Música (N)" : "Music (N)"),
     onTour: () => setTour(!touring),
     onPhoto: () => void photo.shoot(),
     onEditName: () => nameEditor.open(),
@@ -336,6 +340,7 @@ function start(
   };
   const onDialog = (open: boolean) => {
     dialogOpen = open;
+    music.setDialogOpen(open);
     if (open) setTour(false);
     syncInput();
     if (!open) engine.canvas.focus?.({ preventScroll: true });
@@ -519,6 +524,7 @@ function start(
     if (e.code === "KeyM") window.dispatchEvent(new CustomEvent("world:map"));
     else if (e.code === "KeyH" || e.key === "?") window.dispatchEvent(new CustomEvent("world:help"));
     else if (e.code === "KeyT") sky.toggle();
+    else if (e.code === "KeyN") music.toggleMute();
     else if (e.code === "KeyF") void photo.shoot();
   };
   window.addEventListener("keydown", onKey);
@@ -561,6 +567,7 @@ function start(
       chrome.setTraveler(traveler);
     }
     announceTraveler(traveler);
+    music.begin(); // still inside the click / Enter gesture: unlocks Web Audio
     title?.hide();
     swoopFrom.pos.copy(camera.position);
     swoopFrom.look.copy(titleLook);
@@ -583,10 +590,14 @@ function start(
   setMode(true);
   sky.setVoid(1);
   if (skipIntro) {
+    // No gesture here: ask the engine to start on the first one.
+    music.begin();
     toPlay();
     announceTraveler(traveler);
   }
 
+  let musicClock = 0;
+  let musicT = 0;
   const swoopMid = new THREE.Vector3();
   const swoopPos = new THREE.Vector3();
   const swoopLook = new THREE.Vector3();
@@ -715,6 +726,14 @@ function start(
       cam.update(dt, time, pos, { facing: yaw, moving: spd > 0.4, orbit, follow: touring ? 1.6 : 1.15 });
     if (phase === "play" && input.takeInteract()) interact();
     content.update(dt, pos, time);
+    if (phase === "play") {
+      musicClock += dt;
+      if (musicClock > 0.2) {
+        musicClock = 0;
+        musicT = layout.trail.nearestT(pos.x, pos.z);
+      }
+      music.update(dt, { x: pos.x, z: pos.z, t: musicT, touring });
+    }
     let prompt: string | null = null;
     for (const a of ambients) {
       safe(() => a.update(dt, pos, time), undefined);

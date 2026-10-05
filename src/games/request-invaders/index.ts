@@ -172,6 +172,8 @@ const mod: GameModule = {
     let lastPower = "";
 
     const status = () => {
+      const tension = Math.min(1, 0.2 + 0.08 * (s.wave - 1) + (s.boss ? 0.25 : 0));
+      ctx.emit({ type: "intensity", value: tension });
       const text = `${t.wave} ${s.wave} · ${t.lives} ${s.lives}`;
       if (text !== lastStatus) ctx.emit({ type: "status", text });
       lastStatus = text;

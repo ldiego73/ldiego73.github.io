@@ -140,6 +140,11 @@ const mod: GameModule = {
       $("budget").style.transform = `scaleX(${s.budget / 100})`;
       $("bbar").toggleAttribute("data-low", s.budget <= 30);
       $("bnum").textContent = `${s.budget}%`;
+      // Music tension: grows as the error budget burns, SEV1 on screen adds more.
+      ctx.emit({
+        type: "intensity",
+        value: Math.min(1, 0.2 + 0.6 * (1 - s.budget / 100) + (SCENARIOS[s.cur].sev === 1 ? 0.15 : 0)),
+      });
       const left = s.phase === "ask" ? s.timeLeft : 0;
       const frac = left / s.limit;
       $("time").style.transform = `scaleX(${frac})`;

@@ -84,6 +84,8 @@ export function createChrome(
     onEditName(): void;
     onDayNight(): void;
     onQuality(): void;
+    /** Music control element to place in the tools bar (optional). */
+    musicControl?: HTMLElement;
     onInteract(): void;
     onJump(): void;
     onRun(on: boolean): void;
@@ -112,6 +114,7 @@ export function createChrome(
       </div>
     </div>`;
   host.append(root);
+  if (h.musicControl) root.querySelector(".kw-tools")?.prepend(h.musicControl);
   const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
   const tourBtn = q<HTMLButtonElement>('[data-k="tour"]');
   const dnBtn = q<HTMLButtonElement>('[data-k="daynight"]');

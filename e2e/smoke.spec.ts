@@ -62,7 +62,7 @@ for (const slug of [
     const errors = watchErrors(page);
     await page.goto(`/es/arcade/${slug}/`);
     const play = page.locator("[data-action]");
-    await expect(play).toBeVisible();
+    await expect(play).toBeEnabled();
     await play.click();
     await expect(page.locator("[data-overlay]")).toBeHidden();
     await page.waitForTimeout(800);
@@ -76,5 +76,25 @@ test("3D world intro loads and enters", async ({ page }) => {
   await page.waitForTimeout(1500);
   await page.keyboard.press("Enter");
   await page.waitForTimeout(2500);
+  expect(errors).toEqual([]);
+});
+
+test("cabinet has an audio slot and Start survives missing Web Audio", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.AudioContext = undefined;
+    w.webkitAudioContext = undefined;
+  });
+  await page.goto("/en/arcade/snake/");
+  await expect(page.locator(".cab-hud [data-audio]")).toBeAttached();
+  // The Play button is server-rendered before the game module mounts: retry until the handler exists.
+  await expect(async () => {
+    await page.locator("[data-action]").click({ timeout: 1000 });
+    await expect(page.locator("[data-overlay]")).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
+  await page.keyboard.press("p");
+  await expect(page.locator("[data-overlay]")).toBeVisible();
+  await page.waitForTimeout(500);
   expect(errors).toEqual([]);
 });
