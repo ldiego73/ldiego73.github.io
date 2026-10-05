@@ -1,0 +1,86 @@
+---
+import { Font } from "astro:assets";
+import "../styles/global.css";
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import { SITE } from "../data/site";
+import { type Lang, t } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+  title?: string;
+  description?: string;
+  /** Path of this page in the other language, e.g. "/en/blog/". Defaults to the same path with the lang swapped. */
+  alternate?: string;
+  image?: string;
+  type?: "website" | "article";
+}
+
+const { lang, title, description = t(lang, "meta.description"), image = "/og.png", type = "website" } = Astro.props;
+const other: Lang = lang === "es" ? "en" : "es";
+const path = Astro.url.pathname;
+const alternate = Astro.props.alternate ?? path.replace(new RegExp(`^/${lang}(/|$)`), `/${other}$1`);
+const fullTitle = title ? `${title} · ${SITE.name}` : t(lang, "meta.title");
+const canonical = new URL(path, Astro.site);
+const altUrl = new URL(alternate, Astro.site);
+const esUrl = lang === "es" ? canonical : altUrl;
+const enUrl = lang === "en" ? canonical : altUrl;
+---
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="es" href={esUrl} />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="x-default" href={esUrl} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="alternate" type="application/rss+xml" title={`${SITE.name} · Blog`} href={`/${lang}/rss.xml`} />
+    <meta name="theme-color" content="#13151b" />
+    <meta property="og:type" content={type} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL(image, Astro.site)} />
+    <meta property="og:locale" content={lang === "es" ? "es_PE" : "en_US"} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <Font cssVariable="--font-archivo" preload />
+    <Font cssVariable="--font-hanken" preload />
+    <Font cssVariable="--font-jetbrains" />
+    <Font cssVariable="--font-pixel" />
+    <script is:inline>
+      try {
+        const t = localStorage.getItem("theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip" href="#main">{t(lang, "nav.skip")}</a>
+    <Header lang={lang} alternate={alternate} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer lang={lang} />
+  </body>
+</html>
+
+<style>
+  .skip {
+    position: absolute;
+    left: 12px;
+    top: -60px;
+    z-index: 100;
+    background: var(--surface);
+    padding: 10px 14px;
+    border-radius: 4px;
+  }
+  .skip:focus {
+    top: 12px;
+  }
+</style>

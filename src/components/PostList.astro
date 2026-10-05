@@ -1,0 +1,114 @@
+---
+import { type Lang, t } from "../i18n/ui";
+import type { PostItem } from "../lib/posts";
+import Icon from "./Icon.astro";
+
+interface Props {
+  lang: Lang;
+  posts: PostItem[];
+  compact?: boolean;
+}
+const { lang, posts, compact = false } = Astro.props;
+const fmt = (d: Date) =>
+  d.toLocaleDateString(lang === "es" ? "es-PE" : "en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+---
+{
+  posts.length === 0 ? (
+    <p class="empty">{t(lang, "blog.empty")}</p>
+  ) : (
+    <ol class:list={["posts", { compact }]}>
+      {posts.map((p) => (
+        <li>
+          <a href={p.href} target={p.source === "medium" ? "_blank" : undefined} rel={p.source === "medium" ? "noopener" : undefined}>
+            <time class="mono" datetime={p.date.toISOString()}>
+              {fmt(p.date)}
+            </time>
+            <span class="body">
+              <span class="title">{p.title}</span>
+              <span class="desc">{p.description}</span>
+            </span>
+            <span class="meta mono">
+              {p.source === "medium" ? (
+                <>
+                  {t(lang, "blog.onMedium")} <Icon name="external" size={14} />
+                </>
+              ) : (
+                `${p.minutes} ${t(lang, "blog.read")}`
+              )}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+<style>
+  .posts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+  }
+  .posts a {
+    display: grid;
+    grid-template-columns: 9em minmax(0, 1fr) auto;
+    gap: 8px 24px;
+    padding: 22px 0;
+    border-bottom: 1px solid var(--line);
+    text-decoration: none;
+  }
+  .posts a:hover .title {
+    color: var(--red);
+  }
+  time,
+  .meta {
+    font-size: 0.76rem;
+    color: var(--muted);
+    padding-top: 6px;
+  }
+  .meta {
+    display: inline-flex;
+    gap: 6px;
+    align-items: start;
+    white-space: nowrap;
+  }
+  .body {
+    display: grid;
+    gap: 6px;
+  }
+  .title {
+    font: 800 var(--step-1) / 1.1 var(--font-display);
+    font-stretch: 82%;
+    text-transform: uppercase;
+  }
+  .desc {
+    color: var(--muted);
+    max-width: 64ch;
+  }
+  .empty {
+    color: var(--muted);
+  }
+  .compact a {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .compact time,
+  .compact .meta {
+    padding: 0;
+  }
+  @media (max-width: 720px) {
+    .posts a {
+      grid-template-columns: 1fr;
+    }
+    time,
+    .meta {
+      padding: 0;
+    }
+  }
+</style>

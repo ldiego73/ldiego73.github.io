@@ -1,0 +1,320 @@
+@import "./tokens.css";
+@import "../games/core/shell.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 80px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 var(--step-0) / 1.65 var(--font-body);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+::selection {
+  background: var(--selection);
+  color: var(--fg);
+}
+html {
+  scrollbar-color: var(--line) var(--bg);
+}
+img,
+svg,
+canvas {
+  max-width: 100%;
+}
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+a:hover {
+  text-decoration-color: currentColor;
+}
+:focus-visible {
+  outline: 2px solid var(--ochre);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+[hidden] {
+  display: none !important;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  text-wrap: balance;
+  margin: 0;
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+}
+h1 {
+  font-size: var(--step-4);
+  font-stretch: 72%;
+}
+h2 {
+  font-size: var(--step-3);
+  font-stretch: 74%;
+}
+h3 {
+  font-size: var(--step-2);
+  font-stretch: 78%;
+}
+h4 {
+  font-size: var(--step-1);
+  font-stretch: 82%;
+}
+h5,
+h6 {
+  font-size: var(--step-0);
+  font-stretch: 88%;
+  letter-spacing: 0.02em;
+}
+p {
+  margin: 0;
+}
+.wrap {
+  width: min(var(--maxw), 100%);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.lede {
+  font-size: var(--step-1);
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 54ch;
+}
+.section {
+  padding-block: var(--space-6);
+}
+.section-head {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 0.96rem / 1 var(--font-body);
+  padding: 15px 20px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  background: transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.25s var(--ease-out),
+    border-color 0.2s,
+    background-color 0.2s;
+}
+.btn:hover {
+  border-color: var(--muted);
+  transform: translateY(-1px);
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.btn-primary:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 88%, var(--fg));
+}
+.btn svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.rule {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0;
+}
+.dye-red {
+  --dye: var(--red);
+}
+.dye-indigo {
+  --dye: var(--indigo);
+}
+.dye-ochre {
+  --dye: var(--ochre);
+}
+.dye-turq {
+  --dye: var(--turq);
+}
+.dye-alpaca {
+  --dye: var(--alpaca);
+}
+.prose {
+  max-width: 68ch;
+  font-size: var(--step-0);
+}
+.prose > * + * {
+  margin-top: 1.1em;
+}
+.prose h2 {
+  font-size: var(--step-2);
+  margin-top: 2em;
+}
+.prose h3 {
+  font-size: var(--step-1);
+  margin-top: 1.6em;
+}
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+.prose pre {
+  font-size: 0.88rem;
+  padding: 18px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  border: 1px solid var(--line);
+}
+.prose pre code {
+  background: none;
+  padding: 0;
+}
+.prose blockquote {
+  margin-inline: 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.2em;
+}
+.prose li + li {
+  margin-top: 0.4em;
+}
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+.prose th,
+.prose td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 12px 8px 0;
+  text-align: left;
+}
+:root[data-theme="dark"] .astro-code,
+:root[data-theme="dark"] .astro-code span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .astro-code,
+  :root:not([data-theme="light"]) .astro-code span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .btn:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Khipu stage labels (created by src/lib/khipu/mount.ts) */
+[data-tags] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+[data-tags] .tag {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 6px));
+  display: grid;
+  justify-items: center;
+  font: 500 0.66rem / 1.25 var(--font-mono);
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+[data-tags] .tag b {
+  font-weight: 600;
+  color: var(--fg);
+}
+[data-tip] {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  gap: 4px;
+  max-width: 270px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.22);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  pointer-events: none;
+}
+[data-tip] strong {
+  font: 800 1rem / 1.1 var(--font-display);
+  font-stretch: 85%;
+  text-transform: uppercase;
+}
+[data-tip] .mono {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+@media (max-width: 560px) {
+  [data-tags] .tag {
+    writing-mode: vertical-rl;
+    transform: translate(-50%, calc(-100% - 6px)) rotate(180deg);
+    justify-items: start;
+  }
+  [data-tags] .tag span {
+    display: none;
+  }
+}

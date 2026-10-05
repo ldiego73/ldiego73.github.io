@@ -1,0 +1,103 @@
+---
+import { type Lang, t } from "../../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+---
+<div class="wrap">
+  <dl class="legend" aria-label={t(lang, "legend.title")}>
+    <div>
+      <svg viewBox="0 0 34 48" aria-hidden="true">
+        <path d="M17 0v48" stroke="var(--cotton)" stroke-width="4" />
+        <circle cx="17" cy="24" r="6.5" fill="var(--cotton)" />
+      </svg>
+      <dt>{t(lang, "legend.single")}</dt>
+      <dd>{t(lang, "legend.single.d")}</dd>
+    </div>
+    <div>
+      <svg viewBox="0 0 34 48" aria-hidden="true">
+        <path d="M17 0v48" stroke="var(--cotton)" stroke-width="4" />
+        <g fill="var(--cotton)">
+          <circle cx="17" cy="13" r="4.6" /><circle cx="17" cy="20.5" r="4.6" /><circle cx="17" cy="28" r="4.6" /><circle cx="17" cy="35.5" r="4.6" />
+        </g>
+      </svg>
+      <dt>{t(lang, "legend.long")}</dt>
+      <dd>{t(lang, "legend.long.d")}</dd>
+    </div>
+    <div>
+      <svg viewBox="0 0 34 48" aria-hidden="true">
+        <path d="M12 0v48" stroke="var(--indigo)" stroke-width="4" />
+        <path d="M12 12c5 3 9 6 10 14v22" stroke="var(--indigo)" stroke-width="3" fill="none" />
+        <path d="M12 22c6 3 15 6 16 14v12" stroke="var(--ochre)" stroke-width="3" fill="none" />
+      </svg>
+      <dt>{t(lang, "legend.sub")}</dt>
+      <dd>{t(lang, "legend.sub.d")}</dd>
+    </div>
+    <div>
+      <svg viewBox="0 0 34 48" aria-hidden="true">
+        <path d="M2 22h30" stroke="var(--cotton)" stroke-width="4" />
+        <path d="M4 6c4 0 4 16 6 16s2-16 7-16 4 16 6 16 3-16 7-16" stroke="var(--red)" stroke-width="3" fill="none" />
+        <path d="M10 22v26M23 22v26" stroke="var(--alpaca)" stroke-width="3" />
+      </svg>
+      <dt>{t(lang, "legend.top")}</dt>
+      <dd>{t(lang, "legend.top.d")}</dd>
+    </div>
+  </dl>
+</div>
+
+<style>
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    border-block: 1px solid var(--line);
+  }
+  .legend > div {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    column-gap: 14px;
+    padding: 20px 20px 20px 0;
+    font-size: 0.9rem;
+  }
+  .legend > div + div {
+    padding-left: 20px;
+    border-left: 1px solid var(--line);
+  }
+  svg {
+    grid-row: span 2;
+    width: 34px;
+    height: 48px;
+  }
+  dt {
+    font-weight: 600;
+  }
+  dd {
+    margin: 0;
+    color: var(--muted);
+  }
+  @media (max-width: 900px) {
+    .legend {
+      grid-template-columns: 1fr 1fr;
+    }
+    .legend > div:nth-child(3) {
+      border-left: 0;
+      padding-left: 0;
+    }
+    .legend > div:nth-child(n + 3) {
+      border-top: 1px solid var(--line);
+    }
+  }
+  @media (max-width: 520px) {
+    .legend {
+      grid-template-columns: 1fr;
+    }
+    .legend > div + div {
+      border-left: 0;
+      padding-left: 0;
+      border-top: 1px solid var(--line);
+    }
+  }
+</style>

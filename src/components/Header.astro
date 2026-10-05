@@ -1,0 +1,216 @@
+---
+import { type Lang, t } from "../i18n/ui";
+import Icon from "./Icon.astro";
+import KhipuMark from "./KhipuMark.astro";
+
+interface Props {
+  lang: Lang;
+  alternate: string;
+}
+const { lang, alternate } = Astro.props;
+const base = `/${lang}/`;
+const links = [
+  { href: `${base}#story`, label: t(lang, "nav.story") },
+  { href: `${base}#artifacts`, label: t(lang, "nav.artifacts") },
+  { href: `${base}projects/`, label: t(lang, "nav.projects") },
+  { href: `${base}blog/`, label: t(lang, "nav.blog") },
+  { href: `${base}arcade/`, label: t(lang, "nav.arcade") },
+  { href: `${base}world/`, label: lang === "es" ? "Mundo" : "World", world: true },
+  { href: `${base}#contact`, label: t(lang, "nav.contact") },
+];
+const current = Astro.url.pathname;
+---
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href={base} aria-label="Luis Diego">
+      <KhipuMark />
+      <span>LDIEGO73</span>
+    </a>
+    <nav class="nav" aria-label={t(lang, "nav.menu")} id="site-nav">
+      <ul>
+        {
+          links.map((l) => (
+            <li>
+              <a
+                href={l.href}
+                class:list={[{ "nav-world": "world" in l }]}
+                aria-current={current.startsWith(l.href) && !l.href.includes("#") ? "page" : undefined}
+              >
+                {l.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <div class="tools">
+      <a class="tool lang" href={alternate} hreflang={lang === "es" ? "en" : "es"} lang={lang === "es" ? "en" : "es"}>
+        <span aria-hidden="true">{lang === "es" ? "EN" : "ES"}</span>
+        <span class="sr-only">{t(lang, "lang.switch")}</span>
+      </a>
+      <button class="tool" type="button" data-theme-toggle aria-label={t(lang, "theme.toggle")}>
+        <span class="if-dark"><Icon name="sun" size={18} /></span>
+        <span class="if-light"><Icon name="moon" size={18} /></span>
+      </button>
+      <button class="tool menu-btn" type="button" aria-expanded="false" aria-controls="site-nav" data-menu>
+        <Icon name="menu" size={18} />
+        <span class="sr-only">{t(lang, "nav.menu")}</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<script>
+  const root = document.documentElement;
+  const isDark = () =>
+    root.dataset.theme ? root.dataset.theme === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
+  document.querySelector("[data-theme-toggle]")?.addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    root.dataset.theme = next;
+    try {
+      localStorage.setItem("theme", next);
+    } catch {
+      /* storage unavailable */
+    }
+  });
+  const menuBtn = document.querySelector<HTMLButtonElement>("[data-menu]");
+  const nav = document.getElementById("site-nav");
+  menuBtn?.addEventListener("click", () => {
+    const open = menuBtn.getAttribute("aria-expanded") !== "true";
+    menuBtn.setAttribute("aria-expanded", String(open));
+    nav?.classList.toggle("open", open);
+  });
+  nav?.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest("a")) {
+      nav.classList.remove("open");
+      menuBtn?.setAttribute("aria-expanded", "false");
+    }
+  });
+</script>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 50;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.2) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    min-height: 62px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font: 800 1.02rem/1 var(--font-display);
+    font-stretch: 125%;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+  }
+  .nav {
+    margin-left: auto;
+  }
+  .nav ul {
+    display: flex;
+    gap: 22px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.94rem;
+  }
+  .nav a:hover,
+  .nav a[aria-current="page"] {
+    color: var(--fg);
+  }
+  .tools {
+    display: flex;
+    gap: 8px;
+  }
+  .tool {
+    display: inline-grid;
+    place-items: center;
+    min-width: 38px;
+    height: 38px;
+    padding: 0 8px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--fg);
+    font: 600 0.74rem/1 var(--font-mono);
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .tool:hover {
+    border-color: var(--muted);
+  }
+  .menu-btn {
+    display: none;
+  }
+  .nav-world::after {
+    content: "3D";
+    margin-left: 6px;
+    padding: 2px 5px 1px;
+    border-radius: 3px;
+    font: 600 0.62rem/1 var(--font-mono);
+    letter-spacing: 0.04em;
+    color: var(--turq);
+    border: 1px solid color-mix(in srgb, var(--turq) 45%, transparent);
+    vertical-align: 2px;
+  }
+  .if-light {
+    display: none;
+  }
+  :global(:root[data-theme="light"]) .if-dark {
+    display: none;
+  }
+  :global(:root[data-theme="light"]) .if-light {
+    display: inline;
+  }
+  @media (prefers-color-scheme: light) {
+    :global(:root:not([data-theme="dark"])) .if-dark {
+      display: none;
+    }
+    :global(:root:not([data-theme="dark"])) .if-light {
+      display: inline;
+    }
+  }
+  @media (max-width: 900px) {
+    .menu-btn {
+      display: inline-grid;
+    }
+    .tools {
+      margin-left: auto;
+    }
+    .nav {
+      position: absolute;
+      inset: 62px 0 auto 0;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      display: none;
+    }
+    .nav.open {
+      display: block;
+    }
+    .nav ul {
+      flex-direction: column;
+      gap: 0;
+      padding: 8px var(--gutter) 16px;
+    }
+    .nav a {
+      display: block;
+      padding: 12px 0;
+      font-size: 1.1rem;
+      border-bottom: 1px solid var(--line);
+    }
+  }
+</style>

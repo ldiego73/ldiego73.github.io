@@ -1,0 +1,212 @@
+---
+import { COMPANIES } from "../../data/career";
+import { fmtPeriod, type Lang, t } from "../../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+// Newest first: the story reads from the present back to the first cord.
+const companies = [...COMPANIES].reverse();
+---
+<section class="section" id="story" aria-labelledby="story-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="story-title">{t(lang, "chapters.title")}</h2>
+    </div>
+    <ol class="chapters">
+      {
+        companies.map((c) => {
+          const first = c.stages[0]!;
+          const last = c.stages[c.stages.length - 1]!;
+          return (
+            <li class={`chapter dye-${c.dye}`} id={`chapter-${c.id}`}>
+              <div class="cord" aria-hidden="true" />
+              <header class="ch-head">
+                <h3>{c.name}</h3>
+                <p class="mono when">{fmtPeriod(lang, first.start, last.end)}</p>
+              </header>
+              <div class="stages">
+                {[...c.stages].reverse().map((s) => {
+                  const metric = s.knots.find((k) => k.metric && k.n > 1);
+                  return (
+                    <article class={`stage dye-${s.dye}`}>
+                      <div class="stage-meta">
+                        <p class="role">{s.role[lang]}</p>
+                        <p class="mono when">
+                          {fmtPeriod(lang, s.start, s.end)} · {s.place[lang]}
+                        </p>
+                      </div>
+                      <p class="summary">{s.summary[lang]}</p>
+                      <ul class="knots">
+                        {s.knots.map((k) => (
+                          <li class={k.n > 1 ? "long" : ""}>
+                            <span class="bead" aria-hidden="true">
+                              {Array.from({ length: Math.min(k.n, 9) }, () => (
+                                <i />
+                              ))}
+                            </span>
+                            <span>{k.text[lang]}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {metric && (
+                        <p class="metric">
+                          <span class="mono">{metric.metric}</span>
+                        </p>
+                      )}
+                      {s.stack && <p class="mono stack">{s.stack.join(" · ")}</p>}
+                    </article>
+                  );
+                })}
+              </div>
+            </li>
+          );
+        })
+      }
+    </ol>
+  </div>
+</section>
+
+<style>
+  .chapters {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+  }
+  .chapter {
+    position: relative;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 4fr) minmax(0, 8fr);
+    gap: 0 clamp(16px, 3vw, 40px);
+    padding-block: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+  .cord {
+    grid-row: 1 / span 2;
+    position: relative;
+  }
+  .cord::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: calc(var(--space-4) * -1);
+    width: 6px;
+    transform: translateX(-50%);
+    border-radius: 3px;
+    background: repeating-linear-gradient(
+      168deg,
+      var(--dye) 0 6px,
+      color-mix(in srgb, var(--dye) 72%, var(--bg-deep)) 6px 9px
+    );
+  }
+  .ch-head h3 {
+    font-size: var(--step-2);
+    font-stretch: 68%;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+  .when {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 8px;
+  }
+  .stages {
+    display: grid;
+    gap: var(--space-4);
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2) var(--space-3);
+  }
+  .stage + .stage {
+    padding-top: var(--space-4);
+    border-top: 1px dashed var(--line);
+  }
+  .stage-meta,
+  .summary,
+  .knots,
+  .stack {
+    grid-column: 1;
+  }
+  .role {
+    font: 800 var(--step-1) / 1.1 var(--font-display);
+    font-stretch: 82%;
+    text-transform: uppercase;
+    color: var(--dye);
+  }
+  .summary {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    max-width: 48ch;
+  }
+  .knots {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+    max-width: 62ch;
+  }
+  .knots li {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .bead {
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    padding-top: 6px;
+  }
+  .bead i {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--dye);
+    box-shadow: inset -2px -2px 0 rgb(0 0 0 / 0.28);
+  }
+  .long .bead i {
+    width: 9px;
+    height: 6px;
+    border-radius: 4px;
+    margin-bottom: 1px;
+  }
+  .metric {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-self: start;
+    text-align: right;
+  }
+  .metric .mono {
+    font: 800 clamp(2.6rem, 1.8rem + 3.4vw, 4.6rem) / 0.85 var(--font-display);
+    font-stretch: 62%;
+    color: var(--dye);
+  }
+  .stack {
+    font-size: 0.76rem;
+    color: var(--muted);
+  }
+  @media (max-width: 900px) {
+    .chapter {
+      grid-template-columns: 28px minmax(0, 1fr);
+    }
+    .ch-head {
+      margin-bottom: var(--space-3);
+    }
+    .stages {
+      grid-column: 2;
+    }
+    .stage {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .metric {
+      grid-column: 1;
+      grid-row: auto;
+      text-align: left;
+    }
+  }
+</style>

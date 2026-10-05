@@ -1,0 +1,34 @@
+---
+/** <Callout type="note|tip|warning" title="...">…</Callout> inside MDX posts. */
+interface Props {
+  type?: "note" | "tip" | "warning";
+  title?: string;
+}
+const { type = "note", title } = Astro.props;
+const dye = { note: "indigo", tip: "turq", warning: "red" }[type];
+---
+<aside class={`callout dye-${dye}`} role="note">
+  {title && <p class="callout-title">{title}</p>}
+  <div class="callout-body"><slot /></div>
+</aside>
+
+<style>
+  .callout {
+    margin-block: 1.6em;
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--dye) 10%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--dye) 35%, var(--line));
+  }
+  .callout-title {
+    font: 800 0.95rem/1.2 var(--font-display);
+    font-stretch: 85%;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--dye);
+    margin-bottom: 6px;
+  }
+  .callout-body > :global(* + *) {
+    margin-top: 0.8em;
+  }
+</style>

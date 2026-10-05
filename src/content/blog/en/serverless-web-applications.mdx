@@ -1,0 +1,33 @@
+---
+title: "Serverless web applications"
+description: "Third-party services, client-side logic and functions as a service: what you gain and what you pay with a serverless web app."
+date: 2020-06-17
+tags: ["serverless", "architecture", "aws"]
+translationKey: serverless-web
+---
+
+A serverless web application rests on three pieces: **third-party services**, **client-side logic** and cloud-hosted **functions as a service**. There are no servers of your own to maintain; there are contracts between managed pieces.
+
+## What you gain
+
+### Flexible scaling
+
+The CDN and the functions scale with traffic on their own. No capacity to provision up front.
+
+### No server management
+
+No operating system to patch and no fleet to watch. The team focuses on the product.
+
+### No idle capacity
+
+You pay for executions and storage, not for machines waiting for traffic.
+
+### High availability
+
+Managed services come with availability and fault tolerance built in.
+
+## What you pay
+
+Speed matters: every millisecond of load time changes how users perceive and use the product. In serverless that means watching cold starts, bundle sizes and the number of network hops between functions.
+
+With this approach we later built Auna's first digital transformation app: telehealth, appointments and prescriptions on Lambda, API Gateway WebSocket and DynamoDB.

@@ -1,0 +1,140 @@
+---
+import RepoList from "../../../components/RepoList.astro";
+import { ARTIFACTS, stageById } from "../../../data/career";
+import { LANGS, type Lang, t } from "../../../i18n/ui";
+import Base from "../../../layouts/Base.astro";
+import { getRepos } from "../../../lib/github";
+
+export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
+const lang = Astro.params.lang as Lang;
+const repos = await getRepos();
+---
+<Base lang={lang} title={t(lang, "projects.title")} description={t(lang, "projects.lede")}>
+  <div class="wrap page">
+    <header class="intro">
+      <h1>{t(lang, "projects.title")}</h1>
+      <p class="lede">{t(lang, "projects.lede")}</p>
+    </header>
+    <section aria-labelledby="cases">
+      <h2 id="cases">{t(lang, "projects.cases")}</h2>
+      <ol class="cases">
+        {
+          ARTIFACTS.map((a) => (
+            <li class={`case dye-${a.dye}`} id={a.id}>
+              <div class="cord" aria-hidden="true" />
+              <div class="head">
+                <h3>{a.name[lang]}</h3>
+                <p class="mono tech">{a.tech}</p>
+                <p class="summary">{a.summary[lang]}</p>
+              </div>
+              <ol class="timeline">
+                {a.uses.map((u) => {
+                  const ref = stageById(u.stage);
+                  return (
+                    <li>
+                      <span class="mono year">{ref?.stage.start.slice(0, 4)}</span>
+                      <span class="co">{ref?.company.name}</span>
+                      <span class="role">{ref?.stage.role[lang]}</span>
+                      <span class="what">{u.text[lang]}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+    <section aria-labelledby="repos" class="repos-sec">
+      <h2 id="repos">{t(lang, "projects.repos")}</h2>
+      <RepoList lang={lang} repos={repos.slice(0, 12)} />
+    </section>
+  </div>
+</Base>
+
+<style>
+  .page {
+    padding-block: var(--space-5) var(--space-6);
+  }
+  .intro {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+  }
+  h2 {
+    font-size: var(--step-2);
+    margin-bottom: var(--space-3);
+  }
+  .cases {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .case {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 5fr) minmax(0, 7fr);
+    gap: var(--space-3);
+    padding-block: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+  .cord {
+    width: 6px;
+    justify-self: center;
+    border-radius: 3px;
+    background: var(--dye);
+  }
+  .head h3 {
+    font-size: var(--step-2);
+    color: var(--dye);
+    margin-bottom: 10px;
+  }
+  .tech {
+    font-size: 0.76rem;
+    color: var(--muted);
+    margin-bottom: var(--space-2);
+  }
+  .summary {
+    font-size: var(--step-1);
+    line-height: 1.45;
+  }
+  .timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+  }
+  .timeline li {
+    display: grid;
+    grid-template-columns: 3.5em minmax(0, 1fr);
+    gap: 2px 14px;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  .year {
+    grid-row: span 3;
+    color: var(--dye);
+    font-size: 0.86rem;
+    padding-top: 2px;
+  }
+  .co {
+    font-weight: 600;
+  }
+  .role {
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+  .repos-sec {
+    margin-top: var(--space-5);
+  }
+  @media (max-width: 900px) {
+    .case {
+      grid-template-columns: 16px minmax(0, 1fr);
+    }
+    .timeline {
+      grid-column: 2;
+    }
+    .cord {
+      grid-row: span 2;
+    }
+  }
+</style>

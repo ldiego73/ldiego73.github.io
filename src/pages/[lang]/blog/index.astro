@@ -1,0 +1,94 @@
+---
+import { Image } from "astro:assets";
+import PostList from "../../../components/PostList.astro";
+import { LANGS, type Lang, t } from "../../../i18n/ui";
+import Base from "../../../layouts/Base.astro";
+import { getPosts } from "../../../lib/posts";
+
+export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
+const lang = Astro.params.lang as Lang;
+const posts = await getPosts(lang);
+const featured = posts.find((p) => p.cover);
+const rest = posts.filter((p) => p !== featured);
+const fmt = (d: Date) =>
+  d.toLocaleDateString(lang === "es" ? "es-PE" : "en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+---
+<Base lang={lang} title={t(lang, "blog.title")} description={t(lang, "blog.lede")}>
+  <div class="wrap page">
+    <header class="intro">
+      <h1>{t(lang, "blog.title")}</h1>
+      <p class="lede">{t(lang, "blog.lede")}</p>
+    </header>
+    {
+      featured?.cover && (
+        <a class="featured" href={featured.href}>
+          <Image src={featured.cover} alt={featured.coverAlt ?? ""} widths={[640, 960, 1280]} sizes="(max-width: 900px) 100vw, 60vw" />
+          <span class="f-body">
+            <time class="mono" datetime={featured.date.toISOString()}>
+              {fmt(featured.date)} · {featured.minutes} {t(lang, "blog.read")}
+            </time>
+            <span class="f-title">{featured.title}</span>
+            <span class="f-desc">{featured.description}</span>
+          </span>
+        </a>
+      )
+    }
+    <PostList lang={lang} posts={rest} />
+  </div>
+</Base>
+
+<style>
+  .page {
+    padding-block: var(--space-5) var(--space-6);
+  }
+  .intro {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+  }
+  .featured {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: var(--space-4);
+    align-items: center;
+    text-decoration: none;
+    margin-bottom: var(--space-5);
+  }
+  .featured :global(img) {
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+  }
+  .f-body {
+    display: grid;
+    gap: 12px;
+  }
+  time {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .f-title {
+    font: 800 var(--step-3) / 0.95 var(--font-display);
+    font-stretch: 72%;
+    text-transform: uppercase;
+  }
+  .featured:hover .f-title {
+    color: var(--red);
+  }
+  .f-desc {
+    color: var(--muted);
+    font-size: var(--step-1);
+    line-height: 1.45;
+  }
+  @media (max-width: 900px) {
+    .featured {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

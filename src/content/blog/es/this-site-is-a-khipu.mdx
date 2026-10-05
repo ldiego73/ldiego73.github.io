@@ -1,0 +1,90 @@
+---
+title: "Este sitio es un khipu"
+description: "Por qué conté mi carrera con cuerdas y nudos, y cómo está construido: Astro, Three.js, física de cuerdas y un arcade hecho con agentes."
+date: 2026-10-04
+tags: ["astro", "threejs", "arquitectura"]
+translationKey: site-khipu
+cover: ../../../assets/blog/khipu-hero.png
+coverAlt: "El khipu del inicio: siete cuerdas de colores colgando de una cuerda principal, una por empresa."
+---
+
+import diagram from "../../../assets/blog/artifacts-top-cord.png";
+
+Los khipus eran el sistema de registro de los Andes: una cuerda principal, cuerdas colgantes y nudos. La posición del nudo indicaba la unidad, la decena o la centena, y el número de vueltas de un nudo largo era el dígito. Datos estructurados, sin papel.
+
+Cuando quise rehacer este sitio después de cuatro años, me di cuenta de que mi carrera ya tenía esa forma: empresas que son cuerdas, etapas que son subcuerdas y entregas que son nudos.
+
+## Cómo leerlo
+
+- **Una cuerda por empresa.** Si estuve en varias etapas dentro de la misma empresa, cada etapa cuelga como una subcuerda. Auna, por ejemplo, tiene tres.
+- **Nudos simples** para cosas que llegaron a producción.
+- **Nudos largos** para cifras: el 30–40% de ahorro en TopSort es un nudo de tres vueltas.
+- **Cuerdas superiores** para los artefactos que construí en varias empresas.
+
+<Figure src={diagram} alt="La sección de artefactos: una cuerda superior roja ata las cuerdas de Belcorp, Auna, Xepelin, TopSort y Globant." caption="El API Gateway aparece en cinco empresas: la cuerda superior las ata a todas." />
+
+## Los datos primero
+
+Todo el sitio sale de un solo archivo tipado. El khipu 3D, los capítulos, la vista plana y el CV en PDF leen los mismos datos, así que no hay dos versiones de la verdad.
+
+<CodeFile name="src/data/career.ts">
+
+```ts
+export interface Knot {
+  id: string;
+  /** 1 = nudo simple; más de 1 = nudo largo cuyas vueltas son un dígito */
+  n: number;
+  text: { es: string; en: string };
+  metric?: string;
+}
+
+const finops: Knot = {
+  id: "finops",
+  n: 3,
+  metric: "30–40%",
+  text: {
+    es: "30–40% menos costo de infraestructura con FinOps, Karpenter y KubeCost.",
+    en: "30–40% lower infrastructure cost with FinOps, Karpenter and KubeCost.",
+  },
+};
+```
+
+</CodeFile>
+
+## Física de cuerdas
+
+Cada cuerda es una cadena de puntos integrada con Verlet. En cada frame se aplica gravedad, se mueve cada punto según su velocidad implícita y luego se corrige la distancia entre vecinos varias veces:
+
+```ts
+for (let it = 0; it < 10; it++) {
+  rope.pts[0].copy(anchor);
+  for (let i = 0; i < SEG; i++) {
+    const p = rope.pts[i], q = rope.pts[i + 1];
+    const d = p.distanceTo(q) || 1e-6;
+    const k = ((d - rope.segLen) / d) * (i === 0 ? 1 : 0.5);
+    // acerca o separa ambos extremos hasta la longitud de reposo
+  }
+}
+```
+
+<Callout type="tip" title="Accesibilidad">
+Con `prefers-reduced-motion` las cuerdas quedan quietas, y todo el contenido existe como HTML aunque el navegador no tenga WebGL.
+</Callout>
+
+## El arcade y los agentes
+
+El arcade tiene nueve juegos en 3D. Cada juego lo construyó un agente independiente siguiendo un contrato común: el juego solo emite eventos y el gabinete compartido se encarga de récords y logros.
+
+```ts
+ctx.emit({ type: "score", value: 1200 });
+ctx.emit({ type: "stat", key: "bugs", inc: 1 });
+ctx.emit({ type: "gameover", score: 1200 });
+```
+
+<Callout type="note" title="Regla del contenido">
+El contenido sale de mi CV, sin adornos. Si algo no está en el CV, no está en el khipu.
+</Callout>
+
+## Cómo se publica
+
+**Astro** genera todo como sitio estático en español e inglés, y **GitHub Actions** construye y publica en GitHub Pages en cada push a `main`. Sin servidores que mantener.

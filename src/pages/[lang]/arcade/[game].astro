@@ -1,0 +1,272 @@
+---
+import Icon from "../../../components/Icon.astro";
+import { NEON } from "../../../games/core/neon";
+import { ACHIEVEMENTS, GAMES } from "../../../games/registry";
+import { LANGS, type Lang, t } from "../../../i18n/ui";
+import Base from "../../../layouts/Base.astro";
+
+export const getStaticPaths = () => LANGS.flatMap((lang) => GAMES.map((g) => ({ params: { lang, game: g.slug } })));
+const lang = Astro.params.lang as Lang;
+const game = GAMES.find((g) => g.slug === Astro.params.game)!;
+const achievements = ACHIEVEMENTS.filter((a) => "game" in a.rule && a.rule.game === game.slug);
+// "Arrows or WASD: turn" -> keycap "Arrows or WASD" + action "turn". Lines without a colon stay plain.
+const controls = game.controls[lang].map((line) => {
+  const at = line.indexOf(":");
+  return at < 0 ? { keys: "", action: line } : { keys: line.slice(0, at).trim(), action: line.slice(at + 1).trim() };
+});
+---
+<Base lang={lang} title={game.title[lang]} description={game.tagline[lang]}>
+  <div class="block-world" style={`--dye:${NEON[game.neon]}`}>
+    <div class="wrap page">
+      <a class="back" href={`/${lang}/arcade/`}><Icon name="arrow" size={16} /> {t(lang, "arcade.back")}</a>
+      <div class="layout">
+        <div class="cab" data-cabinet={game.slug} data-lang={lang}></div>
+        <aside class="info">
+          <h1>{game.title[lang]}</h1>
+          <p class="tag">{game.tagline[lang]}</p>
+          <p class="best">{t(lang, "arcade.best")} <b data-best>0</b></p>
+          <section class="panel" aria-labelledby="howto-h">
+            <h2 id="howto-h">{t(lang, "arcade.howTo")}</h2>
+            <p class="how">{game.howTo[lang]}</p>
+          </section>
+          <section class="panel" aria-labelledby="controls-h">
+            <h2 id="controls-h">{t(lang, "arcade.controls")}</h2>
+            <ul class="controls">
+              {
+                controls.map((c) => (
+                  <li class={c.keys ? "" : "plain"}>
+                    {c.keys && <kbd>{c.keys}</kbd>}
+                    <span>{c.action}</span>
+                  </li>
+                ))
+              }
+            </ul>
+          </section>
+          <section class="panel" aria-labelledby="ach-h">
+            <h2 id="ach-h">{t(lang, "arcade.achievements")}</h2>
+            {
+              achievements.length > 0 ? (
+                <ul class="ach">
+                  {achievements.map((a) => (
+                    <li data-ach={a.id} class="locked">
+                      <span class="badge" aria-hidden="true">
+                        <Icon name="lock" size={14} />
+                        <Icon name="trophy" size={14} />
+                      </span>
+                      <span>
+                        <b>{a.title[lang]}</b>
+                        <span>{a.description[lang]}</span>
+                      </span>
+                      <span class="sr-only" data-state data-unlocked-label={t(lang, "arcade.unlocked")}>
+                        {t(lang, "arcade.locked")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p class="how">{t(lang, "arcade.noAchievements")}</p>
+              )
+            }
+          </section>
+        </aside>
+      </div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { mountCabinet } from "../../../games/core/shell";
+  import { load } from "../../../games/core/store";
+  import { gameBySlug } from "../../../games/registry";
+
+  const host = document.querySelector<HTMLElement>("[data-cabinet]");
+  const meta = host ? gameBySlug(host.dataset.cabinet ?? "") : undefined;
+  if (host && meta) mountCabinet(host, meta, host.dataset.lang === "en" ? "en" : "es");
+
+  // Reflect saved progress in the info panel (refreshed when the tab regains focus after a run).
+  const paint = () => {
+    const state = load();
+    const nf = new Intl.NumberFormat(document.documentElement.lang === "en" ? "en-US" : "es-PE");
+    const best = document.querySelector("[data-best]");
+    if (best && meta) best.textContent = nf.format(state.games[meta.slug]?.best ?? 0);
+    for (const li of document.querySelectorAll<HTMLElement>("[data-ach]")) {
+      if (!state.unlocked[li.dataset.ach ?? ""] || !li.classList.contains("locked")) continue;
+      li.classList.remove("locked");
+      const s = li.querySelector<HTMLElement>("[data-state]");
+      if (s) s.textContent = s.dataset.unlockedLabel ?? "";
+    }
+  };
+  paint();
+  addEventListener("storage", paint);
+  host?.addEventListener("focusout", paint);
+  setInterval(paint, 4000);
+</script>
+
+<style>
+  .block-world {
+    --void: #16171d;
+    --floor: #2a2c35;
+    --grid: #3c3f4b;
+    --ink: #efe9da;
+    --dim: #9b97a3;
+    --lime: #7fb24a;
+    --font-arcade-stack: var(--font-arcade, "Silkscreen"), "Arial Narrow", sans-serif;
+    color: var(--ink);
+    color-scheme: dark;
+    background: var(--void);
+  }
+  .block-world ::selection {
+    background: color-mix(in srgb, var(--dye) 40%, transparent);
+    color: #efe9da;
+  }
+  .block-world :focus-visible {
+    outline: 3px solid var(--dye);
+    outline-offset: 3px;
+  }
+  .page {
+    padding-block: var(--space-3) var(--space-6);
+  }
+  .back {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    color: var(--dim);
+    text-decoration: none;
+    font: 500 0.82rem / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: var(--space-3);
+    padding: 8px 0;
+  }
+  .back:hover {
+    color: #efe9da;
+  }
+  .back :global(svg) {
+    transform: scaleX(-1);
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 8fr) minmax(280px, 3.4fr);
+    gap: var(--space-4);
+    align-items: start;
+  }
+  .info {
+    display: grid;
+    gap: 14px;
+  }
+  .info h1 {
+    font: 800 var(--step-3) / 0.95 var(--font-arcade-stack);
+    letter-spacing: 0.03em;
+    color: #efe9da;
+  }
+  .tag {
+    margin: 0;
+    font-weight: 600;
+  }
+  .best {
+    margin: 0 0 6px;
+    font: 500 0.8rem / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+  }
+  .best b {
+    color: var(--dye);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-size: 1rem;
+  }
+  .panel {
+    padding: 16px 18px 18px;
+    border-radius: 2px;
+    background: var(--floor, #2a2c35);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  h2 {
+    font: 700 1rem / 1 var(--font-arcade-stack);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--dye);
+    margin-bottom: 12px;
+  }
+  .how {
+    margin: 0;
+    color: color-mix(in srgb, var(--ink) 82%, var(--dim));
+    font-size: 0.95rem;
+  }
+  .controls,
+  .ach {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 10px;
+    font-size: 0.92rem;
+  }
+  .controls li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .controls li.plain {
+    color: var(--dim);
+  }
+  kbd {
+    font: 600 0.74rem / 1 var(--font-mono);
+    letter-spacing: 0.04em;
+    color: #efe9da;
+    padding: 7px 9px 6px;
+    border-radius: 2px;
+    background: var(--floor, #2a2c35);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .ach li {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .ach b {
+    display: block;
+    color: #efe9da;
+  }
+  .ach li > span:nth-child(2) > span {
+    color: var(--dim);
+  }
+  .badge {
+    width: 34px;
+    height: 34px;
+    border-radius: 2px;
+    display: grid;
+    place-items: center;
+    color: var(--lime);
+    background: var(--floor, #2a2c35);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .badge :global(svg:first-child) {
+    display: none;
+  }
+  .locked b {
+    color: var(--dim);
+  }
+  .locked .badge {
+    color: var(--dim);
+    background: var(--void);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .locked .badge :global(svg:first-child) {
+    display: block;
+  }
+  .locked .badge :global(svg:last-child) {
+    display: none;
+  }
+  @media (max-width: 1000px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

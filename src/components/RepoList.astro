@@ -1,0 +1,118 @@
+---
+import { type Lang, t } from "../i18n/ui";
+import type { Repo } from "../lib/github";
+import Icon from "./Icon.astro";
+
+interface Props {
+  lang: Lang;
+  repos: Repo[];
+  /** Single column, used beside another list. */
+  compact?: boolean;
+}
+const { lang, repos, compact = false } = Astro.props;
+const fmt = (d: string) =>
+  new Date(d).toLocaleDateString(lang === "es" ? "es-PE" : "en-US", { month: "short", year: "numeric" });
+---
+{
+  repos.length === 0 ? (
+    <p class="empty">
+      {t(lang, "projects.empty")}{" "}
+      <a href="https://github.com/ldiego73" target="_blank" rel="noopener">
+        GitHub
+      </a>
+    </p>
+  ) : (
+    <ul class:list={["repos", { compact }]}>
+      {repos.map((r) => (
+        <li>
+          <a href={r.url} target="_blank" rel="noopener">
+            <span class="name">
+              {r.name}
+              <Icon name="external" size={16} />
+            </span>
+            {r.description && <span class="desc">{r.description}</span>}
+            <span class="meta mono">
+              {r.language && <span>{r.language}</span>}
+              {r.stars > 0 && <span>★ {r.stars}</span>}
+              <span>{fmt(r.pushedAt)}</span>
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+<style>
+  .repos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--line);
+  }
+  .repos li {
+    border-bottom: 1px solid var(--line);
+  }
+  .repos li:nth-child(odd) {
+    border-right: 1px solid var(--line);
+  }
+  .repos a {
+    display: grid;
+    gap: 6px;
+    padding: 20px 20px 20px 0;
+    text-decoration: none;
+    height: 100%;
+  }
+  .repos li:nth-child(even) a {
+    padding-left: 20px;
+  }
+  .repos a:hover .name {
+    color: var(--red);
+  }
+  .name {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-weight: 600;
+    font-size: 1.06rem;
+  }
+  .name :global(svg) {
+    color: var(--muted);
+  }
+  .desc {
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+  .empty {
+    color: var(--muted);
+  }
+  .repos.compact {
+    grid-template-columns: 1fr;
+  }
+  .repos.compact li {
+    border-right: 0;
+  }
+  .repos.compact li a {
+    padding-left: 0;
+  }
+  @media (max-width: 720px) {
+    .repos {
+      grid-template-columns: 1fr;
+    }
+    .repos li:nth-child(odd) {
+      border-right: 0;
+    }
+    .repos li:nth-child(even) a {
+      padding-left: 0;
+    }
+  }
+</style>

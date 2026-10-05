@@ -1,0 +1,609 @@
+/* Hand-inked HUD for the Qhapaq Ñan world: paper/cloth cards, dark ink borders, square buttons with a
+   slight offset (allowed here: the whole world is hand-inked). Prefix qn-. Positions use custom
+   properties so the core page chrome can shift them (--qn-top, --qn-bottom, --qn-side). */
+.qn-hud {
+  --qn-ink: #1f1a17;
+  --qn-paper: #f3ead8;
+  --qn-paper-2: #e9dcc4;
+  --qn-cloth: #d8b46a;
+  --qn-muted: #5b4a3a;
+  --qn-accent: #c4383f;
+  --qn-ochre: #dda63c;
+  --qn-shadow: 3px 3px 0 var(--qn-ink);
+  --qn-top: max(14px, env(safe-area-inset-top));
+  --qn-bottom: max(18px, env(safe-area-inset-bottom));
+  --qn-side: max(14px, env(safe-area-inset-left));
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--qn-ink);
+  font: 400 15px / 1.5 var(--font-body, "Hanken Grotesk", system-ui, sans-serif);
+  z-index: 5;
+}
+.qn-hud.is-night {
+  --qn-ink: #1b2340;
+  --qn-paper: #efe6d6;
+  --qn-paper-2: #ddd3c6;
+  --qn-muted: #3f4466;
+}
+.qn-hud > * {
+  pointer-events: auto;
+}
+.qn-hud ::selection {
+  background: var(--qn-ochre);
+  color: var(--qn-ink);
+}
+.qn-hud kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.3em;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  font: 700 0.78em / 1 var(--font-mono, "JetBrains Mono", monospace);
+  background: var(--qn-paper);
+  color: var(--qn-ink);
+}
+
+/* ---------- buttons */
+.qn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 6px;
+  background: var(--qn-paper);
+  color: var(--qn-ink);
+  box-shadow: var(--qn-shadow);
+  font: 800 0.95rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 120ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    box-shadow 120ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    background-color 160ms;
+}
+.qn-btn:hover {
+  background: #fff7e6;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--qn-ink);
+}
+.qn-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--qn-ink);
+}
+.qn-btn:focus-visible {
+  outline: 3px solid var(--qn-ochre);
+  outline-offset: 3px;
+}
+.qn-btn-primary {
+  background: var(--qn-accent);
+  color: #fff8ee;
+}
+.qn-btn-primary:hover {
+  background: #d4464d;
+}
+.qn-icon {
+  width: 44px;
+  padding: 0;
+}
+.qn-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.qn-icon svg.is-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* ---------- toast */
+.qn-toast {
+  position: absolute;
+  top: var(--qn-top);
+  left: 50%;
+  transform: translate(-50%, -16px);
+  padding: 10px 20px 9px;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 6px;
+  background: var(--qn-cloth);
+  box-shadow: var(--qn-shadow);
+  font: 800 1.15rem / 1.1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 72%;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.qn-toast.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- prompt */
+.qn-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--qn-bottom) + 8px);
+  transform: translateX(-50%);
+  min-height: 50px;
+  padding: 0 20px 0 10px;
+  font-size: 1.05rem;
+  animation: qn-bob 1.8s ease-in-out infinite;
+}
+.qn-prompt:hover,
+.qn-prompt:active {
+  transform: translateX(-50%);
+}
+.qn-prompt kbd {
+  font-size: 0.95rem;
+}
+@keyframes qn-bob {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -3px;
+  }
+}
+
+/* ---------- panel */
+.qn-panel {
+  position: absolute;
+  top: calc(var(--qn-top) + 58px);
+  left: var(--qn-side);
+  width: min(400px, calc(100vw - 2 * var(--qn-side)));
+  max-height: calc(100dvh - var(--qn-top) - 58px - var(--qn-bottom) - 80px);
+  display: flex;
+  flex-direction: column;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 10px;
+  background: var(--qn-paper);
+  box-shadow:
+    5px 5px 0 var(--qn-ink),
+    0 18px 40px -18px rgb(31 26 23 / 0.5);
+  transform-origin: top left;
+}
+.qn-panel.is-open {
+  animation: qn-unfold 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes qn-unfold {
+  from {
+    clip-path: inset(0 0 100% 0 round 10px);
+    transform: translateY(-6px) rotate(-0.6deg);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 10px);
+    transform: none;
+  }
+}
+.qn-panel::before {
+  /* woven selvage strip along the top edge */
+  content: "";
+  height: 10px;
+  flex: none;
+  border-bottom: 2px solid var(--qn-ink);
+  border-radius: 7px 7px 0 0;
+  background: linear-gradient(
+    90deg,
+    #c4383f 0 20%,
+    #dda63c 20% 32%,
+    #3446a6 32% 58%,
+    #2a9d8f 58% 70%,
+    #a8825f 70% 82%,
+    #c4383f 82%
+  );
+}
+.qn-panel-close {
+  position: absolute;
+  top: 18px;
+  right: 10px;
+  width: 36px;
+  min-height: 36px;
+  box-shadow: 2px 2px 0 var(--qn-ink);
+}
+.qn-panel-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--qn-muted) transparent;
+}
+.qn-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-right: 40px;
+  margin-bottom: 10px;
+}
+.qn-swatch {
+  flex: none;
+  width: 14px;
+  height: 40px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 7px;
+  background: var(--dye);
+}
+.qn-title {
+  margin: 0;
+  font: 800 1.55rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 68%;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.qn-sub,
+.qn-period,
+.qn-num {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-variant-numeric: tabular-nums;
+}
+.qn-sub {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--qn-muted);
+}
+.qn-lede {
+  margin: 0 0 12px;
+  max-width: 60ch;
+}
+.qn-label {
+  margin: 14px 0 6px;
+  font: 800 0.85rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qn-muted);
+}
+.qn-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 8px;
+  background: var(--qn-paper-2);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+.qn-metric strong {
+  font: 800 1.9rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 70%;
+  color: var(--qn-accent);
+  white-space: nowrap;
+}
+.qn-cords {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.qn-cord {
+  position: relative;
+  padding-left: 18px;
+}
+.qn-cord::before {
+  /* the pendant cord itself, in its dye */
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  bottom: 2px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--dye);
+  box-shadow: 0 0 0 1.5px var(--qn-ink);
+}
+.qn-cord.is-sub {
+  margin-left: 12px;
+}
+.qn-role {
+  margin: 0;
+  font: 700 1rem / 1.25 var(--font-body, sans-serif);
+}
+.qn-period {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--qn-muted);
+}
+.qn-tag {
+  display: inline-block;
+  margin: 6px 0 0;
+  padding: 1px 8px;
+  border: 1.5px solid var(--qn-ink);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #cfe9e4;
+}
+.qn-summary {
+  margin: 6px 0 8px;
+  font-size: 0.92rem;
+}
+.qn-knots,
+.qn-uses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+.qn-knot-row {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.qn-knot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding-top: 4px;
+}
+.qn-knot i {
+  width: 11px;
+  height: 7px;
+  border: 1.5px solid var(--qn-ink);
+  border-radius: 50%;
+  background: var(--dye);
+}
+.qn-knot.is-long i {
+  width: 12px;
+  height: 4px;
+  border-radius: 3px;
+}
+.qn-knot-text b {
+  font-weight: 700;
+  color: var(--qn-accent);
+}
+.qn-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 0;
+}
+.qn-stack span {
+  padding: 1px 7px;
+  border: 1.5px solid var(--qn-ink);
+  border-radius: 4px;
+  font: 500 0.72rem / 1.5 var(--font-mono, monospace);
+  background: var(--qn-paper-2);
+}
+.qn-uses li {
+  display: grid;
+  gap: 1px;
+  font-size: 0.9rem;
+  padding-bottom: 7px;
+  border-bottom: 1.5px dashed rgb(31 26 23 / 0.25);
+}
+.qn-uses li:last-child {
+  border-bottom: 0;
+}
+.qn-uses .qn-num {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--qn-muted);
+}
+.qn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+.qn-email {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+}
+.qn-socials {
+  list-style: none;
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.qn-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.qn-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 8px 10px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 8px;
+  background: var(--qn-paper-2);
+}
+.qn-stat dt {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--qn-muted);
+}
+.qn-stat dd {
+  margin: 0;
+  font: 800 1.9rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 70%;
+  color: var(--qn-accent);
+}
+
+/* ---------- tools + minimap */
+.qn-tools {
+  position: absolute;
+  top: var(--qn-top);
+  right: var(--qn-side);
+  display: flex;
+  gap: 8px;
+}
+.qn-map {
+  position: absolute;
+  top: calc(var(--qn-top) + 58px);
+  right: var(--qn-side);
+  margin: 0;
+  width: 156px;
+  padding: 6px;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 10px;
+  background: #e6efd9;
+  box-shadow: var(--qn-shadow);
+  transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.qn-hud.is-night .qn-map {
+  background: #2a3358;
+}
+.qn-map-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+.qn-map-cap {
+  min-height: 1.3em;
+  margin-top: 2px;
+  font: 800 0.72rem / 1.3 var(--font-display, sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--qn-ink);
+}
+.qn-hud.is-night .qn-map-cap {
+  color: #e9e4ff;
+}
+.qn-map.is-expanded {
+  width: min(420px, calc(100vw - 2 * var(--qn-side)));
+}
+
+/* ---------- help */
+.qn-help {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(31 26 23 / 0.28);
+}
+.qn-help[hidden] {
+  display: none;
+}
+.qn-card {
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 10px;
+  background: var(--qn-paper);
+  box-shadow: 5px 5px 0 var(--qn-ink);
+}
+.qn-help-card {
+  width: min(460px, 100%);
+  padding: 22px 22px 20px;
+}
+.qn-help-list {
+  margin: 14px 0 18px;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 6px;
+}
+
+/* ---------- game overlay (own fixed layer above the page chrome) */
+.qn-hud.qn-game-layer {
+  position: fixed;
+  z-index: 1000;
+}
+.qn-game {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #16171d;
+  z-index: 10;
+}
+.qn-game[hidden] {
+  display: none;
+}
+.qn-game-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px max(14px, env(safe-area-inset-left));
+  background: var(--qn-cloth);
+  border-bottom: 2.5px solid #1f1a17;
+}
+.qn-game-bar .qn-title {
+  font-size: 1.25rem;
+}
+.qn-game-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+.qn-game-loading {
+  color: #efe6d6;
+  font: 600 0.95rem var(--font-mono, monospace);
+  text-align: center;
+  margin-top: 30vh;
+}
+.qn-hud.has-game > :not(.qn-game) {
+  display: none;
+}
+
+/* ---------- small screens: panel becomes a top sheet; map shrinks and hides under a panel */
+@media (max-width: 640px) {
+  .qn-panel {
+    top: calc(var(--qn-top) + 54px);
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: 48dvh;
+  }
+  .qn-map {
+    width: 104px;
+  }
+  .qn-hud.has-panel .qn-map:not(.is-expanded) {
+    display: none;
+  }
+  .qn-title {
+    font-size: 1.3rem;
+  }
+  .qn-toast {
+    font-size: 1rem;
+  }
+  .qn-prompt {
+    bottom: calc(var(--qn-bottom) + 132px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qn-prompt {
+    animation: none;
+  }
+  .qn-panel.is-open {
+    animation: none;
+  }
+  .qn-toast,
+  .qn-btn,
+  .qn-map {
+    transition: none;
+  }
+}

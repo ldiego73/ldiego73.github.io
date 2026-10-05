@@ -1,0 +1,32 @@
+---
+/** Wraps a fenced code block with a filename tab: <CodeFile name="astro.config.mjs">```js …```</CodeFile> */
+interface Props {
+  name: string;
+}
+const { name } = Astro.props;
+---
+<div class="codefile" data-codefile>
+  <p class="name mono">{name}</p>
+  <slot />
+</div>
+
+<style>
+  .codefile {
+    margin-block: 1.6em;
+  }
+  .name {
+    margin: 0;
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+    width: fit-content;
+  }
+  .codefile :global(pre) {
+    margin-top: 0 !important;
+    border-top-left-radius: 0 !important;
+  }
+</style>

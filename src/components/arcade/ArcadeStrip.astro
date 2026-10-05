@@ -1,0 +1,206 @@
+---
+import { NEON } from "../../games/core/neon";
+import { GAMES } from "../../games/registry";
+import { type Lang, t } from "../../i18n/ui";
+import Icon from "../Icon.astro";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+---
+<section class="strip" aria-labelledby="arcade-strip-title">
+  <div class="wrap inner">
+    <div class="top">
+      <h2 id="arcade-strip-title">{t(lang, "arcade.title")}</h2>
+      <p class="lede">{t(lang, "arcade.lede")}</p>
+      <a class="enter" href={`/${lang}/arcade/`}>
+        <Icon name="play" />
+        {t(lang, "arcade.teaser")}
+      </a>
+    </div>
+    <ol class="row">
+      {
+        GAMES.map((g) => (
+          <li style={`--dye:${NEON[g.neon]}`}>
+            <a href={`/${lang}/arcade/${g.slug}/`}>
+              <span class="mq" aria-hidden="true">
+                {g.marquee}
+              </span>
+              <span class="scr" aria-hidden="true" />
+              <span class="name">{g.title[lang]}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<style>
+  .strip {
+    --void: #16171d;
+    --floor: #2a2c35;
+    --grid: #3c3f4b;
+    --ink: #efe9da;
+    --dim: #9b97a3;
+    --magenta: #c45a8a;
+    --font-arcade-stack: var(--font-arcade, "Silkscreen"), "Arial Narrow", sans-serif;
+    position: relative;
+    color: var(--ink);
+    color-scheme: dark;
+    background: var(--floor, #2a2c35);
+    padding-block: var(--space-5);
+    overflow: hidden;
+  }
+  .strip ::selection {
+    background: color-mix(in srgb, var(--magenta) 45%, transparent);
+    color: #efe9da;
+  }
+  .strip :focus-visible {
+    outline: 3px solid #56b6c9;
+    outline-offset: 3px;
+  }
+  .inner {
+    position: relative;
+    z-index: 1;
+  }
+  .top {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: var(--space-4);
+    align-items: center;
+    margin-bottom: var(--space-4);
+  }
+  h2 {
+    font: 800 var(--step-4) / 0.9 var(--font-arcade-stack);
+    letter-spacing: 0.08em;
+    color: #efe9da;
+  }
+  .lede {
+    margin: 0;
+    color: var(--dim);
+    max-width: 58ch;
+  }
+  .enter {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 20px;
+    border-radius: 2px;
+    font: 700 0.86rem / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    color: var(--void);
+    background: #56b6c9;
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+    white-space: nowrap;
+  }
+  .enter:hover {
+    background: var(--ink);
+  }
+  .row {
+    list-style: none;
+    margin: 0;
+    padding: 10px 0 8px;
+    display: grid;
+    grid-template-columns: repeat(9, minmax(108px, 1fr));
+    gap: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .row::-webkit-scrollbar {
+    display: none;
+  }
+  .row a {
+    display: grid;
+    gap: 0;
+    text-decoration: none;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--floor, #2a2c35);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+    transition:
+      transform 0.35s var(--ease-out),
+      box-shadow 0.35s var(--ease-out);
+  }
+  .mq {
+    padding: 10px 6px 9px;
+    text-align: center;
+    font: 800 0.74rem / 1 var(--font-arcade-stack);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    color: var(--void);
+    background: var(--dye);
+    box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.22);
+    border-bottom: 3px solid #121318;
+  }
+  .scr {
+    display: block;
+    margin: 10px 10px 0;
+    aspect-ratio: 4 / 3;
+    border-radius: 2px;
+    background: var(--void);
+    position: relative;
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .scr::after {
+    content: "";
+    position: absolute;
+    width: 22%;
+    height: 22%;
+    left: 24%;
+    top: 28%;
+    background: var(--dye);
+    box-shadow: 18px 0 0 var(--dye), 18px 18px 0 var(--dye);
+  }
+  .name {
+    padding: 10px 10px 12px;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    color: var(--dim);
+  }
+  .row a:hover,
+  .row a:focus-visible {
+    transform: translateY(-6px);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .row a:hover .name,
+  .row a:focus-visible .name {
+    color: #efe9da;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .row a {
+      transition: none;
+    }
+    .row a:hover,
+    .row a:focus-visible {
+      transform: none;
+    }
+  }
+  @media (max-width: 900px) {
+    .top {
+      grid-template-columns: 1fr;
+      gap: var(--space-2);
+      align-items: start;
+    }
+    .enter {
+      justify-self: start;
+    }
+    .row {
+      margin-inline: calc(var(--gutter) * -1);
+      padding-inline: var(--gutter);
+      scroll-padding-inline: var(--gutter);
+      grid-template-columns: repeat(9, 118px);
+      scroll-snap-type: x mandatory;
+    }
+    .row li {
+      scroll-snap-align: start;
+    }
+  }
+</style>

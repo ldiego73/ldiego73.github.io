@@ -1,0 +1,497 @@
+---
+import { Image } from "astro:assets";
+import { getCollection, render } from "astro:content";
+import profile from "../../../assets/profile.jpeg";
+import Icon from "../../../components/Icon.astro";
+import Callout from "../../../components/mdx/Callout.astro";
+import CodeFile from "../../../components/mdx/CodeFile.astro";
+import Figure from "../../../components/mdx/Figure.astro";
+import { SITE } from "../../../data/site";
+import { type Lang, t } from "../../../i18n/ui";
+import Base from "../../../layouts/Base.astro";
+
+export async function getStaticPaths() {
+  const posts = await getCollection("blog", (p) => !p.data.draft);
+  return posts.map((post) => {
+    const [lang, ...rest] = post.id.split("/");
+    const twin = posts.find((p) => p.data.translationKey === post.data.translationKey && p.id !== post.id);
+    const same = posts
+      .filter((p) => p.id.startsWith(`${lang}/`))
+      .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+    const i = same.findIndex((p) => p.id === post.id);
+    return {
+      params: { lang, slug: rest.join("/") },
+      props: { post, twin, newer: same[i - 1], older: same[i + 1] },
+    };
+  });
+}
+const { post, twin, newer, older } = Astro.props;
+const lang = Astro.params.lang as Lang;
+const { Content, headings } = await render(post);
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const other = lang === "es" ? "en" : "es";
+const slugOf = (id: string) => id.split("/").slice(1).join("/");
+const alternate = twin ? `/${other}/blog/${slugOf(twin.id)}/` : `/${other}/blog/`;
+const date = post.data.date.toLocaleDateString(lang === "es" ? "es-PE" : "en-US", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const minutes = Math.max(1, Math.round((post.body ?? "").split(/\s+/).length / 220));
+const L = {
+  es: {
+    toc: "En este post",
+    by: "Escrito por",
+    bio: "Engineering Manager y Principal Architect. Escribo sobre arquitectura, plataforma e IA.",
+    newer: "Más reciente",
+    older: "Anterior",
+    copy: "Copiar",
+    copied: "Copiado",
+    talk: "Hablemos",
+  },
+  en: {
+    toc: "In this post",
+    by: "Written by",
+    bio: "Engineering Manager and Principal Architect. I write about architecture, platform and AI.",
+    newer: "Newer",
+    older: "Older",
+    copy: "Copy",
+    copied: "Copied",
+    talk: "Let's talk",
+  },
+}[lang];
+---
+<Base
+  lang={lang}
+  title={post.data.title}
+  description={post.data.description}
+  alternate={alternate}
+  type="article"
+  image={post.data.cover?.src}
+>
+  <div class="progress" aria-hidden="true"><span data-progress></span></div>
+  <article class="wrap post">
+    <a class="back" href={`/${lang}/blog/`}><Icon name="arrow" size={16} /> {t(lang, "blog.back")}</a>
+    <header class="head">
+      <ul class="tags mono">{post.data.tags.map((tag) => <li>{tag}</li>)}</ul>
+      <h1>{post.data.title}</h1>
+      <p class="lede">{post.data.description}</p>
+      <div class="byline">
+        <Image src={profile} alt="" width={44} height={44} class="avatar" />
+        <div>
+          <p class="name">{SITE.name}</p>
+          <p class="mono meta">
+            <time datetime={post.data.date.toISOString()}>{date}</time> · {minutes} {t(lang, "blog.read")}
+          </p>
+        </div>
+      </div>
+    </header>
+    {
+      post.data.cover && (
+        <Image
+          class="cover"
+          src={post.data.cover}
+          alt={post.data.coverAlt ?? ""}
+          widths={[720, 1080, 1440]}
+          sizes="(max-width: 1240px) 100vw, 1160px"
+          loading="eager"
+        />
+      )
+    }
+    <div class="layout">
+      <div class="prose" data-prose data-copy={L.copy} data-copied={L.copied}>
+        <Content components={{ Callout, Figure, CodeFile }} />
+      </div>
+      {
+        toc.length > 1 && (
+          <nav class="toc" aria-label={L.toc}>
+            <p class="toc-title">{L.toc}</p>
+            <ol>
+              {toc.map((h) => (
+                <li class={`d${h.depth}`}>
+                  <a href={`#${h.slug}`} data-toc={h.slug}>
+                    {h.text}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )
+      }
+    </div>
+    <footer class="end">
+      <div class="author">
+        <Image src={profile} alt="" width={72} height={72} class="avatar" />
+        <div>
+          <p class="mono by">{L.by}</p>
+          <p class="name">{SITE.name}</p>
+          <p class="bio">{L.bio}</p>
+        </div>
+        <a class="btn btn-primary" href={`/${lang}/#contact`}>{L.talk}</a>
+      </div>
+      <nav class="pager">
+        {
+          newer && (
+            <a href={`/${lang}/blog/${slugOf(newer.id)}/`}>
+              <span class="mono">{L.newer}</span>
+              {newer.data.title}
+            </a>
+          )
+        }
+        {
+          older && (
+            <a class="older" href={`/${lang}/blog/${slugOf(older.id)}/`}>
+              <span class="mono">{L.older}</span>
+              {older.data.title}
+            </a>
+          )
+        }
+      </nav>
+    </footer>
+  </article>
+  <dialog class="lightbox" data-lightbox>
+    <form method="dialog"><button class="close" aria-label="Close"><Icon name="close" /></button></form>
+    <img alt="" data-lightbox-img />
+  </dialog>
+</Base>
+
+<script>
+  const bar = document.querySelector<HTMLElement>("[data-progress]");
+  const article = document.querySelector<HTMLElement>(".post");
+  const onScroll = () => {
+    if (!bar || !article) return;
+    const r = article.getBoundingClientRect();
+    const p = Math.min(1, Math.max(0, -r.top / Math.max(1, r.height - innerHeight)));
+    bar.style.transform = `scaleX(${p})`;
+  };
+  addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  // Copy buttons and language labels on code blocks.
+  const prose = document.querySelector<HTMLElement>("[data-prose]");
+  for (const pre of prose?.querySelectorAll<HTMLPreElement>("pre") ?? []) {
+    const wrap = document.createElement("div");
+    wrap.className = "code-wrap";
+    pre.replaceWith(wrap);
+    wrap.append(pre);
+    const lang = pre.dataset.language;
+    if (lang && lang !== "plaintext") {
+      const tag = document.createElement("span");
+      tag.className = "code-lang";
+      tag.textContent = lang;
+      wrap.append(tag);
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "code-copy";
+    btn.textContent = prose?.dataset.copy ?? "Copy";
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(pre.innerText);
+        btn.textContent = prose?.dataset.copied ?? "Copied";
+        setTimeout(() => {
+          btn.textContent = prose?.dataset.copy ?? "Copy";
+        }, 1600);
+      } catch {
+        /* clipboard unavailable */
+      }
+    });
+    wrap.append(btn);
+  }
+
+  // Lightbox for figures.
+  const dialog = document.querySelector<HTMLDialogElement>("[data-lightbox]");
+  const big = document.querySelector<HTMLImageElement>("[data-lightbox-img]");
+  for (const b of document.querySelectorAll<HTMLButtonElement>("[data-zoom]")) {
+    b.addEventListener("click", () => {
+      const img = b.querySelector("img");
+      if (!dialog || !big || !img) return;
+      big.src = img.currentSrc || img.src;
+      big.alt = img.alt;
+      dialog.showModal();
+    });
+  }
+  dialog?.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+
+  // Highlight the current section in the TOC.
+  const links = [...document.querySelectorAll<HTMLAnchorElement>("[data-toc]")];
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        for (const l of links) l.toggleAttribute("aria-current", l.dataset.toc === e.target.id);
+      }
+    },
+    { rootMargin: "-20% 0px -70% 0px" },
+  );
+  for (const l of links) {
+    const h = document.getElementById(l.dataset.toc ?? "");
+    if (h) io.observe(h);
+  }
+</script>
+
+<style>
+  .progress {
+    position: fixed;
+    inset: 0 0 auto;
+    height: 3px;
+    z-index: 60;
+    pointer-events: none;
+  }
+  .progress span {
+    display: block;
+    height: 100%;
+    background: var(--red);
+    transform-origin: 0 50%;
+    transform: scaleX(0);
+  }
+  .post {
+    padding-block: var(--space-4) var(--space-6);
+  }
+  .back {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .back :global(svg) {
+    transform: scaleX(-1);
+  }
+  .head {
+    display: grid;
+    gap: var(--space-2);
+    max-width: 46rem;
+    margin-block: var(--space-4);
+  }
+  .head h1 {
+    font-size: var(--step-4);
+  }
+  .tags {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 0.72rem;
+  }
+  .tags li {
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+  }
+  .byline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .byline :global(.avatar),
+  .author :global(.avatar) {
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .name {
+    font-weight: 600;
+  }
+  .meta {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .post :global(.cover) {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    margin-bottom: var(--space-5);
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 46rem) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+  }
+  .prose {
+    font-size: 1.12rem;
+    line-height: 1.75;
+    max-width: none;
+  }
+  .prose :global(h2),
+  .prose :global(h3) {
+    scroll-margin-top: 90px;
+  }
+  .prose :global(img) {
+    max-width: 100%;
+    height: auto;
+  }
+  .prose :global(.code-wrap) {
+    position: relative;
+    margin-block: 1.6em;
+  }
+  .prose :global([data-codefile] .code-wrap) {
+    margin-top: 0;
+  }
+  .prose :global([data-codefile] .code-wrap pre) {
+    border-top-left-radius: 0;
+  }
+  .prose :global(.code-wrap pre) {
+    margin: 0;
+    padding: 20px 18px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .prose :global(.code-lang) {
+    position: absolute;
+    top: 8px;
+    right: 74px;
+    font: 500 0.7rem/1 var(--font-mono);
+    color: var(--muted);
+    padding: 6px 0;
+  }
+  .prose :global(.code-copy) {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font: 600 0.72rem/1 var(--font-body);
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .toc {
+    position: sticky;
+    top: 96px;
+    padding-left: var(--space-3);
+    border-left: 1px solid var(--line);
+    font-size: 0.9rem;
+  }
+  .toc-title {
+    font: 600 0.72rem/1 var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+  }
+  .toc .d3 {
+    padding-left: 14px;
+  }
+  .toc a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .toc a:hover,
+  .toc a[aria-current] {
+    color: var(--fg);
+  }
+  .toc a[aria-current] {
+    font-weight: 600;
+  }
+  .end {
+    max-width: 46rem;
+    margin-top: var(--space-5);
+    display: grid;
+    gap: var(--space-4);
+  }
+  .author {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
+    padding-block: var(--space-3);
+    border-block: 1px solid var(--line);
+  }
+  .by {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .bio {
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+  .pager a {
+    display: grid;
+    gap: 6px;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .pager .older {
+    text-align: right;
+    grid-column: 2;
+  }
+  .pager .mono {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .lightbox {
+    max-width: min(96vw, 1600px);
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .lightbox::backdrop {
+    background: rgb(0 0 0 / 0.82);
+  }
+  .lightbox img {
+    display: block;
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: var(--radius);
+  }
+  .close {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 0;
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  @media (max-width: 1000px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .toc {
+      display: none;
+    }
+    .prose {
+      font-size: 1.04rem;
+    }
+  }
+  @media (max-width: 560px) {
+    .author {
+      grid-template-columns: 56px minmax(0, 1fr);
+    }
+    .author .btn {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+  }
+</style>

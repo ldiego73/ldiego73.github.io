@@ -1,0 +1,131 @@
+---
+import { Font } from "astro:assets";
+import "../../styles/global.css";
+import "../../world/world.css";
+import { SITE } from "../../data/site";
+import { LANGS, type Lang, t } from "../../i18n/ui";
+
+export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
+const lang = Astro.params.lang as Lang;
+const other: Lang = lang === "es" ? "en" : "es";
+// Core-owned copy for the Andean world (the shared i18n keys still describe the old neon world).
+const COPY = {
+  es: {
+    title: "Khipu · Qhapaq Ñan, mundo explorable",
+    description:
+      "Sube la montaña por el Qhapaq Ñan: cada tambo del camino guarda un capítulo de la carrera de Luis Diego. Experiencia 3D opcional; todo su contenido también está en el sitio.",
+    sr: "Mundo 3D opcional: una montaña andina donde el camino inca recorre la carrera de Luis Diego. Todo su contenido también está en el sitio.",
+    loading: "Tejiendo la montaña…",
+    noWebgl: "Tu navegador no puede mostrar el mundo 3D (WebGL no disponible). Todo el contenido está en el sitio.",
+  },
+  en: {
+    title: "Khipu · Qhapaq Ñan, an explorable world",
+    description:
+      "Climb the mountain along the Qhapaq Ñan: every tambo on the trail holds a chapter of Luis Diego's career. Optional 3D experience; all of its content is also on the site.",
+    sr: "Optional 3D world: an Andean mountain where the Inca trail walks through Luis Diego's career. All of its content is also on the site.",
+    loading: "Weaving the mountain…",
+    noWebgl: "Your browser can't show the 3D world (WebGL unavailable). All of the content is on the site.",
+  },
+}[lang];
+const title = `${COPY.title} · ${SITE.name}`;
+const description = COPY.description;
+const canonical = new URL(`/${lang}/world/`, Astro.site);
+const altUrl = new URL(`/${other}/world/`, Astro.site);
+const esUrl = lang === "es" ? canonical : altUrl;
+const enUrl = lang === "en" ? canonical : altUrl;
+---
+<!doctype html>
+<html lang={lang} data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="es" href={esUrl} />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="x-default" href={esUrl} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#a9dcd4" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL("/og.png", Astro.site)} />
+    <meta property="og:locale" content={lang === "es" ? "es_PE" : "en_US"} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <Font cssVariable="--font-archivo" preload />
+    <Font cssVariable="--font-hanken" />
+    <Font cssVariable="--font-jetbrains" preload />
+    <Font cssVariable="--font-pixel" />
+  </head>
+  <body class="kw-body">
+    <main id="world" class="kw-root" data-lang={lang} aria-label={COPY.title}>
+      <p class="sr-only">{COPY.sr} <a href={`/${lang}/`}>{t(lang, "world.back")}</a></p>
+      <p class="kw-loading" data-loading>{COPY.loading}</p>
+      <div class="kw-fallback" data-fallback hidden>
+        <p>{COPY.noWebgl}</p>
+        <p><a class="kw-btn" href={`/${lang}/`}>{t(lang, "world.back")}</a></p>
+      </div>
+      <noscript>
+        <div class="kw-fallback">
+          <p>{COPY.noWebgl}</p>
+          <p><a class="kw-btn" href={`/${lang}/`}>{t(lang, "world.back")}</a></p>
+        </div>
+      </noscript>
+    </main>
+  </body>
+</html>
+
+<script>
+  const host = document.getElementById("world");
+  const webgl = () => {
+    try {
+      const c = document.createElement("canvas");
+      return !!(c.getContext("webgl2") || c.getContext("webgl"));
+    } catch {
+      return false;
+    }
+  };
+  if (host) {
+    const loading = host.querySelector<HTMLElement>("[data-loading]");
+    const fallback = host.querySelector<HTMLElement>("[data-fallback]");
+    if (!webgl()) {
+      loading?.remove();
+      if (fallback) fallback.hidden = false;
+    } else {
+      import("../../world/index")
+        .then(({ mountWorld }) => {
+          loading?.remove();
+          const lang = host.dataset.lang === "en" ? "en" : "es";
+          const dispose = mountWorld(host, { lang, skipIntro: new URLSearchParams(location.search).has("skip") });
+          window.addEventListener("pagehide", (e) => {
+            if (!e.persisted) dispose();
+          });
+        })
+        .catch((err) => {
+          console.error(err);
+          loading?.remove();
+          if (fallback) fallback.hidden = false;
+        });
+    }
+  }
+</script>
+
+<style is:global>
+  .kw-body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #a9dcd4;
+    overscroll-behavior: none;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+</style>

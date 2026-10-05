@@ -1,0 +1,264 @@
+---
+import { SITE, SOCIALS } from "../../data/site";
+import { type Lang, t } from "../../i18n/ui";
+import Icon from "../Icon.astro";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+---
+<section class="section contact" id="contact" aria-labelledby="contact-title">
+  <div class="wrap grid">
+    <div class="intro">
+      <h2 id="contact-title">{t(lang, "contact.title")}</h2>
+      <p class="lede">{t(lang, "contact.lede")}</p>
+      <a class="btn btn-primary" href={SITE.calendly} target="_blank" rel="noopener">
+        <Icon name="calendar" />
+        {t(lang, "contact.book")}
+      </a>
+      <div class="mail">
+        <span class="mono">{SITE.email}</span>
+        <button class="btn copy" type="button" data-copy={SITE.email} data-done={t(lang, "contact.copied")}>
+          <Icon name="copy" />
+          <span>{t(lang, "contact.copy")}</span>
+        </button>
+      </div>
+      <ul class="socials">
+        {
+          SOCIALS.filter((s) => s.icon !== "mail").map((s) => (
+            <li>
+              <a href={s.url} target="_blank" rel="me noopener">
+                <Icon name={s.icon} />
+                {s.name}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <form
+      class="form"
+      data-contact
+      data-endpoint={SITE.formEndpoint}
+      data-email={SITE.email}
+      data-msg-ok={t(lang, "contact.ok")}
+      data-msg-error={t(lang, "contact.error")}
+      data-msg-invalid={t(lang, "contact.invalid")}
+      data-msg-mailto={t(lang, "contact.mailto")}
+      data-msg-sending={t(lang, "contact.sending")}
+      novalidate
+    >
+      <div class="row">
+        <label for="c-name">
+          <span>{t(lang, "contact.name")}</span>
+          <input id="c-name" name="name" autocomplete="name" required />
+        </label>
+        <label for="c-email">
+          <span>{t(lang, "contact.email")}</span>
+          <input id="c-email" name="email" type="email" autocomplete="email" required />
+        </label>
+      </div>
+      <label for="c-reason">
+        <span>{t(lang, "contact.reason")}</span>
+        <select id="c-reason" name="reason">
+          <option>{t(lang, "contact.reason.consulting")}</option>
+          <option>{t(lang, "contact.reason.job")}</option>
+          <option>{t(lang, "contact.reason.talk")}</option>
+          <option>{t(lang, "contact.reason.other")}</option>
+        </select>
+      </label>
+      <label for="c-message">
+        <span>{t(lang, "contact.message")}</span>
+        <textarea id="c-message" name="message" rows="5" required></textarea>
+      </label>
+      <label class="hp" aria-hidden="true">
+        Website <input name="_gotcha" tabindex="-1" autocomplete="off" />
+      </label>
+      <button class="btn btn-primary send" type="submit">{t(lang, "contact.send")}</button>
+      <p class="status" role="status" aria-live="polite" data-status></p>
+    </form>
+  </div>
+</section>
+
+<script>
+  for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
+    btn.addEventListener("click", async () => {
+      const label = btn.querySelector("span");
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copy ?? "");
+        if (label) label.textContent = btn.dataset.done ?? "";
+      } catch {
+        const sel = getSelection();
+        const range = document.createRange();
+        const text = btn.previousElementSibling;
+        if (sel && text) {
+          range.selectNodeContents(text);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+    });
+  }
+
+  for (const form of document.querySelectorAll<HTMLFormElement>("[data-contact]")) {
+    const status = form.querySelector<HTMLElement>("[data-status]");
+    const send = form.querySelector<HTMLButtonElement>("button[type=submit]");
+    const d = form.dataset;
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!status || !send) return;
+      if (!form.checkValidity()) {
+        status.textContent = d.msgInvalid ?? "";
+        status.dataset.state = "error";
+        form.querySelector<HTMLElement>(":invalid")?.focus();
+        return;
+      }
+      const data = new FormData(form);
+      if (data.get("_gotcha")) return;
+      if (!d.endpoint) {
+        const subject = `${data.get("reason")} · ${data.get("name")}`;
+        const body = `${data.get("message")}\n\n${data.get("name")} <${data.get("email")}>`;
+        status.textContent = d.msgMailto ?? "";
+        status.dataset.state = "ok";
+        location.href = `mailto:${d.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        return;
+      }
+      send.disabled = true;
+      const label = send.textContent;
+      send.textContent = d.msgSending ?? "";
+      try {
+        const res = await fetch(d.endpoint, { method: "POST", body: data, headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error(String(res.status));
+        form.reset();
+        status.textContent = d.msgOk ?? "";
+        status.dataset.state = "ok";
+      } catch {
+        status.textContent = d.msgError ?? "";
+        status.dataset.state = "error";
+      } finally {
+        send.disabled = false;
+        send.textContent = label;
+      }
+    });
+  }
+</script>
+
+<style>
+  .contact {
+    border-top: 1px solid var(--line);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: var(--space-5);
+  }
+  .intro {
+    display: grid;
+    gap: var(--space-3);
+    align-content: start;
+    justify-items: start;
+  }
+  .mail {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+  .mail .mono {
+    font-size: 1rem;
+    user-select: all;
+  }
+  .copy {
+    padding: 10px 14px;
+    font-size: 0.86rem;
+  }
+  .socials {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+  }
+  .socials a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+  .form {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  label {
+    display: grid;
+    gap: 8px;
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+  input,
+  select,
+  textarea {
+    font: 400 1rem/1.4 var(--font-body);
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 13px 14px;
+    width: 100%;
+    caret-color: var(--red);
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--ochre);
+  }
+  input:user-invalid,
+  textarea:user-invalid {
+    border-color: var(--red);
+  }
+  textarea {
+    resize: vertical;
+    min-height: 140px;
+  }
+  .hp {
+    position: absolute;
+    left: -9999px;
+  }
+  .send {
+    justify-self: start;
+  }
+  .send:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .status {
+    min-height: 1.5em;
+    font-size: 0.92rem;
+  }
+  .status[data-state="ok"] {
+    color: var(--turq);
+  }
+  .status[data-state="error"] {
+    color: var(--red);
+  }
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: 1fr;
+      gap: var(--space-4);
+    }
+  }
+  @media (max-width: 520px) {
+    .row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

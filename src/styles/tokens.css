@@ -1,0 +1,86 @@
+/*
+ * Khipu tokens. Dark-first: dark values on :root, light values for an explicit
+ * light choice or a light system preference.
+ * Dye roles: red = cloud/infra + primary action, indigo = architecture,
+ * ochre = leadership, turq = AI/data, alpaca = mobile/early career, cotton = primary cord.
+ */
+:root {
+  --bg: #13151b;
+  --bg-deep: #0e1015;
+  --surface: #1b1e26;
+  --line: #2c303b;
+  --fg: #ece8e0;
+  --muted: #a19e95;
+  --red: #d0444b;
+  --indigo: #6b7fdc;
+  --ochre: #dda63c;
+  --turq: #38b8a7;
+  --alpaca: #a8825f;
+  --cotton: #e6e0d3;
+  --accent: #c4383f;
+  --on-accent: #fff6f2;
+  --selection: rgb(196 56 63 / 0.35);
+
+  --font-display: var(--font-archivo, "Archivo"), "Arial Narrow", sans-serif;
+  --font-body: var(--font-hanken, "Hanken Grotesk"), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains, "JetBrains Mono"), ui-monospace, Menlo, monospace;
+  --font-arcade: var(--font-pixel, "Silkscreen"), ui-monospace, monospace;
+
+  --step--1: clamp(0.82rem, 0.8rem + 0.1vw, 0.88rem);
+  --step-0: clamp(1rem, 0.97rem + 0.15vw, 1.08rem);
+  --step-1: clamp(1.2rem, 1.1rem + 0.45vw, 1.45rem);
+  --step-2: clamp(1.4rem, 1.2rem + 0.9vw, 1.9rem);
+  --step-3: clamp(1.8rem, 1.4rem + 1.8vw, 2.8rem);
+  --step-4: clamp(2.3rem, 1.6rem + 3.2vw, 4.2rem);
+
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2.5rem;
+  --space-5: 4rem;
+  --space-6: clamp(4rem, 3rem + 5vw, 8rem);
+  --gutter: clamp(16px, 4vw, 40px);
+  --maxw: 1240px;
+  --radius: 6px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef0f3;
+    --bg-deep: #e3e6eb;
+    --surface: #ffffff;
+    --line: #d3d8df;
+    --fg: #16181e;
+    --muted: #555a64;
+    --red: #b0262e;
+    --indigo: #3446a6;
+    --ochre: #9a6a0c;
+    --turq: #12776b;
+    --alpaca: #7a5a3c;
+    --cotton: #9c927f;
+    --accent: #b0262e;
+    --on-accent: #ffffff;
+    --selection: rgb(176 38 46 / 0.2);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eef0f3;
+  --bg-deep: #e3e6eb;
+  --surface: #ffffff;
+  --line: #d3d8df;
+  --fg: #16181e;
+  --muted: #555a64;
+  --red: #b0262e;
+  --indigo: #3446a6;
+  --ochre: #9a6a0c;
+  --turq: #12776b;
+  --alpaca: #7a5a3c;
+  --cotton: #9c927f;
+  --accent: #b0262e;
+  --on-accent: #ffffff;
+  --selection: rgb(176 38 46 / 0.2);
+  color-scheme: light;
+}

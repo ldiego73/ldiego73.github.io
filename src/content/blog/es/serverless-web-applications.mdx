@@ -1,0 +1,33 @@
+---
+title: "Aplicaciones web serverless"
+description: "Terceros, lógica en el cliente y funciones como servicio: qué se gana y qué se paga con una aplicación web serverless."
+date: 2020-06-17
+tags: ["serverless", "arquitectura", "aws"]
+translationKey: serverless-web
+---
+
+Una aplicación web serverless se apoya en tres piezas: **servicios de terceros**, **lógica en el cliente** y **funciones como servicio** alojadas en la nube. No hay servidores propios que mantener; hay contratos entre piezas administradas.
+
+## Lo que se gana
+
+### Escalado flexible
+
+El CDN y las funciones escalan solos con el tráfico. No hay que provisionar capacidad por adelantado.
+
+### Sin administración de servidores
+
+No hay sistema operativo que parchar ni flota que vigilar. El equipo se concentra en el producto.
+
+### Sin capacidad ociosa
+
+Pagas por ejecución y almacenamiento, no por máquinas encendidas esperando tráfico.
+
+### Alta disponibilidad
+
+Los servicios administrados vienen con disponibilidad y tolerancia a fallos de fábrica.
+
+## Lo que se paga
+
+La velocidad importa: cada milisegundo de carga afecta cómo los usuarios perciben y usan el producto. En serverless eso se traduce en vigilar los cold starts, el tamaño de los paquetes y la cantidad de saltos de red entre funciones.
+
+Con este enfoque construimos después en Auna la primera aplicación de transformación digital: teleconsulta, citas y recetas sobre Lambda, API Gateway WebSocket y DynamoDB.

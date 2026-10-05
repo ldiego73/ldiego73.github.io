@@ -1,0 +1,206 @@
+---
+import { CERTIFICATIONS, COMPANIES, EDUCATION, SKILLS } from "../../data/career";
+import { SITE } from "../../data/site";
+import { fmtPeriod, type Lang, t } from "../../i18n/ui";
+import Icon from "../Icon.astro";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const rows = COMPANIES.flatMap((c) =>
+  c.stages.map((s) => ({ c, s, main: s.knots.find((k) => k.metric) ?? s.knots[0] })),
+).sort((a, b) => b.s.start.localeCompare(a.s.start));
+---
+<section class="section" id="resume" aria-labelledby="flat-title">
+  <div class="wrap">
+    <div class="head">
+      <div class="section-head">
+        <h2 id="flat-title">{t(lang, "flat.title")}</h2>
+        <p class="lede">{t(lang, "flat.lede")}</p>
+      </div>
+      <a class="btn btn-primary" href={SITE.resume[lang]} download>
+        <Icon name="download" />
+        {t(lang, "flat.download")}
+      </a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">{t(lang, "flat.period")}</th>
+            <th scope="col">{t(lang, "flat.role")}</th>
+            <th scope="col">{t(lang, "flat.company")}</th>
+            <th scope="col">{t(lang, "flat.knot")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map(({ c, s, main }) => (
+              <tr class={`dye-${s.dye}`}>
+                <td class="mono">{fmtPeriod(lang, s.start, s.end)}</td>
+                <td>{s.role[lang]}</td>
+                <td>
+                  <span class="sw" aria-hidden="true" />
+                  {c.name}
+                </td>
+                <td>{main?.text[lang]}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="extras">
+      <div>
+        <h3>{t(lang, "flat.certs")}</h3>
+        <ul>
+          {
+            CERTIFICATIONS.map((c) => (
+              <li>
+                {c.name} <span class="mono">{c.years}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <div>
+        <h3>{t(lang, "flat.education")}</h3>
+        <ul>
+          {
+            EDUCATION.map((e) => (
+              <li>
+                {e.title[lang]} · {e.school} <span class="mono">{e.years}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <div>
+        <h3>{t(lang, "flat.skills")}</h3>
+        <dl>
+          {
+            SKILLS.map((g) => (
+              <>
+                <dt>{g.group[lang]}</dt>
+                <dd>{g.items.join(", ")}</dd>
+              </>
+            ))
+          }
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: end;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+  .head .section-head {
+    margin: 0;
+  }
+  .table-wrap {
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.96rem;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 14px 16px 14px 0;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font: 600 0.72rem/1 var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  td.mono {
+    font-size: 0.8rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  td:nth-child(3) {
+    white-space: nowrap;
+  }
+  .sw {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--dye);
+    margin-right: 8px;
+  }
+  .extras {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+  }
+  .extras h3 {
+    font-size: var(--step-1);
+    font-stretch: 82%;
+    margin-bottom: var(--space-2);
+  }
+  .extras ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+    font-size: 0.94rem;
+  }
+  .extras .mono {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-left: 6px;
+  }
+  dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px 14px;
+    font-size: 0.94rem;
+  }
+  dt {
+    color: var(--muted);
+  }
+  dd {
+    margin: 0;
+  }
+  @media (max-width: 900px) {
+    .extras {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 640px) {
+    thead {
+      display: none;
+    }
+    table,
+    tbody,
+    tr,
+    td {
+      display: block;
+    }
+    tr {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    td {
+      border: 0;
+      padding: 2px 0;
+    }
+  }
+</style>

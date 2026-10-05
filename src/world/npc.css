@@ -1,0 +1,307 @@
+/* NPC chasquis: floating talk tag, paper-and-ink speech card anchored to the speaker, milestone toast.
+   Reuses the qn- tokens and buttons from hud.css (the layer carries .qn-hud). */
+.qn-npc-layer {
+  z-index: 6;
+}
+.qn-npc-layer > * {
+  pointer-events: auto;
+}
+
+/* ---------- talk tag over the NPC's head */
+.qn-npc-tag {
+  position: absolute;
+  translate: -50% -100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  min-height: 36px;
+  padding: 0 12px 0 6px;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 999px 999px 999px 6px;
+  background: var(--qn-paper);
+  color: var(--qn-ink);
+  box-shadow: 2px 2px 0 var(--qn-ink);
+  font: 800 0.86rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  animation: qn-npc-float 1.8s ease-in-out infinite;
+}
+.qn-npc-tag[hidden] {
+  display: none;
+}
+.qn-npc-tag::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 50%;
+  background: var(--npc-dye, var(--qn-accent));
+  order: 2;
+}
+.qn-npc-tag:hover {
+  background: #fff7e6;
+}
+.qn-npc-tag:focus-visible {
+  outline: 3px solid var(--qn-ochre);
+  outline-offset: 3px;
+}
+/* Bigger tap target on touch without growing the visual. */
+.qn-npc-tag::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+@keyframes qn-npc-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* ---------- speech card */
+.qn-npc-card {
+  --tail-x: 48px;
+  position: absolute;
+  width: min(380px, calc(100vw - 24px));
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 10px;
+  background: var(--qn-paper);
+  box-shadow:
+    4px 4px 0 var(--qn-ink),
+    0 18px 40px -18px rgb(31 26 23 / 0.5);
+  transform-origin: var(--tail-x) 100%;
+}
+.qn-npc-card.is-pop {
+  animation: qn-npc-pop 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes qn-npc-pop {
+  from {
+    transform: translateY(6px) scale(0.97);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+/* Speech tail pointing down at the speaker. */
+.qn-npc-card::after,
+.qn-npc-card::before {
+  content: "";
+  position: absolute;
+  left: var(--tail-x);
+  width: 0;
+  height: 0;
+  border-style: solid;
+  translate: -50% 0;
+}
+.qn-npc-card::before {
+  bottom: -17px;
+  border-width: 17px 11px 0 11px;
+  border-color: var(--qn-ink) transparent transparent transparent;
+}
+.qn-npc-card::after {
+  bottom: -12px;
+  border-width: 13px 8px 0 8px;
+  border-color: var(--qn-paper) transparent transparent transparent;
+}
+.qn-npc-card.tail-off::before,
+.qn-npc-card.tail-off::after,
+.qn-npc-card.is-docked::before,
+.qn-npc-card.is-docked::after {
+  display: none;
+}
+.qn-npc-card.is-docked {
+  left: 50%;
+  top: auto;
+  bottom: calc(var(--qn-bottom) + 64px);
+  translate: -50% 0;
+  width: min(440px, calc(100vw - 2 * var(--qn-side)));
+}
+
+.qn-npc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px 8px 12px;
+  border-bottom: 2px solid var(--qn-ink);
+  background: var(--qn-paper-2);
+  border-radius: 7px 7px 0 0;
+}
+.qn-npc-swatch {
+  flex: none;
+  width: 14px;
+  height: 30px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 3px;
+  background: var(--qn-accent);
+  /* a knotted cord: two knots drawn as dots */
+  background-image:
+    radial-gradient(circle at 50% 30%, var(--qn-ink) 2px, transparent 2.5px),
+    radial-gradient(circle at 50% 70%, var(--qn-ink) 2px, transparent 2.5px);
+}
+.qn-npc-who {
+  flex: 1;
+  min-width: 0;
+}
+.qn-npc-name {
+  margin: 0;
+  font: 800 1.12rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 72%;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.qn-npc-role {
+  margin: 3px 0 0;
+  color: var(--qn-muted);
+  font: 600 0.72rem / 1.2 var(--font-mono, "JetBrains Mono", monospace);
+  letter-spacing: 0.02em;
+}
+.qn-npc-close {
+  width: 36px;
+  min-height: 36px;
+  box-shadow: 2px 2px 0 var(--qn-ink);
+}
+.qn-npc-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.qn-npc-text {
+  margin: 0;
+  padding: 12px 14px 4px;
+  min-height: 3em;
+  font: 500 1rem / 1.45 var(--font-body, "Hanken Grotesk", system-ui, sans-serif);
+  text-wrap: pretty;
+}
+.qn-npc-text.is-typing::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.95em;
+  margin-left: 2px;
+  vertical-align: -0.1em;
+  background: var(--qn-ink);
+  animation: qn-npc-caret 0.7s steps(1) infinite;
+}
+@keyframes qn-npc-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+.qn-npc-choices {
+  display: grid;
+  gap: 6px;
+  padding: 6px 12px 12px;
+}
+.qn-npc-choices[hidden] {
+  display: none;
+}
+.qn-npc-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 12px 6px 6px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 6px;
+  background: var(--qn-paper);
+  color: var(--qn-ink);
+  font: 600 0.95rem / 1.25 var(--font-body, "Hanken Grotesk", system-ui, sans-serif);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 120ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    box-shadow 120ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    background-color 160ms;
+}
+.qn-npc-choice:hover,
+.qn-npc-choice.is-sel {
+  background: var(--qn-cloth);
+  box-shadow: 2px 2px 0 var(--qn-ink);
+  transform: translate(-1px, -1px);
+}
+.qn-npc-choice:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+.qn-npc-choice:focus-visible {
+  outline: 3px solid var(--qn-ochre);
+  outline-offset: 2px;
+}
+
+.qn-npc-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 12px 12px;
+}
+.qn-npc-next {
+  min-height: 40px;
+  padding: 0 14px 0 8px;
+  font-size: 0.9rem;
+}
+.qn-npc-next[hidden] {
+  display: none;
+}
+
+/* ---------- milestone toast (under the station toast) */
+.qn-npc-toast {
+  position: absolute;
+  top: calc(var(--qn-top) + 52px);
+  left: 50%;
+  translate: -50% -10px;
+  max-width: calc(100vw - 2 * var(--qn-side));
+  padding: 8px 14px 7px;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 6px;
+  background: var(--qn-paper);
+  box-shadow: 3px 3px 0 var(--qn-ink);
+  font: 700 0.85rem / 1.2 var(--font-mono, "JetBrains Mono", monospace);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    translate 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.qn-npc-toast::before {
+  content: "◆ ";
+  color: var(--qn-accent);
+}
+.qn-npc-toast.is-on {
+  opacity: 1;
+  translate: -50% 0;
+}
+
+/* Touch: no keyboard hint on the tag, it is the tap target. */
+@media (pointer: coarse) {
+  .qn-npc-tag kbd {
+    display: none;
+  }
+  .qn-npc-tag {
+    min-height: 40px;
+    padding-left: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qn-npc-tag,
+  .qn-npc-card.is-pop,
+  .qn-npc-text.is-typing::after {
+    animation: none;
+  }
+  .qn-npc-toast,
+  .qn-npc-choice {
+    transition: none;
+  }
+}
+.qn-npc-foot[hidden] {
+  display: none;
+}

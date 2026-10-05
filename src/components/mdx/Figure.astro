@@ -1,0 +1,49 @@
+---
+import { Image } from "astro:assets";
+/** <Figure src={img} alt="..." caption="..." /> : responsive image with caption and click-to-zoom. */
+import type { ImageMetadata } from "astro";
+
+interface Props {
+  src: ImageMetadata;
+  alt: string;
+  caption?: string;
+  wide?: boolean;
+}
+const { src, alt, caption, wide = false } = Astro.props;
+---
+<figure class:list={["figure", { wide }]}>
+  <button type="button" class="zoom" data-zoom aria-label={alt}>
+    <Image src={src} alt={alt} widths={[640, 960, 1440]} sizes="(max-width: 900px) 100vw, 900px" loading="lazy" />
+  </button>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .figure {
+    margin: 2em 0;
+  }
+  .wide {
+    margin-inline: clamp(0px, calc((100% - 100vw) / 4), 0px);
+  }
+  .zoom {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: none;
+    cursor: zoom-in;
+  }
+  .zoom :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  figcaption {
+    margin-top: 10px;
+    font-size: 0.86rem;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>

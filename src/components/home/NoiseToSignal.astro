@@ -1,0 +1,137 @@
+---
+import { type Lang, t } from "../../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const points =
+  lang === "es"
+    ? [
+        "Definí y automaticé un ciclo de desarrollo con IA en Globant, con prácticas de contexto y calidad para los equipos del programa.",
+        "Máster en Big Data, Data Science e Inteligencia Artificial en la Universidad Complutense de Madrid (2023–2024).",
+        "Arquitecturas de datos en producción: Kinesis, Redshift, OpenSearch y analítica en tiempo real.",
+      ]
+    : [
+        "Defined and automated an AI-assisted delivery cycle at Globant, with context and quality practices for the program's teams.",
+        "Master's in Big Data, Data Science and Artificial Intelligence at Universidad Complutense de Madrid (2023–2024).",
+        "Production data architectures: Kinesis, Redshift, OpenSearch and real-time analytics.",
+      ];
+---
+<section class="section signal" id="ai" aria-labelledby="ia-title">
+  <div class="wrap grid">
+    <div class="screen" data-glyph data-lang={lang}>
+      <canvas class="glyphs" aria-hidden="true"></canvas>
+      <div class="noise-box">
+        <pre class="noise mono ghost" aria-hidden="true">{t(lang, "ai.message")}</pre>
+        <pre class="noise mono" data-noise aria-hidden="true">{t(lang, "ai.message")}</pre>
+      </div>
+      <p class="sr-only">{t(lang, "ai.message")}</p>
+      <label class="steps mono" for="denoise">
+        <span>{t(lang, "ai.steps")}</span>
+        <output data-steps-out>50 / 50</output>
+      </label>
+      <input id="denoise" type="range" min="0" max="50" value="50" data-steps />
+    </div>
+    <div class="text">
+      <h2 id="ia-title">{t(lang, "ai.title")}</h2>
+      <p class="lede">{t(lang, "ai.lede")}</p>
+      <ul class="points">{points.map((p) => <li>{p}</li>)}</ul>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { initSignal } from "../../lib/signal";
+  for (const el of document.querySelectorAll<HTMLElement>("[data-glyph]")) initSignal(el);
+</script>
+
+<style>
+  .signal {
+    --phosphor: var(--ochre);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: var(--space-4);
+    align-items: center;
+  }
+  .screen {
+    position: relative;
+    display: grid;
+    gap: 14px;
+    padding: clamp(16px, 2.5vw, 28px);
+    border-radius: var(--radius);
+    background: #0b0a08;
+    color: #ffb547;
+    min-width: 0;
+  }
+  .glyphs {
+    width: 100%;
+    height: clamp(220px, 30vw, 340px);
+    display: block;
+  }
+  .noise-box {
+    display: grid;
+  }
+  .noise-box > .noise {
+    grid-area: 1 / 1;
+  }
+  .ghost {
+    visibility: hidden;
+  }
+  .noise {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    font-size: clamp(0.8rem, 0.7rem + 0.4vw, 0.98rem);
+    line-height: 1.6;
+    color: #ffcf85;
+    min-height: 5.2em;
+  }
+  .steps {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.74rem;
+    color: #a87a33;
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: #ffb547;
+  }
+  .text h2 {
+    margin-bottom: var(--space-2);
+  }
+  .text .lede {
+    margin-bottom: var(--space-3);
+  }
+  .points {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 14px;
+  }
+  .points li {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr);
+    gap: 14px;
+  }
+  .points li::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    margin-top: 8px;
+    border-radius: 50%;
+    background: var(--turq);
+  }
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+    .screen {
+      order: 2;
+    }
+  }
+</style>

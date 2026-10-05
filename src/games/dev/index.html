@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arcade harness</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Silkscreen:wght@400;700&display=swap">
+<style>:root{--font-pixel:"Silkscreen";--font-mono:"JetBrains Mono"}</style>
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font-family: var(--font-body); }
+  main { max-width: 980px; margin: 0 auto; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<main><div id="host"></div></main>
+<script type="module">
+  import "../../styles/tokens.css";
+  import "../core/shell.css";
+  import { mountCabinet } from "../core/shell";
+  import { gameBySlug } from "../registry";
+
+  const q = new URLSearchParams(location.search);
+  if (q.get("theme")) document.documentElement.dataset.theme = q.get("theme");
+  const meta = gameBySlug(q.get("game") || "snake");
+  const lang = q.get("lang") === "en" ? "en" : "es";
+  mountCabinet(document.getElementById("host"), meta, lang);
+  if (q.get("autostart")) setTimeout(() => document.querySelector("[data-action]")?.click(), 400);
+</script>
+</body>
+</html>

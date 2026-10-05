@@ -1,0 +1,23 @@
+---
+/** Root: pick the visitor's language, defaulting to Spanish. */
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Luis Diego</title>
+    <link rel="canonical" href="https://ldiego73.github.io/es/" />
+    <link rel="alternate" hreflang="es" href="https://ldiego73.github.io/es/" />
+    <link rel="alternate" hreflang="en" href="https://ldiego73.github.io/en/" />
+    <meta http-equiv="refresh" content="0; url=/es/" />
+    <script is:inline>
+      const en = (navigator.languages || [navigator.language]).some((l) => /^en\b/i.test(l)) &&
+        !(navigator.languages || [navigator.language]).some((l) => /^es\b/i.test(l));
+      location.replace(en ? "/en/" : "/es/");
+    </script>
+  </head>
+  <body>
+    <a href="/es/">Español</a> · <a href="/en/">English</a>
+  </body>
+</html>

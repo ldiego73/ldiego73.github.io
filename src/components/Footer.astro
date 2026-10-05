@@ -1,0 +1,82 @@
+---
+import { SITE, SOCIALS } from "../data/site";
+import { type Lang, t } from "../i18n/ui";
+import Icon from "./Icon.astro";
+import KhipuMark from "./KhipuMark.astro";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const year = new Date().getFullYear();
+---
+<footer class="site-footer">
+  <div class="wrap grid">
+    <div class="who">
+      <KhipuMark />
+      <p>{t(lang, "footer.built")}</p>
+    </div>
+    <ul class="socials">
+      {
+        SOCIALS.map((s) => (
+          <li>
+            <a href={s.url} rel="me noopener" target={s.icon === "mail" ? undefined : "_blank"}>
+              <Icon name={s.icon} size={18} />
+              {s.name}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="mono copy">© {year} {SITE.name} · {SITE.handle}</p>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    border-top: 1px solid var(--line);
+    padding-block: var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
+  }
+  .who {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    max-width: 52ch;
+  }
+  .socials {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    justify-content: flex-end;
+  }
+  .socials a {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    text-decoration: none;
+    color: var(--fg);
+  }
+  .copy {
+    grid-column: 1 / -1;
+    font-size: 0.78rem;
+  }
+  @media (max-width: 700px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+    .socials {
+      justify-content: flex-start;
+    }
+  }
+</style>

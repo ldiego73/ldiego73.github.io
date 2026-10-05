@@ -1,0 +1,31 @@
+---
+import { t } from "../i18n/ui";
+import Base from "../layouts/Base.astro";
+
+const lang = "es";
+---
+<Base lang={lang} title={t(lang, "notfound.title")} alternate="/en/">
+  <div class="wrap nf">
+    <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+      <path d="M10 20h100" stroke="var(--cotton)" stroke-width="6" stroke-linecap="round" />
+      <path d="M40 20v70M80 20v28" stroke="var(--red)" stroke-width="5" stroke-linecap="round" />
+      <path d="M80 60v40" stroke="var(--red)" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 10" />
+      <circle cx="40" cy="50" r="7" fill="var(--ochre)" />
+    </svg>
+    <h1>{t(lang, "notfound.title")}</h1>
+    <p class="lede">{t(lang, "notfound.lede")} · {t("en", "notfound.lede")}</p>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="/es/">{t(lang, "notfound.home")}</a>
+      <a class="btn" href="/en/">{t("en", "notfound.home")}</a>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .nf {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+    padding-block: var(--space-6);
+  }
+</style>

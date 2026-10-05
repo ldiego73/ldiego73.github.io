@@ -1,0 +1,790 @@
+---
+import Icon from "../../../components/Icon.astro";
+import { NEON } from "../../../games/core/neon";
+import { ACHIEVEMENTS, GAMES } from "../../../games/registry";
+import { LANGS, type Lang, t } from "../../../i18n/ui";
+import Base from "../../../layouts/Base.astro";
+
+export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
+const lang = Astro.params.lang as Lang;
+const groups = [
+  { key: "original", label: t(lang, "arcade.originals") },
+  { key: "classic", label: t(lang, "arcade.classics") },
+] as const;
+const mid = Math.floor(GAMES.length / 2);
+const first = GAMES[mid]!;
+---
+<Base lang={lang} title={t(lang, "arcade.title")} description={t(lang, "arcade.lede")}>
+  <div class="block-world">
+    <section class="hall" data-hall data-state="loading" data-board={t(lang, "arcade.leaderboard")} aria-labelledby="arcade-h1">
+      <div class="hall-stage" data-lobby aria-hidden="true"></div>
+      <div class="hall-ui">
+        <div class="hall-head">
+          <h1 id="arcade-h1" class="hall-title">{t(lang, "arcade.title")}</h1>
+          <p class="hall-msg hall-loading" role="status">{t(lang, "arcade.loading")}</p>
+          <p class="hall-msg hall-nogl">{t(lang, "arcade.noWebgl")}</p>
+        </div>
+        <div class="caption" data-caption style={`--dye:${NEON[first.neon]}`}>
+          <p class="cap-title" data-cap-title>{first.title[lang]}</p>
+          <p class="cap-tag" data-cap-tag>{first.tagline[lang]}</p>
+          <p class="cap-meta">
+            <span class="cap-best">{t(lang, "arcade.best")} <b data-cap-best>0</b></span>
+            <span class="cap-hint hint-key">{t(lang, "arcade.hint")}</span>
+            <span class="cap-hint hint-touch">{t(lang, "arcade.hintTouch")}</span>
+          </p>
+        </div>
+        <nav class="dial" aria-label={t(lang, "arcade.hall")}>
+          <ul data-dial>
+            {
+              GAMES.map((g, i) => (
+                <li style={`--dye:${NEON[g.neon]}`}>
+                  <a
+                    href={`/${lang}/arcade/${g.slug}/`}
+                    data-i={i}
+                    data-slug={g.slug}
+                    data-title={g.title[lang]}
+                    data-tag={g.tagline[lang]}
+                    data-marquee={g.marquee}
+                    data-color={NEON[g.neon]}
+                    aria-current={i === mid ? "true" : undefined}
+                  >
+                    <span aria-hidden="true">{g.marquee}</span>
+                    <span class="sr-only">{g.title[lang]}</span>
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </nav>
+      </div>
+    </section>
+
+    <div class="wrap below">
+      <section class="games-sec" aria-labelledby="games-h">
+        <div class="sec-head">
+          <h2 id="games-h">{t(lang, "arcade.games")}</h2>
+          <p class="lede">{t(lang, "arcade.lede")}</p>
+        </div>
+        {
+          groups.map((g) => (
+            <div class="group">
+              <h3>{g.label}</h3>
+              <ul class="tiles">
+                {GAMES.filter((x) => x.kind === g.key).map((x) => (
+                  <li style={`--dye:${NEON[x.neon]}`}>
+                    <a href={`/${lang}/arcade/${x.slug}/`}>
+                      <span class="tile-marquee" aria-hidden="true">
+                        {x.marquee}
+                      </span>
+                      <span class="tile-body">
+                        <span class="tile-title">{x.title[lang]}</span>
+                        <span class="tile-tag">{x.tagline[lang]}</span>
+                        <span class="tile-foot">
+                          <span class="tile-best">
+                            {t(lang, "arcade.best")} <b data-best={x.slug}>0</b>
+                          </span>
+                          <span class="tile-play">
+                            <Icon name="play" size={16} /> {t(lang, "arcade.play")}
+                          </span>
+                        </span>
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </section>
+
+      <div class="records">
+        <section class="board" aria-labelledby="lb-title">
+          <h2 id="lb-title"><Icon name="trophy" /> {t(lang, "arcade.leaderboard")}</h2>
+          <ol class="lb" data-leaderboard>
+            {
+              GAMES.map((g) => (
+                <li data-game={g.slug} style={`--dye:${NEON[g.neon]}`}>
+                  <span class="lb-name">{g.title[lang]}</span>
+                  <b>0</b>
+                </li>
+              ))
+            }
+          </ol>
+        </section>
+        <section class="wall" aria-labelledby="ach-title">
+          <h2 id="ach-title">
+            {t(lang, "arcade.achievements")} <span class="count" data-ach-count>0/{ACHIEVEMENTS.length}</span>
+          </h2>
+          <ul class="ach">
+            {
+              ACHIEVEMENTS.map((a) => (
+                <li data-ach={a.id} class="locked">
+                  <span class="badge" aria-hidden="true">
+                    <Icon name="lock" size={16} />
+                    <Icon name="trophy" size={16} />
+                  </span>
+                  <span class="ach-text">
+                    <b>{a.title[lang]}</b>
+                    <span>{a.description[lang]}</span>
+                  </span>
+                  <span class="sr-only" data-state data-unlocked-label={t(lang, "arcade.unlocked")}>
+                    {t(lang, "arcade.locked")}
+                  </span>
+                </li>
+              ))
+            }
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { ACHIEVEMENTS, GAMES } from "../../../games/registry";
+  import { leaderboard, load } from "../../../games/core/store";
+
+  const state = load();
+  const lang = document.documentElement.lang === "en" ? "en" : "es";
+  const nf = new Intl.NumberFormat(lang === "en" ? "en-US" : "es-PE");
+  const best: Record<string, number> = {};
+  for (const g of GAMES) best[g.slug] = state.games[g.slug]?.best ?? 0;
+
+  // Scores and achievements (plain HTML, works without WebGL).
+  for (const el of document.querySelectorAll<HTMLElement>("[data-best]")) el.textContent = nf.format(best[el.dataset.best ?? ""] ?? 0);
+  const list = document.querySelector("[data-leaderboard]");
+  if (list) {
+    for (const r of leaderboard(state, GAMES.map((g) => g.slug))) {
+      const li = list.querySelector<HTMLElement>(`[data-game="${r.game}"]`);
+      if (!li) continue;
+      const b = li.querySelector("b");
+      if (b) b.textContent = nf.format(r.best);
+      list.appendChild(li);
+    }
+  }
+  let unlocked = 0;
+  for (const li of document.querySelectorAll<HTMLElement>("[data-ach]")) {
+    if (!state.unlocked[li.dataset.ach ?? ""]) continue;
+    unlocked++;
+    li.classList.remove("locked");
+    const s = li.querySelector<HTMLElement>("[data-state]");
+    if (s) s.textContent = s.dataset.unlockedLabel ?? "";
+  }
+  const count = document.querySelector("[data-ach-count]");
+  if (count) count.textContent = `${unlocked}/${ACHIEVEMENTS.length}`;
+
+  // Hall: dial links drive the caption and the 3D focus.
+  const hall = document.querySelector<HTMLElement>("[data-hall]");
+  const stageEl = document.querySelector<HTMLElement>("[data-lobby]");
+  const dial = document.querySelector<HTMLElement>("[data-dial]");
+  const links = [...document.querySelectorAll<HTMLAnchorElement>("[data-dial] a")];
+  const cap = document.querySelector<HTMLElement>("[data-caption]");
+  const capTitle = document.querySelector("[data-cap-title]");
+  const capTag = document.querySelector("[data-cap-tag]");
+  const capBest = document.querySelector("[data-cap-best]");
+  let lobby: { focus(i: number): void; dispose(): void } | null = null;
+
+  const show = (i: number) => {
+    const a = links[i];
+    if (!a) return;
+    links.forEach((l, k) => (k === i ? l.setAttribute("aria-current", "true") : l.removeAttribute("aria-current")));
+    cap?.style.setProperty("--dye", a.dataset.color ?? "");
+    if (capTitle) capTitle.textContent = a.dataset.title ?? "";
+    if (capTag) capTag.textContent = a.dataset.tag ?? "";
+    if (capBest) capBest.textContent = nf.format(best[a.dataset.slug ?? ""] ?? 0);
+    // Keep the active chip visible in the scrollable dial without moving the page.
+    if (dial && dial.scrollWidth > dial.clientWidth) {
+      dial.scrollTo({ left: a.offsetLeft - dial.clientWidth / 2 + a.offsetWidth / 2, behavior: "smooth" });
+    }
+  };
+  show(links.findIndex((l) => l.getAttribute("aria-current") === "true"));
+
+  dial?.addEventListener("focusin", (e) => {
+    const i = links.indexOf(e.target as HTMLAnchorElement);
+    if (i < 0) return;
+    show(i);
+    lobby?.focus(i);
+  });
+  dial?.addEventListener("keydown", (e) => {
+    const i = links.indexOf(document.activeElement as HTMLAnchorElement);
+    if (i < 0) return;
+    const next =
+      e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? links.length - 1 : -2;
+    if (next === -2) return;
+    e.preventDefault();
+    links[Math.max(0, Math.min(links.length - 1, next))]?.focus();
+  });
+
+  const webgl = (() => {
+    try {
+      const c = document.createElement("canvas");
+      return !!(c.getContext("webgl2") || c.getContext("webgl"));
+    } catch {
+      return false;
+    }
+  })();
+
+  if (hall && stageEl) {
+    if (!webgl) hall.dataset.state = "fallback";
+    else {
+      import("../../../arcade-lobby/lobby")
+        .then(({ mountLobby }) => {
+          const start = links.findIndex((l) => l.getAttribute("aria-current") === "true");
+          lobby = mountLobby(stageEl, {
+            lang,
+            games: links.map((a) => ({
+              slug: a.dataset.slug ?? "",
+              marquee: a.dataset.marquee ?? "",
+              title: a.dataset.title ?? "",
+              color: a.dataset.color ?? "#56b6c9",
+            })),
+            best,
+            boardTitle: hall.dataset.board ?? "HI-SCORES",
+            reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+            onFocus: show,
+            onEnter: (i) => {
+              const href = links[i]?.href;
+              if (href) location.href = href;
+            },
+            onReady: () => (hall.dataset.state = "ready"),
+          });
+          lobby.focus(start);
+        })
+        .catch(() => (hall.dataset.state = "fallback"));
+      addEventListener("pagehide", () => {
+        lobby?.dispose();
+        lobby = null;
+      });
+    }
+  }
+</script>
+
+<style>
+  .block-world {
+    --void: #16171d;
+    --floor: #2a2c35;
+    --grid: #3c3f4b;
+    --ink: #efe9da;
+    --dim: #9b97a3;
+    --cyan: #56b6c9;
+    --lime: #7fb24a;
+    --amber: #e2a83c;
+    --magenta: #c45a8a;
+    --font-arcade-stack: var(--font-arcade, "Silkscreen"), "Arial Narrow", sans-serif;
+    background: var(--void);
+    color: var(--ink);
+    color-scheme: dark;
+    padding-bottom: var(--space-6);
+  }
+  .block-world ::selection {
+    background: color-mix(in srgb, var(--magenta) 45%, transparent);
+    color: #efe9da;
+  }
+  .block-world :focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 3px;
+  }
+
+  /* Hall hero */
+  .hall {
+    position: relative;
+    height: clamp(560px, 84svh, 880px);
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--floor, #2a2c35);
+  }
+  .hall-stage {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.9s var(--ease-out);
+  }
+  .hall[data-state="ready"] .hall-stage {
+    opacity: 1;
+  }
+  .hall[data-state="fallback"] .hall-stage {
+    display: none;
+  }
+  .hall-ui {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    display: grid;
+    grid-template-rows: 1fr auto auto;
+    pointer-events: none;
+    padding: var(--space-3) var(--gutter) var(--space-3);
+    max-width: var(--maxw);
+    margin-inline: auto;
+  }
+  .hall-ui a {
+    pointer-events: auto;
+  }
+  .hall-head {
+    grid-row: 1;
+    align-self: center;
+    justify-self: center;
+    text-align: center;
+    display: grid;
+    gap: var(--space-2);
+    max-width: 52ch;
+  }
+  .hall-title {
+    font: 800 clamp(3.2rem, 2rem + 6vw, 6rem) / 0.9 var(--font-arcade-stack);
+    letter-spacing: 0.08em;
+    color: #efe9da;
+  }
+  .hall[data-state="ready"] .hall-head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .hall-msg {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    color: var(--dim);
+  }
+  .hall-nogl {
+    display: none;
+  }
+  .hall[data-state="fallback"] .hall-nogl {
+    display: block;
+  }
+  .hall[data-state="fallback"] .hall-loading {
+    display: none;
+  }
+  .caption {
+    grid-row: 2;
+    justify-self: start;
+    align-self: end;
+    display: grid;
+    gap: 6px;
+    padding: 14px 22px 16px 18px;
+    margin: 0 0 14px;
+    max-width: 46ch;
+    border-radius: 2px;
+    background: var(--void);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .hall[data-state="loading"] .caption {
+    visibility: hidden;
+  }
+  .hall[data-state="fallback"] .caption {
+    display: none;
+  }
+  .caption p {
+    margin: 0;
+  }
+  .cap-title {
+    font: 800 var(--step-3) / 0.95 var(--font-arcade-stack);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #efe9da;
+  }
+  .cap-tag {
+    font-size: var(--step-0);
+    color: var(--ink);
+  }
+  .cap-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font: 500 0.8rem / 1.4 var(--font-mono);
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .cap-best b {
+    color: var(--dye);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .hint-touch {
+    display: none;
+  }
+  @media (pointer: coarse) {
+    .hint-touch {
+      display: inline;
+    }
+    .hint-key {
+      display: none;
+    }
+  }
+
+  .dial {
+    grid-row: 3;
+    pointer-events: auto;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-inline: calc(var(--gutter) * -1);
+    padding: 6px var(--gutter);
+  }
+  .dial::-webkit-scrollbar {
+    display: none;
+  }
+  .dial ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    min-width: max-content;
+  }
+  .dial a {
+    display: block;
+    padding: 9px 12px 8px;
+    border-radius: 2px;
+    font: 700 0.78rem / 1 var(--font-arcade-stack);
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    white-space: nowrap;
+    color: var(--ink);
+    background: var(--floor, #2a2c35);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+    transition:
+      color 0.2s,
+      border-color 0.2s,
+      box-shadow 0.2s,
+      background 0.2s;
+  }
+  .dial a:hover,
+  .dial a[aria-current="true"] {
+    border-color: #121318;
+    background: var(--dye);
+    color: var(--void);
+    box-shadow: inset 0 -5px 0 rgb(0 0 0 / 0.22);
+  }
+  .hall[data-state="loading"] .dial {
+    opacity: 0.5;
+  }
+  /* No WebGL: the dial becomes a wall of block signs. */
+  .hall[data-state="fallback"] {
+    height: auto;
+    min-height: 0;
+  }
+  .hall[data-state="fallback"] .hall-ui {
+    grid-template-rows: auto auto auto;
+    gap: var(--space-4);
+    padding-block: var(--space-5);
+  }
+  .hall[data-state="fallback"] .dial {
+    overflow: visible;
+  }
+  .hall[data-state="fallback"] .dial ul {
+    flex-wrap: wrap;
+    min-width: 0;
+    gap: 12px;
+  }
+  .hall[data-state="fallback"] .dial a {
+    font-size: 1.05rem;
+    padding: 16px 20px;
+    border-color: #121318;
+  }
+
+  /* Below the hall */
+  .below {
+    display: grid;
+    gap: var(--space-6);
+    padding-top: var(--space-5);
+  }
+  .sec-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: var(--space-3);
+    align-items: end;
+    margin-bottom: var(--space-4);
+  }
+  .sec-head .lede {
+    margin: 0;
+    color: var(--dim);
+    max-width: 60ch;
+  }
+  h2 {
+    font-family: var(--font-arcade-stack);
+    font-stretch: normal;
+    letter-spacing: 0.04em;
+    color: #efe9da;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .group + .group {
+    margin-top: var(--space-5);
+  }
+  h3 {
+    font: 600 0.82rem / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--dim);
+    margin-bottom: var(--space-2);
+  }
+  .tiles {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    /* Fixed column count per group so every card matches; 5 classics sit in one row. */
+    grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+    gap: 16px;
+  }
+  .group:last-child .tiles {
+    --cols: 5;
+  }
+  .tiles li {
+    display: flex;
+  }
+  @media (max-width: 1100px) {
+    .tiles,
+    .group:last-child .tiles {
+      --cols: 3;
+    }
+  }
+  @media (max-width: 760px) {
+    .tiles,
+    .group:last-child .tiles {
+      --cols: 2;
+    }
+  }
+  @media (max-width: 440px) {
+    .tiles,
+    .group:last-child .tiles {
+      --cols: 1;
+    }
+  }
+  .tiles a {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    width: 100%;
+    height: 100%;
+    text-decoration: none;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--floor, #2a2c35);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+    transition:
+      transform 0.35s var(--ease-out),
+      box-shadow 0.35s var(--ease-out);
+  }
+  .tile-marquee {
+    display: grid;
+    place-items: center;
+    min-height: 3.4rem;
+    padding: 10px 12px;
+    text-align: center;
+    font: 800 1.2rem / 1.15 var(--font-arcade-stack);
+    letter-spacing: 0.08em;
+    text-wrap: balance;
+    color: var(--void);
+    background: var(--dye);
+    box-shadow: inset 0 -5px 0 rgb(0 0 0 / 0.22);
+    border-bottom: 3px solid #121318;
+  }
+  .tile-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 18px 18px;
+  }
+  .tile-title {
+    font-weight: 700;
+    color: #efe9da;
+  }
+  .tile-tag {
+    color: var(--dim);
+    font-size: 0.94rem;
+  }
+  .tile-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 12px;
+    font: 500 0.78rem / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+  }
+  .tile-best b {
+    color: #efe9da;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile-play {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--dye);
+    font-weight: 700;
+  }
+  .tiles a:hover,
+  .tiles a:focus-visible {
+    transform: translateY(-4px);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tiles a,
+    .hall-stage {
+      transition: none;
+    }
+    .tiles a:hover,
+    .tiles a:focus-visible {
+      transform: none;
+    }
+  }
+
+  .records {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: var(--space-4);
+    align-items: start;
+  }
+  .records h2 {
+    font-size: var(--step-2);
+    margin-bottom: var(--space-3);
+  }
+  .board {
+    padding: 22px 24px 18px;
+    border-radius: 2px;
+    background: #2a2c35;
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .board h2 {
+    color: #efe9da;
+  }
+  .board h2 :global(svg) {
+    color: var(--amber);
+  }
+  .lb {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    counter-reset: n;
+    font: 500 0.9rem / 1.3 var(--font-mono);
+  }
+  .lb li {
+    counter-increment: n;
+    display: grid;
+    grid-template-columns: 2.4em minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--grid);
+  }
+  .lb li:last-child {
+    border-bottom: 0;
+  }
+  .lb li::before {
+    content: counter(n, decimal-leading-zero);
+    color: var(--dim);
+  }
+  .lb-name {
+    color: var(--dye);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lb b {
+    color: #efe9da;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .count {
+    font: 500 0.85rem / 1 var(--font-mono);
+    color: var(--dim);
+    letter-spacing: 0.04em;
+  }
+  .ach {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 10px;
+    font-size: 0.9rem;
+  }
+  .ach li {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+    border-radius: 2px;
+    background: #2a2c35;
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .ach b {
+    display: block;
+    color: #efe9da;
+    line-height: 1.25;
+  }
+  .ach-text > span {
+    color: var(--dim);
+  }
+  .badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 2px;
+    display: grid;
+    place-items: center;
+    background: var(--floor);
+    color: var(--lime);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .badge :global(svg:first-child) {
+    display: none;
+  }
+  .ach li.locked {
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+    background: var(--void);
+  }
+  .locked b {
+    color: var(--dim);
+  }
+  .locked .ach-text > span {
+    color: color-mix(in srgb, var(--dim) 80%, var(--void));
+  }
+  .locked .badge {
+    background: var(--void);
+    color: var(--dim);
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+  }
+  .locked .badge :global(svg:first-child) {
+    display: block;
+  }
+  .locked .badge :global(svg:last-child) {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .sec-head,
+    .records {
+      grid-template-columns: 1fr;
+    }
+    .dial ul {
+      justify-content: flex-start;
+    }
+  }
+  @media (max-width: 640px) {
+    .hall {
+      height: clamp(520px, 80svh, 720px);
+    }
+    .caption {
+      padding-right: 18px;
+    }
+    .cap-title {
+      font-size: var(--step-2);
+    }
+  }
+</style>

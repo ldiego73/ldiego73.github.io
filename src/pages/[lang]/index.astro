@@ -1,0 +1,85 @@
+---
+import ArcadeStrip from "../../components/arcade/ArcadeStrip.astro";
+import Artifacts from "../../components/home/Artifacts.astro";
+import Chapters from "../../components/home/Chapters.astro";
+import Contact from "../../components/home/Contact.astro";
+import FlatView from "../../components/home/FlatView.astro";
+import Hero from "../../components/home/Hero.astro";
+import Legend from "../../components/home/Legend.astro";
+import NoiseToSignal from "../../components/home/NoiseToSignal.astro";
+import Icon from "../../components/Icon.astro";
+import PostList from "../../components/PostList.astro";
+import RepoList from "../../components/RepoList.astro";
+import { LANGS, type Lang, t } from "../../i18n/ui";
+import Base from "../../layouts/Base.astro";
+import { getRepos } from "../../lib/github";
+import { getPosts } from "../../lib/posts";
+
+export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
+const lang = Astro.params.lang as Lang;
+const repos = (await getRepos()).slice(0, 4);
+const posts = (await getPosts(lang)).slice(0, 4);
+---
+<Base lang={lang}>
+  <Hero lang={lang} />
+  <Legend lang={lang} />
+  <Chapters lang={lang} />
+  <Artifacts lang={lang} />
+  <NoiseToSignal lang={lang} />
+  <section class="section" aria-labelledby="work-title">
+    <div class="wrap duo">
+      <div>
+        <div class="head">
+          <h2 id="work-title">{t(lang, "projects.repos")}</h2>
+          <a class="more" href={`/${lang}/projects/`}>{t(lang, "projects.all")} <Icon name="arrow" size={16} /></a>
+        </div>
+        <RepoList lang={lang} repos={repos} compact />
+      </div>
+      <div>
+        <div class="head">
+          <h2>{t(lang, "blog.title")}</h2>
+          <a class="more" href={`/${lang}/blog/`}>{t(lang, "blog.all")} <Icon name="arrow" size={16} /></a>
+        </div>
+        <PostList lang={lang} posts={posts} compact />
+      </div>
+    </div>
+  </section>
+  <ArcadeStrip lang={lang} />
+  <FlatView lang={lang} />
+  <Contact lang={lang} />
+</Base>
+
+<style>
+  .duo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
+  }
+  .head h2 {
+    font-size: var(--step-2);
+  }
+  .more {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 0.92rem;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .more:hover {
+    color: var(--fg);
+  }
+  @media (max-width: 900px) {
+    .duo {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

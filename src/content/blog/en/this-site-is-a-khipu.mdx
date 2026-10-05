@@ -1,0 +1,90 @@
+---
+title: "This site is a khipu"
+description: "Why I told my career with cords and knots, and how it's built: Astro, Three.js, rope physics and an arcade made with agents."
+date: 2026-10-04
+tags: ["astro", "threejs", "architecture"]
+translationKey: site-khipu
+cover: ../../../assets/blog/khipu-hero.png
+coverAlt: "The home khipu: seven dyed cords hanging from a primary cord, one per company."
+---
+
+import diagram from "../../../assets/blog/artifacts-top-cord.png";
+
+Khipus were the Andean record-keeping system: a primary cord, pendant cords and knots. A knot's position marked units, tens or hundreds, and the number of turns in a long knot was the digit. Structured data, no paper.
+
+When I set out to rebuild this site after four years, I realized my career already had that shape: companies are cords, stages are subsidiary cords and deliveries are knots.
+
+## How to read it
+
+- **One cord per company.** When I held several stages at the same company, each stage hangs as a subsidiary cord. Auna, for example, has three.
+- **Single knots** for things that reached production.
+- **Long knots** for numbers: the 30–40% saving at TopSort is a three-turn knot.
+- **Top cords** for artifacts I built across companies.
+
+<Figure src={diagram} alt="The artifacts section: a red top cord ties the cords of Belcorp, Auna, Xepelin, TopSort and Globant." caption="The API Gateway shows up at five companies: the top cord ties them all together." />
+
+## Data first
+
+The whole site comes from one typed file. The 3D khipu, the chapters, the flat view and the PDF resume read the same data, so there are never two versions of the truth.
+
+<CodeFile name="src/data/career.ts">
+
+```ts
+export interface Knot {
+  id: string;
+  /** 1 = single knot; more than 1 = long knot whose turns are a digit */
+  n: number;
+  text: { es: string; en: string };
+  metric?: string;
+}
+
+const finops: Knot = {
+  id: "finops",
+  n: 3,
+  metric: "30–40%",
+  text: {
+    es: "30–40% menos costo de infraestructura con FinOps, Karpenter y KubeCost.",
+    en: "30–40% lower infrastructure cost with FinOps, Karpenter and KubeCost.",
+  },
+};
+```
+
+</CodeFile>
+
+## Rope physics
+
+Each cord is a chain of points integrated with Verlet. Every frame applies gravity, moves each point by its implicit velocity, then corrects the distance between neighbors a few times:
+
+```ts
+for (let it = 0; it < 10; it++) {
+  rope.pts[0].copy(anchor);
+  for (let i = 0; i < SEG; i++) {
+    const p = rope.pts[i], q = rope.pts[i + 1];
+    const d = p.distanceTo(q) || 1e-6;
+    const k = ((d - rope.segLen) / d) * (i === 0 ? 1 : 0.5);
+    // pull or push both ends back to the rest length
+  }
+}
+```
+
+<Callout type="tip" title="Accessibility">
+With `prefers-reduced-motion` the cords stay still, and every piece of content exists as HTML even when the browser has no WebGL.
+</Callout>
+
+## The arcade and the agents
+
+The arcade has nine 3D games. Each was built by an independent agent following a shared contract: the game only emits events, and the shared cabinet handles best scores and achievements.
+
+```ts
+ctx.emit({ type: "score", value: 1200 });
+ctx.emit({ type: "stat", key: "bugs", inc: 1 });
+ctx.emit({ type: "gameover", score: 1200 });
+```
+
+<Callout type="note" title="Content rule">
+The content comes from my resume, without embellishment. If it isn't on the resume, it isn't on the khipu.
+</Callout>
+
+## How it ships
+
+**Astro** generates everything as a static site in Spanish and English, and **GitHub Actions** builds and publishes to GitHub Pages on every push to `main`. No servers to maintain.
