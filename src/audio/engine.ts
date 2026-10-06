@@ -3,6 +3,7 @@
  *
  *   TrackRunner.gain -> duck -> pause -> master -> limiter -> destination
  *   stinger bus ---------------------------^
+ *   sfx bus / ambient bus -----------------^   (world one-shots and soundscape: same mute/volume, no music duck)
  */
 import type { Stinger, Track } from "./contract";
 import { Scheduler, slew } from "./scheduler";
@@ -13,6 +14,8 @@ import { VoiceBank } from "./voices";
 export const volumeToGain = (v: number) => Math.min(1, Math.max(0, v)) ** 1.5;
 
 export const LOOKAHEAD = 0.12;
+/** SFX bus level relative to the music (slightly under it). */
+export const SFX_LEVEL = 0.8;
 export const TICK_MS = 25;
 
 export class TrackRunner {
@@ -112,6 +115,10 @@ export class AudioEngine {
   private pauseNode: GainNode;
   private master: GainNode;
   private stingerBus: GainNode;
+  /** One-shot sound effects (src/audio/sfx.ts). Sits a little under the music. */
+  readonly sfxBus: GainNode;
+  /** Continuous world soundscape; dipped while a stinger plays. */
+  readonly ambientBus: GainNode;
   private limiter: DynamicsCompressorNode;
   private clip: WaveShaperNode;
 
@@ -130,6 +137,12 @@ export class AudioEngine {
     this.duckNode.connect(this.pauseNode);
     this.pauseNode.connect(this.master);
     this.stingerBus.connect(this.master);
+    this.sfxBus = ctx.createGain();
+    this.sfxBus.gain.value = SFX_LEVEL;
+    this.sfxBus.connect(this.master);
+    this.ambientBus = ctx.createGain();
+    this.ambientBus.gain.value = 1;
+    this.ambientBus.connect(this.master);
     this.master.connect(this.limiter);
     // last-resort soft clip so a transient that slips past the limiter can never exceed full scale
     this.clip = ctx.createWaveShaper();
@@ -180,12 +193,23 @@ export class AudioEngine {
     if (level < 1) g.setTargetAtTime(1, now + ms / 1000, 0.18);
   }
 
+  /** Dips the soundscape to `level`, holds `ms`, then recovers. */
+  duckAmbient(level: number, ms: number) {
+    const g = this.ambientBus.gain;
+    const now = this.ctx.currentTime;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.setTargetAtTime(Math.min(1, Math.max(0, level)), now, 0.08);
+    if (level < 1) g.setTargetAtTime(1, now + ms / 1000, 0.4);
+  }
+
   stinger(name: Stinger) {
     const def = STINGERS[name];
     if (!def) return;
     const t0 = this.ctx.currentTime + 0.03;
     this.stingerBus.gain.value = def.gain;
     this.duck(def.duck, def.length * 1000 * 0.8);
+    this.duckAmbient(Math.min(1, def.duck + 0.25), def.length * 1000 * 0.8);
     for (const n of def.notes) {
       this.voices.play(n.voice, this.stingerBus, {
         time: t0 + n.at,
@@ -216,6 +240,8 @@ export class AudioEngine {
   }
 
   dispose() {
+    this.sfxBus.disconnect();
+    this.ambientBus.disconnect();
     this.master.disconnect();
     this.limiter.disconnect();
     this.clip.disconnect();

@@ -16,6 +16,8 @@ const COPY = {
     tourStop: "Detener",
     day: "Pasar a la noche (T)",
     night: "Pasar al día (T)",
+    text: "Modo texto",
+    textLong: "Modo texto: el recorrido narrado (K)",
     quality: "Calidad",
     high: "Alta",
     low: "Baja",
@@ -35,6 +37,8 @@ const COPY = {
     tourStop: "Stop",
     day: "Switch to night (T)",
     night: "Switch to day (T)",
+    text: "Text mode",
+    textLong: "Text mode: the walk, narrated (K)",
     quality: "Quality",
     high: "High",
     low: "Low",
@@ -60,6 +64,7 @@ const ICON = {
   quality: svg('<path d="M4 18h16"/><path d="M7 18V12M12 18V8M17 18V5"/>'),
   run: svg('<circle cx="14" cy="4.5" r="1.8"/><path d="M8 21l3-6 3 2v4M6 11l3-3 4 1 3 3 3 .5"/><path d="M11 15l2-5"/>'),
   jump: svg('<path d="M12 19V6M6.5 11.5L12 6l5.5 5.5"/><path d="M5 21h14"/>'),
+  text: svg('<path d="M5 4h14v16H5z"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4.5"/>'),
 };
 
 export interface Chrome {
@@ -84,6 +89,8 @@ export function createChrome(
     onEditName(): void;
     onDayNight(): void;
     onQuality(): void;
+    /** Open the accessible text mode. */
+    onText(): void;
     /** Music control element to place in the tools bar (optional). */
     musicControl?: HTMLElement;
     onInteract(): void;
@@ -97,7 +104,10 @@ export function createChrome(
   root.className = "kw-chrome";
   root.innerHTML = `
     <a class="kw-btn kw-back" href="/${lang}/" aria-label="${c.backLong}">${ICON.back}<span>${c.back}</span></a>
-    <button type="button" class="kw-namechip" data-k="name" aria-label="${c.nameEdit}" title="${c.nameEdit}">${ICON.pencil}<span class="kw-namechip-v"></span></button>
+    <div class="kw-chips">
+      <button type="button" class="kw-namechip" data-k="name" aria-label="${c.nameEdit}" title="${c.nameEdit}">${ICON.pencil}<span class="kw-namechip-v"></span></button>
+      <button type="button" class="kw-namechip kw-textchip" data-k="text" aria-label="${c.textLong}" title="${c.textLong}" aria-haspopup="dialog">${ICON.text}<span>${c.text}</span></button>
+    </div>
     <nav class="kw-tools" aria-label="${lang === "es" ? "Controles del mundo" : "World controls"}">
       <button type="button" class="kw-btn" data-k="tour" aria-pressed="false">${ICON.tour}<span>${c.tour}</span></button>
       <button type="button" class="kw-btn" data-k="photo" aria-label="${c.photoLong}" title="${c.photoLong}">${ICON.camera}<span>${c.photo}</span></button>
@@ -130,6 +140,7 @@ export function createChrome(
     else if (k === "name") h.onEditName();
     else if (k === "daynight") h.onDayNight();
     else if (k === "quality") h.onQuality();
+    else if (k === "text") h.onText();
   };
   root.addEventListener("click", onClick);
   // Touch pads act on press, not click, so they feel immediate.

@@ -51,6 +51,20 @@ export interface Hud {
   dispose(): void;
 }
 
+/** Core-owned help lines (K text mode, P passport, gamepad support). */
+const HELP_EXTRA: Record<Lang, string[]> = {
+  es: [
+    "M: mapa y viaje rápido · K: modo texto · P: pasaporte · T: día o noche · N: música · F: foto · Esc: cerrar",
+    "En móvil: joystick a la izquierda, botones a la derecha, arrastra para girar la cámara.",
+    "Con mando: stick izquierdo camina, stick derecho gira la cámara, A salta, X interactúa, B vuelve, Y abre el mapa, RB o RT corre, LB toma una foto, Start muestra esta ayuda.",
+  ],
+  en: [
+    "M: map and fast travel · K: text mode · P: passport · T: day or night · N: music · F: photo · Esc: close",
+    "On mobile: joystick on the left, buttons on the right, drag to turn the camera.",
+    "With a gamepad: left stick walks, right stick turns the camera, A jumps, X interacts, B goes back, Y opens the map, RB or RT runs, LB takes a photo, Start shows this help.",
+  ],
+};
+
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -120,8 +134,8 @@ export function createHud(
   const tools = el("div", "qn-tools");
   const mapBtn = el("button", "qn-btn qn-icon");
   mapBtn.type = "button";
-  mapBtn.setAttribute("aria-label", L("qn.map"));
-  mapBtn.setAttribute("aria-pressed", "false");
+  mapBtn.setAttribute("aria-label", `${L("qn.map")} (M)`);
+  mapBtn.setAttribute("aria-haspopup", "dialog");
   mapBtn.innerHTML =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>';
   const helpBtn = el("button", "qn-btn qn-icon");
@@ -141,7 +155,7 @@ export function createHud(
   const mapCap = el("figcaption", "qn-map-cap");
   mapBox.append(mapCanvas, mapCap);
   hud.appendChild(mapBox);
-  let mapExpanded = false;
+  // The corner minimap stays small; the full map + fast travel is core's map.ts (opened via `world:map`).
 
   // Help overlay.
   const help = el("div", "qn-help");
@@ -153,16 +167,9 @@ export function createHud(
   const ht = el("h2", "qn-title", L("qn.help.title"));
   ht.id = "qn-help-title";
   const hl = el("ul", "qn-help-list");
-  for (const k of [
-    "qn.help.move",
-    "qn.help.run",
-    "qn.help.interact",
-    "qn.help.keys",
-    "qn.help.touch",
-    "qn.help.tour",
-  ] as UIKey[]) {
-    hl.appendChild(el("li", "", L(k)));
-  }
+  for (const k of ["qn.help.move", "qn.help.run", "qn.help.interact"] as UIKey[]) hl.appendChild(el("li", "", L(k)));
+  for (const line of HELP_EXTRA[lang]) hl.appendChild(el("li", "", line));
+  hl.appendChild(el("li", "", L("qn.help.tour")));
   const helpClose = el("button", "qn-btn qn-btn-primary", L("qn.close"));
   helpClose.type = "button";
   helpCard.append(ht, hl, helpClose);
@@ -243,12 +250,6 @@ export function createHud(
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      if (mapExpanded) {
-        ctx.font = `600 11px var(--font-body, sans-serif)`;
-        ctx.fillStyle = ink;
-        const tw = ctx.measureText(st.label).width;
-        ctx.fillText(st.label, x + 8 + tw > cssW - 4 ? x - 8 - tw : x + 8, y + 4);
-      }
     }
     const [px, py] = P(ax, az);
     ctx.fillStyle = "#dda63c";
@@ -284,27 +285,26 @@ export function createHud(
     }
   };
 
-  const setMap = (force?: boolean) => {
-    mapExpanded = force ?? !mapExpanded;
-    mapBox.classList.toggle("is-expanded", mapExpanded);
-    mapBtn.setAttribute("aria-pressed", String(mapExpanded));
-    lastDraw = 0;
+  const setMap = (_force?: boolean) => {
+    window.dispatchEvent(new CustomEvent("world:map"));
   };
   const setHelp = (force?: boolean) => {
     const open = force ?? help.hidden;
+    if (open === !help.hidden) return;
     help.hidden = !open;
+    // Help pauses walking like other panels. (Station panels auto-open on approach, so they don't.)
+    window.dispatchEvent(new CustomEvent("world:modal", { detail: { open } }));
     helpBtn.setAttribute("aria-expanded", String(open));
     if (open) helpClose.focus({ preventScroll: true });
   };
   mapBtn.addEventListener("click", () => setMap());
+  mapCanvas.addEventListener("click", () => setMap());
   helpBtn.addEventListener("click", () => setHelp());
   helpClose.addEventListener("click", () => {
     setHelp(false);
     helpBtn.focus({ preventScroll: true });
   });
-  const onMapEv = () => setMap();
   const onHelpEv = () => setHelp();
-  window.addEventListener("world:map", onMapEv);
   window.addEventListener("world:help", onHelpEv);
 
   // ------------------------------------------------------------ builders
@@ -373,10 +373,6 @@ export function createHud(
     closeTop() {
       if (!help.hidden) {
         setHelp(false);
-        return true;
-      }
-      if (mapExpanded) {
-        setMap(false);
         return true;
       }
       return false;
@@ -575,8 +571,8 @@ export function createHud(
       return card;
     },
     dispose() {
+      if (!help.hidden) setHelp(false);
       clearTimeout(toastTimer);
-      window.removeEventListener("world:map", onMapEv);
       window.removeEventListener("world:help", onHelpEv);
       gameLayer.remove();
       hud.remove();

@@ -1,0 +1,136 @@
+/* Sky lore panel (ambient/sky-lore.ts): paper + ink card centered over the night, reusing the qn- tokens and
+   buttons from hud.css (the layer carries .qn-hud). Prefix qn-sky-. */
+.qn-hud.qn-sky-layer {
+  z-index: 7;
+}
+.qn-sky-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: min(460px, calc(100vw - 2 * var(--qn-side, 14px)));
+  max-height: calc(100dvh - 2 * var(--qn-top, 14px) - 40px);
+  display: flex;
+  flex-direction: column;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 10px;
+  background: var(--qn-paper);
+  box-shadow:
+    5px 5px 0 var(--qn-ink),
+    0 18px 40px -18px rgb(31 26 23 / 0.5);
+  overflow: hidden;
+}
+.qn-sky-panel[hidden] {
+  display: none;
+}
+.qn-sky-panel:focus {
+  outline: none;
+}
+.qn-sky-panel.is-open {
+  animation: qn-sky-unfold 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes qn-sky-unfold {
+  from {
+    clip-path: inset(0 0 100% 0 round 10px);
+    transform: translateY(-6px) rotate(-0.6deg);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 10px);
+    transform: none;
+  }
+}
+.qn-sky-panel::before {
+  /* night selvage: indigo, moon and star threads */
+  content: "";
+  height: 10px;
+  flex: none;
+  border-bottom: 2px solid var(--qn-ink);
+  background: linear-gradient(90deg, #3446a6 0 34%, #efe6d6 34% 40%, #161a3d 40% 72%, #dda63c 72% 78%, #3446a6 78%);
+}
+.qn-sky-close {
+  position: absolute;
+  top: 18px;
+  right: 10px;
+  width: 36px;
+  min-height: 36px;
+  box-shadow: 2px 2px 0 var(--qn-ink);
+}
+.qn-sky-head {
+  padding: 14px 56px 0 18px;
+}
+.qn-sky-head h2 {
+  margin: 0;
+  font: 800 1.25rem / 1.1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.qn-sky-lede {
+  margin: 6px 0 0;
+  color: var(--qn-muted);
+  font-size: 0.9rem;
+}
+.qn-sky-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 18px 0;
+  flex-wrap: wrap;
+}
+.qn-sky-tab {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 999px;
+  background: var(--qn-paper-2);
+  color: var(--qn-ink);
+  font: 400 0.72rem / 1 var(--font-arcade, "Silkscreen", monospace);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.qn-sky-tab[aria-selected="true"] {
+  background: #161a3d;
+  color: #efe6d6;
+  box-shadow: 2px 2px 0 var(--qn-ink);
+}
+.qn-sky-tab:focus-visible,
+.qn-sky-view:focus-visible {
+  outline: 3px solid var(--qn-ochre);
+  outline-offset: 2px;
+}
+.qn-sky-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 18px 4px;
+  scrollbar-width: thin;
+}
+.qn-sky-view[hidden] {
+  display: none;
+}
+.qn-sky-view h3 {
+  margin: 10px 0 4px;
+  font: 800 1rem / 1.15 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 80%;
+}
+.qn-sky-view p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+.qn-sky-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 150px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 6px;
+}
+.qn-sky-src {
+  margin: 0;
+  padding: 10px 18px 14px;
+  color: var(--qn-muted);
+  font-size: 0.74rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .qn-sky-panel.is-open {
+    animation: none;
+  }
+}

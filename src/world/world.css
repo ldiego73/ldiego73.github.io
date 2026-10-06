@@ -93,23 +93,129 @@
 }
 
 /* ---------------------------------------------------------------- loading + fallback */
-.kw-loading {
+/* Khipu loader: a top cord with pendants that fill and knot as the world loads (loader.ts). */
+.kw-loader {
+  --p: 0;
   position: absolute;
-  left: 50%;
-  top: 50%;
-  translate: -50% -50%;
-  margin: 0;
+  inset: 0;
   z-index: 9;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--kw-void, #a9dcd4);
+  color: var(--kw-ink, #1f1a17);
+  transition: opacity 0.6s ease-out;
+}
+.kw-loader.is-done {
+  opacity: 0;
+  pointer-events: none;
+}
+.kw-loader-art {
+  position: relative;
+  width: 196px;
+  height: 92px;
+}
+.kw-loader-top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--kw-cotton, #efe6d6);
+  border: 2px solid var(--kw-ink, #1f1a17);
+}
+.kw-loader-cords {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 14px;
+  display: flex;
+  justify-content: space-between;
+}
+.kw-loader-cord {
+  position: relative;
+  width: 8px;
+  height: 70px;
+  border-radius: 0 0 4px 4px;
+  background: rgb(31 26 23 / 0.12);
+  outline: 1.5px dashed rgb(31 26 23 / 0.35);
+  outline-offset: -1px;
+  overflow: hidden;
+}
+.kw-loader-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(clamp(0, var(--p) * 8 - var(--i), 1) * 100%);
+  background: var(--dye);
+  border-left: 1.5px solid var(--kw-ink, #1f1a17);
+  border-right: 1.5px solid var(--kw-ink, #1f1a17);
+  overflow: hidden;
+  transition: height 0.35s ease-out;
+}
+.kw-loader-fill i {
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--kw-ink, #1f1a17);
+}
+.kw-loader-text {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
   font: 700 0.95rem / 1 var(--font-display);
   font-stretch: 112%;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--kw-ink);
   background: var(--kw-paper);
   border: 2px solid var(--kw-ink);
   border-radius: 6px;
   box-shadow: 2px 3px 0 var(--kw-ink);
-  padding: 14px 18px;
+  padding: 12px 16px;
+}
+.kw-loader-pct {
+  font: 400 0.78rem / 1 var(--font-arcade, monospace);
+  font-variant-numeric: tabular-nums;
+  min-width: 4ch;
+  text-align: right;
+}
+.kw-loader-step {
+  margin: 0;
+  min-height: 1.3em;
+  font: 400 0.7rem / 1.3 var(--font-arcade, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kw-loader,
+  .kw-loader-fill {
+    transition: none;
+  }
+}
+/* Teleport fade (fast travel). */
+.kw-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  pointer-events: none;
+  background: #f3ead8;
+  opacity: 0;
+  transition: opacity 0.28s ease-in-out;
+}
+.kw-fade.on {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kw-fade {
+    transition: none;
+  }
 }
 .kw-fallback {
   position: absolute;
@@ -341,6 +447,32 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.kw-chips {
+  position: absolute;
+  top: calc(var(--kw-top) + 52px);
+  left: var(--kw-gutter);
+  right: var(--kw-gutter);
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+.kw-chrome .kw-chips > * {
+  pointer-events: auto;
+}
+.kw-chips .kw-namechip {
+  position: static;
+}
+.kw-textchip {
+  flex: none;
+}
+@media (max-width: 520px) {
+  .kw-textchip span {
+    display: none;
+  }
+  .kw-textchip {
+    padding: 5px 8px;
+  }
 }
 .kw-namechip:hover {
   background: var(--kw-paper);
@@ -632,4 +764,15 @@
 .kw-audio .au-btn:active {
   transform: translate(1px, 2px);
   box-shadow: 1px 1px 0 var(--kw-ink);
+}
+
+/* While a world panel is open (world:modal), the panel owns the screen. */
+.kw-modal .kw-touch,
+.kw-modal .kw-prompt {
+  display: none;
+}
+@media (max-width: 720px) {
+  .kw-modal .kw-chrome {
+    visibility: hidden;
+  }
 }

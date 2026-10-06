@@ -5,7 +5,8 @@ import { NO_OUTLINE_LAYER } from "./toon";
 /**
  * Hand-inked outlines: a normal + depth prepass (outlined layer only), then a full-screen
  * edge detect that mixes ink into the color buffer. Ink color and distance fade are uniforms
- * so day/night and the title view can retune them.
+ * so day/night and the title view can retune them. Ink also dissolves into the scene fog (linear
+ * `THREE.Fog` near/far or `FogExp2` density, read every frame) so misty distances stay soft.
  */
 const OutlineShader = {
   uniforms: {
@@ -19,6 +20,11 @@ const OutlineShader = {
     uThick: { value: 1 },
     uFade: { value: new THREE.Vector2(160, 520) },
     uStrength: { value: 1 },
+    /** 0 no fog, 1 linear (uFogNear/uFogFar), 2 exp² (uFogDensity). Synced from scene.fog in render(). */
+    uFogMode: { value: 0 },
+    uFogNear: { value: 1 },
+    uFogFar: { value: 1000 },
+    uFogDensity: { value: 0 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -27,12 +33,18 @@ const OutlineShader = {
     #include <packing>
     uniform sampler2D tDiffuse, tNormal, tDepth;
     uniform vec2 uTexel, uFade;
-    uniform float uNear, uFar, uThick, uStrength;
+    uniform float uNear, uFar, uThick, uStrength, uFogMode, uFogNear, uFogFar, uFogDensity;
     uniform vec3 uInk;
     varying vec2 vUv;
     float viewZ(vec2 uv) {
       float d = texture2D(tDepth, uv).x;
       return -perspectiveDepthToViewZ(d, uNear, uFar);
+    }
+    // Same curves as three's fog chunk, on linear view depth.
+    float fogAt(float z) {
+      if (uFogMode < 0.5) return 0.0;
+      if (uFogMode < 1.5) return smoothstep(uFogNear, uFogFar, z);
+      return 1.0 - exp(-uFogDensity * uFogDensity * z * z);
     }
     vec3 nrm(vec2 uv) { return texture2D(tNormal, uv).xyz * 2.0 - 1.0; }
     void main() {
@@ -56,6 +68,8 @@ const OutlineShader = {
       }
       float edge = max(smoothstep(0.05, 0.11, dEdge), smoothstep(0.32, 0.55, nEdge) * step(zc, uFar * 0.98));
       edge *= 1.0 - smoothstep(uFade.x, uFade.y, zmin);
+      // Gone by the time the fog has eaten ~60% of the color.
+      edge *= 1.0 - smoothstep(0.05, 0.6, fogAt(zmin));
       col.rgb = mix(col.rgb, uInk, edge * uStrength);
       gl_FragColor = col;
     }`,
@@ -127,6 +141,15 @@ export class InkOutlinePass extends Pass {
     this.uniforms.tDiffuse.value = readBuffer.texture;
     this.uniforms.uNear.value = cam.near;
     this.uniforms.uFar.value = cam.far;
+    const u = this.uniforms;
+    if (fog && (fog as THREE.Fog).isFog) {
+      u.uFogMode.value = 1;
+      u.uFogNear.value = (fog as THREE.Fog).near;
+      u.uFogFar.value = Math.max((fog as THREE.Fog).far, (fog as THREE.Fog).near + 0.001);
+    } else if (fog && (fog as THREE.FogExp2).isFogExp2) {
+      u.uFogMode.value = 2;
+      u.uFogDensity.value = (fog as THREE.FogExp2).density;
+    } else u.uFogMode.value = 0;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     if (this.clear) renderer.clear();
     this.quad.render(renderer);

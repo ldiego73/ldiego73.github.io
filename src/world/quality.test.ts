@@ -1,0 +1,68 @@
+import { describe, expect, test } from "bun:test";
+import { createGovernor, LEVELS } from "./quality";
+
+const run = (g: ReturnType<typeof createGovernor>, fps: number, seconds: number) => {
+  const ms = 1000 / fps;
+  for (let t = 0; t < seconds * 1000; t += ms) g.sample(ms);
+};
+
+describe("quality governor", () => {
+  test("ignores the warm-up and holds at a healthy frame rate", () => {
+    const steps: number[] = [];
+    const g = createGovernor((l) => steps.push(l));
+    run(g, 20, 1.9);
+    run(g, 60, 20);
+    expect(steps).toEqual([]);
+    expect(g.level()).toBe(0);
+  });
+
+  test("steps down after ~3 s under 40 fps, one level at a time", () => {
+    const steps: number[] = [];
+    const g = createGovernor((l) => steps.push(l));
+    run(g, 60, 2);
+    run(g, 30, 2.4);
+    expect(steps).toEqual([]);
+    run(g, 30, 1);
+    expect(steps).toEqual([1]);
+    run(g, 30, 3.2);
+    expect(steps).toEqual([1, 2]);
+    run(g, 30, 20);
+    expect(g.level()).toBe(LEVELS.length - 1);
+  });
+
+  test("steps up after ~10 s above 58 fps, with a longer wait after a bounce", () => {
+    const steps: number[] = [];
+    const g = createGovernor((l) => steps.push(l));
+    run(g, 60, 2);
+    run(g, 30, 3.5);
+    expect(g.level()).toBe(1);
+    run(g, 60, 9);
+    expect(g.level()).toBe(1);
+    run(g, 60, 1.5);
+    expect(g.level()).toBe(0);
+    // Drops again soon after: a bounce, so the next climb needs ~20 s.
+    run(g, 30, 3.5);
+    expect(g.level()).toBe(1);
+    run(g, 60, 12);
+    expect(g.level()).toBe(1);
+    run(g, 60, 10);
+    expect(g.level()).toBe(0);
+  });
+
+  test("long gaps (hidden tab) reset the window instead of counting as slow frames", () => {
+    const steps: number[] = [];
+    const g = createGovernor((l) => steps.push(l));
+    run(g, 60, 2);
+    for (let i = 0; i < 20; i++) g.sample(2000);
+    run(g, 60, 5);
+    expect(steps).toEqual([]);
+  });
+
+  test("disabled governor never steps", () => {
+    const steps: number[] = [];
+    const g = createGovernor((l) => steps.push(l));
+    g.setEnabled(false);
+    run(g, 10, 20);
+    expect(steps).toEqual([]);
+  });
+});

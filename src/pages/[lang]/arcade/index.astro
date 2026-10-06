@@ -4,6 +4,7 @@ import { NEON } from "../../../games/core/neon";
 import { ACHIEVEMENTS, GAMES } from "../../../games/registry";
 import { LANGS, type Lang, t } from "../../../i18n/ui";
 import Base from "../../../layouts/Base.astro";
+import { CATALOG } from "../../../lib/passport";
 
 export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
 const lang = Astro.params.lang as Lang;
@@ -13,6 +14,12 @@ const groups = [
 ] as const;
 const mid = Math.floor(GAMES.length / 2);
 const first = GAMES[mid]!;
+const passportCopy = {
+  title: { es: "Pasaporte del Qhapaq Ñan", en: "Qhapaq Ñan passport" },
+  count: { es: "Pasaporte", en: "Passport" },
+  stamps: { es: "sellos", en: "stamps" },
+  explore: { es: "Recorrer el camino", en: "Explore the trail" },
+};
 ---
 <Base lang={lang} title={t(lang, "arcade.title")} description={t(lang, "arcade.lede")}>
   <div class="block-world">
@@ -116,6 +123,11 @@ const first = GAMES[mid]!;
           <h2 id="ach-title">
             {t(lang, "arcade.achievements")} <span class="count" data-ach-count>0/{ACHIEVEMENTS.length}</span>
           </h2>
+          <div class="passport-strip" data-passport-strip>
+            <strong>{passportCopy.title[lang]}</strong>
+            <span data-passport-count>{passportCopy.count[lang]}: 0/{CATALOG.length} {passportCopy.stamps[lang]}</span>
+            <a href={`/${lang}/world/`}>{passportCopy.explore[lang]} <Icon name="arrow" size={16} /></a>
+          </div>
           <ul class="ach">
             {
               ACHIEVEMENTS.map((a) => (
@@ -147,9 +159,21 @@ const first = GAMES[mid]!;
   import { getMusic } from "../../../audio";
   import { ARCADE_TRACKS } from "../../../audio/tracks/arcade";
   import { mountAudioControl } from "../../../games/core/audio-control";
+  import { mergedPassport, PASSPORT_KEY } from "../../../lib/passport";
 
   const state = load();
   const lang = document.documentElement.lang === "en" ? "en" : "es";
+  const updatePassportStrip = () => {
+    const view = mergedPassport();
+    const count = document.querySelector("[data-passport-count]");
+    const copy = { es: { name: "Pasaporte", stamps: "sellos" }, en: { name: "Passport", stamps: "stamps" } };
+    if (count) count.textContent = `${copy[lang].name}: ${view.worldCollected}/${view.worldTotal} ${copy[lang].stamps}`;
+  };
+  updatePassportStrip();
+  window.addEventListener("pageshow", updatePassportStrip);
+  window.addEventListener("storage", (event) => {
+    if (event.key === PASSPORT_KEY || event.key === null) updatePassportStrip();
+  });
   const nf = new Intl.NumberFormat(lang === "en" ? "en-US" : "es-PE");
   const best: Record<string, number> = {};
   for (const g of GAMES) best[g.slug] = state.games[g.slug]?.best ?? 0;
@@ -297,6 +321,35 @@ const first = GAMES[mid]!;
 </script>
 
 <style>
+  .passport-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin: 0 0 18px;
+    padding: 14px 0;
+    border-block: 1px solid var(--grid);
+    font-size: 0.85rem;
+  }
+  .passport-strip strong {
+    color: var(--ink);
+  }
+  .passport-strip > span {
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .passport-strip a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    color: var(--lime);
+    text-underline-offset: 4px;
+  }
+  .passport-strip a:focus-visible {
+    outline: 2px solid var(--lime);
+    outline-offset: 4px;
+  }
   .block-world {
     --void: #16171d;
     --floor: #2a2c35;

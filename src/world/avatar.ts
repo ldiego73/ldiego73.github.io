@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Avatar, CreateAvatar, WorldEnv } from "./contract";
+import { on } from "./events";
 import { C, canvasTex, DYE, toonMapped } from "./props";
 
 /**
@@ -7,6 +8,7 @@ import { C, canvasTex, DYE, toonMapped } from "./props";
  * stripes, backpack with a laptop edge peeking out, boots. Chunky, Messenger-like proportions.
  * Origin at the feet, facing +Z (core sets group.rotation.y = yaw). About 1.6 units tall.
  * All motion is procedural: idle breathing + look-around, walk/run cycles, jump, landing squash, dust.
+ * Riding (`world:mount`): legs straddle the saddle, hands on the reins, no walk cycle, a light bob with speed.
  */
 
 const SKIN = "#b9764a";
@@ -291,19 +293,28 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
   const rm = env.reducedMotion;
   const damp = (cur: number, target: number, rate: number, dt: number) =>
     cur + (target - cur) * (1 - Math.exp(-rate * dt));
+  // Riding pose (llama mount): blended in with rideW so mounting never snaps.
+  let riding = false;
+  let rideW = 0;
+  let ridePhase = 0;
+  const offMount = on("world:mount", (d) => {
+    riding = !!d?.riding;
+  });
 
   const avatar: Avatar = {
     group,
     update(dt, s) {
       dt = Math.min(dt, 0.05);
       const sp = Math.max(0, s.speed);
-      walkW = damp(walkW, Math.min(1, sp / 2.2), 10, dt);
-      runW = damp(runW, s.running && sp > 1 ? Math.min(1, (sp - 2.5) / 2.5 + 0.4) : 0, 8, dt);
+      rideW = damp(rideW, riding ? 1 : 0, 9, dt);
+      const onFoot = rideW < 0.5;
+      walkW = damp(walkW, onFoot ? Math.min(1, sp / 2.2) : 0, 10, dt);
+      runW = damp(runW, onFoot && s.running && sp > 1 ? Math.min(1, (sp - 2.5) / 2.5 + 0.4) : 0, 8, dt);
       airW = damp(airW, s.grounded ? 0 : 1, 14, dt);
       const accel = (sp - prevSpeed) / Math.max(dt, 1e-3);
       prevSpeed = sp;
 
-      if (s.grounded) phase += dt * (sp / (1.25 + runW * 0.55)) * Math.PI;
+      if (s.grounded && onFoot) phase += dt * (sp / (1.25 + runW * 0.55)) * Math.PI;
       const sw = Math.sin(phase);
       const legAmp = (0.6 * walkW + 0.35 * runW) * (1 - airW);
       const armAmp = (0.45 * walkW + 0.55 * runW) * (1 - airW);
@@ -352,9 +363,32 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
       }
       pompomPivot.rotation.x = pompomSpring.step((-0.3 * walkW - 0.5 * runW + airW * 0.5 - bob * 4) * amp, dt);
 
+      // Seated on the llama: legs straddle the saddle, hands hold the reins, bob with the trot.
+      if (rideW > 0.001) {
+        const k = rideW;
+        const mix = (a: number, b: number) => a + (b - a) * k;
+        ridePhase += dt * (2.4 + sp * 1.1) * Math.PI;
+        const rb = rm ? 0 : Math.abs(Math.sin(ridePhase)) * Math.min(1, sp / 4) * 0.045;
+        legL.rotation.x = mix(legL.rotation.x, -0.55);
+        legR.rotation.x = mix(legR.rotation.x, -0.55);
+        legL.rotation.z = 0.62 * k;
+        legR.rotation.z = -0.62 * k;
+        armL.rotation.x = mix(armL.rotation.x, -0.75);
+        armR.rotation.x = mix(armR.rotation.x, -0.75);
+        armL.rotation.z = mix(armL.rotation.z, -0.18);
+        armR.rotation.z = mix(armR.rotation.z, 0.18);
+        rig.position.y = mix(rig.position.y, rb);
+        torso.rotation.x = mix(torso.rotation.x, 0.06 + Math.min(1, sp / 6) * 0.1);
+        torso.rotation.y *= 1 - k;
+        torso.rotation.z = mix(torso.rotation.z, rm ? 0 : Math.sin(ridePhase * 0.5) * 0.03 * Math.min(1, sp / 4));
+      } else {
+        legL.rotation.z = 0;
+        legR.rotation.z = 0;
+      }
+
       // Dust: footfalls while running, and a puff on landing.
-      if (s.grounded && runW > 0.3 && Math.sign(sw) !== Math.sign(lastSin)) puff(2, 0.6);
-      if (s.grounded && !wasGrounded) {
+      if (s.grounded && onFoot && runW > 0.3 && Math.sign(sw) !== Math.sign(lastSin)) puff(2, 0.6);
+      if (s.grounded && !wasGrounded && onFoot) {
         squash = rm ? 0 : 1;
         puff(6, 1.2);
       }
@@ -373,6 +407,7 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
       }
     },
     dispose() {
+      offMount();
       for (const p of dust) p.m.removeFromParent();
       for (const x of geos) x.dispose();
       ponchoTex.dispose();

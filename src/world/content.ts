@@ -232,6 +232,12 @@ export const createContent: CreateContent = (env: WorldEnv, hudRoot: HTMLElement
       zones.push({ id: st.id, label, x: bridge.center.x, z: bridge.center.z, r: 10 });
       continue;
     }
+    if (st.id === "build-1" || st.id === "build-2") {
+      // Data stations (ambient/huerto.ts, ambient/khipu-board.ts) own these plots; keep the zone toast only.
+      const p = env.stationPose(st.id).position;
+      zones.push({ id: st.id, label, x: p.x, z: p.z, r: 8 });
+      continue;
+    }
     let place: Place;
     let panel: (() => HTMLElement) | undefined;
     switch (st.kind) {

@@ -108,7 +108,7 @@ export const STATIONS: Station[] = [
     t: 0.28,
     side: 1,
     offset: 16,
-    label: { es: "En construcción", en: "Under construction" },
+    label: { es: "Huerto de código", en: "Code garden" },
   },
   {
     id: "build-2",
@@ -116,7 +116,7 @@ export const STATIONS: Station[] = [
     t: 0.55,
     side: -1,
     offset: 17,
-    label: { es: "En construcción", en: "Under construction" },
+    label: { es: "Khipu de escritos", en: "Writing khipu" },
   },
   {
     id: "build-3",

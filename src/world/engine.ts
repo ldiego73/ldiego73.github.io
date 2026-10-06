@@ -17,6 +17,9 @@ export interface Engine {
   outline: InkOutlinePass;
   setQuality(q: Quality): void;
   quality(): Quality;
+  /** Upper bound for the renderer pixel ratio (auto quality governor); null removes it. No geometry is rebuilt. */
+  setPixelRatioCap(cap: number | null): void;
+  pixelRatio(): number;
   onFrame(fn: (dt: number, t: number) => void): () => void;
   /**
    * Resolves with a 2D copy of the next rendered frame. The copy is made in the same tick right after
@@ -58,10 +61,12 @@ export function createEngine(host: HTMLElement, opts: { quality: Quality }): Eng
   let q: Quality = opts.quality;
   let w = 1;
   let h = 1;
+  let dprCap: number | null = null;
+  let dpr = 1;
   const applySize = () => {
     w = Math.max(1, host.clientWidth);
     h = Math.max(1, host.clientHeight);
-    const dpr = q === "high" ? Math.min(window.devicePixelRatio || 1, 1.5) : Math.min(window.devicePixelRatio || 1, 1);
+    dpr = Math.min(window.devicePixelRatio || 1, q === "high" ? 1.5 : 1, dprCap ?? Infinity);
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h, false);
     composer.setPixelRatio(dpr);
@@ -126,6 +131,12 @@ export function createEngine(host: HTMLElement, opts: { quality: Quality }): Eng
     outline,
     setQuality,
     quality: () => q,
+    setPixelRatioCap(cap) {
+      if (cap === dprCap) return;
+      dprCap = cap;
+      applySize();
+    },
+    pixelRatio: () => dpr,
     onFrame(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);

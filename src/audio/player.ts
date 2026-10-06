@@ -1,4 +1,4 @@
-import type { AudioState, MusicPlayer, PlayOptions, Stinger, Track } from "./contract";
+import type { AudioOutput, AudioState, MusicPlayer, PlayOptions, Stinger, Track } from "./contract";
 import { AudioEngine, LOOKAHEAD, TICK_MS, type TrackRunner } from "./engine";
 import { loadSettings, saveSettings } from "./settings";
 
@@ -54,6 +54,7 @@ export class Player implements MusicPlayer {
   private listeners = new Set<Listener>();
   private ctx: AudioContext | null = null;
   private engine: AudioEngine | null = null;
+  private out: AudioOutput | null = null;
   private unlocking: Promise<void> | null = null;
 
   private current: Entry | null = null;
@@ -110,6 +111,12 @@ export class Player implements MusicPlayer {
         if (!Ctor) return Promise.resolve();
         this.ctx = new Ctor({ latencyHint: "interactive" });
         this.engine = new AudioEngine(this.ctx);
+        this.out = {
+          ctx: this.ctx,
+          sfx: this.engine.sfxBus,
+          ambient: this.engine.ambientBus,
+          voices: this.engine.voices,
+        };
         this.engine.setLevel(this.state.volume, this.state.muted);
       }
       const ctx = this.ctx;
@@ -120,10 +127,12 @@ export class Player implements MusicPlayer {
           this.unlocking = null;
           this.syncRun();
           this.applyTrack(DEFAULT_FADE);
+          this.emit(); // lets effects/ambience know output() may be live now
         });
     } catch {
       this.ctx = null;
       this.engine = null;
+      this.out = null;
       return Promise.resolve();
     }
     return this.unlocking;
@@ -273,6 +282,11 @@ export class Player implements MusicPlayer {
     this.engine?.stinger(name);
   }
 
+  output(): AudioOutput | null {
+    if (!this.out || !this.live || this.state.muted || this.hidden || this.userPaused) return null;
+    return this.out; // built once at unlock: callers poll this every frame
+  }
+
   setMuted(muted: boolean) {
     if (muted === this.state.muted) return;
     this.state = { ...this.state, muted };
@@ -298,6 +312,7 @@ export class Player implements MusicPlayer {
     void this.ctx?.close().catch(() => {});
     this.ctx = null;
     this.engine = null;
+    this.out = null;
     this.active = null;
     this.listeners.clear();
   }

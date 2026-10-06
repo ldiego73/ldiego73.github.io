@@ -4,6 +4,7 @@
  * Time: 0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset.
  */
 import * as THREE from "three";
+import { createMilkyWay } from "./ambient/sky/milkyway";
 import type { Sky } from "./contract";
 import { WORLD } from "./palette";
 import { rng } from "./tex";
@@ -108,6 +109,21 @@ const DomeShader = {
     }`,
 };
 
+/**
+ * Weather hook on the contract `Sky` object (ambients only get `env.sky`): src/world/ambient/weather.ts
+ * drives it; sky.ts blends it into fog, dome, key light, stars and the Milky Way so nothing fights over
+ * `scene.fog`. Scaled out in the title void.
+ */
+export interface SkyWeather {
+  /** fog: 0 clear … 1 thick valley fog (fog near/far shrink, color goes misty). cover: 0 clear … 1 overcast
+   *  (dims stars, Milky Way, sun glow and key light). Both clamped to [0, 1]. */
+  setWeather(fog: number, cover: number): void;
+  /** Current weather inputs (read-only view). */
+  weather(): { fog: number; cover: number };
+}
+export const hasWeather = (s: Sky): s is Sky & SkyWeather =>
+  typeof (s as Partial<SkyWeather>).setWeather === "function";
+
 export interface SkySystem {
   sky: Sky;
   /** Smoothly jump between day and night (instant with reduced motion). */
@@ -195,6 +211,9 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
   const stars = new THREE.Points(starGeo, starMat);
   stars.frustumCulled = false;
   group.add(stars);
+  // Mayu (the Milky Way) with the Andean dark constellations.
+  const milky = createMilkyWay();
+  group.add(milky.object);
   for (const o of [dome, sunDisc, moonDisc, stars]) noOutline(o);
 
   const hemi = new THREE.HemisphereLight("#ffffff", "#888888", 1);
@@ -234,7 +253,14 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
       for (const cb of subs) cb(time);
     }
   };
-  const sky: Sky = {
+  const wx = { fog: 0, cover: 0 };
+  const clamp01 = (v: number) => (v > 0 ? (v < 1 ? v : 1) : 0);
+  const sky: Sky & SkyWeather = {
+    setWeather(f, c) {
+      wx.fog = clamp01(f);
+      wx.cover = clamp01(c);
+    },
+    weather: () => wx,
     time: () => time,
     setTime(t) {
       time = ((t % 1) + 1) % 1;
@@ -273,6 +299,8 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
 
   const sunDir = new THREE.Vector3();
   const tmp = new THREE.Vector3();
+  const mistCol = new THREE.Color();
+  const greyCol = new THREE.Color();
   let voidAmt = 0;
 
   return {
@@ -313,16 +341,26 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
       if (lightDir.y < 0.18) lightDir.y = 0.18;
       lightDir.normalize();
 
-      U.uTop.value.copy(cur.top);
-      U.uHorizon.value.copy(cur.horizon);
+      // Weather (none in the title void).
+      const wf = wx.fog * (1 - voidAmt);
+      const wc = wx.cover * (1 - voidAmt);
+      mistCol.copy(cur.fog).lerp(cur.cloud, 0.35);
+      const l = (mistCol.r + mistCol.g + mistCol.b) / 3;
+      mistCol.lerp(greyCol.setRGB(l, l, l), 0.35 + 0.25 * wc);
+
+      U.uTop.value.copy(cur.top).lerp(mistCol, wc * 0.45 + wf * 0.2);
+      U.uHorizon.value.copy(cur.horizon).lerp(mistCol, wf * 0.85 + wc * 0.2);
       U.uVoidTop.value.copy(cur.voidTop);
       U.uVoidBottom.value.copy(cur.voidBottom);
       U.uVoid.value = voidAmt;
       U.uSun.value.copy(day ? sunDir : tmp.copy(sunDir).negate());
-      U.uGlow.value.copy(cur.key).multiplyScalar(1 - voidAmt);
+      U.uGlow.value.copy(cur.key).multiplyScalar((1 - voidAmt) * (1 - wc * 0.7));
       dome.position.copy(camera.position);
       stars.position.copy(camera.position);
-      starMat.opacity = THREE.MathUtils.smoothstep(-e, 0.02, 0.2) * (1 - voidAmt * 0.6);
+      const night = THREE.MathUtils.smoothstep(-e, 0.02, 0.2);
+      const clearSky = 1 - Math.max(wc, wf) * 0.85;
+      starMat.opacity = night * (1 - voidAmt * 0.6) * clearSky;
+      milky.update(camera.position, time, night * (1 - voidAmt) * clearSky * 0.9);
 
       // Discs sit on the dome and face the camera.
       sunDisc.position.copy(camera.position).addScaledVector(sunDir, 820);
@@ -336,7 +374,7 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
       hemi.groundColor.copy(cur.hemiGround);
       hemi.intensity = cur.hemi;
       key.color.copy(cur.key);
-      key.intensity = cur.keyI;
+      key.intensity = cur.keyI * (1 - wc * 0.35);
       key.position.copy(focus).addScaledVector(lightDir, 200);
       key.target.position.copy(focus);
       key.castShadow = shadows && opts.quality === "high";
@@ -344,6 +382,11 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
       fog.color.copy(voidAmt > 0.5 ? cur.voidBottom : cur.fog);
       fog.near = THREE.MathUtils.lerp(150, 4000, voidAmt);
       fog.far = THREE.MathUtils.lerp(760, 6000, voidAmt);
+      if (wf > 0.001) {
+        fog.color.lerp(mistCol, Math.min(1, wf * 1.4));
+        fog.near = THREE.MathUtils.lerp(fog.near, 6, wf);
+        fog.far = THREE.MathUtils.lerp(fog.far, 140, wf);
+      }
     },
     dispose() {
       scene.remove(group, hemi, key, key.target);
@@ -351,6 +394,7 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
       dome.geometry.dispose();
       starGeo.dispose();
       starMat.dispose();
+      milky.dispose();
       for (const d of [sunDisc, moonDisc])
         d.traverse((o) => {
           const m = o as THREE.Mesh;

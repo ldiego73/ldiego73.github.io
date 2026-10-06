@@ -1,0 +1,205 @@
+/* Core overlays (text mode, big map) + the accessible text document. Paper/ink like the world chrome.
+   The world root disables touch scrolling and selection; overlays turn both back on. */
+.kw-ov {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgb(31 26 23 / 0.5);
+  touch-action: pan-y;
+}
+.kw-ov[hidden] {
+  display: none;
+}
+.kw-ov-panel {
+  position: relative;
+  width: min(100%, 48rem);
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  user-select: text;
+  -webkit-user-select: text;
+  background: var(--kw-paper, #f3ead8);
+  color: #1f1a17;
+  border: 2.5px solid #1f1a17;
+  border-radius: 10px;
+  box-shadow: 4px 5px 0 #1f1a17;
+  outline: none;
+}
+.kw-ov kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7em;
+  height: 1.6em;
+  padding: 0 0.3em;
+  font: 400 0.7rem / 1 var(--font-arcade, monospace);
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  background: #fbf4e6;
+}
+
+/* ---------------------------------------------------------------- text mode */
+.kw-tm-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 12px;
+  background: linear-gradient(var(--kw-paper, #f3ead8) 70%, rgb(243 234 216 / 0));
+}
+.kw-textdoc {
+  padding: 4px clamp(16px, 4vw, 32px) 28px;
+  font: 400 1rem / 1.6 var(--font-body, system-ui, sans-serif);
+  color: #1f1a17;
+}
+.kw-textdoc a {
+  color: #8f2a2f;
+  text-underline-offset: 0.18em;
+}
+.kw-textdoc a:focus-visible,
+.kw-textdoc [tabindex="-1"]:focus-visible {
+  outline: 3px solid #dda63c;
+  outline-offset: 2px;
+}
+.kw-tm-title {
+  margin: 0 0 6px;
+  font: 800 clamp(1.35rem, 4vw, 1.8rem) / 1.1 var(--font-display, sans-serif);
+  font-stretch: 112%;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.kw-tm-lede {
+  margin: 0 0 14px;
+  max-width: 60ch;
+}
+.kw-tm-toc ol {
+  margin: 0 0 8px;
+  padding: 12px 12px 12px 2.2em;
+  columns: 2 14rem;
+  column-gap: 2rem;
+  border: 2px dashed #8f877b;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.kw-tm-station {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 2px solid #1f1a17;
+  scroll-margin-top: 64px;
+}
+.kw-tm-station > h2,
+.kw-tm-station > h3:first-child {
+  margin: 0 0 8px;
+  font: 800 1.2rem / 1.2 var(--font-display, sans-serif);
+  font-stretch: 112%;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.kw-tm-n {
+  font: 400 0.8rem / 1 var(--font-arcade, monospace);
+  color: #c4383f;
+  vertical-align: 0.15em;
+}
+.kw-tm-station h3,
+.kw-tm-station h4 {
+  margin: 18px 0 2px;
+  font: 700 1.02rem / 1.3 var(--font-display, sans-serif);
+}
+.kw-tm-meta {
+  margin: 0 0 6px;
+  font: 500 0.85rem / 1.4 var(--font-mono, monospace);
+  color: #5b4a3a;
+}
+.kw-tm-label {
+  margin: 10px 0 2px;
+  font: 400 0.68rem / 1.3 var(--font-arcade, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5b4a3a;
+}
+.kw-textdoc ul {
+  margin: 4px 0 8px;
+  padding-left: 1.2em;
+}
+.kw-textdoc li + li {
+  margin-top: 4px;
+}
+.kw-textdoc p {
+  margin: 6px 0;
+  max-width: 68ch;
+}
+.kw-tm-links {
+  list-style: square;
+}
+
+/* Static page version (no WebGL / no JS): scrolls on its own above the stage. */
+.kw-textpage {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  user-select: text;
+  -webkit-user-select: text;
+  background: var(--kw-paper, #f3ead8);
+}
+.kw-textpage[hidden] {
+  display: none;
+}
+.kw-textpage .kw-textdoc {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding-top: 20px;
+}
+.kw-textpage-note {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 16px clamp(16px, 4vw, 32px) 0;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+/* Skip link: visually hidden until focused. */
+.kw-skip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 40;
+  translate: 0 -200%;
+  font: 700 0.86rem / 1 var(--font-display, sans-serif);
+  text-transform: uppercase;
+  color: #1f1a17;
+  background: #dda63c;
+  border: 2px solid #1f1a17;
+  border-radius: 6px;
+  padding: 12px 14px;
+  text-decoration: none;
+}
+.kw-skip:focus,
+.kw-skip:focus-visible {
+  translate: 0 0;
+  outline: 3px solid #1f1a17;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .kw-ov {
+    padding: 0;
+  }
+  .kw-ov-panel {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    border-width: 0;
+    box-shadow: none;
+  }
+}

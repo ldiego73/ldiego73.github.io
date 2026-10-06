@@ -10,6 +10,7 @@
  *   `A3` `C#4` `Bb2`   a note (scientific pitch, C4 = middle C = MIDI 60); optional velocity `A3:0.6`
  *   `x` `X`    drum hit / accent (drum voices only); optional velocity `x:0.4`
  */
+import type { VoiceBank } from "./voices";
 
 export type TonalVoice =
   | "pulse12" // thin chip lead
@@ -111,6 +112,20 @@ export interface AudioState {
   trackId: string | null;
 }
 
+/**
+ * The shared audio output for sound effects and the world soundscape. Same AudioContext, master volume, mute,
+ * limiter as the music. Obtained through `MusicPlayer.output?.()`, which returns null whenever nothing may sound.
+ */
+export interface AudioOutput {
+  ctx: BaseAudioContext;
+  /** One-shot effects bus (a little under the music). */
+  sfx: AudioNode;
+  /** Continuous ambience bus (dipped while stingers play). */
+  ambient: AudioNode;
+  /** The engine's synth voices (quena, bell, charango...) for musical one-shots. */
+  voices: VoiceBank;
+}
+
 export interface MusicPlayer {
   readonly state: AudioState;
   /**
@@ -138,6 +153,11 @@ export interface MusicPlayer {
   stinger(name: Stinger): void;
   setMuted(muted: boolean): void;
   setVolume(volume: number): void;
+  /**
+   * Effects/ambience output, or null while audio is locked (no gesture yet), muted, paused, hidden or unsupported.
+   * Optional so silent players need not implement it.
+   */
+  output?(): AudioOutput | null;
   /** Called on any state change (mute, volume, track). Returns an unsubscribe function. */
   onChange(cb: (s: AudioState) => void): () => void;
 }
