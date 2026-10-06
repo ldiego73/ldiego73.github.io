@@ -776,3 +776,20 @@
     visibility: hidden;
   }
 }
+
+/* Journey postcard (journey-card.ts): format tabs and a preview that fits a tall card. */
+.kw-journey-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+.kw-journey-tab[aria-pressed="true"] {
+  background: var(--kw-ink, #1f1a17);
+  color: var(--kw-paper, #f3ead8);
+}
+.kw-journey .kw-journey-img {
+  max-height: min(62vh, 640px);
+  width: auto;
+  max-width: 100%;
+  margin-inline: auto;
+}

@@ -52,6 +52,8 @@ export interface WorldEvents {
   "world:textmode": undefined;
   /** Weather state changed (sky agent, ambient/weather.ts); emitted once at start and when a crossfade begins. */
   "world:weather": { kind: "clear" | "mist" | "garua" };
+  /** Open the shareable journey postcard (passport button, summit panel). */
+  "world:postcard": undefined;
 }
 
 export function emit<K extends keyof WorldEvents>(name: K, detail: WorldEvents[K]): void {

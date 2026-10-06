@@ -1,0 +1,25 @@
+{
+  "ci": {
+    "collect": {
+      "url": [
+        "https://ldiego73.github.io/es/",
+        "https://ldiego73.github.io/en/",
+        "https://ldiego73.github.io/es/blog/this-site-is-a-khipu/",
+        "https://ldiego73.github.io/es/projects/",
+        "https://ldiego73.github.io/es/arcade/",
+        "https://ldiego73.github.io/es/world/"
+      ],
+      "numberOfRuns": 3,
+      "settings": { "chromeFlags": "--headless=new --no-sandbox" }
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["warn", { "maxNumericValue": 2500, "aggregationMethod": "median-run" }],
+        "cumulative-layout-shift": ["warn", { "maxNumericValue": 0.1, "aggregationMethod": "median-run" }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 300, "aggregationMethod": "median-run" }],
+        "categories:performance": ["warn", { "minScore": 0.8, "aggregationMethod": "median-run" }]
+      }
+    },
+    "upload": { "target": "filesystem", "outputDir": "./lhci-report" }
+  }
+}

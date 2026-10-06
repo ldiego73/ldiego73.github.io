@@ -1,10 +1,12 @@
 ---
 import { Font } from "astro:assets";
 import "../styles/global.css";
+import Analytics from "../components/Analytics.astro";
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
 import { SITE } from "../data/site";
 import { type Lang, t } from "../i18n/ui";
+import { OG_H, OG_W, ogPathFor } from "../lib/og";
 
 interface Props {
   lang: Lang;
@@ -12,11 +14,13 @@ interface Props {
   description?: string;
   /** Path of this page in the other language, e.g. "/en/blog/". Defaults to the same path with the lang swapped. */
   alternate?: string;
+  /** Share image path; defaults to this page's generated card (src/pages/og). */
   image?: string;
   type?: "website" | "article";
 }
 
-const { lang, title, description = t(lang, "meta.description"), image = "/og.png", type = "website" } = Astro.props;
+const { lang, title, description = t(lang, "meta.description"), type = "website" } = Astro.props;
+const image = Astro.props.image ?? ogPathFor(Astro.url.pathname);
 const other: Lang = lang === "es" ? "en" : "es";
 const path = Astro.url.pathname;
 const alternate = Astro.props.alternate ?? path.replace(new RegExp(`^/${lang}(/|$)`), `/${other}$1`);
@@ -46,8 +50,13 @@ const enUrl = lang === "en" ? canonical : altUrl;
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={new URL(image, Astro.site)} />
+    <meta property="og:image:width" content={String(OG_W)} />
+    <meta property="og:image:height" content={String(OG_H)} />
+    <meta property="og:image:alt" content={fullTitle} />
+    <meta name="twitter:image" content={new URL(image, Astro.site)} />
     <meta property="og:locale" content={lang === "es" ? "es_PE" : "en_US"} />
     <meta name="twitter:card" content="summary_large_image" />
+    <Analytics />
     <Font cssVariable="--font-archivo" preload />
     <Font cssVariable="--font-hanken" preload />
     <Font cssVariable="--font-jetbrains" />

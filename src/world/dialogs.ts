@@ -40,7 +40,7 @@ const COPY = {
 
 // ---------------------------------------------------------------- modal helper
 
-interface Modal {
+export interface Modal {
   el: HTMLElement;
   panel: HTMLElement;
   open(focus?: HTMLElement): void;
@@ -49,7 +49,7 @@ interface Modal {
   dispose(): void;
 }
 
-function createModal(host: HTMLElement, labelId: string, onClose: () => void): Modal {
+export function createModal(host: HTMLElement, labelId: string, onClose: () => void): Modal {
   const el = document.createElement("div");
   el.className = "kw-modal";
   el.hidden = true;

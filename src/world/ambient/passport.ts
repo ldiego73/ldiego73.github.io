@@ -7,6 +7,7 @@ const COPY = {
   title: { es: "Pasaporte del Qhapaq Ñan", en: "Qhapaq Ñan passport" },
   button: { es: "Pasaporte", en: "Passport" },
   close: { es: "Cerrar pasaporte", en: "Close passport" },
+  postcard: { es: "Mi postal", en: "My postcard" },
   fresh: { es: "Nuevo sello", en: "New stamp" },
   missing: { es: "Por descubrir", en: "Undiscovered" },
   locked: { es: "Bloqueado", en: "Locked" },
@@ -56,8 +57,16 @@ export const create: CreateAmbient = (env, hudRoot) => {
   closeButton.type = "button";
   closeButton.className = "qn-passport-close";
   closeButton.textContent = text(COPY.close);
+  const postcardButton = document.createElement("button");
+  postcardButton.type = "button";
+  postcardButton.className = "qn-passport-close qn-passport-postcard";
+  postcardButton.textContent = text(COPY.postcard);
+  postcardButton.addEventListener("click", () => {
+    close();
+    emit("world:postcard", undefined);
+  });
   const body = document.createElement("div");
-  panel.append(heading, closeButton, body);
+  panel.append(heading, closeButton, postcardButton, body);
   overlay.append(panel);
   layer.append(button, toast, overlay);
   hudRoot.append(layer);

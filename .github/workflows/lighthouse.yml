@@ -1,0 +1,43 @@
+name: Lighthouse (production)
+
+# Lab Core Web Vitals of the live site, mobile emulation: after every deploy, weekly, or on demand.
+# Real-user vitals (LCP, CLS, INP from visitors) go to Umami as "web-vital" events (src/lib/vitals.ts).
+on:
+  workflow_run:
+    workflows: ["Deploy to GitHub Pages"]
+    types: [completed]
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lighthouse-prod
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Wait for the Pages CDN
+        if: github.event_name == 'workflow_run'
+        run: sleep 60
+      - name: Lighthouse (mobile, live site)
+        run: bunx @lhci/cli@0.15.1 autorun --config=lighthouse/prod.json
+      - name: Summary
+        if: always()
+        run: test -f lhci-report/manifest.json && bun scripts/lhci-summary.ts >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: lighthouse-report
+          path: lhci-report
+          if-no-files-found: ignore
+          retention-days: 30

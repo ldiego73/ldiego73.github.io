@@ -56,6 +56,8 @@ import { disposeTextures, redrawAll } from "./tex";
 import { createToonCache } from "./toon";
 import "./textmode.css";
 import { createDetailCull } from "./detail-cull";
+import { createClimbTracker, summarize } from "./journey";
+import { createJourneyDialog } from "./journey-card";
 import { createTextMode, focusStep, type TextMode } from "./textmode";
 import { createTrailMeshes } from "./trail";
 import { announceTraveler, loadTraveler, saveTraveler } from "./traveler";
@@ -523,9 +525,24 @@ async function start(
       },
       onOpenChange: onDialog,
     });
+    // Climb clock + the shareable journey postcard (passport "Mi postal", summit panel → world:postcard).
+    const climb = createClimbTracker();
+    const journey = createJourneyDialog(host, lang, {
+      capture: () => engine.capture(),
+      summary: () => summarize(undefined, climb.state()),
+      traveler: () => traveler,
+      onOpenChange: onDialog,
+    });
+    cleanups.push(
+      on("world:postcard", () => {
+        if (phase === "play" && !gameOpen) void journey.open();
+      }),
+      on("world:teleport", () => climb.void()),
+    );
     cleanups.push(() => {
       photo.dispose();
       nameEditor.dispose();
+      journey.dispose();
     });
     const syncNight = () => {
       const n = sky.sky.isNight();
@@ -1085,6 +1102,9 @@ async function start(
           musicT = layout.trail.nearestT(pos.x, pos.z);
         }
         music.update(dt, { x: pos.x, z: pos.z, t: musicT, touring });
+        // The guided tour walks for you: it doesn't count as a climb.
+        if (touring) climb.void();
+        else climb.update(dt, musicT);
         // Walking up to a station unlocks it as a fast-travel target (even without the passport).
         visitClock += dt;
         if (visitClock > 0.3) {

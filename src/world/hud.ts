@@ -54,12 +54,12 @@ export interface Hud {
 /** Core-owned help lines (K text mode, P passport, gamepad support). */
 const HELP_EXTRA: Record<Lang, string[]> = {
   es: [
-    "M: mapa y viaje rápido · K: modo texto · P: pasaporte · T: día o noche · N: música · F: foto · Esc: cerrar",
+    "M: mapa y viaje rápido · K: modo texto · P: pasaporte y tu postal · T: día o noche · N: música · F: foto · Esc: cerrar",
     "En móvil: joystick a la izquierda, botones a la derecha, arrastra para girar la cámara.",
     "Con mando: stick izquierdo camina, stick derecho gira la cámara, A salta, X interactúa, B vuelve, Y abre el mapa, RB o RT corre, LB toma una foto, Start muestra esta ayuda.",
   ],
   en: [
-    "M: map and fast travel · K: text mode · P: passport · T: day or night · N: music · F: photo · Esc: close",
+    "M: map and fast travel · K: text mode · P: passport and your postcard · T: day or night · N: music · F: photo · Esc: close",
     "On mobile: joystick on the left, buttons on the right, drag to turn the camera.",
     "With a gamepad: left stick walks, right stick turns the camera, A jumps, X interacts, B goes back, Y opens the map, RB or RT runs, LB takes a photo, Start shows this help.",
   ],
@@ -561,6 +561,11 @@ export function createHud(
         stats.appendChild(d);
       }
       card.appendChild(stats);
+      // The shareable summit postcard (journey-card.ts, opened by core on world:postcard).
+      const postcard = el("button", "qn-btn qn-btn-primary qn-postcard-btn", L("qn.summit.postcard"));
+      (postcard as HTMLButtonElement).type = "button";
+      postcard.addEventListener("click", () => window.dispatchEvent(new CustomEvent("world:postcard")));
+      card.appendChild(postcard);
       card.appendChild(
         api.actions([
           { label: L("qn.contact.book"), href: SITE.calendly, external: true },

@@ -16,6 +16,17 @@ const webgl = () => {
  * The stage provides [data-tags] and [data-tip] children for HTML labels.
  * Returns a promise for the scene so sections (artifacts) can drive it.
  */
+const idle = (timeout: number) =>
+  new Promise<void>((resolve) => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+    if (document.readyState !== "complete") {
+      addEventListener("load", () => idle(timeout).then(resolve), { once: true });
+      return;
+    }
+    if (w.requestIdleCallback) w.requestIdleCallback(() => resolve(), { timeout });
+    else setTimeout(resolve, 200);
+  });
+
 export function initKhipuStage(stage: HTMLElement, mode: "hero" | "artifacts"): Promise<Khipu | null> {
   const lang = stage.dataset.lang === "en" ? "en" : "es";
   const tagsEl = stage.querySelector<HTMLElement>("[data-tags]");
@@ -30,6 +41,9 @@ export function initKhipuStage(stage: HTMLElement, mode: "hero" | "artifacts"): 
       async ([entry]) => {
         if (!entry?.isIntersecting) return;
         io.disconnect();
+        // The hero is in view at load: let the page paint its text first (LCP) and only then pull in
+        // Three.js, once the main thread is idle (or after 2.5 s at worst).
+        if (mode === "hero") await idle(2500);
         const { createKhipu } = await import("./scene");
         const showTip = (cord: CordSpec | null, x: number, y: number) => {
           if (!tip) return;

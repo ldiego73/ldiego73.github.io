@@ -29,6 +29,18 @@ jobs:
         run: bun run build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lighthouse (mobile, built site)
+        run: bunx @lhci/cli@0.15.1 autorun --config=lighthouse/ci.json
+      - name: Lighthouse summary
+        if: always()
+        run: test -f lhci-report/manifest.json && bun scripts/lhci-summary.ts >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: lighthouse-report
+          path: lhci-report
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Smoke test built pages
         run: |
           bunx playwright install --with-deps chromium

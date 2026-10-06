@@ -68,9 +68,8 @@ export function createDetailCull(
       const own = m.userData.cullDistance as number | undefined;
       if (inst && !own) return;
       if (inst) (m as THREE.InstancedMesh).computeBoundingSphere();
-      const bs = inst
-        ? (m as THREE.InstancedMesh).boundingSphere
-        : (m.geometry.boundingSphere ?? (m.geometry.computeBoundingSphere(), m.geometry.boundingSphere));
+      if (!inst && !m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+      const bs = inst ? (m as THREE.InstancedMesh).boundingSphere : m.geometry.boundingSphere;
       if (!bs) return;
       m.matrixWorld.decompose(tmp, new THREE.Quaternion(), scale);
       const r = bs.radius * Math.max(scale.x, scale.y, scale.z);

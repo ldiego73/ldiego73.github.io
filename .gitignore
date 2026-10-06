@@ -29,3 +29,7 @@ playwright-report/
 
 # local audition renders (scripts/audio-qa.ts --wav=music-preview)
 music-preview/
+
+# Lighthouse CI output
+.lighthouseci/
+lhci-report/

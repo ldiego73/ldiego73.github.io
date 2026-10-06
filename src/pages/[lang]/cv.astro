@@ -1,5 +1,6 @@
 ---
 import { Font } from "astro:assets";
+import Analytics from "../../components/Analytics.astro";
 import "../../styles/tokens.css";
 import { CERTIFICATIONS, COMPANIES, EDUCATION, SKILLS } from "../../data/career";
 import { SITE } from "../../data/site";
@@ -42,6 +43,12 @@ const stages = COMPANIES.flatMap((c) => c.stages.map((s) => ({ c, s }))).sort((a
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{SITE.name} · CV</title>
     <meta name="robots" content="noindex" />
+    <meta property="og:title" content={`${SITE.name} · CV`} />
+    <meta property="og:image" content={new URL(`/og/${lang}/cv.png`, Astro.site)} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <Analytics />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <Font cssVariable="--font-archivo" />
     <Font cssVariable="--font-hanken" />

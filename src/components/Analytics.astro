@@ -1,0 +1,20 @@
+---
+/**
+ * Umami (cookieless, no consent banner needed) plus real-user Core Web Vitals: LCP, CLS, INP, FCP and TTFB
+ * from visitors' browsers, sent to Umami as "web-vital" events (metric, value, rating, path). Production
+ * builds only; Umami itself only counts the production domain (data-domains).
+ */
+import { SITE } from "../data/site";
+
+const { src, websiteId, domain } = SITE.analytics;
+const enabled = import.meta.env.PROD;
+---
+{
+  enabled && (
+    <script is:inline defer src={src} data-website-id={websiteId} data-domains={domain} />
+  )
+}
+<script>
+  // Bundled by Astro. In dev there is no Umami, so the events are simply dropped.
+  import "../lib/vitals";
+</script>

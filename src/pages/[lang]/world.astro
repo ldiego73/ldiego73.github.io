@@ -1,5 +1,6 @@
 ---
 import { Font } from "astro:assets";
+import Analytics from "../../components/Analytics.astro";
 import "../../styles/global.css";
 import "../../world/world.css";
 import "../../world/textmode.css";
@@ -77,9 +78,14 @@ const enUrl = lang === "en" ? canonical : altUrl;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:image" content={new URL("/og.png", Astro.site)} />
+    <meta property="og:image" content={new URL(`/og/${lang}/world.png`, Astro.site)} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={title} />
+    <meta name="twitter:image" content={new URL(`/og/${lang}/world.png`, Astro.site)} />
     <meta property="og:locale" content={lang === "es" ? "es_PE" : "en_US"} />
     <meta name="twitter:card" content="summary_large_image" />
+    <Analytics />
     <Font cssVariable="--font-archivo" preload />
     <Font cssVariable="--font-hanken" />
     <Font cssVariable="--font-jetbrains" preload />
