@@ -79,7 +79,7 @@ interface Bear {
 export const create: CreateAmbient = (env): Ambient => {
   const extra = (env as Partial<WorldEnvExtra>).extra;
   const groundAt = (x: number, z: number) => extra?.groundAt(x, z) ?? env.heightAt(x, z);
-  const isGrass = (x: number, z: number) => extra?.isGrass(x, z) ?? true;
+  const isGrass = (x: number, z: number) => (extra?.isGrass(x, z) ?? true) && !creatures.inKeepOut(x, z, 0.8);
   const trail = env.trail;
   const rm = env.reducedMotion;
   const motion = rm ? 0.45 : 1;

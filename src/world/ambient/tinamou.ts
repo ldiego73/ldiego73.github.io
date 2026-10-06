@@ -285,7 +285,7 @@ export const create: CreateAmbient = (env): Ambient => {
         const lat = hw + 0.7 + R() * 1.6;
         ax = tmp.x - tan.z * side * lat;
         az = tmp.z + tan.x * side * lat;
-        ok = (extra?.isGrass?.(ax, az) ?? true) && !isWater(ax, az);
+        ok = (extra?.isGrass?.(ax, az) ?? true) && !isWater(ax, az) && !creatures.inKeepOut(ax, az, 0.5);
       }
       if (!ok) continue;
       if (Math.hypot(ax - av.x, az - av.z) < 20) continue;
@@ -357,7 +357,7 @@ export const create: CreateAmbient = (env): Ambient => {
       let tx = b.x + dx * dist;
       let tz = b.z + dz * dist;
       for (let a = 0; a < 5; a++) {
-        if ((extra?.isGrass?.(tx, tz) ?? true) && !isWater(tx, tz)) break;
+        if ((extra?.isGrass?.(tx, tz) ?? true) && !isWater(tx, tz) && !creatures.inKeepOut(tx, tz, 0.5)) break;
         // Swing the heading and shorten until it lands on open grass.
         const ang = (a % 2 ? -1 : 1) * 0.35 * (a + 1);
         const c = Math.cos(ang);

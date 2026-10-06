@@ -235,6 +235,8 @@ export interface GroundRules {
   minY: number;
   maxY: number;
   maxSlope: number;
+  /** Optional extra rule: places animals keep out of (creatures.inKeepOut: the summit camp, story circle). */
+  blocked?(x: number, z: number): boolean;
 }
 
 /** Finite-difference slope magnitude (rise over run). */
@@ -246,7 +248,7 @@ export function slopeAt(heightAt: (x: number, z: number) => number, x: number, z
 
 /** Grassy, gentle, off-trail ground an animal may stand on. */
 export function goodGround(r: GroundRules, x: number, z: number): boolean {
-  if (!r.inside(x, z)) return false;
+  if (!r.inside(x, z) || r.blocked?.(x, z)) return false;
   const y = r.heightAt(x, z);
   if (!(y >= r.minY && y <= r.maxY)) return false;
   if (slopeAt(r.heightAt, x, z) > r.maxSlope) return false;

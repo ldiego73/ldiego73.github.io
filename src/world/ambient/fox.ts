@@ -9,6 +9,7 @@
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../contract";
+import { creatures } from "../creatures";
 import { emit, on } from "../events";
 import { foxParts } from "./nightfauna/models";
 import { makeQuadState, QuadSet, type QuadState, rimToon, rng, TrailTracker, View } from "./nightfauna/rig";
@@ -63,7 +64,7 @@ export const create: CreateAmbient = (env): Ambient => {
     eyeDark: "#2a1d10",
     eyeGlow: "#f3e7a0",
     shadow: high,
-    body: { kind: "fox", r: 0.4, give: 1, ok: (x, z) => !g.water(x, z) },
+    body: { kind: "fox", r: 0.4, give: 1, ok: (x, z) => !g.water(x, z) && !creatures.inKeepOut(x, z) },
   });
   const tracker = new TrailTracker(trail);
   const view = new View(env.camera);
@@ -112,7 +113,7 @@ export const create: CreateAmbient = (env): Ambient => {
     trail.tangentAt(t, tan);
     out.x = tp.x - tan.z * side * lat;
     out.z = tp.z + tan.x * side * lat;
-    return !g.water(out.x, out.z) && Math.hypot(out.x, out.z) < 168;
+    return !g.water(out.x, out.z) && Math.hypot(out.x, out.z) < 168 && !creatures.inKeepOut(out.x, out.z, 0.6);
   };
   const a = { x: 0, z: 0 };
   const b = { x: 0, z: 0 };

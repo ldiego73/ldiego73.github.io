@@ -51,6 +51,8 @@ const HELLO_R = 3.5;
 const BODY_R = { vicuna: 0.55, alpaca: 0.5, llama: 0.62 } as const;
 /** Look-ahead of the herd steering (seconds). */
 const AHEAD = 0.9;
+/** Look-ahead (s) for keep-out zones: herds start bending around a camp a few metres before it. */
+const KEEP_OUT_AHEAD = 4;
 
 type Species = "vicuna" | "alpaca" | "llama";
 
@@ -238,6 +240,8 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     minY,
     maxY,
     maxSlope: 0.6,
+    // Keep-out zones (camp, story circle): read live, so zones registered after fauna count too.
+    blocked: (x, z) => creatures.inKeepOut(x, z, 0.4),
   });
   const valley = rules(1.9, 24, 14, trail.halfWidth + 1);
   const puna = rules(6, 52, 12, trail.halfWidth + 3);
@@ -249,6 +253,24 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       const x = cx + Math.cos(a) * d;
       const z = cz + Math.sin(a) * d;
       if (goodGround(r, x, z)) return { x, z };
+    }
+    return null;
+  };
+  /** The nearest good spot to (cx, cz), searching rings outward (so a moved home stays where it was meant). */
+  const nearestGood = (r: GroundRules, cx: number, cz: number) => {
+    for (const rad of [2, 3.5, 5, 7, 9.5, 12.5, 16, 20, 25]) {
+      const n = Math.ceil(rad * 2.5);
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU;
+        const x = cx + Math.cos(a) * rad;
+        const z = cz + Math.sin(a) * rad;
+        // Room to graze: most of a small circle around it is good too.
+        if (!goodGround(r, x, z)) continue;
+        let room = 0;
+        for (let j = 0; j < 6; j++)
+          if (goodGround(r, x + Math.cos((j / 6) * TAU) * 2, z + Math.sin((j / 6) * TAU) * 2)) room++;
+        if (room >= 4) return { x, z };
+      }
     }
     return null;
   };
@@ -784,6 +806,31 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     extras?.(mRoot, mHead);
   };
 
+  // ---------------------------------------------------------------- late zones
+  /**
+   * Keep-out zones and walkable areas registered by ambients created after fauna (the summit camp) can land
+   * on a herd: once, on the first update after every ambient is built, move such homes to the nearest good
+   * ground and put stranded animals there too, unless the traveler is close enough to see it happen (then
+   * they walk out on their own: the stranded rules + steerKeepOut).
+   */
+  let updates = 0;
+  const settleStranded = (av: THREE.Vector3) => {
+    for (const h of herds) {
+      if (h.rules.blocked?.(h.home.x, h.home.z) || h.rules.walkable(h.home.x, h.home.z))
+        h.home = nearestGood(h.rules, h.home.x, h.home.z) ?? h.home;
+      for (const b of h.members) {
+        if (goodGround(h.rules, b.x, b.z) || Math.hypot(b.x - av.x, b.z - av.z) < 60) continue;
+        const p = findSpot(h.rules, h.home.x, h.home.z, 4 + h.members.length * 0.6, 30);
+        if (!p) continue;
+        b.x = p.x;
+        b.z = p.z;
+        b.body.x = p.x;
+        b.body.z = p.z;
+        b.y = env.heightAt(p.x, p.z);
+      }
+    }
+  };
+
   // ---------------------------------------------------------------- herd step
   const threat = { x: 0, z: 0, running: false };
   // Shared per-step state for the (allocation-free) steering and ground callbacks below.
@@ -792,7 +839,10 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
   let offGround = false;
   const steerMember = (i: number, want: { x: number; z: number }) => {
     const b = steerHerd?.members[i];
-    if (b) creatures.steer(b.body, want.x, want.z, AHEAD, want);
+    if (!b) return;
+    creatures.steer(b.body, want.x, want.z, AHEAD, want);
+    // Herds see a camp from a few metres off and walk around it (not up to its edge and along it).
+    creatures.steerKeepOut(b.body, want.x, want.z, KEEP_OUT_AHEAD, want);
   };
   /** Where a herd animal may stand (anywhere while it is still stranded on bad ground). */
   const okGround = (x: number, z: number) => offGround || goodGround(groundRules, x, z);
@@ -815,6 +865,15 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       }
     }
     h.goalT -= dt;
+    // A home that is no longer good ground (a keep-out zone or a walkable area registered by an ambient after
+    // fauna, e.g. the summit camp): move it to good ground nearby (once per change: a found spot is good).
+    if (h.rules.blocked?.(h.home.x, h.home.z) || h.rules.walkable(h.home.x, h.home.z)) {
+      const spot = nearestGood(h.rules, h.home.x, h.home.z);
+      if (spot) {
+        h.home = spot;
+        h.goal = null;
+      }
+    }
     const away = Math.hypot(lead.x - h.home.x, lead.z - h.home.z);
     if (away > h.leash * (curious ? 2.6 : 1.6)) h.goal = { ...h.home };
     else if (h.goalT <= 0) {
@@ -825,6 +884,12 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
         h.goal = findSpot(h.rules, h.home.x, h.home.z, h.leash, 12);
         h.goalT = 10 + R() * 8;
       }
+    }
+    // Stranded where the ground stopped being good (a keep-out zone or walkable area registered after fauna):
+    // walk home (moved to good ground above) instead of resting there.
+    if (!h.goal && !goodGround(h.rules, lead.x, lead.z)) {
+      h.goal = h.home;
+      h.goalT = 8;
     }
     if (h.goal && Math.hypot(h.goal.x - lead.x, h.goal.z - lead.z) < 0.6) {
       h.goal = null;
@@ -1171,6 +1236,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
   const update = (dt: number, avatar: THREE.Vector3, t: number) => {
     if (dt <= 0) return;
     dt = Math.min(dt, 0.1);
+    if (updates++ === 1) settleStranded(avatar);
     if (havePrev) {
       const s = Math.hypot(avatar.x - prev.x, avatar.z - prev.z) / dt;
       // Ignore teleports.
@@ -1239,6 +1305,22 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
   // Dev (collision tests): pin one animal of a kind at (x, z) — it stays there (with `__faunaCalm` for herds).
   if (import.meta.env?.DEV)
     group.userData.debug = {
+      /** Herd homes, goals and members (keep-out checks). */
+      herds: () =>
+        herds.map((h) => ({
+          species: h.species,
+          home: h.home,
+          goal: h.goal,
+          members: h.members.map((b) => [+b.x.toFixed(1), +b.z.toFixed(1), b.body.id]),
+        })),
+      /** Send herd `i` to (x, z) for a while (keep-out steering tests). */
+      goal(i: number, x: number, z: number) {
+        const h = herds[i];
+        if (!h) return false;
+        h.goal = { x, z };
+        h.goalT = 40;
+        return true;
+      },
       pin(kind: "alpaca" | "vicuna" | "vizcacha", x: number, z: number) {
         if (kind === "vizcacha") {
           const v = vizs[0];

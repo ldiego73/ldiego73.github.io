@@ -142,3 +142,85 @@ describe("creatures.park", () => {
     expect(reg.nearestOf("puma", 0, 0)).toBe(null);
   });
 });
+
+describe("creatures keep-out zones", () => {
+  test("inKeepOut: inside active zones (grown by pad), off when switched off or removed", () => {
+    const reg = createCreatureRegistry();
+    const k = reg.keepOut(5, 5, 2);
+    expect(reg.inKeepOut(5, 6.5)).toBe(true);
+    expect(reg.inKeepOut(5, 7.5)).toBe(false);
+    expect(reg.inKeepOut(5, 7.5, 0.6)).toBe(true);
+    k.on = false;
+    expect(reg.inKeepOut(5, 5)).toBe(false);
+    k.on = true;
+    reg.removeKeepOut(k);
+    expect(reg.inKeepOut(5, 5)).toBe(false);
+  });
+
+  test("clear() empties the zones too", () => {
+    const reg = createCreatureRegistry();
+    reg.keepOut(0, 0, 3);
+    reg.clear();
+    expect(reg.keepOuts().length).toBe(0);
+    expect(reg.inKeepOut(0, 0)).toBe(false);
+  });
+
+  test("steerKeepOut bends a heading around a zone ahead and leaves a clear heading alone", () => {
+    const reg = createCreatureRegistry();
+    const a = reg.add("vicuna", 0.5, { x: 0, z: 0.3 });
+    reg.keepOut(6, 0, 2);
+    const out = reg.steerKeepOut(a, 1, 0, 4, { x: 0, z: 0 });
+    // Passes on the side it is already on (+z), keeps most of its speed.
+    expect(out.z).toBeGreaterThan(0.3);
+    expect(Math.hypot(out.x, out.z)).toBeGreaterThan(0.5);
+    const away = reg.steerKeepOut(a, -1, 0, 4, { x: 0, z: 0 });
+    expect(away).toEqual({ x: -1, z: 0 });
+  });
+
+  test("steerKeepOut points out of a zone the body is inside", () => {
+    const reg = createCreatureRegistry();
+    const a = reg.add("alpaca", 0.5, { x: 1, z: 0 });
+    reg.keepOut(0, 0, 3);
+    const out = reg.steerKeepOut(a, -1, 0, 4, { x: 0, z: 0 });
+    // The short way out (+x), not where it wanted to go (−x, through the middle).
+    expect(out.x).toBeGreaterThan(0.5);
+    expect(Math.abs(Math.atan2(out.z, out.x))).toBeLessThan(0.3);
+  });
+
+  test("a herd walking at a zone goes around it, never inside", () => {
+    const reg = createCreatureRegistry();
+    const a = reg.add("vicuna", 0.5, { x: -10, z: 0.2 });
+    reg.keepOut(0, 0, 3);
+    const goal = { x: 10, z: 0 };
+    const v = { x: 0, z: 0 };
+    let minD = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < 2000 && Math.hypot(goal.x - a.x, goal.z - a.z) > 0.5; i++) {
+      const dx = goal.x - a.x;
+      const dz = goal.z - a.z;
+      const d = Math.hypot(dx, dz);
+      reg.steerKeepOut(a, dx / d, dz / d, 4, v);
+      a.x += v.x * 0.05;
+      a.z += v.z * 0.05;
+      minD = Math.min(minD, Math.hypot(a.x, a.z));
+    }
+    expect(Math.hypot(goal.x - a.x, goal.z - a.z)).toBeLessThan(0.5);
+    expect(minD).toBeGreaterThan(3);
+  });
+});
+
+describe("creatures keep-out escape", () => {
+  test("a body inside overlapping zones heads out of their union (no cancelling pushes)", () => {
+    const reg = createCreatureRegistry();
+    // Two overlapping zones; the body sits in the overlap, nearer the open side at +z.
+    reg.keepOut(-1.5, 0, 2.5);
+    reg.keepOut(1.5, 0, 2.5);
+    const a = reg.add("vicuna", 0.5, { x: 0, z: 0.8 });
+    const v = { x: 0, z: 0 };
+    for (let i = 0; i < 400 && reg.inKeepOut(a.x, a.z); i++) {
+      reg.steerKeepOut(a, 0, 0, 4, v);
+      a.x += v.x * 0.05;
+      a.z += v.z * 0.05;
+    }
+    expect(reg.inKeepOut(a.x, a.z)).toBe(false);
+  });
+});

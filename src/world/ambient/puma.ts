@@ -12,6 +12,7 @@
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../contract";
+import { creatures } from "../creatures";
 import { emit, on } from "../events";
 import { pumaParts } from "./nightfauna/models";
 import { makeQuadState, QuadSet, type QuadState, rimToon, rng, TrailTracker, View } from "./nightfauna/rig";
@@ -159,7 +160,7 @@ export const create: CreateAmbient = (env): Ambient => {
       const lat = 6 + R() * 16;
       const x = tp.x - tan.z * side * lat;
       const z = tp.z + tan.x * side * lat;
-      if (Math.hypot(x, z) > 165 || g.water(x, z) || env.walkable(x, z)) continue;
+      if (Math.hypot(x, z) > 165 || g.water(x, z) || env.walkable(x, z) || creatures.inKeepOut(x, z, 1)) continue;
       const h = g.at(x, z);
       const bumpy = Math.max(
         Math.abs(g.at(x + 0.7, z) - h),

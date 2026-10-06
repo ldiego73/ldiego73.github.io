@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createCreatureRegistry } from "./creatures";
 import {
   type Agent,
   BOUND,
@@ -145,6 +146,16 @@ describe("ground + budget", () => {
     expect(goodGround(rules, 99, 99)).toBe(false);
     expect(goodGround(rules, 200, 10)).toBe(false);
     expect(goodGround({ ...rules, heightAt: (x) => x * 2 }, 5, 10)).toBe(false);
+  });
+  test("goodGround rejects keep-out zones (blocked hook)", () => {
+    const reg = createCreatureRegistry();
+    const r = { ...rules, blocked: (x: number, z: number) => reg.inKeepOut(x, z) };
+    expect(goodGround(r, 10, 10)).toBe(true);
+    const k = reg.keepOut(10, 10, 2);
+    expect(goodGround(r, 10, 10)).toBe(false);
+    expect(goodGround(r, 10, 13)).toBe(true);
+    k.on = false;
+    expect(goodGround(r, 10, 10)).toBe(true);
   });
   test("herd sizes stay in range and are deterministic; budget stays under ~60", () => {
     const a = herdSizes(4, 3, 6, mulberry(1));
