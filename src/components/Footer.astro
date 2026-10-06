@@ -17,6 +17,9 @@ const year = new Date().getFullYear();
       <p>{t(lang, "footer.built")}</p>
     </div>
     <ul class="socials">
+      <li>
+        <a href={`/${lang}/rss.xml`} type="application/rss+xml"><Icon name="rss" size={18} /> RSS</a>
+      </li>
       {
         SOCIALS.map((s) => (
           <li>
@@ -41,7 +44,8 @@ const year = new Date().getFullYear();
   }
   .grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    /* Links keep their natural width on one row; the blurb takes the rest. */
+    grid-template-columns: minmax(0, 1fr) max-content;
     gap: var(--space-3);
     align-items: start;
   }

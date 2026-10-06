@@ -1,0 +1,300 @@
+---
+import Icon from "../../components/Icon.astro";
+import { SKILLS } from "../../data/career";
+import { AI_TOOLS, AIDLC, DAILY, SITE_STACK, type UseGroup } from "../../data/uses";
+import { LANGS, type Lang } from "../../i18n/ui";
+import Base from "../../layouts/Base.astro";
+
+export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
+const lang = Astro.params.lang as Lang;
+
+const COPY = {
+  es: {
+    title: "Lo que uso",
+    lede: "Mi stack, mis herramientas y, sobre todo, cómo trabajo con agentes de IA en el día a día.",
+    aiTitle: "Cómo trabajo con agentes de IA",
+    aiLede:
+      "Cubro mi ciclo de desarrollo de punta a punta con agentes: paso de un SDLC tradicional a un AIDLC (AI-Driven Development Lifecycle). Un agente orquestador reparte el trabajo entre especialistas por fase; yo defino el objetivo y reviso los resultados.",
+    orchestrator: "Orquestador",
+    pro: "Stack profesional",
+    proLede: "Lo que uso en el trabajo, por área.",
+  },
+  en: {
+    title: "Uses",
+    lede: "My stack, my tools and, above all, how I work with AI agents day to day.",
+    aiTitle: "How I work with AI agents",
+    aiLede:
+      "I cover my development lifecycle end to end with agents: moving from a traditional SDLC to an AIDLC (AI-Driven Development Lifecycle). An orchestrator agent hands work to specialists by phase; I set the goal and review the results.",
+    orchestrator: "Orchestrator",
+    pro: "Professional stack",
+    proLede: "What I use at work, by area.",
+  },
+}[lang];
+const groups: UseGroup[] = [AI_TOOLS, SITE_STACK, DAILY];
+---
+<Base lang={lang} title={COPY.title} description={COPY.lede}>
+  <div class="wrap page">
+    <header class="intro">
+      <h1>{COPY.title}</h1>
+      <p class="lede">{COPY.lede}</p>
+    </header>
+
+    <section aria-labelledby="ai-h" class="ai">
+      <h2 id="ai-h">{COPY.aiTitle}</h2>
+      <p class="ai-lede">{COPY.aiLede}</p>
+      <figure class="aidlc">
+        <div class="orch">
+          <span class="mono tag">{COPY.orchestrator}</span>
+          <strong class="mono">{AIDLC.orchestrator.name}</strong>
+          <span class="why">{AIDLC.orchestrator.why[lang]}</span>
+        </div>
+        <div class="primary" aria-hidden="true"></div>
+        <ol class="phases">
+          {
+            AIDLC.phases.map((p) => (
+              <li class={`phase dye-${p.dye}`}>
+                <span class="pend" aria-hidden="true" />
+                <h3 class="mono">{p.phase[lang]}</h3>
+                <ul>
+                  {p.agents.map((a) => (
+                    <li>
+                      <span class="knot" aria-hidden="true" />
+                      <span class="mono agent">{a.name}</span>
+                      <span class="why">{a.why[lang]}</span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))
+          }
+        </ol>
+      </figure>
+    </section>
+
+    {
+      groups.map((g) => (
+        <section aria-labelledby={`${g.id}-h`} class={`group dye-${g.dye}`}>
+          <h2 id={`${g.id}-h`}>{g.title[lang]}</h2>
+          {g.lede && <p class="g-lede">{g.lede[lang]}</p>}
+          <ul class="cards">
+            {g.items.map((it) => (
+              <li class="card">
+                {it.url ? (
+                  <a href={it.url} target="_blank" rel="noopener">
+                    {it.name} <Icon name="external" size={14} />
+                  </a>
+                ) : (
+                  <span class="name">{it.name}</span>
+                )}
+                <span class="why">{it.why[lang]}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+
+    <section aria-labelledby="pro-h" class="group dye-alpaca">
+      <h2 id="pro-h">{COPY.pro}</h2>
+      <p class="g-lede">{COPY.proLede}</p>
+      <dl class="skills">
+        {
+          SKILLS.map((s) => (
+            <div>
+              <dt class="mono">{s.group[lang]}</dt>
+              <dd>
+                {s.items.map((i) => (
+                  <span class="chip">{i}</span>
+                ))}
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .page {
+    padding-block: var(--space-5) var(--space-6);
+  }
+  .intro {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+  }
+  h2 {
+    font-size: var(--step-2);
+    margin-bottom: var(--space-2);
+  }
+  section + section {
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+  .ai-lede,
+  .g-lede {
+    max-width: 68ch;
+    color: var(--muted);
+    font-size: var(--step-1);
+    line-height: 1.5;
+    margin-bottom: var(--space-3);
+  }
+  .why {
+    color: var(--muted);
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  /* AIDLC as a khipu: the orchestrator on the primary cord, one pendant per phase. */
+  .aidlc {
+    margin: 0;
+  }
+  .orch {
+    display: grid;
+    gap: 4px;
+    max-width: 52ch;
+    padding: 14px 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--fg) 4%, transparent);
+  }
+  .orch strong {
+    font-size: var(--step-1);
+  }
+  .tag {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .primary {
+    height: 5px;
+    margin-top: var(--space-3);
+    border-radius: 3px;
+    background: var(--fg);
+    opacity: 0.85;
+  }
+  .phases {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .phase {
+    position: relative;
+    padding: 18px 0 0 22px;
+  }
+  .pend {
+    position: absolute;
+    left: 6px;
+    top: -2px;
+    bottom: 0;
+    width: 5px;
+    border-radius: 3px;
+    background: var(--dye);
+  }
+  .phase h3 {
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dye);
+    margin-bottom: 10px;
+  }
+  .phase ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 14px;
+  }
+  .phase li {
+    position: relative;
+    display: grid;
+    gap: 2px;
+  }
+  .knot {
+    position: absolute;
+    left: -21px;
+    top: 4px;
+    width: 13px;
+    height: 10px;
+    border-radius: 5px;
+    background: var(--dye);
+  }
+  .agent {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  .cards {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--dye);
+    border-radius: var(--radius);
+  }
+  .card a,
+  .card .name {
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .skills {
+    display: grid;
+    gap: 14px;
+    margin: 0;
+  }
+  .skills div {
+    display: grid;
+    grid-template-columns: 9rem minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+  }
+  .skills dt {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dye);
+  }
+  .skills dd {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip {
+    font-size: 0.86rem;
+    padding: 3px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+  @media (max-width: 900px) {
+    .phases {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 560px) {
+    .phases {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .skills div {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+    }
+  }
+</style>

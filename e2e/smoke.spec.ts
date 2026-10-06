@@ -8,6 +8,7 @@ const pages = [
   "/es/blog/this-site-is-a-khipu/",
   "/en/arcade/",
   "/es/cv/",
+  "/en/uses/",
 ];
 
 const watchErrors = (page: Page) => {

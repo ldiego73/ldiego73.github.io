@@ -6,6 +6,7 @@ import Icon from "../../../components/Icon.astro";
 import Callout from "../../../components/mdx/Callout.astro";
 import CodeFile from "../../../components/mdx/CodeFile.astro";
 import Figure from "../../../components/mdx/Figure.astro";
+import Subscribe from "../../../components/Subscribe.astro";
 import { SITE } from "../../../data/site";
 import { type Lang, t } from "../../../i18n/ui";
 import Base from "../../../layouts/Base.astro";
@@ -120,6 +121,7 @@ const L = {
       }
     </div>
     <footer class="end">
+      <Subscribe lang={lang} />
       <div class="author">
         <Image src={profile} alt="" width={72} height={72} class="avatar" />
         <div>

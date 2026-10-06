@@ -12,9 +12,14 @@
     <link rel="alternate" hreflang="en" href="https://ldiego73.github.io/en/" />
     <meta http-equiv="refresh" content="0; url=/es/" />
     <script is:inline>
-      const en = (navigator.languages || [navigator.language]).some((l) => /^en\b/i.test(l)) &&
-        !(navigator.languages || [navigator.language]).some((l) => /^es\b/i.test(l));
-      location.replace(en ? "/en/" : "/es/");
+      // A language picked with the site's switch wins; otherwise the browser's languages decide.
+      let saved = null;
+      try {
+        saved = localStorage.getItem("lang");
+      } catch {}
+      const langs = navigator.languages || [navigator.language];
+      const en = saved ? saved === "en" : langs.some((l) => /^en\b/i.test(l)) && !langs.some((l) => /^es\b/i.test(l));
+      location.replace((en ? "/en/" : "/es/") + location.hash);
     </script>
   </head>
   <body>

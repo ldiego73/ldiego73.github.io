@@ -1,6 +1,7 @@
 ---
 import { Image } from "astro:assets";
 import PostList from "../../../components/PostList.astro";
+import Subscribe from "../../../components/Subscribe.astro";
 import { LANGS, type Lang, t } from "../../../i18n/ui";
 import Base from "../../../layouts/Base.astro";
 import { getPosts } from "../../../lib/posts";
@@ -24,6 +25,7 @@ const fmt = (d: Date) =>
       <h1>{t(lang, "blog.title")}</h1>
       <p class="lede">{t(lang, "blog.lede")}</p>
     </header>
+    <Subscribe lang={lang} compact />
     {
       featured?.cover && (
         <a class="featured" href={featured.href}>

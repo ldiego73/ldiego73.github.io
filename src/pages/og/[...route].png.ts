@@ -48,6 +48,26 @@ export const getStaticPaths = (async () => {
     add(`${lang}/arcade`, async () => arcadeCard(lang, t(lang, "arcade.lede")));
     for (const g of GAMES) add(`${lang}/arcade/${g.slug}`, async () => gameCard(lang, g));
     add(`${lang}/world`, async () => worldCard(lang));
+    add(`${lang}/uses`, async () =>
+      listCard({
+        title: lang === "es" ? "Lo que uso" : "Uses",
+        lede:
+          lang === "es"
+            ? "Mi stack, mis herramientas y cómo trabajo con agentes de IA."
+            : "My stack, my tools and how I work with AI agents.",
+        dye: "#6b7fdc",
+        items: [
+          {
+            text: lang === "es" ? "tech-lead + 10 agentes" : "tech-lead + 10 agents",
+            meta: lang === "es" ? "De SDLC a AIDLC" : "From SDLC to AIDLC",
+            color: "#6b7fdc",
+          },
+          { text: "Claude Code · Codex · Orca · Herdr", meta: "agents & orchestration", color: "#38b8a7" },
+          { text: "Zed · Cursor · Ghostty", meta: "editor & terminal", color: "#dda63c" },
+          { text: "Astro · Three.js · Bun", meta: lang === "es" ? "este sitio" : "this site", color: "#d0444b" },
+        ],
+      }),
+    );
     add(`${lang}/cv`, async () => cvCard(lang));
     // Site posts only (Medium posts open on Medium with their own image).
     for (const e of entries.filter((e) => e.id.startsWith(`${lang}/`))) {

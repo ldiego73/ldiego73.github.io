@@ -1,0 +1,188 @@
+---
+/**
+ * ⌘K / Ctrl+K (or "/") command palette: index serialized here at build time (lib/search-index.ts); the
+ * palette code (lib/palette.ts) loads on first open. Also opened by the header's search button.
+ */
+import type { Lang } from "../i18n/ui";
+import { paletteIndex } from "../lib/search-index";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const items = await paletteIndex(lang);
+const copy = {
+  es: {
+    placeholder: "Busca posts, proyectos, juegos o escribe un comando…",
+    label: "Buscar en el sitio",
+    empty: "Sin resultados.",
+    copied: "¡Correo copiado!",
+    hint: "↑ ↓ para moverte · Enter para abrir · Esc para cerrar",
+    groups: {
+      commands: "Comandos",
+      pages: "Páginas",
+      posts: "Blog",
+      projects: "Casos",
+      repos: "Repositorios",
+      games: "Arcade",
+    },
+  },
+  en: {
+    placeholder: "Search posts, projects, games or type a command…",
+    label: "Search the site",
+    empty: "No results.",
+    copied: "Email copied!",
+    hint: "↑ ↓ to move · Enter to open · Esc to close",
+    groups: {
+      commands: "Commands",
+      pages: "Pages",
+      posts: "Blog",
+      projects: "Case studies",
+      repos: "Repositories",
+      games: "Arcade",
+    },
+  },
+}[lang];
+const json = JSON.stringify({ items, copy }).replace(/</g, "\\u003c");
+---
+<script type="application/json" id="cmdk-data" set:html={json} />
+
+<script>
+  let loading = false;
+  const open = async () => {
+    if (loading || document.querySelector(".cmdk")) return;
+    loading = true;
+    try {
+      const { openPalette } = await import("../lib/palette");
+      openPalette();
+    } finally {
+      loading = false;
+    }
+  };
+  const typing = (el: EventTarget | null) =>
+    el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  addEventListener("keydown", (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      void open();
+    } else if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && !typing(e.target)) {
+      e.preventDefault();
+      void open();
+    }
+  });
+  for (const b of document.querySelectorAll("[data-cmdk]")) b.addEventListener("click", () => void open());
+</script>
+
+<style is:global>
+  .cmdk-open {
+    overflow: hidden;
+  }
+  .cmdk {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    justify-items: center;
+    align-items: start;
+    padding: max(10vh, 16px) 16px 16px;
+    background: color-mix(in srgb, var(--bg) 55%, transparent);
+    backdrop-filter: blur(4px);
+  }
+  .cmdk-panel {
+    width: min(640px, 100%);
+    max-height: min(560px, 80dvh);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 24px 60px rgb(0 0 0 / 0.35);
+    overflow: hidden;
+  }
+  .cmdk-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .cmdk-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--fg);
+    font: 500 1.05rem/1.4 var(--font-body);
+  }
+  .cmdk kbd {
+    font: 500 0.72rem var(--font-mono);
+    padding: 2px 6px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    color: var(--muted);
+  }
+  .cmdk-list {
+    overflow-y: auto;
+    padding: 6px;
+    overscroll-behavior: contain;
+  }
+  .cmdk-group {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 12px 10px 6px;
+  }
+  .cmdk-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .cmdk-item[aria-selected="true"] {
+    background: color-mix(in srgb, var(--ochre) 16%, transparent);
+    box-shadow: inset 3px 0 0 var(--ochre);
+  }
+  .cmdk-t {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cmdk-s {
+    grid-column: 1;
+    font-size: 0.82rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cmdk-ext {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
+    color: var(--muted);
+  }
+  .cmdk-empty {
+    padding: 24px 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .cmdk-hint {
+    margin: 0;
+    padding: 9px 16px;
+    border-top: 1px solid var(--line);
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  @media (max-width: 560px) {
+    .cmdk-hint {
+      display: none;
+    }
+  }
+</style>

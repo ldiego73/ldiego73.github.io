@@ -2,6 +2,7 @@
 import { Font } from "astro:assets";
 import "../styles/global.css";
 import Analytics from "../components/Analytics.astro";
+import CommandPalette from "../components/CommandPalette.astro";
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
 import { SITE } from "../data/site";
@@ -78,6 +79,7 @@ const enUrl = lang === "en" ? canonical : altUrl;
       <slot />
     </main>
     <Footer lang={lang} />
+    <CommandPalette lang={lang} />
   </body>
 </html>
 

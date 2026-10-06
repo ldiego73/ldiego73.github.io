@@ -1,0 +1,112 @@
+---
+/**
+ * "Follow the blog": RSS (with a copy-link button for readers that need the URL) and Medium.
+ * Used on the blog index and at the end of every post.
+ */
+import { SITE, SOCIALS } from "../data/site";
+import type { Lang } from "../i18n/ui";
+import Icon from "./Icon.astro";
+
+interface Props {
+  lang: Lang;
+  compact?: boolean;
+}
+const { lang, compact = false } = Astro.props;
+const feed = `/${lang}/rss.xml`;
+const feedUrl = new URL(feed, SITE.url).href;
+const medium = SOCIALS.find((s) => s.icon === "medium")?.url;
+const C = {
+  es: {
+    title: "Sigue el blog",
+    text: "Recibe los posts nuevos en tu lector de RSS (Feedly, Inoreader, NetNewsWire…) o sígueme en Medium.",
+    rss: "Suscribirme por RSS",
+    copy: "Copiar enlace del feed",
+    copied: "¡Copiado!",
+    medium: "Seguir en Medium",
+  },
+  en: {
+    title: "Follow the blog",
+    text: "Get new posts in your RSS reader (Feedly, Inoreader, NetNewsWire…) or follow me on Medium.",
+    rss: "Subscribe via RSS",
+    copy: "Copy feed link",
+    copied: "Copied!",
+    medium: "Follow on Medium",
+  },
+}[lang];
+---
+<aside class:list={["subscribe", { compact }]} aria-labelledby={`sub-h-${compact ? "c" : "f"}`}>
+  <div class="txt">
+    <h2 id={`sub-h-${compact ? "c" : "f"}`}><Icon name="rss" size={18} /> {C.title}</h2>
+    <p>{C.text}</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href={feed} type="application/rss+xml"><Icon name="rss" size={16} /> {C.rss}</a>
+    <button class="btn" type="button" data-copy-feed={feedUrl} data-done={C.copied}><Icon name="copy" size={16} /> <span>{C.copy}</span></button>
+    {medium && <a class="btn" href={medium} target="_blank" rel="me noopener"><Icon name="medium" size={16} /> {C.medium}</a>}
+  </div>
+</aside>
+
+<script>
+  for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-copy-feed]")) {
+    btn.addEventListener("click", async () => {
+      const label = btn.querySelector("span");
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copyFeed ?? "");
+        if (!label) return;
+        const prev = label.textContent;
+        label.textContent = btn.dataset.done ?? "";
+        setTimeout(() => (label.textContent = prev), 1600);
+      } catch {
+        /* clipboard blocked: the RSS button still works */
+      }
+    });
+  }
+</script>
+
+<style>
+  .subscribe {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-3);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--ochre);
+    border-radius: var(--radius);
+    margin-block: var(--space-4);
+  }
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--step-1);
+    margin: 0 0 6px;
+  }
+  p {
+    margin: 0;
+    color: var(--muted);
+    max-width: 60ch;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .actions :global(.btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .compact {
+    margin-block: var(--space-3) var(--space-5);
+  }
+  @media (max-width: 860px) {
+    .subscribe {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .actions {
+      justify-content: flex-start;
+    }
+  }
+</style>

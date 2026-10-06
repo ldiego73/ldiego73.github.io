@@ -12,7 +12,11 @@ export const SITE = {
   formEndpoint: "https://formspree.io/f/xwlvvpwn",
   githubUser: "ldiego73",
   /** Umami Cloud (cookieless analytics). Only loaded on the production domain. */
-  analytics: { src: "https://cloud.umami.is/script.js", websiteId: "cae460d9-881b-4148-9bde-b1df5fb0628b", domain: "ldiego73.github.io" },
+  analytics: {
+    src: "https://cloud.umami.is/script.js",
+    websiteId: "cae460d9-881b-4148-9bde-b1df5fb0628b",
+    domain: "ldiego73.github.io",
+  },
   mediumUser: "ldiego73",
   resume: { es: "/resume/luis-diego-cv-es.pdf", en: "/resume/luis-diego-cv-en.pdf" },
 };

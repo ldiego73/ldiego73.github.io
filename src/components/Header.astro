@@ -14,6 +14,7 @@ const links = [
   { href: `${base}#artifacts`, label: t(lang, "nav.artifacts") },
   { href: `${base}projects/`, label: t(lang, "nav.projects") },
   { href: `${base}blog/`, label: t(lang, "nav.blog") },
+  { href: `${base}uses/`, label: t(lang, "nav.uses") },
   { href: `${base}arcade/`, label: t(lang, "nav.arcade") },
   { href: `${base}world/`, label: lang === "es" ? "Mundo" : "World", world: true },
   { href: `${base}#contact`, label: t(lang, "nav.contact") },
@@ -44,7 +45,17 @@ const current = Astro.url.pathname;
       </ul>
     </nav>
     <div class="tools">
-      <a class="tool lang" href={alternate} hreflang={lang === "es" ? "en" : "es"} lang={lang === "es" ? "en" : "es"}>
+      <button class="tool search" type="button" data-cmdk aria-label={t(lang, "search.open")}>
+        <Icon name="search" size={18} />
+        <kbd class="mono" aria-hidden="true">⌘K</kbd>
+      </button>
+      <a
+        class="tool lang"
+        href={alternate}
+        hreflang={lang === "es" ? "en" : "es"}
+        lang={lang === "es" ? "en" : "es"}
+        data-lang-switch
+      >
         <span aria-hidden="true">{lang === "es" ? "EN" : "ES"}</span>
         <span class="sr-only">{t(lang, "lang.switch")}</span>
       </a>
@@ -61,6 +72,29 @@ const current = Astro.url.pathname;
 </header>
 
 <script>
+  import { rememberLang, switchTarget } from "../lib/lang-switch";
+  import { prefetchWorld } from "../lib/prefetch-world";
+
+  // Language switch: same page in the other language, same section; remember the choice.
+  const langLink = document.querySelector<HTMLAnchorElement>("a[data-lang-switch]");
+  langLink?.addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    rememberLang(langLink.hreflang);
+    location.href = switchTarget(langLink.getAttribute("href") ?? "/");
+  });
+  // Warm the 3D world as soon as someone heads for it.
+  for (const a of document.querySelectorAll<HTMLAnchorElement>('a[href$="/world/"]')) {
+    const go = () => void prefetchWorld(a.href);
+    a.addEventListener("pointerenter", go, { once: true });
+    a.addEventListener("focus", go, { once: true });
+    a.addEventListener("touchstart", go, { once: true, passive: true });
+  }
+  // On a phone (≈ no hover), the "⌘K" hint makes no sense: the button stays, the hint hides via CSS.
+  if (!/Mac|iPhone|iPad/.test(navigator.platform)) {
+    for (const k of document.querySelectorAll(".search kbd")) k.textContent = "Ctrl K";
+  }
+
   const root = document.documentElement;
   const isDark = () =>
     root.dataset.theme ? root.dataset.theme === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
@@ -126,10 +160,26 @@ const current = Astro.url.pathname;
     color: var(--muted);
     text-decoration: none;
     font-size: 0.94rem;
+    white-space: nowrap;
   }
   .nav a:hover,
   .nav a[aria-current="page"] {
     color: var(--fg);
+  }
+  .tool.search {
+    grid-auto-flow: column;
+    gap: 8px;
+    padding-inline: 10px;
+  }
+  .search kbd {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  @media (hover: none), (max-width: 1000px) {
+    .search kbd {
+      display: none;
+    }
   }
   .tools {
     display: flex;
@@ -184,7 +234,7 @@ const current = Astro.url.pathname;
       display: inline;
     }
   }
-  @media (max-width: 900px) {
+  @media (max-width: 1000px) {
     .menu-btn {
       display: inline-grid;
     }

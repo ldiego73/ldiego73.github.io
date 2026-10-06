@@ -15,5 +15,7 @@ export async function GET(context: APIContext) {
     site: context.site ?? SITE.url,
     items: posts.map((p) => ({ title: p.title, description: p.description, pubDate: p.date, link: p.href })),
     customData: `<language>${lang}</language>`,
+    // Opened in a browser, the feed renders as a styled page (public/rss.xsl) instead of raw XML.
+    stylesheet: "/rss.xsl",
   });
 }

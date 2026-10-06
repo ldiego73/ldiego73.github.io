@@ -17,7 +17,9 @@ interface Props {
     | "close"
     | "play"
     | "trophy"
-    | "lock";
+    | "lock"
+    | "rss"
+    | "search";
   size?: number;
   label?: string;
 }
@@ -42,6 +44,8 @@ const paths: Record<Props["name"], string> = {
   play: '<path d="M7 4.5v15l12-7.5-12-7.5Z"/>',
   trophy:
     '<path d="M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H4.5a3 3 0 0 0 3.5 4M16 6h3.5a3 3 0 0 1-3.5 4M12 13v4M8.5 20h7M9.5 17h5"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+  rss: '<path d="M5 11a8 8 0 0 1 8 8M5 5a14 14 0 0 1 14 14"/><circle cx="6" cy="18" r="1.4"/>',
   lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>',
 };
 ---
