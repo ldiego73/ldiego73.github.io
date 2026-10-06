@@ -153,7 +153,8 @@ export const create: CreateAmbient = (env, hudRoot) => {
   const cordGeo = new THREE.CylinderGeometry(0.022, 0.018, CORD_LEN, 6).translate(0, -CORD_LEN / 2, 0);
   const tasselGeo = new THREE.ConeGeometry(0.045, 0.14, 6).translate(0, -CORD_LEN - 0.04, 0);
   const loopGeo = new THREE.TorusGeometry(0.06, 0.018, 5, 10).rotateY(Math.PI / 2);
-  const cordBody = mergeGeometries([cordGeo.toNonIndexed(), tasselGeo.toNonIndexed(), loopGeo.toNonIndexed()], false);
+  const flat = (g: THREE.BufferGeometry) => (g.index ? g.toNonIndexed() : g);
+  const cordBody = mergeGeometries([flat(cordGeo), flat(tasselGeo), flat(loopGeo)], false);
   cordGeo.dispose();
   tasselGeo.dispose();
   loopGeo.dispose();

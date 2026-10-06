@@ -4,7 +4,7 @@
  */
 import type { L } from "./contract";
 
-export type StampKind = "station" | "summit" | "constellation" | "egg" | "npc" | "weather" | "field" | "ride";
+export type StampKind = "station" | "summit" | "constellation" | "egg" | "npc" | "weather" | "field" | "ride" | "fauna";
 
 export interface StampDetail {
   /** Stable id, e.g. "station:auna", "constellation:yacana", "egg:golden-khipu". */

@@ -15,6 +15,7 @@ const COPY = {
   cielo: { es: "Cielo", en: "Sky" },
   secretos: { es: "Secretos", en: "Secrets" },
   campos: { es: "Campos", en: "Fields" },
+  fauna: { es: "Fauna", en: "Wildlife" },
   arcade: { es: "Arcade", en: "Arcade" },
   stamps: { es: "sellos", en: "stamps" },
   achievements: { es: "logros", en: "achievements" },
@@ -92,6 +93,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
       { label: COPY.cielo, kinds: ["constellation", "weather"] },
       { label: COPY.secretos, kinds: ["egg"] },
       { label: COPY.campos, kinds: ["field"] },
+      { label: COPY.fauna, kinds: ["fauna"] },
     ];
     for (const section of sections) {
       const title = document.createElement("h3");

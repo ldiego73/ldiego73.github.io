@@ -55,6 +55,7 @@ import { createScenery } from "./terrain";
 import { disposeTextures, redrawAll } from "./tex";
 import { createToonCache } from "./toon";
 import "./textmode.css";
+import { createDetailCull } from "./detail-cull";
 import { createTextMode, focusStep, type TextMode } from "./textmode";
 import { createTrailMeshes } from "./trail";
 import { announceTraveler, loadTraveler, saveTraveler } from "./traveler";
@@ -397,6 +398,10 @@ async function start(
     early.push(() => {
       for (const a of ambients) a.dispose();
     });
+    // Small far-away details skip every pass (draw calls dominate the frame cost on the full mountain).
+    const cull = createDetailCull(scene, { skip: (o) => o.name === "traveler" || o.name === "ride-llama" });
+    cull.scan();
+    early.push(() => cull.dispose());
     await step(92, "ambients");
     /** E: ambients first (an NPC in range talks), then content. */
     const interact = () => {
@@ -530,11 +535,8 @@ async function start(
     syncNight();
     cleanups.push(sky.sky.onChange(syncNight));
     cleanups.push(() => host.classList.remove("kw-night"));
-    const ichu = scene.getObjectByName("ichu") as THREE.InstancedMesh | undefined;
-    const ichuFull = ichu?.count ?? 0;
-    const applyDensity = (q: Quality) => {
-      if (ichu) ichu.count = q === "high" ? ichuFull : Math.floor(ichuFull * 0.45);
-    };
+    // Ground cover thins itself on a manual quality switch (flora listens to world:quality).
+    const applyDensity = (_q: Quality) => {};
 
     // ---------------------------------------------------------------- player
     const spawnT = 0.006;
@@ -1097,6 +1099,7 @@ async function start(
         prompt ??= phase === "play" ? safe(() => a.prompt?.() ?? null, null) : null;
       }
       chrome.setPrompt(modals > 0 ? null : prompt);
+      cull.update(engine.camera.position);
     });
     cleanups.push(off);
 
@@ -1104,6 +1107,7 @@ async function start(
     if (import.meta.env?.DEV) {
       (host as HTMLElement & { __kw?: unknown }).__kw = {
         begin,
+        engine,
         layout,
         scene,
         teleport(t: number, side = 0, faceBack = false) {

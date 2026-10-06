@@ -72,8 +72,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
   }
   // Slide each trigger along the path (downhill first) until it clears every content spot,
   // so the prompt can actually show (the AI pose sits ~5 units from the path at t 0.86).
-  const clearOf = (v: THREE.Vector3) =>
-    avoid.every((q) => (v.x - q.x) ** 2 + (v.z - q.z) ** 2 > (CLEAR + R) ** 2);
+  const clearOf = (v: THREE.Vector3) => avoid.every((q) => (v.x - q.x) ** 2 + (v.z - q.z) ** 2 > (CLEAR + R) ** 2);
   const settle = (v: THREE.Vector3, t0: number) => {
     for (let i = 1; i <= 40 && !clearOf(v); i++) {
       const dt = Math.ceil(i / 2) * 0.004 * (i % 2 ? -1 : 1);

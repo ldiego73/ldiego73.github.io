@@ -1,6 +1,6 @@
 /**
  * Auto quality governor (pure, no DOM): watches real frame times and steps the render cost down when the
- * average FPS stays under 40 for ~3 s (pixel ratio 1 → 0.75 → no ink outline), and back up after ~10 s
+ * average FPS stays under 45 for ~2 s (pixel ratio 1 → 0.75 → no ink outline), and back up after ~10 s
  * above 58 FPS. Hysteresis: a step down soon after a step up doubles the wait before the next step up.
  * It never touches geometry; index.ts applies a level through engine.setPixelRatioCap + outline.enabled.
  */
@@ -36,8 +36,8 @@ export interface GovernorConfig {
 
 export const DEFAULT_GOVERNOR: GovernorConfig = {
   warmup: 2,
-  lowFps: 40,
-  downAfter: 3,
+  lowFps: 45,
+  downAfter: 2,
   highFps: 58,
   upAfter: 10,
   maxGap: 250,

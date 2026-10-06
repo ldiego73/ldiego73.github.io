@@ -1,10 +1,11 @@
 /**
  * Scenery meshes for the Andean island: terrain (per-face flat toon colors), the rock underside
- * shown in the title view, the valley plain shown in play, river + waterfall, ichu tufts,
- * rocks, queñua trees, distant snowy peaks and drifting clouds.
+ * shown in the title view, the valley plain shown in play, river + waterfall, rocks, the vegetation
+ * (./flora: ichu, flowers, queñua, aliso, unca, pisonay, chusquea), distant snowy peaks and drifting clouds.
  */
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { createFlora } from "./flora";
 import {
   HALF_WIDTH,
   type Layout,
@@ -12,7 +13,6 @@ import {
   RIVER_LEVEL,
   RIVER_POLY,
   rimRadius,
-  SUMMIT,
   TERRACE_STEP,
   terraceMask,
   WORLD_HALF,
@@ -142,7 +142,13 @@ function ashlarTexture() {
   ).tex;
 }
 
-export function createScenery(L: Layout, toon: ToonCache, quality: "low" | "high"): Scenery {
+export function createScenery(
+  L: Layout,
+  toon: ToonCache,
+  quality: "low" | "high",
+  /** Stills the grass sway; defaults to the OS preference when the caller doesn't pass it. */
+  reducedMotion?: boolean,
+): Scenery {
   const group = new THREE.Group();
   group.name = "scenery";
   const titleOnly: THREE.Object3D[] = [];
@@ -660,65 +666,7 @@ export function createScenery(L: Layout, toon: ToonCache, quality: "low" | "high
     if (y < RIVER_LEVEL + 0.6) return false;
     return true;
   };
-  const slopeAt = (x: number, z: number) => {
-    const e = 1;
-    return (
-      Math.hypot(L.heightAt(x + e, z) - L.heightAt(x - e, z), L.heightAt(x, z + e) - L.heightAt(x, z - e)) / (2 * e)
-    );
-  };
   const dummy = new THREE.Object3D();
-
-  // ---------------------------------------------------------------- ichu tufts
-  {
-    const blades: THREE.BufferGeometry[] = [];
-    for (let b = 0; b < 6; b++) {
-      const g = new THREE.ConeGeometry(0.09, 0.9 + (b % 3) * 0.18, 3, 1);
-      g.translate(0, 0.45, 0);
-      g.rotateZ((b % 2 ? 1 : -1) * (0.18 + (b % 3) * 0.12));
-      g.rotateY((b / 6) * Math.PI * 2);
-      blades.push(g);
-    }
-    const geo = mergeGeometries(blades) as THREE.BufferGeometry;
-    for (const g of blades) g.dispose();
-    const count = quality === "high" ? 2600 : 1000;
-    const mesh = new THREE.InstancedMesh(geo, toon.toon("#ffffff"), count);
-    mesh.name = "ichu";
-    const c = new THREE.Color();
-    let placed = 0;
-    for (let tries = 0; placed < count && tries < count * 12; tries++) {
-      const a = R() * Math.PI * 2;
-      const r = Math.sqrt(R()) * 165;
-      const x = Math.cos(a) * r;
-      const z = Math.sin(a) * r;
-      const y = L.heightAt(x, z);
-      // Denser up in the puna; sparse in the green valley.
-      const want = THREE.MathUtils.smoothstep(y, 8, 40) * 0.85 + 0.15;
-      if (R() > want) continue;
-      // Hug the trail edges a little more (the path is lined with grass).
-      const d = L.trailQuery(x, z).d;
-      if (d > 14 && R() < 0.35) continue;
-      if (!clearOf(x, z, 0.6) || slopeAt(x, z) > 0.9) continue;
-      // Andén treads are crops: only a few tufts on them.
-      if (terraceMask(x, z, y) > 0.6 && R() < 0.8) continue;
-      const s = 0.7 + R() * 0.8;
-      dummy.position.set(x, y - 0.05, z);
-      dummy.rotation.set((R() - 0.5) * 0.2, R() * Math.PI * 2, (R() - 0.5) * 0.2);
-      dummy.scale.set(s, s * (0.8 + R() * 0.5), s);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(placed, dummy.matrix);
-      c.set(R() < 0.7 ? WORLD.ichu : "#c39a55");
-      if (y < 18 && R() < 0.5) c.set("#9fb86a");
-      mesh.setColorAt(placed, c);
-      placed++;
-    }
-    mesh.count = placed;
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.computeBoundingSphere();
-    group.add(mesh);
-    // Tufts only read as speckle from the title distance; they appear as the camera swoops down.
-    playOnly.push(mesh);
-  }
 
   // ---------------------------------------------------------------- rocks
   {
@@ -754,73 +702,29 @@ export function createScenery(L: Layout, toon: ToonCache, quality: "low" | "high
     group.add(mesh);
   }
 
-  // ---------------------------------------------------------------- queñua trees (twisted red bark, small dark crowns)
-  {
-    const trunkParts: THREE.BufferGeometry[] = [];
-    const t1 = new THREE.CylinderGeometry(0.22, 0.34, 2.2, 6, 3);
-    const p = t1.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < p.count; i++) {
-      const y = p.getY(i);
-      p.setX(i, p.getX(i) + Math.sin(y * 2.1) * 0.22);
-      p.setZ(i, p.getZ(i) + Math.cos(y * 1.7) * 0.16);
+  // ---------------------------------------------------------------- vegetation (flora/: ichu, flowers, trees)
+  // Ichu in three looks, wild lupine + yellow daisies by the trail, queñua, aliso, unca, pisonay, chusquea.
+  // Placed after the rocks so nothing grows through a boulder.
+  const flora = (() => {
+    const avoid: Array<[number, number, number]> = [];
+    const rocks = group.getObjectByName("rocks") as THREE.InstancedMesh | undefined;
+    if (rocks) {
+      const m = new THREE.Matrix4();
+      const p = new THREE.Vector3();
+      const q = new THREE.Quaternion();
+      const s = new THREE.Vector3();
+      for (let i = 0; i < rocks.count; i++) {
+        rocks.getMatrixAt(i, m);
+        m.decompose(p, q, s);
+        avoid.push([p.x, p.z, Math.max(s.x, s.z) * 0.95 + 0.15]);
+      }
     }
-    t1.translate(0, 1.1, 0);
-    trunkParts.push(t1);
-    const br = new THREE.CylinderGeometry(0.1, 0.16, 1.3, 5);
-    br.rotateZ(0.8);
-    br.translate(0.5, 2.0, 0);
-    trunkParts.push(br);
-    const trunkGeo = mergeGeometries(trunkParts.map((g) => g.toNonIndexed())) as THREE.BufferGeometry;
-    trunkGeo.computeVertexNormals();
-    const crownParts: THREE.BufferGeometry[] = [];
-    for (const [x, y, z, s] of [
-      [0.1, 2.7, 0, 1.05],
-      [0.9, 2.45, 0.3, 0.8],
-      [-0.5, 2.35, -0.3, 0.75],
-      [0.2, 3.25, -0.2, 0.7],
-    ] as const) {
-      const g = new THREE.IcosahedronGeometry(s, 1);
-      g.scale(1, 0.72, 1);
-      g.translate(x, y, z);
-      crownParts.push(g);
-    }
-    const crownGeo = mergeGeometries(crownParts) as THREE.BufferGeometry;
-    for (const g of [...trunkParts, ...crownParts]) g.dispose();
-    const count = 64;
-    const trunks = new THREE.InstancedMesh(trunkGeo, toon.toon(WORLD.bark), count);
-    const crowns = new THREE.InstancedMesh(crownGeo, toon.toon("#4f7d4a"), count);
-    trunks.castShadow = crowns.castShadow = true;
-    trunks.name = "quenua-trunks";
-    crowns.name = "quenua-crowns";
-    // Clusters ("bosquetes") on sheltered slopes.
-    const groves: Array<[number, number]> = [];
-    for (let g = 0; g < 12; g++) {
-      const a = R() * Math.PI * 2;
-      const r = 60 + R() * 85;
-      groves.push([SUMMIT.x + Math.cos(a) * r, SUMMIT.z + Math.sin(a) * r]);
-    }
-    let placed = 0;
-    for (let tries = 0; placed < count && tries < 2000; tries++) {
-      const [gx, gz] = groves[Math.floor(R() * groves.length)] as [number, number];
-      const x = gx + (R() - 0.5) * 16;
-      const z = gz + (R() - 0.5) * 16;
-      if (!clearOf(x, z, 2.5) || slopeAt(x, z) > 0.75) continue;
-      const y = L.heightAt(x, z);
-      const s = 0.85 + R() * 0.7;
-      dummy.position.set(x, y - 0.1, z);
-      dummy.rotation.set(0, R() * Math.PI * 2, 0);
-      dummy.scale.setScalar(s);
-      dummy.updateMatrix();
-      trunks.setMatrixAt(placed, dummy.matrix);
-      crowns.setMatrixAt(placed, dummy.matrix);
-      L.addCollider({ kind: "circle", x, z, r: 0.45 * s });
-      placed++;
-    }
-    trunks.count = crowns.count = placed;
-    trunks.instanceMatrix.needsUpdate = crowns.instanceMatrix.needsUpdate = true;
-    trunks.computeBoundingSphere();
-    crowns.computeBoundingSphere();
-    group.add(trunks, crowns);
+    return createFlora(L, toon.toon("#fff").gradientMap, quality, { reducedMotion, avoid });
+  })();
+  for (const o of flora.objects) {
+    group.add(o);
+    // Ground cover only reads as speckle from the title distance; it appears as the camera swoops down.
+    if (o.name.startsWith("ichu") || o.name.startsWith("flora-")) playOnly.push(o);
   }
 
   // ---------------------------------------------------------------- distant ranges (play)
@@ -904,9 +808,11 @@ export function createScenery(L: Layout, toon: ToonCache, quality: "low" | "high
     dispose() {
       for (const w of waters) w.material.dispose();
       for (const m of extraMats) m.dispose();
+      flora.dispose();
     },
     update(dt, t) {
       for (const w of waters) w.tick(t);
+      flora.update(t);
       for (const f of foamBits) {
         const ph = f.userData.phase as number;
         f.position.y = 0.42 + Math.abs(Math.sin(t * 3 + ph)) * 0.25;

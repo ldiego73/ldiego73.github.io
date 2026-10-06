@@ -147,11 +147,14 @@ export function createMistBanks(n: number, groundAt: (x: number, z: number) => n
   const group = new THREE.Group();
   group.name = "mist-banks";
   const map = puffTexture();
-  const mat = new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, opacity: 0, fog: true });
+  // One material per bank: each fades on its own as the camera nears it.
+  const mats: THREE.SpriteMaterial[] = [];
   const sprites: THREE.Sprite[] = [];
   const phase: number[] = [];
   for (let i = 0; i < n; i++) {
-    const s = new THREE.Sprite(mat);
+    const m = new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, opacity: 0, fog: true });
+    mats.push(m);
+    const s = new THREE.Sprite(m);
     s.scale.set(34 + (i % 3) * 10, 9 + (i % 2) * 4, 1);
     sprites.push(s);
     phase.push(i * 2.39996);
@@ -165,11 +168,19 @@ export function createMistBanks(n: number, groundAt: (x: number, z: number) => n
     anchor.copy(center);
     for (let i = 0; i < n; i++) {
       const a = phase[i]!;
-      const r = 26 + ((i * 37) % 45);
+      const r = 48 + ((i * 37) % 60);
       const x = center.x + Math.cos(a) * r;
       const z = center.z + Math.sin(a) * r;
-      // Sit in the low ground: valleys under the traveler fill first.
-      sprites[i]!.position.set(x, Math.min(groundAt(x, z) + 2.5, center.y + 6), z);
+      // A flat billboard cutting into a slope draws a hard light edge on the ground: float each bank
+      // just above the highest ground under its whole footprint instead.
+      const s = sprites[i]!;
+      const half = s.scale.x / 2;
+      let top = groundAt(x, z);
+      for (let k = 0; k < 8; k++) {
+        const b = (k / 8) * Math.PI * 2;
+        top = Math.max(top, groundAt(x + Math.cos(b) * half, z + Math.sin(b) * half));
+      }
+      s.position.set(x, top + s.scale.y * 0.45, z);
     }
   };
   return {
@@ -181,15 +192,23 @@ export function createMistBanks(n: number, groundAt: (x: number, z: number) => n
       const dx = center.x - anchor.x;
       const dz = center.z - anchor.z;
       if (dx * dx + dz * dz > 30 * 30) place(center);
-      mat.opacity = amount * 0.6;
-      mat.color.copy(color).lerp(WHITE, 0.35);
+      for (let i = 0; i < n; i++) {
+        const s = sprites[i]!;
+        const m = mats[i]!;
+        // Fade out as the traveler walks into a bank (no flat white sheet across the screen).
+        const d = Math.hypot(s.position.x + group.position.x - center.x, s.position.z + group.position.z - center.z);
+        const half = s.scale.x / 2;
+        const near = Math.min(1, Math.max(0, (d - half * 0.8) / (half * 0.8)));
+        m.opacity = amount * 0.6 * near;
+        m.color.copy(color).lerp(WHITE, 0.35);
+      }
       // Very slow drift.
       group.position.x = Math.sin(t * 0.03) * 3;
       group.position.z = Math.cos(t * 0.027) * 3;
     },
     dispose() {
       map.dispose();
-      mat.dispose();
+      for (const m of mats) m.dispose();
     },
   };
 }

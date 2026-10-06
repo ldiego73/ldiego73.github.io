@@ -38,6 +38,11 @@ export const CATALOG: readonly PassportStamp[] = [
   { id: "egg:golden-khipu", kind: "egg", label: { es: "Khipu dorado", en: "Golden khipu" } },
   { id: "field:huerto", kind: "field", label: { es: "Huerto de código", en: "Code garden" } },
   { id: "field:khipu-board", kind: "field", label: { es: "Khipu de escritos", en: "Writing khipu" } },
+  { id: "fauna:oso", kind: "fauna", label: { es: "Oso de anteojos", en: "Spectacled bear" } },
+  { id: "fauna:pato", kind: "fauna", label: { es: "Pato de los torrentes", en: "Torrent duck" } },
+  { id: "fauna:perdiz", kind: "fauna", label: { es: "Perdiz andina", en: "Andean tinamou" } },
+  { id: "fauna:zorro", kind: "fauna", label: { es: "Zorro andino", en: "Andean fox" } },
+  { id: "fauna:puma", kind: "fauna", label: { es: "Puma", en: "Puma" } },
 ];
 
 const ids = new Set(CATALOG.map((stamp) => stamp.id));
@@ -84,7 +89,8 @@ export function recordStamp(state: PassportState, id: string, time = Date.now())
 }
 
 export function passportComplete(state: PassportState): boolean {
-  return CATALOG.every((stamp) => stamp.kind === "egg" || validTime(state.stamps[stamp.id]));
+  // Eggs and wildlife are bonus finds (the puma and the bear are rare): they never gate completion.
+  return CATALOG.every((stamp) => stamp.kind === "egg" || stamp.kind === "fauna" || validTime(state.stamps[stamp.id]));
 }
 
 /** Read-only merged progress: arcade remains owned by its existing store. */
@@ -93,7 +99,10 @@ export function mergedPassport(state = loadPassport(), arcade: ArcadeState = loa
     const collectedAt = validTime(state.stamps[stamp.id]) ? state.stamps[stamp.id] : null;
     return {
       ...stamp,
-      label: stamp.kind === "egg" && collectedAt === null ? { es: "???", en: "???" } : stamp.label,
+      label:
+        (stamp.kind === "egg" || stamp.kind === "fauna") && collectedAt === null
+          ? { es: "???", en: "???" }
+          : stamp.label,
       collectedAt,
     };
   });

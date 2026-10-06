@@ -1,9 +1,10 @@
 /**
  * Big paper map + fast travel (core). M / `world:map` / the HUD map button / gamepad Y open a full-screen
  * ink-on-paper map: terrain baked once from heightAt (hypsometric tints + contour lines), the Qhapaq Ñan,
- * station markers, the traveler and their heading. Stations already visited (passport stamps
- * `station:<id>` / `summit`, the passport's localStorage, or walking up to them) can be chosen to travel:
- * the map emits `world:teleport {to}` and index.ts moves the traveler with a short fade.
+ * station markers, the traveler and their heading. Visited stations are marked from the passport's
+ * station stamps (the only stored record of the walk). Fast travel is earned: it opens for every station once
+ * the traveler has reached the summit (`summit` stamp, kept in storage); then the map emits
+ * `world:teleport {to}` and index.ts moves the traveler with a short fade.
  * Next to the canvas, a keyboard list of stations (the accessible version of the map).
  */
 import "./map.css";
@@ -27,8 +28,9 @@ export interface MapBounds {
 }
 
 export const PASSPORT_KEY = "ldiego73-passport-v1";
-export const VISITED_KEY = "ldiego73-world-visited-v1";
-/** Stations you can always travel to (the trailhead). */
+/** Retired: the map used to keep its own visited list; the passport is now the only record (removed on load). */
+const LEGACY_VISITED_KEY = "ldiego73-world-visited-v1";
+/** Stops that count as visited from the start (the trailhead). */
 export const ALWAYS_OPEN = new Set(["gate"]);
 
 /** Square bounds around points, padded. */
@@ -85,9 +87,12 @@ const COPY = {
     title: "Mapa del Qhapaq Ñan",
     close: "Cerrar mapa",
     list: "Estaciones",
-    hint: "Elige una estación visitada para viajar.",
+    hint: "Elige una estación para viajar como chasqui.",
+    hintLocked: "Llega a la cumbre para viajar como chasqui.",
     travel: "Viajar",
+    seen: "Visitada",
     locked: "Por descubrir",
+    unlocked: "Ahora conoces el Qhapaq Ñan: abre el mapa (M) y viaja como chasqui.",
     here: "Estás aquí",
     you: "Tú",
     canvas: "Mapa en papel del camino: el valle abajo, la cumbre arriba.",
@@ -97,9 +102,12 @@ const COPY = {
     title: "Qhapaq Ñan map",
     close: "Close map",
     list: "Stations",
-    hint: "Pick a visited station to travel there.",
+    hint: "Pick a station to travel there like a chasqui.",
+    hintLocked: "Reach the summit to travel like a chasqui.",
     travel: "Travel",
+    seen: "Visited",
     locked: "Not yet found",
+    unlocked: "You know the Qhapaq Ñan now: open the map (M) and travel like a chasqui.",
     here: "You are here",
     you: "You",
     canvas: "Paper map of the trail: the valley below, the summit above.",
@@ -134,21 +142,19 @@ export function createBigMap(
   },
 ): BigMap {
   const c = COPY[lang];
+  // The passport is the single record of the walk: its station stamps mark "visited" stations and its
+  // `summit` stamp earns fast travel (it stays open on later visits). Walking up to a stop between
+  // stamps only marks it for this page view.
   const visited = new Set<string>(ALWAYS_OPEN);
+  let canTravel = false;
   try {
-    for (const id of parsePassport(localStorage.getItem(PASSPORT_KEY))) visited.add(id);
-    const mine = JSON.parse(localStorage.getItem(VISITED_KEY) ?? "[]") as unknown;
-    if (Array.isArray(mine)) for (const id of mine) if (typeof id === "string") visited.add(id);
+    localStorage.removeItem(LEGACY_VISITED_KEY);
+    const stamped = parsePassport(localStorage.getItem(PASSPORT_KEY));
+    for (const id of stamped) visited.add(id);
+    canTravel = stamped.includes("summit");
   } catch {
     /* storage unavailable */
   }
-  const save = () => {
-    try {
-      localStorage.setItem(VISITED_KEY, JSON.stringify([...visited]));
-    } catch {
-      /* storage unavailable */
-    }
-  };
 
   const ov = createOverlay(host, {
     className: "kw-map",
@@ -182,7 +188,7 @@ export function createBigMap(
       <div class="kw-map-sheet"><canvas class="kw-map-canvas" role="img"></canvas></div>
       <nav class="kw-map-side" aria-labelledby="kw-map-list-h">
         <h3 id="kw-map-list-h" class="kw-map-list-h">${esc(c.list)}</h3>
-        <p class="kw-map-hint" id="kw-map-hint">${esc(c.hint)}</p>
+        <p class="kw-map-hint" id="kw-map-hint">${esc(canTravel ? c.hint : c.hintLocked)}</p>
         <ol class="kw-map-list" aria-describedby="kw-map-hint"></ol>
       </nav>
     </div>`;
@@ -204,17 +210,18 @@ export function createBigMap(
       b.type = "button";
       b.className = "kw-map-item";
       b.dataset.id = s.id;
-      const open = visited.has(s.id);
+      const seen = visited.has(s.id);
+      const open = canTravel;
       if (!open) b.setAttribute("aria-disabled", "true");
       if (s.id === here) b.setAttribute("aria-current", "location");
-      const state = s.id === here ? c.here : open ? c.travel : c.locked;
+      const state = s.id === here ? c.here : open ? c.travel : seen ? c.seen : c.locked;
       b.innerHTML = `<span class="kw-map-dot" style="--dye:${esc(s.color)}" aria-hidden="true"></span><span class="kw-map-n" aria-hidden="true">${i + 1}</span><span class="kw-map-name">${esc(open ? s.label : `${s.label}`)}</span><span class="kw-map-state">${esc(state)}</span>`;
       li.append(b);
       list.append(li);
     });
   };
   const travel = (id: string) => {
-    if (!visited.has(id) || id === here) return;
+    if (!canTravel || id === here) return;
     ov.close();
     emit("world:teleport", { to: id });
   };
@@ -423,21 +430,44 @@ export function createBigMap(
 
   // ------------------------------------------------------------ visited
   const visit = (id: string) => {
+    // Walking onto the summit plaza earns fast travel (even if the summit was "visited" before).
+    if (id === "summit") unlock(true);
     if (visited.has(id) || !o.stops.some((s) => s.id === id)) return;
     visited.add(id);
-    save();
     if (ov.isOpen()) {
       renderList();
       draw();
     }
   };
+  const hintEl = ov.panel.querySelector(".kw-map-hint") as HTMLParagraphElement;
+  const unlock = (announce: boolean) => {
+    if (canTravel) return;
+    canTravel = true;
+    hintEl.textContent = c.hint;
+    if (ov.isOpen()) {
+      renderList();
+      draw();
+    }
+    if (!announce) return;
+    const toast = document.createElement("p");
+    toast.className = "kw-map-toast";
+    toast.setAttribute("role", "status");
+    toast.textContent = c.unlocked;
+    host.append(toast);
+    setTimeout(() => toast.classList.add("is-out"), 5200);
+    setTimeout(() => toast.remove(), 5800);
+  };
   const offStamp = on("world:stamp", (d) => {
     if (d?.kind !== "station" && d?.kind !== "summit") return;
     const id = stampToStop(d.id);
     if (id) visit(id);
+    if (d.kind === "summit") unlock(true);
   });
   const onStorage = (e: StorageEvent) => {
-    if (e.key === PASSPORT_KEY) for (const id of parsePassport(e.newValue)) visit(id);
+    if (e.key !== PASSPORT_KEY) return;
+    const ids = parsePassport(e.newValue);
+    for (const id of ids) visit(id);
+    if (ids.includes("summit")) unlock(false);
   };
   window.addEventListener("storage", onStorage);
 
@@ -449,7 +479,8 @@ export function createBigMap(
     canvas.setAttribute("aria-label", label ? `${c.canvas} ${c.near}: ${label}.` : c.canvas);
     const focus =
       list.querySelector<HTMLElement>('[aria-current="location"]') ??
-      list.querySelector<HTMLElement>(".kw-map-item:not([aria-disabled])");
+      list.querySelector<HTMLElement>(".kw-map-item:not([aria-disabled])") ??
+      closeBtn;
     ov.open(focus);
     requestAnimationFrame(draw);
   };

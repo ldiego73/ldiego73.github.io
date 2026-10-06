@@ -56,6 +56,11 @@ describe("Qhapaq Ñan passport", () => {
       "egg:golden-khipu",
       "field:huerto",
       "field:khipu-board",
+      "fauna:oso",
+      "fauna:pato",
+      "fauna:perdiz",
+      "fauna:zorro",
+      "fauna:puma",
     ];
     expect(CATALOG.map((stamp) => stamp.id).sort()).toEqual(expected.sort());
     expect(new Set(expected).size).toBe(CATALOG.length);
@@ -131,7 +136,7 @@ describe("Qhapaq Ñan passport", () => {
     const view = mergedPassport(state, arcade);
     expect(view.worldCollected).toBe(2);
     expect(view.arcadeCollected).toBe(1);
-    expect(view.total).toBe(27 + ACHIEVEMENTS.length);
+    expect(view.total).toBe(32 + ACHIEVEMENTS.length);
     expect(view.collected).toBe(3);
     expect(view.percentage).toBe(Math.round(300 / view.total));
     expect(view.world.find((stamp) => stamp.id === "egg:vizcacha-1")?.label).toEqual({ es: "???", en: "???" });
@@ -155,10 +160,10 @@ describe("Qhapaq Ñan passport", () => {
     );
   });
 
-  test("completion needs all non-egg stamps, independently of eggs and arcade", () => {
+  test("completion needs all non-egg, non-fauna stamps, independently of eggs, wildlife and arcade", () => {
     const state = emptyPassport();
     expect(passportComplete(state)).toBe(false);
-    for (const stamp of CATALOG) if (stamp.kind !== "egg") state.stamps[stamp.id] = 1234;
+    for (const stamp of CATALOG) if (stamp.kind !== "egg" && stamp.kind !== "fauna") state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
     expect(mergedPassport(state, emptyState()).worldCollected).toBe(21);
     delete state.stamps["weather:fog"];

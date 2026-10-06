@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createGovernor, LEVELS } from "./quality";
+import { createGovernor, DEFAULT_GOVERNOR, LEVELS } from "./quality";
 
 const run = (g: ReturnType<typeof createGovernor>, fps: number, seconds: number) => {
   const ms = 1000 / fps;
@@ -16,15 +16,15 @@ describe("quality governor", () => {
     expect(g.level()).toBe(0);
   });
 
-  test("steps down after ~3 s under 40 fps, one level at a time", () => {
+  test("steps down after ~2 s under 45 fps, one level at a time", () => {
     const steps: number[] = [];
     const g = createGovernor((l) => steps.push(l));
     run(g, 60, 2);
-    run(g, 30, 2.4);
+    run(g, 30, 1.6);
     expect(steps).toEqual([]);
-    run(g, 30, 1);
+    run(g, 30, 0.7);
     expect(steps).toEqual([1]);
-    run(g, 30, 3.2);
+    run(g, 30, 2.2);
     expect(steps).toEqual([1, 2]);
     run(g, 30, 20);
     expect(g.level()).toBe(LEVELS.length - 1);
@@ -32,7 +32,8 @@ describe("quality governor", () => {
 
   test("steps up after ~10 s above 58 fps, with a longer wait after a bounce", () => {
     const steps: number[] = [];
-    const g = createGovernor((l) => steps.push(l));
+    // Original 40 fps / 3 s thresholds: this test is about the climb and the bounce, not the drop.
+    const g = createGovernor((l) => steps.push(l), { ...DEFAULT_GOVERNOR, lowFps: 40, downAfter: 3 });
     run(g, 60, 2);
     run(g, 30, 3.5);
     expect(g.level()).toBe(1);

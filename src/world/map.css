@@ -149,3 +149,39 @@
     display: none;
   }
 }
+
+/* "Fast travel unlocked" note after the first summit. */
+.kw-map-toast {
+  position: absolute;
+  z-index: 25;
+  left: 50%;
+  /* Bottom centre, above the prompt pill: the summit banner owns the top. */
+  bottom: 96px;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100% - 32px));
+  margin: 0;
+  padding: 0.7em 1.1em;
+  background: #f4ead6;
+  color: #1f1a17;
+  border: 2px solid #1f1a17;
+  border-radius: 6px;
+  box-shadow: 3px 3px 0 #1f1a17;
+  font: 600 0.95rem / 1.35 var(--font-body, system-ui, sans-serif);
+  text-align: center;
+  animation: kw-map-toast-in 0.35s ease-out;
+  transition: opacity 0.5s;
+}
+.kw-map-toast.is-out {
+  opacity: 0;
+}
+@keyframes kw-map-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kw-map-toast {
+    animation: none;
+  }
+}

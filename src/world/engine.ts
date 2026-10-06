@@ -20,6 +20,8 @@ export interface Engine {
   /** Upper bound for the renderer pixel ratio (auto quality governor); null removes it. No geometry is rebuilt. */
   setPixelRatioCap(cap: number | null): void;
   pixelRatio(): number;
+  /** Rolling average CPU ms per frame spent in frame listeners (update) and composer.render (render). */
+  stats: { update: number; render: number };
   onFrame(fn: (dt: number, t: number) => void): () => void;
   /**
    * Resolves with a 2D copy of the next rendered frame. The copy is made in the same tick right after
@@ -88,6 +90,7 @@ export function createEngine(host: HTMLElement, opts: { quality: Quality }): Eng
   ro.observe(host);
 
   const listeners = new Set<(dt: number, t: number) => void>();
+  const stats = { update: 0, render: 0 };
   let lastT = performance.now();
   let raf = 0;
   let held = false;
@@ -99,7 +102,12 @@ export function createEngine(host: HTMLElement, opts: { quality: Quality }): Eng
     lastT = now;
     elapsed += dt;
     for (const fn of listeners) fn(dt, elapsed);
+    const t1 = performance.now();
     composer.render(dt);
+    const t2 = performance.now();
+    // Rolling CPU cost per frame (dev overlay / quality probes): update vs. render submission.
+    stats.update += (t1 - now - stats.update) * 0.05;
+    stats.render += (t2 - t1 - stats.render) * 0.05;
     if (captures.length) flushCaptures();
   };
   const captures: Array<(c: HTMLCanvasElement) => void> = [];
@@ -137,6 +145,7 @@ export function createEngine(host: HTMLElement, opts: { quality: Quality }): Eng
       applySize();
     },
     pixelRatio: () => dpr,
+    stats,
     onFrame(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);

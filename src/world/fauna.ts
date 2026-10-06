@@ -377,6 +377,64 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     if (h) addHerd("alpaca", size, tb ? alpacaRules : valley, h);
   }
 
+  // Vicuñas belong to the high puna: extra herds spread along the upper trail so the climb never goes quiet.
+  // Puna ground isn't painted as grass, so these rules skip the grass test (slope/height still apply).
+  const upper: GroundRules = {
+    ...rules(18, 82, 12, trail.halfWidth + 3),
+    walkable: (x, z) => env.walkable(x, z) || nearStation(x, z, 12) || trailDist(x, z) < trail.halfWidth + 3,
+    maxSlope: 1.1,
+  };
+  // Close to the path (6–22 u) so they're actually met: by the khipu board, along the gorge, at the summit.
+  for (const t of high ? [0.45, 0.55, 0.66, 0.78, 0.88, 0.96] : [0.5, 0.7, 0.92]) {
+    const tp = trail.pointAt(t);
+    const h =
+      pickHome(upper, [6, 22], { x: tp.x, z: tp.z, rad: 26 }) ??
+      pickHome(upper, [4, 40], { x: tp.x, z: tp.z, rad: 44 });
+    if (h) addHerd("vicuna", 3 + Math.floor(R() * 3), upper, h);
+  }
+
+  // Alpacas grazing by the Khipu de escritos (an off-trail plaza the herds above never reach).
+  {
+    let pose: THREE.Vector3 | null = null;
+    try {
+      pose = env.stationPose("build-2").position;
+    } catch {
+      /* not placed */
+    }
+    if (pose) {
+      const byBoard: GroundRules = {
+        ...rules(1.9, 82, 6, trail.halfWidth + 1),
+        walkable: (x, z) =>
+          env.walkable(x, z) || trailDist(x, z) < trail.halfWidth + 1 || Math.hypot(x - pose.x, z - pose.z) < 7,
+        maxSlope: 0.9,
+      };
+      const h = pickHome(byBoard, [5, 40], { x: pose.x, z: pose.z, rad: 18 });
+      if (h) addHerd("alpaca", high ? 4 : 3, byBoard, h);
+    }
+  }
+
+  // The summit is a narrow peak (pickHome wants room to graze): a small herd on the last open ledge.
+  summit: for (let t = 0.97; t > 0.86; t -= 0.01) {
+    const tp = trail.pointAt(t);
+    const tg = trail.tangentAt(t);
+    for (const side of [1, -1])
+      for (let lat = 5; lat <= 13; lat += 2) {
+        const x = tp.x - tg.z * side * lat;
+        const z = tp.z + tg.x * side * lat;
+        if (!goodGround(upper, x, z) || !farFromHomes(x, z, 10)) continue;
+        let room = 0;
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * TAU;
+          if (goodGround(upper, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5)) room++;
+        }
+        if (room < 3) continue;
+        const home = { x, z };
+        homes.push(home);
+        addHerd("vicuna", high ? 4 : 3, upper, home);
+        break summit;
+      }
+  }
+
   // ---------------------------------------------------------------- caravan (llamas on the trail)
   const caravanN = high ? 3 : 2;
   // Ping-pong on the paved stretch below the gorge: stop where the ground leaves the trail profile.

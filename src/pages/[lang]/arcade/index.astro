@@ -401,22 +401,23 @@ const passportCopy = {
     z-index: 2;
     top: var(--space-3);
     right: var(--gutter);
-    --au-bg: var(--floor);
+    /* Floats over the 3D hall: no frame, just the icon (a soft fill on hover/focus). */
+    --au-bg: transparent;
     --au-fg: var(--ink);
     --au-dim: var(--dim);
     --au-accent: var(--cyan);
-    --au-edge: #121318;
-    --au-border: #121318;
+    --au-edge: transparent;
+    --au-border: transparent;
     --au-radius: 2px;
-    --au-shade: inset 0 -3px 0 #121318;
+    --au-shade: none;
   }
   .hall-audio:empty {
     display: none;
   }
   .hall-audio :global(> *) {
-    border: 3px solid #121318;
-    border-radius: 2px;
-    box-shadow: inset 0 -3px 0 #121318;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
   }
   .hall-ui {
     position: relative;
