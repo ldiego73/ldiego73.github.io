@@ -1,0 +1,246 @@
+/* Tambo exhibits + bridge C4 maquettes: paper-and-ink dialog matching the world HUD (hud.css .qn-panel)
+   without depending on it. Sits on the right so content's left panel stays readable. Prefix qnx-. */
+.qnx-layer {
+  --qnx-ink: #1f1a17;
+  --qnx-paper: #f3ead8;
+  --qnx-paper-2: #e9dcc4;
+  --qnx-muted: #5b4a3a;
+  --qnx-ochre: #dda63c;
+  --qnx-top: max(14px, env(safe-area-inset-top));
+  --qnx-bottom: max(18px, env(safe-area-inset-bottom));
+  --qnx-side: max(14px, env(safe-area-inset-right));
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  color: var(--qnx-ink);
+  font: 400 15px / 1.5 var(--font-body, "Hanken Grotesk", system-ui, sans-serif);
+}
+
+.qnx-panel {
+  position: absolute;
+  top: calc(var(--qnx-top) + 84px);
+  right: var(--qnx-side);
+  width: min(380px, calc(100vw - 2 * var(--qnx-side)));
+  max-height: calc(100dvh - var(--qnx-top) - 84px - var(--qnx-bottom) - 80px);
+  display: flex;
+  flex-direction: column;
+  border: 2.5px solid var(--qnx-ink);
+  border-radius: 10px;
+  background: var(--qnx-paper);
+  box-shadow:
+    5px 5px 0 var(--qnx-ink),
+    0 18px 40px -18px rgb(31 26 23 / 0.5);
+  pointer-events: auto;
+  transform-origin: top right;
+}
+.qnx-panel[hidden] {
+  display: none;
+}
+.qnx-panel.is-open {
+  animation: qnx-unfold 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes qnx-unfold {
+  from {
+    clip-path: inset(0 0 100% 0 round 10px);
+    transform: translateY(-6px) rotate(0.6deg);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 10px);
+    transform: none;
+  }
+}
+.qnx-panel::before {
+  content: "";
+  height: 10px;
+  flex: none;
+  border-bottom: 2px solid var(--qnx-ink);
+  border-radius: 7px 7px 0 0;
+  background: var(--qnx-dye, var(--qnx-ochre));
+}
+.qnx-head {
+  padding: 14px 58px 6px 18px;
+}
+.qnx-kicker {
+  margin: 0 0 4px;
+  font: 800 0.78rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--qnx-muted);
+}
+.qnx-title {
+  margin: 0;
+  font: 800 1.5rem / 1.05 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 68%;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.qnx-title:focus {
+  outline: none;
+}
+.qnx-title:focus-visible {
+  outline: 3px solid var(--qnx-ochre);
+  outline-offset: 3px;
+}
+.qnx-close {
+  position: absolute;
+  top: 18px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 2.5px solid var(--qnx-ink);
+  border-radius: 6px;
+  background: var(--qnx-paper);
+  color: var(--qnx-ink);
+  box-shadow: 2px 2px 0 var(--qnx-ink);
+  cursor: pointer;
+}
+.qnx-close svg {
+  width: 18px;
+  height: 18px;
+}
+.qnx-close:hover {
+  background: #fff7e6;
+}
+.qnx-close:focus-visible {
+  outline: 3px solid var(--qnx-ochre);
+  outline-offset: 2px;
+}
+.qnx-body {
+  overflow: auto;
+  padding: 4px 18px 18px;
+}
+.qnx-tech {
+  margin: 0 0 10px;
+  font: 600 0.8rem / 1.35 var(--font-mono, "JetBrains Mono", monospace);
+  color: var(--qnx-muted);
+}
+.qnx-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 6px 0 4px;
+}
+.qnx-metric b {
+  font: 800 2.6rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 70%;
+  color: var(--qnx-ink);
+  padding: 2px 10px 4px;
+  border: 2.5px solid var(--qnx-ink);
+  border-radius: 6px;
+  background: var(--qnx-dye, var(--qnx-ochre));
+  box-shadow: 3px 3px 0 var(--qnx-ink);
+}
+.qnx-text {
+  margin: 8px 0 12px;
+  font-size: 1.02rem;
+  text-wrap: pretty;
+}
+.qnx-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 2px dashed rgb(31 26 23 / 0.45);
+  border-radius: 8px;
+  background: var(--qnx-paper-2);
+  font-size: 0.9rem;
+}
+.qnx-meta dt {
+  font: 800 0.72rem / 1.6 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qnx-muted);
+}
+.qnx-meta dd {
+  margin: 0;
+}
+.qnx-h3 {
+  margin: 14px 0 6px;
+  font: 800 0.78rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--qnx-muted);
+}
+.qnx-legend {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.qnx-legend li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+}
+.qnx-sw {
+  flex: none;
+  width: 22px;
+  height: 16px;
+  border: 2px solid var(--qnx-ink);
+  border-radius: 3px;
+}
+.qnx-sw.is-arrow {
+  height: 0;
+  border-width: 0;
+  border-top: 3px solid var(--qnx-ink);
+  border-radius: 0;
+  position: relative;
+}
+.qnx-sw.is-arrow::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: -7px;
+  border: 5px solid transparent;
+  border-left: 8px solid var(--qnx-ink);
+}
+.qnx-sw.is-boundary {
+  border-style: dashed;
+  background: transparent;
+}
+.qnx-legend small {
+  color: var(--qnx-muted);
+}
+.qnx-hint {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  color: var(--qnx-muted);
+}
+
+@media (max-width: 640px) {
+  .qnx-panel {
+    top: auto;
+    bottom: calc(var(--qnx-bottom) + 64px);
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: 52dvh;
+  }
+  .qnx-title {
+    font-size: 1.3rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qnx-panel.is-open {
+    animation: none;
+  }
+}
+
+/* Phones: one sheet at a time — hide the station/artifact panel while this one is up. */
+@media (max-width: 640px) {
+  .qn-xpanel-open .qn-panel {
+    visibility: hidden;
+  }
+}

@@ -1,4 +1,4 @@
-import type { AudioOutput, AudioState, MusicPlayer, PlayOptions, Stinger, Track } from "./contract";
+import type { AudioOutput, AudioState, MusicClock, MusicPlayer, PlayOptions, Stinger, Track } from "./contract";
 import { AudioEngine, LOOKAHEAD, TICK_MS, type TrackRunner } from "./engine";
 import { loadSettings, saveSettings } from "./settings";
 
@@ -116,6 +116,7 @@ export class Player implements MusicPlayer {
           sfx: this.engine.sfxBus,
           ambient: this.engine.ambientBus,
           voices: this.engine.voices,
+          music: this.engine.musicBus,
         };
         this.engine.setLevel(this.state.volume, this.state.muted);
       }
@@ -285,6 +286,11 @@ export class Player implements MusicPlayer {
   output(): AudioOutput | null {
     if (!this.out || !this.live || this.state.muted || this.hidden || this.userPaused) return null;
     return this.out; // built once at unlock: callers poll this every frame
+  }
+
+  clock(out?: MusicClock): MusicClock | null {
+    if (!this.active || this.active.disposed || !this.live) return null;
+    return this.active.clock(out);
   }
 
   setMuted(muted: boolean) {

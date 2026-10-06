@@ -16,9 +16,12 @@
  * free perches near the traveler from time to time, so the climb always has birds around.
  * Reduced motion: no wing-blur flicker, calmer heads, fewer spontaneous flights.
  * `nearestBird()` reports the closest small bird for the soundscape (not wired).
+ * Bodies (creatures.ts: "tangara", "colibri", "gallito", "condor"): listed for queries, never solid (they
+ * live in the trees, at flowers and in the air, out of the traveler's way).
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient, WorldEnv } from "../contract";
+import { type Body, creatures, PARKED } from "../creatures";
 import type { FloraPerches } from "../flora";
 import { inkAware, rigMaterial } from "../flora/material";
 import { rng } from "../tex";
@@ -95,7 +98,10 @@ interface Bird {
   ox: number;
   oz: number;
   seed: number;
+  body: Body;
 }
+
+const BODY_R: Record<BirdKind, number> = { tangara: 0.12, colibri: 0.08, gallito: 0.18, condor: 0.9 };
 
 // Module-level nearest small bird (soundscape hook).
 const nearest = { x: 0, y: 0, z: 0, d: Number.POSITIVE_INFINITY, kind: "" as BirdKind | "" };
@@ -180,6 +186,7 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
     ox: 1,
     oz: 0,
     seed: R() * 100,
+    body: creatures.add(sp.kind, BODY_R[sp.kind], { solid: false, x: PARKED, z: PARKED }),
   });
 
   const recPos = (arr: Float32Array, stride: number, i: number, out: Vec) => {
@@ -262,6 +269,7 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
     flapT: 8 + R() * 10,
     flap: 0,
     seed: R() * 100,
+    body: creatures.add("condor", BODY_R.condor, { solid: false, x: PARKED, z: PARKED }),
   }));
 
   // ---------------------------------------------------------------- behaviour
@@ -506,6 +514,8 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
       for (const b of birds) {
         stepSmall(b, dt, t, pos);
         writeBird(b, t);
+        b.body.x = b.x;
+        b.body.z = b.z;
         const d = Math.hypot(b.x - pos.x, b.y - pos.y, b.z - pos.z);
         if (d < nearest.d) {
           nearest.d = d;
@@ -522,6 +532,8 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
         c.a += ((c.dir * v) / c.r) * dt;
         soarPoint(summit.x, summit.z, c.r + Math.sin(t * 0.05 + c.seed) * 8, c.a, c.dir, _soar);
         const y = c.base + Math.sin(t * 0.17 + c.seed) * 3;
+        c.body.x = _soar.x;
+        c.body.z = _soar.z;
         c.flapT -= dt;
         if (c.flapT <= 0 && !rm) {
           c.flap = 2.4;
@@ -547,6 +559,8 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
       }
     },
     dispose() {
+      for (const b of birds) creatures.remove(b.body);
+      for (const c of condors) creatures.remove(c.body);
       for (const s of species) {
         s.mesh.removeFromParent();
         s.mesh.geometry.dispose();

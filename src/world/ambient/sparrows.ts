@@ -3,9 +3,11 @@
  * along the edges of the trail. A small pool follows the traveler: birds wait on the curb a little ahead,
  * hop and peck, flush when the traveler comes close (sooner when running or riding) and land again further
  * up the path. They sleep at night. Instanced: five draw calls for the whole flock.
+ * Bodies ("sparrow", creatures.ts): solid on the ground, not in flight; a hop never lands on another body.
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../contract";
+import { type Body, creatures, PARKED, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { on } from "../events";
 
@@ -112,6 +114,12 @@ export const create: CreateAmbient = (env): Ambient => {
     flap: 0,
   }));
 
+  const bodies = birds.map(() => creatures.add("sparrow", 0.12, { solid: false, x: PARKED, z: PARKED }));
+  const crowd: Body[] = [];
+  const free = (b: Body, x: number, z: number) => {
+    for (const o of creatures.near(x, z, b.r, crowd, b)) if (o.solid) return false;
+    return true;
+  };
   const tmp = new THREE.Vector3();
   const tan = new THREE.Vector3();
   let avT = 0;
@@ -143,8 +151,8 @@ export const create: CreateAmbient = (env): Ambient => {
   };
   const spot = { x: 0, y: 0, z: 0 };
 
-  const land = (b: Bird, ahead: number) => {
-    if (!spotAhead(ahead, spot)) return;
+  const land = (b: Bird, i: number, ahead: number) => {
+    if (!spotAhead(ahead, spot) || !free(bodies[i]!, spot.x, spot.z)) return;
     b.state = "ground";
     b.x = spot.x;
     b.y = spot.y;
@@ -202,7 +210,7 @@ export const create: CreateAmbient = (env): Ambient => {
         const dz = b.z - avatar.z;
         const d2 = dx * dx + dz * dz;
         if (b.state === "away") {
-          if (!night && !inside) land(b, 9 + R() * 26);
+          if (!night && !inside) land(b, i, 9 + R() * 26);
         } else if (b.state === "ground") {
           if (night || d2 > 48 * 48) b.state = "away";
           else if (d2 < scare * scare) flush(b, avatar);
@@ -220,7 +228,7 @@ export const create: CreateAmbient = (env): Ambient => {
                 // Stay on the curb band, off the paving.
                 const tt = trail.nearestT(nx, nz);
                 trail.pointAt(tt, tmp);
-                if (Math.hypot(nx - tmp.x, nz - tmp.z) > trail.halfWidth + 0.15) {
+                if (Math.hypot(nx - tmp.x, nz - tmp.z) > trail.halfWidth + 0.15 && free(bodies[i]!, nx, nz)) {
                   b.x = nx;
                   b.z = nz;
                   b.y = groundAt(nx, nz);
@@ -240,6 +248,13 @@ export const create: CreateAmbient = (env): Ambient => {
           if (b.f >= 1) b.state = "away";
         }
 
+        const bd = bodies[i]!;
+        if (b.state === "away") park(bd);
+        else {
+          bd.x = b.x;
+          bd.z = b.z;
+          bd.solid = b.state === "ground";
+        }
         if (b.state === "away") {
           for (const m of [torso, head, beak, collar]) m.setMatrixAt(i, hidden);
           wings.setMatrixAt(i * 2, hidden);
@@ -267,6 +282,7 @@ export const create: CreateAmbient = (env): Ambient => {
       for (const m of meshes) m.instanceMatrix.needsUpdate = true;
     },
     dispose() {
+      for (const b of bodies) creatures.remove(b);
       offMount();
       offInterior();
       for (const m of meshes) {

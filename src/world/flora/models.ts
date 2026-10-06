@@ -235,6 +235,8 @@ export function yellowFlowerModel(lite: boolean): FloraModel {
 }
 
 // ---------------------------------------------------------------- trees
+// Tree builders take `lite` (phones, see quality.ts deviceProfile): crown clumps at icosahedron detail 0,
+// about half the triangles of a tree for the same silhouette.
 
 /** Crown clump that remembers where a bird can stand on it. */
 function clump(
@@ -274,7 +276,8 @@ function bark(base: string, light: string, dark: string, freq = 1) {
 }
 
 /** Queñua / Polylepis: 3 twisting stems with red, papery peeling bark; small dense grey-green clumps. */
-export function quenuaModel(): FloraModel {
+export function quenuaModel(lite = false): FloraModel {
+  const d = lite ? 0 : 1;
   const b = new GeoBuilder();
   const R = rng(101);
   const perches: V3[] = [];
@@ -308,14 +311,15 @@ export function quenuaModel(): FloraModel {
   }
   tips.forEach((p, i) => {
     const r = 0.5 + R() * 0.32;
-    clump(b, perches, p.x, p.y + 0.25, p.z, r, 0.66, 3 + i, shade);
+    clump(b, perches, p.x, p.y + 0.25, p.z, r, 0.66, 3 + i, shade, d);
   });
-  clump(b, perches, 0, 3.5, 0, 0.75, 0.62, 41, shade);
+  clump(b, perches, 0, 3.5, 0, 0.75, 0.62, 41, shade, d);
   return { geo: b.build(), perches, flowers: [] };
 }
 
 /** Aliso / Alnus acuminata: straight silver-grey trunk with lenticel bands, tall conical-oval crown. */
-export function alisoModel(): FloraModel {
+export function alisoModel(lite = false): FloraModel {
+  const d = lite ? 0 : 1;
   const b = new GeoBuilder();
   const R = rng(131);
   const perches: V3[] = [];
@@ -360,6 +364,7 @@ export function alisoModel(): FloraModel {
         0.7,
         i * 7 + l,
         shade,
+        d,
       );
     }
   });
@@ -367,7 +372,8 @@ export function alisoModel(): FloraModel {
 }
 
 /** Unca / cloud-forest Myrcianthes: mossy crooked trunk, spreading limbs with epiphytes, umbrella crown. */
-export function uncaModel(): FloraModel {
+export function uncaModel(lite = false): FloraModel {
+  const d = lite ? 0 : 1;
   const b = new GeoBuilder();
   const R = rng(151);
   const perches: V3[] = [];
@@ -392,7 +398,7 @@ export function uncaModel(): FloraModel {
     const lp = arcPath(from, a, len, 1.2 + R() * 0.2, -0.45, 3);
     b.add(tube(lp, [0.14, 0.11, 0.08, 0.06], 6, { tip: false, color: mossy }));
     const end = lp[3] as THREE.Vector3;
-    clump(b, perches, end.x, end.y + 0.45, end.z, 0.95 + R() * 0.3, 0.55, 60 + l, shade);
+    clump(b, perches, end.x, end.y + 0.45, end.z, 0.95 + R() * 0.3, 0.55, 60 + l, shade, d);
     // Perch on the bare limb (good visible spot for the gallito).
     const mid = lp[2] as THREE.Vector3;
     perches.push([mid.x, mid.y + 0.1, mid.z]);
@@ -423,13 +429,14 @@ export function uncaModel(): FloraModel {
       flowers.push([op.x, op.y + 0.2, op.z]);
     }
   }
-  clump(b, perches, top.x, top.y + 0.75, top.z, 1.25, 0.55, 81, shade);
-  clump(b, null, top.x + 0.6, top.y + 0.35, top.z - 0.7, 0.9, 0.55, 82, shade);
+  clump(b, perches, top.x, top.y + 0.75, top.z, 1.25, 0.55, 81, shade, d);
+  clump(b, null, top.x + 0.6, top.y + 0.35, top.z - 0.7, 0.9, 0.55, 82, shade, d);
   return { geo: b.build(), perches, flowers };
 }
 
 /** Pisonay / Erythrina falcata: buttressed trunk, spreading limbs, broad crown studded with red flowers. */
-export function pisonayModel(): FloraModel {
+export function pisonayModel(lite = false): FloraModel {
+  const d = lite ? 0 : 1;
   const b = new GeoBuilder();
   const R = rng(171);
   const perches: V3[] = [];
@@ -461,7 +468,7 @@ export function pisonayModel(): FloraModel {
     blobs.push([V(Math.cos(a) * 1.4, 5.9 + R() * 0.4, Math.sin(a) * 1.4), 1.5 + R() * 0.3]);
   }
   blobs.forEach(([p, r], i) => {
-    clump(b, i < 5 ? perches : null, p.x, p.y, p.z, r, 0.52, 90 + i, shade);
+    clump(b, i < 5 ? perches : null, p.x, p.y, p.z, r, 0.52, 90 + i, shade, d);
   });
   // Flower racemes: upright red cones over the top and the rim of the crown.
   const n = 46;

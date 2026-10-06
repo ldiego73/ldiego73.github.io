@@ -52,6 +52,8 @@ export interface FlockParams {
   onlyRunners?: boolean;
 }
 
+const tv = { x: 0, z: 0 };
+
 export interface Threat {
   x: number;
   z: number;
@@ -62,6 +64,8 @@ export interface Threat {
 /**
  * One steering step for a herd. agents[0] is the leader and steers to `goal` (or rests when goal is null);
  * the rest follow the leader with separation + cohesion + alignment. Everyone eases away from the threat.
+ * `avoid` (optional) bends each agent's wanted velocity around everything else that moves (other herds,
+ * the traveler, predators: creatures.steer) before it is eased in.
  * Mutates velocities in place and returns, per agent, how alarmed it is (0 calm … 1 fleeing).
  */
 export function flockStep(
@@ -70,6 +74,7 @@ export function flockStep(
   threat: Threat | null,
   p: FlockParams,
   dt: number,
+  avoid?: (i: number, want: { x: number; z: number }) => void,
 ): number[] {
   const n = agents.length;
   const alarm: number[] = new Array(n).fill(0);
@@ -143,11 +148,12 @@ export function flockStep(
       }
     }
     const m = Math.hypot(dx, dz);
-    const tvx = m > 1e-4 ? (dx / m) * want : 0;
-    const tvz = m > 1e-4 ? (dz / m) * want : 0;
+    tv.x = m > 1e-4 ? (dx / m) * want : 0;
+    tv.z = m > 1e-4 ? (dz / m) * want : 0;
+    avoid?.(i, tv);
     const k = 1 - Math.exp(-p.agility * dt);
-    a.vx += (tvx - a.vx) * k;
-    a.vz += (tvz - a.vz) * k;
+    a.vx += (tv.x - a.vx) * k;
+    a.vz += (tv.z - a.vz) * k;
   }
   return alarm;
 }

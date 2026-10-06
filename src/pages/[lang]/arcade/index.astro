@@ -1,6 +1,7 @@
 ---
 import Icon from "../../../components/Icon.astro";
 import { NEON } from "../../../games/core/neon";
+import { CHULLO_AT } from "../../../games/core/store";
 import { ACHIEVEMENTS, GAMES } from "../../../games/registry";
 import { LANGS, type Lang, t } from "../../../i18n/ui";
 import Base from "../../../layouts/Base.astro";
@@ -19,6 +20,26 @@ const passportCopy = {
   count: { es: "Pasaporte", en: "Passport" },
   stamps: { es: "sellos", en: "stamps" },
   explore: { es: "Recorrer el camino", en: "Explore the trail" },
+  reward: { es: "Recompensa: cabinas de aguayo", en: "Reward: aguayo cabinets" },
+};
+const rewardCopy = {
+  title: { es: "Recompensas cruzadas", en: "Cross rewards" },
+  skin: { es: "Cabinas de aguayo", en: "Aguayo cabinets" },
+  skinDesc: {
+    es: "Tejido de aguayo en las cabinas y una marquesina de khipu. Se gana completando el pasaporte del mundo andino.",
+    en: "Aguayo weaving on the cabinets and a khipu marquee. Earned by completing the Andean world passport.",
+  },
+  skinGroup: { es: "Estilo de las cabinas", en: "Cabinet style" },
+  neon: { es: "Bloque", en: "Block" },
+  aguayo: { es: "Aguayo", en: "Aguayo" },
+  skinLocked: { es: "Bloqueado · completa el pasaporte", en: "Locked · complete the passport" },
+  chullo: { es: "Chullo de hilo dorado", en: "Golden-thread chullo" },
+  chulloDesc: {
+    es: `Desbloquea ${CHULLO_AT} logros del arcade y tu viajero lo lucirá en el Qhapaq Ñan.`,
+    en: `Unlock ${CHULLO_AT} arcade achievements and your traveler wears it on the Qhapaq Ñan.`,
+  },
+  chulloOn: { es: "Desbloqueado · ya lo llevas en el mundo", en: "Unlocked · you wear it in the world" },
+  progress: { es: "logros", en: "achievements" },
 };
 ---
 <Base lang={lang} title={t(lang, "arcade.title")} description={t(lang, "arcade.lede")}>
@@ -126,7 +147,34 @@ const passportCopy = {
           <div class="passport-strip" data-passport-strip>
             <strong>{passportCopy.title[lang]}</strong>
             <span data-passport-count>{passportCopy.count[lang]}: 0/{CATALOG.length} {passportCopy.stamps[lang]}</span>
+            <span class="passport-reward" data-passport-reward hidden>{passportCopy.reward[lang]}</span>
             <a href={`/${lang}/world/`}>{passportCopy.explore[lang]} <Icon name="arrow" size={16} /></a>
+          </div>
+          <div class="rewards" aria-label={rewardCopy.title[lang]}>
+            <div class="reward locked" data-reward="skin">
+              <span class="reward-swatch reward-aguayo" aria-hidden="true"></span>
+              <span class="reward-text">
+                <b>{rewardCopy.skin[lang]}</b>
+                <span>{rewardCopy.skinDesc[lang]}</span>
+                <span class="reward-state" data-skin-note>{rewardCopy.skinLocked[lang]}</span>
+              </span>
+              <div class="skin-pick" role="radiogroup" aria-label={rewardCopy.skinGroup[lang]} data-skin-pick>
+                <button type="button" role="radio" data-skin="neon" aria-checked="true">{rewardCopy.neon[lang]}</button>
+                <button type="button" role="radio" data-skin="aguayo" aria-checked="false" disabled>
+                  {rewardCopy.aguayo[lang]}
+                </button>
+              </div>
+            </div>
+            <div class="reward locked" data-reward="chullo">
+              <span class="reward-swatch reward-chullo" aria-hidden="true"></span>
+              <span class="reward-text">
+                <b>{rewardCopy.chullo[lang]}</b>
+                <span>{rewardCopy.chulloDesc[lang]}</span>
+                <span class="reward-state" data-chullo-note data-on={rewardCopy.chulloOn[lang]} data-unit={rewardCopy.progress[lang]}>
+                  0/{CHULLO_AT} {rewardCopy.progress[lang]}
+                </span>
+              </span>
+            </div>
           </div>
           <ul class="ach">
             {
@@ -155,13 +203,34 @@ const passportCopy = {
 
 <script>
   import { ACHIEVEMENTS, GAMES } from "../../../games/registry";
-  import { leaderboard, load } from "../../../games/core/store";
+  import {
+    activeSkin,
+    arcadeUnlockedCount,
+    CHULLO_AT,
+    type CabinetSkin,
+    evaluate,
+    grantWorldPassport,
+    leaderboard,
+    load,
+    save,
+    setSkin,
+    skinUnlocked,
+  } from "../../../games/core/store";
   import { getMusic } from "../../../audio";
   import { ARCADE_TRACKS } from "../../../audio/tracks/arcade";
   import { mountAudioControl } from "../../../games/core/audio-control";
-  import { mergedPassport, PASSPORT_KEY } from "../../../lib/passport";
+  import { loadPassport, mergedPassport, PASSPORT_KEY, passportComplete } from "../../../lib/passport";
 
   const state = load();
+  // Cross reward: a complete world passport unlocks "Qhapaq Ñan walker" (and the aguayo skin) here too.
+  if (passportComplete(loadPassport()) && grantWorldPassport(state)) {
+    evaluate(
+      state,
+      ACHIEVEMENTS,
+      GAMES.map((g) => g.slug),
+    );
+    save(state);
+  }
   const lang = document.documentElement.lang === "en" ? "en" : "es";
   const updatePassportStrip = () => {
     const view = mergedPassport();
@@ -200,6 +269,52 @@ const passportCopy = {
   }
   const count = document.querySelector("[data-ach-count]");
   if (count) count.textContent = `${unlocked}/${ACHIEVEMENTS.length}`;
+
+  // Rewards: aguayo cabinet skin (selectable once unlocked) and the world's golden-thread chullo.
+  const world = document.querySelector<HTMLElement>(".block-world");
+  const skinBox = document.querySelector<HTMLElement>('[data-reward="skin"]');
+  const skinButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-skin-pick] [data-skin]")];
+  const paintSkin = () => {
+    const skin = activeSkin(state);
+    if (world) world.dataset.skin = skin;
+    for (const b of skinButtons) b.setAttribute("aria-checked", String(b.dataset.skin === skin));
+  };
+  if (skinUnlocked(state)) {
+    skinBox?.classList.remove("locked");
+    const note = document.querySelector<HTMLElement>("[data-skin-note]");
+    if (note) note.hidden = true;
+    for (const b of skinButtons) b.disabled = false;
+    document.querySelector<HTMLElement>("[data-passport-reward]")?.removeAttribute("hidden");
+  }
+  for (const b of skinButtons) {
+    b.addEventListener("click", () => {
+      setSkin(state, (b.dataset.skin ?? "neon") as CabinetSkin);
+      save(state);
+      paintSkin();
+    });
+  }
+  // Arrow keys move the choice inside the radiogroup.
+  document.querySelector("[data-skin-pick]")?.addEventListener("keydown", (e) => {
+    const k = (e as KeyboardEvent).key;
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(k) || !skinUnlocked(state)) return;
+    e.preventDefault();
+    const i = skinButtons.indexOf(document.activeElement as HTMLButtonElement);
+    const next = skinButtons[(Math.max(0, i) + 1) % skinButtons.length];
+    next?.focus();
+    next?.click();
+  });
+  paintSkin();
+  const done = arcadeUnlockedCount(
+    state,
+    ACHIEVEMENTS.map((a) => a.id),
+  );
+  const chulloNote = document.querySelector<HTMLElement>("[data-chullo-note]");
+  if (chulloNote) {
+    if (done >= CHULLO_AT) {
+      document.querySelector('[data-reward="chullo"]')?.classList.remove("locked");
+      chulloNote.textContent = chulloNote.dataset.on ?? "";
+    } else chulloNote.textContent = `${done}/${CHULLO_AT} ${chulloNote.dataset.unit ?? ""}`;
+  }
 
   // Hall: dial links drive the caption and the 3D focus.
   const hall = document.querySelector<HTMLElement>("[data-hall]");
@@ -349,6 +464,122 @@ const passportCopy = {
   .passport-strip a:focus-visible {
     outline: 2px solid var(--lime);
     outline-offset: 4px;
+  }
+  .passport-reward {
+    color: var(--amber) !important;
+  }
+  .rewards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: 10px;
+    margin: 0 0 18px;
+  }
+  .reward {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 14px;
+    border-radius: 2px;
+    background: #2a2c35;
+    border: 3px solid #121318;
+    box-shadow: inset 0 -5px 0 #121318;
+    font-size: 0.9rem;
+  }
+  .reward b {
+    display: block;
+    color: #efe9da;
+    line-height: 1.25;
+  }
+  .reward-text {
+    display: grid;
+    gap: 4px;
+  }
+  .reward-text > span {
+    color: var(--dim);
+  }
+  .reward-text > .reward-state {
+    font: 500 0.78rem / 1.3 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--amber);
+  }
+  .reward.locked .reward-state {
+    color: var(--dim);
+  }
+  .reward.locked {
+    background: var(--void);
+  }
+  .reward-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 2px;
+    border: 3px solid #121318;
+  }
+  /* Tiny aguayo weave and a golden chullo stripe as reward badges. */
+  .reward-aguayo {
+    background:
+      linear-gradient(135deg, #e2a83c 25%, transparent 25%) -5px 0 / 10px 10px,
+      linear-gradient(225deg, #e2a83c 25%, transparent 25%) -5px 0 / 10px 10px,
+      linear-gradient(315deg, #2f7d5b 25%, transparent 25%) 0 0 / 10px 10px,
+      linear-gradient(45deg, #2f7d5b 25%, transparent 25%) 0 0 / 10px 10px,
+      #b8304f;
+  }
+  .reward-chullo {
+    background: repeating-linear-gradient(0deg, #b8304f 0 6px, #f2c14e 6px 9px, #34418f 9px 14px, #f2c14e 14px 17px);
+  }
+  .reward.locked .reward-swatch {
+    filter: grayscale(1) brightness(0.55);
+  }
+  .skin-pick {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0;
+  }
+  .skin-pick button {
+    min-height: 44px;
+    flex: 1;
+    padding: 8px 12px;
+    font: 700 0.78rem / 1 var(--font-arcade-stack);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--floor);
+    border: 3px solid #121318;
+    cursor: pointer;
+  }
+  .skin-pick button + button {
+    border-left: 0;
+  }
+  .skin-pick button[aria-checked="true"] {
+    background: var(--amber);
+    color: var(--void);
+  }
+  .skin-pick button:disabled {
+    cursor: not-allowed;
+    color: var(--dim);
+    background: var(--void);
+  }
+  /* Aguayo skin on the cabinet tiles: woven band under each marquee, khipu cords hanging from it. */
+  .block-world[data-skin="aguayo"] .tile-marquee {
+    position: relative;
+    border-bottom: 0;
+    padding-bottom: 20px;
+    background:
+      repeating-linear-gradient(60deg, #6b4423 0 4px, #c58b4a 4px 8px) left 0 bottom 10px / 100% 6px no-repeat,
+      repeating-linear-gradient(
+          90deg,
+          #b8304f 0 3px,
+          transparent 3px 12px,
+          #e2a83c 12px 15px,
+          transparent 15px 24px,
+          #2f7d5b 24px 27px,
+          transparent 27px 36px,
+          #efe2c4 36px 39px,
+          transparent 39px 48px
+        )
+        left 8px bottom 0 / 100% 10px no-repeat,
+      var(--dye);
   }
   .block-world {
     --void: #16171d;

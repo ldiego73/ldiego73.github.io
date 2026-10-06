@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { BLOCK } from "../games/core/neon";
+import type { CabinetSkin } from "../games/core/store";
+import { type AguayoTrim, buildAguayoTrim } from "./aguayo";
 
 /** Boxy cabinet, 1.8 units tall, origin at floor center, facing +Z. */
 export interface CabinetOptions {
@@ -15,6 +17,8 @@ export interface Cabinet {
   setScreenTexture(tex: THREE.Texture): void;
   /** 0 = idle, 1 = focused: a small lift and brightness change. */
   setFocus(t: number): void;
+  /** Reward skin (games/core/store activeSkin): "aguayo" adds the woven trim and khipu marquee. */
+  setSkin(skin: CabinetSkin): void;
   dispose(): void;
 }
 
@@ -149,6 +153,8 @@ export function createCabinet(opts: CabinetOptions): Cabinet {
   }
 
   const baseTrim = trimMat.color.clone();
+  let aguayo: AguayoTrim | null = null;
+  let focusNow = 0;
   const cabinet: Cabinet = {
     group,
     screen,
@@ -162,11 +168,24 @@ export function createCabinet(opts: CabinetOptions): Cabinet {
       screenMat.color.setScalar(0.86 + focus * 0.14);
       marqueeMat.color.setScalar(0.92 + focus * 0.08);
       trimMat.color.copy(baseTrim).multiplyScalar(0.9 + focus * 0.1);
+      focusNow = focus;
+      aguayo?.setFocus(focus);
+    },
+    setSkin(skin) {
+      if (disposed) return;
+      if (skin === "aguayo" && !aguayo) {
+        aguayo = buildAguayoTrim();
+        model.add(aguayo.group);
+        cabinet.setFocus(focusNow);
+      }
+      if (aguayo) aguayo.group.visible = skin === "aguayo";
     },
     dispose() {
       if (disposed) return;
       disposed = true;
       group.removeFromParent();
+      aguayo?.dispose();
+      aguayo = null;
       for (const resource of owned) resource.dispose();
       owned.length = 0;
     },

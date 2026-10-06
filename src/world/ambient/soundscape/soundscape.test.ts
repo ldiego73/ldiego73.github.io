@@ -23,7 +23,8 @@ function fakeEnv(night = false) {
     quality: "high",
     camera: new THREE.PerspectiveCamera(),
     trail: { pointAt: (t: number) => v.set(0, t * 40, 0).clone() },
-    sky: { isNight: () => night },
+    sky: { isNight: () => night, time: () => (night ? 0 : 0.5) },
+    stationPose: (id: string) => ({ position: new THREE.Vector3(id.length * 20, 0, 40), yaw: 0 }),
     extra: {
       groundAt: () => 0,
       isGrass: () => true,

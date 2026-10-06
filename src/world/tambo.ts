@@ -3,6 +3,7 @@ import type { Company } from "../data/career";
 import { companyYears, khipuFor } from "./artifacts";
 import type { Collider, Lang, WorldEnv } from "./contract";
 import { buildKhipu, type KhipuModel } from "./cords";
+import { flattenToonGroup, vertexToon } from "./merge-colors";
 import {
   C,
   canvasTex,
@@ -148,7 +149,8 @@ export function buildTambo(env: WorldEnv, company: Company, lang: Lang, id: stri
   // Rocks scattered around the plinth.
   for (let i = 0; i < 4; i++)
     kit.rock(0.18 + rand() * 0.2, (rand() - 0.5) * (w + 1.6), -0.05, z0 - 0.6 + rand() * 0.3, C.stoneDark, rand);
-  group.add(kit.build(`tambo-${id}`));
+  const body = kit.build(`tambo-${id}`);
+  group.add(body);
 
   // Khipu frame to one side in front of the building, facing the trail.
   const side = rand() < 0.5 ? -1 : 1;
@@ -168,7 +170,8 @@ export function buildTambo(env: WorldEnv, company: Company, lang: Lang, id: stri
   sk.box(0.09, 1.25, 0.09, -0.62, 0, 0, C.woodDark);
   sk.box(0.09, 1.25, 0.09, 0.62, 0, 0, C.woodDark);
   sk.box(1.44, 0.6, 0.08, 0, 0.66, -0.01, C.wood);
-  signGroup.add(sk.build("sign"));
+  const signKit = sk.build("sign");
+  signGroup.add(signKit);
   const signGeo = new THREE.PlaneGeometry(1.36, 0.51);
   geos.push(signGeo);
   const face = new THREE.Mesh(signGeo, signMat);
@@ -176,9 +179,8 @@ export function buildTambo(env: WorldEnv, company: Company, lang: Lang, id: stri
   signGroup.add(face);
   // Dye ribbon tied to the post: the company's cord color.
   const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.02), env.toon(DYE[company.dye]));
-  geos.push(ribbon.geometry);
   ribbon.position.set(0.62, 0.95, 0.07);
-  signGroup.add(ribbon);
+  signKit.add(ribbon);
   signGroup.position.set(-side * (w / 2 - 0.3), 0, 2.4);
   signGroup.rotation.y = side * 0.25;
   group.add(signGroup);
@@ -187,6 +189,17 @@ export function buildTambo(env: WorldEnv, company: Company, lang: Lang, id: stri
   const torch = makeTorch(env, 1.55, hashStr(id));
   torch.group.position.set(side * (w / 2 - 0.45), 0, 0.35);
   group.add(torch.group);
+
+  // Draw-call diet: one vertex-colored mesh for the building + the torch post (static, no hit target),
+  // one for the sign's posts/board/ribbon (the sign stays its own tap target with its mapped face).
+  // Flame, core and glow stay separate (night toggles them); the khipu folds its own frame (cords.ts).
+  const vMat = vertexToon();
+  owned.push(vMat);
+  group.updateMatrixWorld(true);
+  const post = torch.group.children.find((o) => o.name === "torch");
+  if (post) for (const m of [...post.children]) body.attach(m);
+  flattenToonGroup(body, vMat);
+  flattenToonGroup(signKit, vMat);
 
   const focus = new THREE.Vector3(kx * 0.7, 0, 2.2);
   const front = new THREE.Vector3(kx * 0.45, 0, 2.6);

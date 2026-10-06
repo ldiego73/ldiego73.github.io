@@ -5,14 +5,22 @@
  * dialog over the 3D world. `createOverlay` is the core's shared dialog helper (also used by map.ts):
  * capture-phase Esc, focus trap, focus restore and `world:modal` on open/close.
  * Styles: textmode.css (imported by index.ts and world.astro).
+ *
+ * Besides the stations it narrates the wildlife you can meet (wildlife.ts: where, when, what it does) and,
+ * in the in-world dialog only, the traveler's passport: stamps collected / missing per section and the best
+ * climb (journey.ts). The passport is read fresh on every open and kept live while open (`world:stamp`,
+ * `world:climb`): items update in place and a polite live region announces new stamps.
  */
 import { ARTIFACTS, COMPANIES, type Company } from "../data/career";
 import { SITE, SOCIALS } from "../data/site";
 import { fmtPeriod, t } from "../i18n/ui";
+import { CATALOG, loadPassport } from "../lib/passport";
 import { aiPoints, artifactUses, hostOfEducation, stationsInOrder } from "./artifacts";
 import type { Lang } from "./contract";
 import type { WorldData } from "./data";
-import { emit } from "./events";
+import { emit, on, type StampKind } from "./events";
+import { formatDuration, loadJourney } from "./journey";
+import { WILDLIFE } from "./wildlife";
 
 const COPY = {
   es: {
@@ -37,6 +45,37 @@ const COPY = {
     close: "Cerrar modo texto",
     skip: "Saltar al modo texto",
     open: "Modo texto",
+    wildlife: "Fauna del camino",
+    wildlifeLede:
+      "Animales que puedes encontrar en el camino, dónde viven, cuándo salen y qué hacen. Algunos dan un sello del pasaporte cuando los ves de cerca.",
+    where: "Dónde",
+    when: "Cuándo",
+    does: "Qué hace",
+    gives: "Da el sello",
+    passport: "Tu pasaporte",
+    passportLede: "Los sellos que llevas en este dispositivo, por sección. Se actualiza mientras juegas.",
+    got: "conseguido",
+    missing: "falta",
+    secret: "Sello secreto, aún sin descubrir",
+    of: "de",
+    stamps: "sellos",
+    best: "Mejor subida (contrarreloj de la puerta a la cumbre)",
+    noBest: "Aún no hay una subida completa cronometrada.",
+    climbs: (n: number) => (n === 1 ? "1 subida" : `${n} subidas`),
+    newStamp: "Nuevo sello",
+    kinds: {
+      station: "Estaciones",
+      summit: "Cumbre",
+      constellation: "Constelaciones",
+      weather: "Clima",
+      ride: "Paseos",
+      egg: "Secretos",
+      field: "Campos de datos",
+      npc: "Encargos del chasqui",
+      record: "Récords",
+      festival: "Fiestas",
+      fauna: "Fauna",
+    } as Record<string, string>,
   },
   en: {
     title: "Qhapaq Ñan · text mode",
@@ -60,6 +99,37 @@ const COPY = {
     close: "Close text mode",
     skip: "Skip to text mode",
     open: "Text mode",
+    wildlife: "Wildlife on the trail",
+    wildlifeLede:
+      "Animals you can meet along the trail, where they live, when they are out and what they do. Some give a passport stamp when you get a good look.",
+    where: "Where",
+    when: "When",
+    does: "What it does",
+    gives: "Stamp",
+    passport: "Your passport",
+    passportLede: "The stamps you hold on this device, by section. It updates while you play.",
+    got: "collected",
+    missing: "missing",
+    secret: "Secret stamp, not found yet",
+    of: "of",
+    stamps: "stamps",
+    best: "Best climb (time trial from the gate to the summit)",
+    noBest: "No timed climb completed yet.",
+    climbs: (n: number) => (n === 1 ? "1 climb" : `${n} climbs`),
+    newStamp: "New stamp",
+    kinds: {
+      station: "Stations",
+      summit: "Summit",
+      constellation: "Constellations",
+      weather: "Weather",
+      ride: "Rides",
+      egg: "Secrets",
+      field: "Data fields",
+      npc: "Chasqui errands",
+      record: "Records",
+      festival: "Festivals",
+      fauna: "Wildlife",
+    } as Record<string, string>,
   },
 } as const;
 
@@ -92,11 +162,76 @@ function companyHtml(c: Company, lang: Lang, level: number): string {
     .join("\n");
 }
 
+/** The field guide (wildlife.ts) as headings + definition lists. */
+export function renderWildlife(lang: Lang, level: number): string {
+  const cp = COPY[lang];
+  const label = (id: string) => CATALOG.find((x) => x.id === id)?.label[lang] ?? id;
+  return WILDLIFE.map(
+    (w) => `<h${level}>${esc(w.name[lang])} <span class="kw-tm-latin" lang="la">${esc(w.latin)}</span></h${level}>
+<dl class="kw-tm-facts"><dt>${esc(cp.where)}</dt><dd>${esc(w.where[lang])}</dd><dt>${esc(cp.when)}</dt><dd>${esc(w.when[lang])}</dd><dt>${esc(cp.does)}</dt><dd>${esc(w.does[lang])}</dd>${
+      w.stamp ? `<dt>${esc(cp.gives)}</dt><dd>${esc(label(w.stamp))}</dd>` : ""
+    }</dl>`,
+  ).join("\n");
+}
+
+/** Secret finds keep their names hidden until found (same rule as the passport panel). */
+const isSecret = (kind: StampKind) => kind === "egg" || kind === "fauna";
+
+/** One passport line: the label (or "secret"), and its state for screen readers. */
+export function passportItem(lang: Lang, id: string, got: boolean): string {
+  const cp = COPY[lang];
+  const st = CATALOG.find((x) => x.id === id);
+  if (!st) return "";
+  const name = got || !isSecret(st.kind) ? st.label[lang] : cp.secret;
+  return `<span class="kw-tm-mark" aria-hidden="true">${got ? "✓" : "·"}</span> ${esc(name)} <span class="kw-tm-state">(${esc(got ? cp.got : cp.missing)})</span>`;
+}
+
+/** The passport, grouped by section in catalog order: counts, collected / missing items, best climb. */
+export function renderPassport(
+  lang: Lang,
+  stamps: Readonly<Record<string, unknown>>,
+  journey: { bestMs: number | null; climbs: number },
+  level: number,
+): string {
+  const cp = COPY[lang];
+  const has = (id: string) => typeof stamps[id] === "number";
+  const kinds: StampKind[] = [];
+  for (const st of CATALOG) if (!kinds.includes(st.kind)) kinds.push(st.kind);
+  const total = CATALOG.length;
+  const got = CATALOG.filter((x) => has(x.id)).length;
+  const groups = kinds
+    .map((k) => {
+      const list = CATALOG.filter((x) => x.kind === k);
+      const n = list.filter((x) => has(x.id)).length;
+      const items = list
+        .map(
+          (x) =>
+            `<li data-stamp="${esc(x.id)}" class="${has(x.id) ? "is-got" : "is-missing"}">${passportItem(lang, x.id, has(x.id))}</li>`,
+        )
+        .join("");
+      return `<h${level} data-kind="${esc(k)}">${esc(cp.kinds[k] ?? k)} <span class="kw-tm-count">${n} ${esc(cp.of)} ${list.length}</span></h${level}><ul class="kw-tm-stamps">${items}</ul>`;
+    })
+    .join("\n");
+  const best = journey.bestMs
+    ? `${esc(formatDuration(journey.bestMs, lang))} · ${esc(cp.climbs(journey.climbs))}`
+    : esc(cp.noBest);
+  return `<p>${esc(cp.passportLede)}</p>
+<p class="kw-tm-summary"><strong class="kw-tm-total">${got} ${esc(cp.of)} ${total}</strong> ${esc(cp.stamps)}</p>
+<p><strong>${esc(cp.best)}:</strong> <span class="kw-tm-best">${best}</span></p>
+${groups}`;
+}
+
 /** The full narration as an HTML string (escaped). `headingLevel` is the level of the document title. */
 export function renderTextMode(
   lang: Lang,
   data: WorldData,
-  opts: { headingLevel?: 1 | 2; titleId?: string; idPrefix?: string } = {},
+  opts: {
+    headingLevel?: 1 | 2;
+    titleId?: string;
+    idPrefix?: string;
+    /** Adds an (empty) passport section first; the in-world dialog fills it from the traveler's storage. */
+    passport?: boolean;
+  } = {},
 ): string {
   const cp = COPY[lang];
   const L = (k: Parameters<typeof t>[1]) => t(lang, k);
@@ -117,6 +252,7 @@ export function renderTextMode(
     );
   };
 
+  if (opts.passport) section("passport", cp.passport, `<div class="kw-tm-passport"></div>`);
   for (const s of stations) {
     const label = s.label[lang];
     if (s.kind === "gate") section(s.id, label, `<p>${esc(cp.gate)}</p><p>${esc(L("qn.gate.next"))}</p>`);
@@ -178,6 +314,7 @@ export function renderTextMode(
         })
         .join("")}</ul>`
     : `<p>${esc(cp.none)}</p>`;
+  section("wildlife", cp.wildlife, `<p>${esc(cp.wildlifeLede)}</p>${renderWildlife(lang, h3)}`);
   section(
     "workshop",
     cp.workshop,
@@ -346,7 +483,17 @@ export function createTextMode(host: HTMLElement, lang: Lang, data: WorldData): 
     bar.append(close);
     const doc = document.createElement("article");
     doc.className = "kw-textdoc";
-    doc.innerHTML = renderTextMode(lang, data, { headingLevel: 2, titleId: "kw-tm-ov-title", idPrefix: "kw-tmo-" });
+    doc.innerHTML = renderTextMode(lang, data, {
+      headingLevel: 2,
+      titleId: "kw-tm-ov-title",
+      idPrefix: "kw-tmo-",
+      passport: true,
+    });
+    passportBox = doc.querySelector<HTMLElement>(".kw-tm-passport");
+    live = document.createElement("p");
+    live.className = "kw-tm-live";
+    live.setAttribute("role", "status");
+    live.setAttribute("aria-live", "polite");
     // In-dialog table of contents: scroll inside the panel instead of changing the URL hash.
     doc.addEventListener("click", (e) => {
       const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]');
@@ -358,12 +505,55 @@ export function createTextMode(host: HTMLElement, lang: Lang, data: WorldData): 
       target.querySelector<HTMLElement>("h2, h3")?.setAttribute("tabindex", "-1");
       target.querySelector<HTMLElement>("h2, h3")?.focus({ preventScroll: true });
     });
-    ov.panel.append(bar, doc);
+    ov.panel.append(bar, doc, live);
   };
+  // ---- passport: fresh from storage on open, then patched in place while open
+  let passportBox: HTMLElement | null = null;
+  let live: HTMLElement | null = null;
+  const stamps: Record<string, number> = {};
+  const refreshPassport = () => {
+    if (!passportBox) return;
+    for (const k of Object.keys(stamps)) delete stamps[k];
+    Object.assign(stamps, loadPassport().stamps);
+    passportBox.innerHTML = renderPassport(lang, stamps, loadJourney(), 4);
+  };
+  const markStamp = (id: string) => {
+    if (!passportBox || typeof stamps[id] === "number") return;
+    const st = CATALOG.find((x) => x.id === id);
+    if (!st) return;
+    stamps[id] = Date.now();
+    const li = passportBox.querySelector<HTMLElement>(`li[data-stamp="${CSS.escape(id)}"]`);
+    if (li) {
+      li.className = "is-got";
+      li.innerHTML = passportItem(lang, id, true);
+    }
+    const list = CATALOG.filter((x) => x.kind === st.kind);
+    const count = passportBox.querySelector<HTMLElement>(`[data-kind="${CSS.escape(st.kind)}"] .kw-tm-count`);
+    if (count)
+      count.textContent = `${list.filter((x) => typeof stamps[x.id] === "number").length} ${cp.of} ${list.length}`;
+    const total = passportBox.querySelector<HTMLElement>(".kw-tm-total");
+    if (total)
+      total.textContent = `${CATALOG.filter((x) => typeof stamps[x.id] === "number").length} ${cp.of} ${CATALOG.length}`;
+    if (live && ov.isOpen()) live.textContent = `${cp.newStamp}: ${st.label[lang]}`;
+  };
+  const offs = [
+    on("world:stamp", (d) => {
+      if (d?.id) markStamp(d.id);
+    }),
+    on("world:climb", (d) => {
+      if (d?.phase !== "done" || !passportBox) return;
+      // journey.ts saves the record before announcing it.
+      const best = passportBox.querySelector<HTMLElement>(".kw-tm-best");
+      const j = loadJourney();
+      if (best && j.bestMs) best.textContent = `${formatDuration(j.bestMs, lang)} · ${cp.climbs(j.climbs)}`;
+    }),
+  ];
   return {
     panel: ov.panel,
     open() {
       build();
+      refreshPassport();
+      if (live) live.textContent = "";
       ov.open(ov.panel.querySelector<HTMLElement>(".kw-tm-bar .kw-btn"));
     },
     close: () => ov.close(),
@@ -372,6 +562,9 @@ export function createTextMode(host: HTMLElement, lang: Lang, data: WorldData): 
       else this.open();
     },
     isOpen: () => ov.isOpen(),
-    dispose: () => ov.dispose(),
+    dispose() {
+      for (const off of offs) off();
+      ov.dispose();
+    },
   };
 }

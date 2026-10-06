@@ -152,3 +152,57 @@ export function createGovernor(
     },
   };
 }
+
+// ---------------------------------------------------------------- device profile (phones)
+
+export interface DeviceHints {
+  /** `(pointer: coarse)`: touch is the primary input. */
+  coarse: boolean;
+  /** Shorter side of the screen in CSS px. */
+  minSide: number;
+  /** navigator.hardwareConcurrency / navigator.deviceMemory (GB), when the browser reports them. */
+  cores?: number;
+  memory?: number;
+}
+
+export interface DeviceProfile {
+  /** A phone (touch + small screen): lighter flora, nearer culling, fewer far fauna updates on top of "low". */
+  phone: boolean;
+  /** A phone that also reports few cores or little memory (mid/low-range): smaller particle pools. */
+  constrained: boolean;
+}
+
+/** Pure: the device tier from its hints. Desktop (and touch laptops / big tablets) get no extra cuts. */
+export function deviceProfile(h: DeviceHints): DeviceProfile {
+  // Phones only (portrait or landscape the short side stays under ~600 px); tablets keep plain "low".
+  const phone = h.coarse && h.minSide > 0 && h.minSide <= 600;
+  const constrained = phone && ((h.cores ?? 8) <= 6 || (h.memory ?? 8) <= 4);
+  return { phone, constrained };
+}
+
+let cached: DeviceProfile | null = null;
+/**
+ * The running device's profile (cached). `?device=phone|desktop` in the URL forces it (testing).
+ * Outside a browser (build, unit tests) it is a desktop.
+ */
+export function detectDevice(): DeviceProfile {
+  if (cached) return cached;
+  if (typeof window === "undefined" || typeof matchMedia !== "function") return { phone: false, constrained: false };
+  try {
+    const force = new URLSearchParams(location.search).get("device");
+    if (force === "phone") cached = { phone: true, constrained: true };
+    else if (force === "desktop") cached = { phone: false, constrained: false };
+    else {
+      const nav = navigator as Navigator & { deviceMemory?: number };
+      cached = deviceProfile({
+        coarse: matchMedia("(pointer: coarse)").matches,
+        minSide: Math.min(screen.width || innerWidth, screen.height || innerHeight),
+        cores: nav.hardwareConcurrency || undefined,
+        memory: nav.deviceMemory || undefined,
+      });
+    }
+  } catch {
+    cached = { phone: false, constrained: false };
+  }
+  return cached;
+}

@@ -1,0 +1,57 @@
+/* People ambient: the vendors' greeting bubble (paper + ink, like the chasqui cards, but small and passive). */
+.qn-people-layer {
+  z-index: 6;
+}
+.qn-people-layer > * {
+  pointer-events: none;
+}
+.qn-people-bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: min(300px, calc(100vw - 24px));
+  padding: 9px 13px 10px;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 10px;
+  background: var(--qn-paper);
+  box-shadow: 3px 3px 0 var(--qn-ink);
+  font: 500 0.95rem / 1.4 var(--font-body, "Hanken Grotesk", system-ui, sans-serif);
+  text-wrap: pretty;
+  translate: -50% calc(-100% - 12px);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.qn-people-bubble.is-on {
+  opacity: 1;
+  animation: qn-people-pop 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.qn-people-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 14px;
+  height: 14px;
+  translate: -50% 0;
+  rotate: 45deg;
+  background: var(--qn-paper);
+  border-right: 2.5px solid var(--qn-ink);
+  border-bottom: 2.5px solid var(--qn-ink);
+}
+.qn-people-bubble i {
+  font-style: italic;
+  font-weight: 600;
+}
+@keyframes qn-people-pop {
+  from {
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qn-people-bubble.is-on {
+    animation: none;
+  }
+}

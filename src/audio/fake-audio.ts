@@ -78,6 +78,9 @@ class FakeSource extends FakeNode {
 }
 class FakeOsc extends FakeSource {
   type = "sine";
+  setPeriodicWave(_w: unknown) {
+    this.type = "custom";
+  }
   frequency = new FakeParam(440);
   detune = new FakeParam(0);
 }
@@ -107,6 +110,17 @@ export class FakeAudioContext {
   }
   createBufferSource() {
     return new FakeBufferSource("buffer", this);
+  }
+  createDynamicsCompressor() {
+    const n = new FakeNode("compressor", this) as FakeNode & Record<string, FakeParam>;
+    for (const k of ["threshold", "knee", "ratio", "attack", "release"]) n[k] = new FakeParam(0);
+    return n;
+  }
+  createWaveShaper() {
+    return Object.assign(new FakeNode("shaper", this), { curve: null as Float32Array | null });
+  }
+  createPeriodicWave(real: Float32Array, imag: Float32Array) {
+    return { real, imag };
   }
   createBuffer(_ch: number, n: number, _sr: number) {
     const data = new Float32Array(n);

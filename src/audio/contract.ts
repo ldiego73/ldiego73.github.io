@@ -124,6 +124,24 @@ export interface AudioOutput {
   ambient: AudioNode;
   /** The engine's synth voices (quena, bell, charango...) for musical one-shots. */
   voices: VoiceBank;
+  /**
+   * Music-side bus for layers that belong to the music (world place motifs, festival band): it follows the music's
+   * duck and pause, unlike `sfx` / `ambient`. Optional for older players.
+   */
+  music?: AudioNode;
+}
+
+/** Where the playing track is on its step grid, so other layers can play in time with it. */
+export interface MusicClock {
+  trackId: string;
+  /** Next global step the music has not scheduled yet. */
+  step: number;
+  /** Audio time of that step (before swing). */
+  time: number;
+  /** Current step length in seconds (follows the intensity tempo boost). */
+  stepSec: number;
+  /** 0..0.5 swing delay on odd steps, as a fraction of a step. */
+  swing: number;
 }
 
 export interface MusicPlayer {
@@ -158,6 +176,11 @@ export interface MusicPlayer {
    * Optional so silent players need not implement it.
    */
   output?(): AudioOutput | null;
+  /**
+   * The playing track's step grid, or null while nothing plays (or audio is not live). Optional. Pass `out` to
+   * have it filled instead of allocating (per-frame callers).
+   */
+  clock?(out?: MusicClock): MusicClock | null;
   /** Called on any state change (mute, volume, track). Returns an unsubscribe function. */
   onChange(cb: (s: AudioState) => void): () => void;
 }

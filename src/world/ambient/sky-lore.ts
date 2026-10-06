@@ -3,12 +3,18 @@
  * cielo" opens a paper panel about the Andean dark constellations of the Milky Way (Yacana, Mach'acuay,
  * Hanp'atu) with a drawn silhouette each. Each tab viewed emits its `constellation:<id>` stamp.
  * Trigger points sit on the path a few meters from the station/summit spots so this never steals E from
- * content's own panels there.
+ * content's own panels there. The panel also names tonight's real moon (calendar.ts).
+ * Hidden: Atoq, the fox. Standing by the stream crossing at night and looking up at the sky (camera lowered
+ * to the horizon) for a few seconds — or having seen all three constellations — reveals the fox in the
+ * Milky Way (sky.ts), stamps `egg:atoq` and adds a fourth, secret tab.
  */
 import * as THREE from "three";
+import { loadPassport } from "../../lib/passport";
 import type { CreateAmbient, L } from "../contract";
-import { emit } from "../events";
-import { CONSTELLATIONS, type Constellation } from "./sky/constellations";
+import type { WorldEnvExtra } from "../env";
+import { emit, on } from "../events";
+import { hasCalendar } from "../sky";
+import { ATOQ, CONSTELLATIONS, type Constellation } from "./sky/constellations";
 import "./sky/sky-lore.css";
 
 const R = 3.4;
@@ -28,6 +34,13 @@ const T = {
   },
   close: { es: "Cerrar", en: "Close" },
   tabs: { es: "Constelaciones", en: "Constellations" },
+  tonight: { es: "Esta noche", en: "Tonight" },
+  lit: { es: "iluminada", en: "lit" },
+  hint: {
+    es: "Dicen que otra sombra sigue a Yacana. Búscala de noche, mirando al cielo desde el agua que cruza el camino.",
+    en: "They say another shadow follows Yacana. Look for it at night, gazing at the sky from the water that crosses the trail.",
+  },
+  found: { es: "Atoq · secreto", en: "Atoq · secret" },
 } satisfies Record<string, L>;
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -119,9 +132,20 @@ export const create: CreateAmbient = (env, hudRoot) => {
   layer.appendChild(panel);
   hudRoot.appendChild(layer);
 
+  // Tonight's moon (real phase), under the lede.
+  const moonLine = document.createElement("p");
+  moonLine.className = "qn-sky-moon";
+  head.appendChild(moonLine);
+  const skyCal = hasCalendar(env.sky) ? env.sky : null;
+  const hint = document.createElement("p");
+  hint.className = "qn-sky-hint";
+  hint.textContent = t(T.hint);
+  panel.insertBefore(hint, src);
+
   const tabBtns: HTMLButtonElement[] = [];
   const views: HTMLElement[] = [];
-  CONSTELLATIONS.forEach((c, i) => {
+  const ALL: Constellation[] = [...CONSTELLATIONS, ATOQ as unknown as Constellation];
+  ALL.forEach((c, i) => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "qn-sky-tab";
@@ -129,6 +153,11 @@ export const create: CreateAmbient = (env, hudRoot) => {
     b.setAttribute("role", "tab");
     b.setAttribute("aria-controls", `qn-sky-view-${c.id}`);
     b.textContent = c.name;
+    if (c === ALL[3]) {
+      b.classList.add("is-secret");
+      b.title = t(T.found);
+      b.hidden = true;
+    }
     b.addEventListener("click", () => select(i, true));
     tabBtns.push(b);
     tabs.appendChild(b);
@@ -149,8 +178,40 @@ export const create: CreateAmbient = (env, hudRoot) => {
 
   let open = false;
   let current = 0;
+  // ---------------------------------------------------------------- Atoq (hidden fox)
+  let atoq = skyCal?.atoqRevealed() ?? false;
+  const seen = new Set<string>();
+  try {
+    const st = loadPassport().stamps;
+    for (const c of CONSTELLATIONS) if (st[`constellation:${c.id}`]) seen.add(c.id);
+    if (st["egg:atoq"]) atoq = true;
+  } catch {
+    /* storage blocked */
+  }
+  const count = () => (atoq ? ALL.length : CONSTELLATIONS.length);
+  const showSecret = () => {
+    tabBtns[3]!.hidden = !atoq;
+    hint.hidden = atoq;
+  };
+  const reveal = () => {
+    if (atoq) return;
+    atoq = true;
+    skyCal?.revealAtoq();
+    showSecret();
+    emit("world:stamp", {
+      id: "egg:atoq",
+      kind: "egg",
+      label: { es: "Atoq · el zorro del cielo", en: "Atoq · the sky fox" },
+    });
+  };
+  if (atoq) skyCal?.revealAtoq();
+  showSecret();
+  const offStamp = on("world:stamp", (d) => {
+    if (d.id.startsWith("constellation:")) seen.add(d.id.slice("constellation:".length));
+  });
+
   const select = (i: number, focus: boolean) => {
-    current = (i + CONSTELLATIONS.length) % CONSTELLATIONS.length;
+    current = (i + count()) % count();
     tabBtns.forEach((b, j) => {
       const on = j === current;
       b.setAttribute("aria-selected", String(on));
@@ -158,14 +219,19 @@ export const create: CreateAmbient = (env, hudRoot) => {
       views[j]!.hidden = !on;
     });
     if (focus) tabBtns[current]!.focus();
-    const c = CONSTELLATIONS[current]!;
-    emit("world:stamp", { id: `constellation:${c.id}`, kind: "constellation", label: c.label });
+    const c = ALL[current]!;
+    if (current < CONSTELLATIONS.length) {
+      emit("world:stamp", { id: `constellation:${c.id}`, kind: "constellation", label: c.label });
+      seen.add(c.id);
+      // Having seen all three dark animals, the fox that follows the llama shows itself.
+      if (CONSTELLATIONS.every((k) => seen.has(k.id))) reveal();
+    }
   };
   const onTabKey = (e: KeyboardEvent) => {
     if (e.key === "ArrowRight" || e.key === "ArrowDown") select(current + 1, true);
     else if (e.key === "ArrowLeft" || e.key === "ArrowUp") select(current - 1, true);
     else if (e.key === "Home") select(0, true);
-    else if (e.key === "End") select(CONSTELLATIONS.length - 1, true);
+    else if (e.key === "End") select(count() - 1, true);
     else return;
     e.preventDefault();
   };
@@ -192,6 +258,11 @@ export const create: CreateAmbient = (env, hudRoot) => {
     if (v) {
       returnFocus = document.activeElement as HTMLElement | null;
       layer.classList.toggle("is-night", env.sky.isNight());
+      if (skyCal) {
+        const m = skyCal.moon();
+        moonLine.textContent = `${t(T.tonight)}: ${t(m.name)} · ${Math.round(m.illumination * 100)} % ${t(T.lit)}`;
+      }
+      moonLine.hidden = !skyCal;
       panel.classList.remove("is-open");
       void panel.offsetWidth;
       panel.classList.add("is-open");
@@ -204,9 +275,25 @@ export const create: CreateAmbient = (env, hudRoot) => {
   };
   close.addEventListener("click", () => setOpen(false));
 
+  // The hidden spot: the slab bridge where the stream crosses the trail (Mayu's river on earth).
+  const extra = (env as WorldEnvExtra).extra;
+  const spot = extra ? extra.stream.cross.clone() : null;
+  const fwd = new THREE.Vector3();
+  let gaze = 0;
   let inRange = false;
   return {
-    update(_dt, avatar) {
+    update(dt, avatar) {
+      if (!atoq && hudRoot.classList.contains("on") && CONSTELLATIONS.every((k) => seen.has(k.id))) reveal();
+      if (!atoq && spot && env.sky.isNight() && hudRoot.classList.contains("on")) {
+        const dx = avatar.x - spot.x;
+        const dz = avatar.z - spot.z;
+        env.camera.getWorldDirection(fwd);
+        // The follow cam looks down at the traveler; lowering it to the horizon is "looking at the sky".
+        if (dx * dx + dz * dz < 6 * 6 && fwd.y > -0.12) {
+          gaze += dt;
+          if (gaze > 2.5) reveal();
+        } else gaze = 0;
+      }
       inRange = false;
       if (open) return;
       for (const p of triggers) {
@@ -236,6 +323,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
     },
     dispose() {
       if (open) emit("world:modal", { open: false });
+      offStamp();
       tabs.removeEventListener("keydown", onTabKey);
       panel.removeEventListener("keydown", stopKeys);
       layer.remove();

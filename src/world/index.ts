@@ -21,6 +21,11 @@
  * Events handled here: `world:modal {open}` (counter; freezes walking while > 0), `world:mount` (speed
  * multiplier + seat height), `world:teleport {to}` (fade + move to a station's plaza), `world:textmode`,
  * `world:map`. The auto quality governor (quality.ts) emits `world:quality {auto: true}`.
+ *
+ * Bodies (creatures.ts): the registry is cleared before ambients are built (they register at create time)
+ * and after they are disposed. Core registers the traveler (kind "traveler") and, after each move, pushes
+ * the traveler out of solid bodies (animals, people) like any collider: only onto standable ground, with the
+ * velocity into the body removed so walking into a llama slides around it instead of shaking.
  */
 import * as THREE from "three";
 import { COMPANIES } from "../data/career";
@@ -37,6 +42,7 @@ import {
   STATIONS,
   type WorldEnv,
 } from "./contract";
+import { creatures } from "./creatures";
 import { worldData } from "./data";
 import { createNameEditor, createPhotoMode, placeAt } from "./dialogs";
 import { createEngine, disposeTree, type Quality } from "./engine";
@@ -49,12 +55,13 @@ import { createLoader, type LoadStep } from "./loader";
 import { createBigMap, type MapStop } from "./map";
 import { createWorldMusic } from "./music";
 import { DYE } from "./palette";
-import { createGovernor, LEVELS } from "./quality";
+import { createGovernor, detectDevice, LEVELS } from "./quality";
 import { createSky } from "./sky";
 import { createScenery } from "./terrain";
 import { disposeTextures, redrawAll } from "./tex";
 import { createToonCache } from "./toon";
 import "./textmode.css";
+import { setWorldDate } from "./calendar";
 import { createDetailCull } from "./detail-cull";
 import { createClimbTracker, summarize } from "./journey";
 import { createJourneyDialog } from "./journey-card";
@@ -75,6 +82,10 @@ const TOUR_SPEED = 4.6;
 const GRAVITY = 22;
 const JUMP_V = 7.2;
 const BODY_R = 0.42;
+/** Traveler + llama footprint while riding (the ridden llama itself is not an obstacle). */
+const RIDE_R = 0.62;
+/** Most the traveler is pushed out of bodies per frame (summed overlaps can overshoot). */
+const PUSH_MAX = 0.5;
 const MAX_STEP = 0.9;
 const SWOOP = 3.4;
 /** Within this distance of a station's plaza it counts as visited (fast-travel target). */
@@ -323,7 +334,9 @@ async function start(
     };
 
     // ---------------------------------------------------------------- world
-    const layout: Layout = buildLayout({ cells: quality === "high" ? 280 : 190, footprint: mods.footprint });
+    // Terrain grid: phones get a coarser one on top of "low" (quality.ts deviceProfile; heightAt follows it).
+    const cells = quality === "high" ? 280 : detectDevice().phone ? 160 : 190;
+    const layout: Layout = buildLayout({ cells, footprint: mods.footprint });
     const toon = createToonCache();
     early.push(() => {
       toon.dispose();
@@ -383,6 +396,11 @@ async function start(
     await step(82, "content");
 
     // ---------------------------------------------------------------- ambients (fauna, NPC chasquis)
+    // Bodies register at create time: start from an empty registry, and empty it after they are disposed.
+    creatures.clear();
+    early.push(() => creatures.clear());
+    const spawn0 = layout.trail.pointAt(0.006);
+    const me = creatures.add("traveler", BODY_R, { x: spawn0.x, z: spawn0.z, give: 1 });
     const ambients: Ambient[] = [];
     for (const [name, make] of [
       ["npcs", mods.createNpcs] as const,
@@ -403,6 +421,7 @@ async function start(
     // Small far-away details skip every pass (draw calls dominate the frame cost on the full mountain).
     const cull = createDetailCull(scene, { skip: (o) => o.name === "traveler" || o.name === "ride-llama" });
     cull.scan();
+    let cullClock = 0;
     early.push(() => cull.dispose());
     await step(92, "ambients");
     /** E: ambients first (an NPC in range talks), then content. */
@@ -420,6 +439,18 @@ async function start(
     const input = createInput(engine.canvas, { onPad: (a) => onPad(a) });
     input.enabled = false;
     const cam = createFollowCam(camera, layout.heightAt);
+    // The camera never ends up behind the waterfall cliff or inside the cave's rock.
+    for (const name of ["waterfall-cliff", "cave-walls", "cave-liner", "cave-roof"]) {
+      const o = scene.getObjectByName(name);
+      if (o) cam.occluders.push(o);
+    }
+    // Around the waterfall grotto the slope and boulders crowd the camera: test them there only.
+    const caveAt = scene.getObjectByName("cave-floor");
+    if (caveAt) {
+      const c = new THREE.Box3().setFromObject(caveAt).getCenter(new THREE.Vector3());
+      const heavy = ["terrain", "rocks"].map((n) => scene.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
+      cam.areaOccluders.push({ objects: heavy, x: c.x, z: c.z, r: 16 });
+    }
     let runHold = false;
     const music = createWorldMusic(env);
     cleanups.push(() => music.dispose());
@@ -568,6 +599,38 @@ async function start(
     cam.pitch = 0.32;
     cam.dist = 9.5;
 
+    /** Animals and people are solid: slide around them like colliders (see the header). */
+    const push = { x: 0, z: 0 };
+    const pushOutOfBodies = () => {
+      me.r = riding ? RIDE_R : BODY_R;
+      me.x = pos.x;
+      me.z = pos.z;
+      creatures.separate(me, push);
+      const m = Math.hypot(push.x, push.z);
+      if (m < 1e-4) return;
+      const k = Math.min(1, PUSH_MAX / m);
+      let [px, pz] = resolve(pos.x + push.x * k, pos.z + push.z * k);
+      if (!canStand(px, pz)) {
+        if (canStand(px, pos.z)) pz = pos.z;
+        else if (canStand(pos.x, pz)) px = pos.x;
+        else {
+          px = pos.x;
+          pz = pos.z;
+        }
+      }
+      pos.x = px;
+      pos.z = pz;
+      me.x = px;
+      me.z = pz;
+      // Drop the part of the velocity that walks into the body (no stick-slip shaking against it).
+      const nx = push.x / m;
+      const nz = push.z / m;
+      const into = vel.x * nx + vel.y * nz;
+      if (into < 0) {
+        vel.x -= into * nx;
+        vel.y -= into * nz;
+      }
+    };
     const resolve = (x: number, z: number): [number, number] => {
       for (const c of layout.colliders) {
         if (c.kind === "circle") {
@@ -957,6 +1020,7 @@ async function start(
     const swoopLook = new THREE.Vector3();
 
     const camTarget = new THREE.Vector3();
+    const devWalk = { x: 0, z: 0, secs: 0, speed: WALK };
     let visitClock = 0;
     let framesSeen = 0;
     const off = engine.onFrame((dt, time) => {
@@ -1028,6 +1092,12 @@ async function start(
           // Face the station (or the stop itself if the id isn't a contract station).
           faceTo = STATIONS.some((s) => s.id === stop.id) ? layout.stationPose(stop.id).position : stop.position;
         }
+      } else if (phase === "play" && devWalk.secs > 0) {
+        // Dev hook: walk in a world direction (collision tests).
+        devWalk.secs -= dt;
+        mx = devWalk.x * -fz + devWalk.z * fx;
+        my = devWalk.x * fx + devWalk.z * fz;
+        speed = devWalk.speed * speedMul;
       } else if (phase === "play") {
         const m = input.move();
         mx = m.x;
@@ -1054,6 +1124,7 @@ async function start(
         pos.z = nz;
         vel.x *= 0.4;
       } else vel.multiplyScalar(0.2);
+      pushOutOfBodies();
 
       const ground = groundAt(pos.x, pos.z);
       // No jumping while seated on a llama (the jump press is consumed and ignored).
@@ -1120,6 +1191,12 @@ async function start(
       }
       chrome.setPrompt(modals > 0 ? null : prompt);
       cull.update(engine.camera.position);
+      // Pick up meshes built after load (seasonal dressing, lazily built maquettes) for far culling.
+      cullClock += dt;
+      if (cullClock > 5) {
+        cullClock = 0;
+        cull.scan();
+      }
     });
     cleanups.push(off);
 
@@ -1155,6 +1232,14 @@ async function start(
           cam.snap();
         },
         setTime: (t: number) => sky.sky.setTime(t),
+        /** "2026-06-24" or null for the real date (snow / Inti Raymi switch without reload). */
+        setDate: (d: string | null) => setWorldDate(d ? new Date(`${d}T12:00:00`) : null),
+        creatures,
+        /** Walk toward world direction (dx, dz) for `secs` seconds at `speed` u/s (default walking pace). */
+        walk(dx: number, dz: number, secs: number, speed = WALK) {
+          const d = Math.hypot(dx, dz) || 1;
+          Object.assign(devWalk, { x: dx / d, z: dz / d, secs, speed });
+        },
         tour: () => setTour(true),
         state: () => ({
           phase,

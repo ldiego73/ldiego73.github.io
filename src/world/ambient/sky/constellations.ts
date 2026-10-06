@@ -84,3 +84,24 @@ export const CRUX: Array<[number, number, number]> = [
   [61.6, 0.6, 0.8],
   [66.0, 0.2, 0.7],
 ];
+
+/**
+ * Atoq, the fox: a small dark cloud said to chase the llama, trailing Yacana's hind feet near the tail of
+ * Scorpius (Urton 1981). Hidden: drawn into the band only once revealed (sky-lore.ts), never stamped as a
+ * `constellation:` (its stamp is `egg:atoq`).
+ */
+export const ATOQ: Omit<Constellation, "id"> & { id: "atoq" } = {
+  id: "atoq",
+  name: "Atoq",
+  label: { es: "Atoq, el zorro", en: "Atoq, the fox" },
+  text: {
+    es: "Una pequeña nube oscura junto a las patas traseras de Yacana, cerca de la cola de Escorpio. En Misminay (Cusco) se la llama Atoq, el zorro, y se dice que persigue a la llama por el río celeste. Según Urton, el sol pasa por el Zorro en diciembre, cuando nacen las crías de los zorros en la tierra.",
+    en: "A small dark cloud by Yacana's hind feet, near the tail of Scorpius. In Misminay (Cusco) it is called Atoq, the fox, and it is said to chase the llama along the sky river. According to Urton, the sun passes through the Fox in December, when fox cubs are born on earth.",
+  },
+  // Snout to the left (toward the llama), pricked ears, long bushy tail up and to the right.
+  path: "M0 3.4 C1 2.6 2 2.2 2.6 2 L3 0.3 L3.8 1.8 L4.4 0.6 L4.9 2.1 C6 2.4 8 2.4 9.5 2.6 C11 2.2 12.5 1.2 14 1.6 C13.4 2.8 12 3.6 10.6 4 C10.4 4.6 10.6 5.6 11.2 7 L10 7 L9.2 4.9 C8 5.1 6.6 5.1 5.4 4.9 L4.6 7 L3.4 7 L4 4.5 C3 4.2 2 4 1 4 C0.4 4 0 3.8 0 3.4 Z",
+  w: 14,
+  h: 7,
+  u: 110,
+  v: -4.5,
+};

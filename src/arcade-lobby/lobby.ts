@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { NEON } from "../games/core/neon";
 import { addLights, createStage } from "../games/core/stage";
+import { activeSkin, type CabinetSkin, load } from "../games/core/store";
+import { type MergedCabinet, mergeCabinet } from "../world/arcade-merge";
 import { type Attract, createAttract } from "./attract";
 import { arcadeFontFamily, type Cabinet, createCabinet } from "./cabinet";
 
@@ -35,6 +37,11 @@ export interface LobbyOptions {
 export interface Lobby {
   /** Focus a cabinet (from keyboard/DOM focus). */
   focus(index: number): void;
+  /**
+   * Cabinet skin. The lobby already follows the saved skin by itself (storage events from other tabs, and
+   * the page's `[data-skin]` attribute on an ancestor when the rewards card changes it); this forces one.
+   */
+  setSkin(skin: CabinetSkin): void;
   dispose(): void;
 }
 
@@ -212,11 +219,15 @@ export function mountLobby(host: HTMLElement, opts: LobbyOptions): Lobby {
   const n = games.length;
   const cabs: Cabinet[] = [];
   const attracts: Attract[] = [];
+  const merged: MergedCabinet[] = [];
   const home: Array<{ pos: THREE.Vector3; dir: THREE.Vector3; rotY: number }> = [];
   const lift = new Float32Array(n);
   games.forEach((g, i) => {
     const a = n > 1 ? -ARC / 2 + (ARC * i) / (n - 1) : 0;
     const cab = createCabinet({ color: g.color, marquee: g.marquee, lang: opts.lang });
+    // Same static-part merge as the world's arcade tambo: ~26 meshes → 4 per cabinet.
+    const mc = mergeCabinet(cab);
+    if (mc) merged.push(mc);
     const at = createAttract(g.slug, g.title, g.color);
     at.draw(i * 0.7);
     cab.setScreenTexture(at.texture);
@@ -230,6 +241,24 @@ export function mountLobby(host: HTMLElement, opts: LobbyOptions): Lobby {
     attracts.push(at);
     home.push({ pos, dir, rotY: -a });
   });
+  // Reward skin: the cabinets wear the saved aguayo skin too, and follow it live.
+  let skin: CabinetSkin = "neon";
+  const applySkin = (next: CabinetSkin) => {
+    if (next === skin) return;
+    skin = next;
+    for (const c of cabs) c.setSkin(skin);
+  };
+  const syncSkin = () => applySkin(activeSkin(load()));
+  syncSkin();
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === null || e.key.startsWith("ldiego73-arcade")) syncSkin();
+  };
+  window.addEventListener("storage", onStorage);
+  // Same tab: the rewards card saves the choice and sets data-skin on the page wrapper.
+  const skinHost = host.parentElement?.closest<HTMLElement>("[data-skin]") ?? null;
+  const skinObserver = skinHost ? new MutationObserver(syncSkin) : null;
+  if (skinHost) skinObserver?.observe(skinHost, { attributes: true, attributeFilter: ["data-skin"] });
+
   // Camera rig.
   let focused = Math.floor(n / 2);
   let narrow = false;
@@ -391,6 +420,7 @@ export function mountLobby(host: HTMLElement, opts: LobbyOptions): Lobby {
     focus(i) {
       setFocus(i, false);
     },
+    setSkin: applySkin,
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -400,8 +430,11 @@ export function mountLobby(host: HTMLElement, opts: LobbyOptions): Lobby {
       stage.canvas.removeEventListener("pointerup", onUp);
       stage.canvas.removeEventListener("pointercancel", onCancel);
       io.disconnect();
+      skinObserver?.disconnect();
+      window.removeEventListener("storage", onStorage);
       document.removeEventListener("visibilitychange", sync);
       for (const c of cabs) c.dispose();
+      for (const m of merged) m.dispose();
       for (const a of attracts) a.dispose();
       for (const tx of textures) tx.dispose();
       stage.dispose();

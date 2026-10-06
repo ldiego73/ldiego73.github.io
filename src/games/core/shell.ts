@@ -5,7 +5,7 @@ import { mountAudioControl } from "./audio-control";
 import { createIntensity } from "./intensity";
 import { NEON } from "./neon";
 import { onThemeChange } from "./palette";
-import { evaluate, load, recordEnd, recordStart, recordStat, save } from "./store";
+import { activeSkin, evaluate, load, recordEnd, recordStart, recordStat, save } from "./store";
 import type { Achievement, Difficulty, GameEvent, GameInstance, GameMeta, Lang } from "./types";
 
 const COPY = {
@@ -83,8 +83,10 @@ export async function mountCabinet(host: HTMLElement, meta: GameMeta, lang: Lang
   let difficulty = readDifficulty();
   host.classList.add("cabinet");
   host.style.setProperty("--neon", NEON[meta.neon]);
+  // Reward skin (world passport complete): aguayo-woven trim and a khipu marquee. CSS-only.
+  host.dataset.skin = activeSkin(state);
   host.innerHTML = `
-    <div class="cab-marquee"><span>${meta.marquee}</span></div>
+    <div class="cab-marquee"><span>${meta.marquee}</span><i class="cab-khipu" aria-hidden="true"></i></div>
     <div class="cab-hud">
       <span class="cab-stat"><span class="cab-k">${c.score}</span> <b data-score>0</b></span>
       <span class="cab-stat"><span class="cab-k">${c.best}</span> <b data-best>${fmt(best0, lang)}</b></span>

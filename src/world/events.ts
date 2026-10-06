@@ -4,7 +4,20 @@
  */
 import type { L } from "./contract";
 
-export type StampKind = "station" | "summit" | "constellation" | "egg" | "npc" | "weather" | "field" | "ride" | "fauna";
+export type StampKind =
+  | "station"
+  | "summit"
+  | "constellation"
+  | "egg"
+  | "npc"
+  | "weather"
+  | "field"
+  | "ride"
+  | "fauna"
+  /** Date-dependent: Inti Raymi, snow at the summit. */
+  | "festival"
+  /** Climb time trial. */
+  | "record";
 
 export interface StampDetail {
   /** Stable id, e.g. "station:auna", "constellation:yacana", "egg:golden-khipu". */
@@ -54,6 +67,14 @@ export interface WorldEvents {
   "world:weather": { kind: "clear" | "mist" | "garua" };
   /** Open the shareable journey postcard (passport button, summit panel). */
   "world:postcard": undefined;
+  /** Chasqui errands (npcs.ts): offered → accepted → done (or dropped). `to` is a STATIONS id. */
+  "world:mission": { id: string; state: "offered" | "accepted" | "done" | "dropped"; to?: string };
+  /**
+   * Climb time trial transitions (journey.ts createClimbTracker): the clock started past the gate, the attempt
+   * was voided (fast travel, tour, back to the gate), or the summit was reached (`ms`, best before this climb,
+   * whether it is a new best). The ghost ambient records/replays the path from these.
+   */
+  "world:climb": { phase: "start" | "void" | "done"; ms?: number; prevBestMs?: number | null; isBest?: boolean };
 }
 
 export function emit<K extends keyof WorldEvents>(name: K, detail: WorldEvents[K]): void {

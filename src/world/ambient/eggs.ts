@@ -11,6 +11,7 @@
 import "./eggs/eggs.css";
 import * as THREE from "three";
 import type { Ambient, CreateAmbient, L } from "../contract";
+import { type Body, creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
 import { createEggKit, type Vizcacha } from "./eggs/models";
@@ -53,6 +54,8 @@ const PANEL = {
 
 interface Egg {
   v: Vizcacha;
+  /** Shared collision body (kind "vizcacha"): solid while it's up, not while it ducks into the burrow. */
+  body: Body;
   nook: Nook;
   hide: number;
   greeted: boolean;
@@ -96,7 +99,8 @@ export const create: CreateAmbient = (env, hudRoot) => {
       r.rotation.y = nook.yaw;
       root.add(r);
     }
-    return { v, nook, hide: 0, greeted: false, hop: 0, look: 0, dist: Infinity };
+    const body = creatures.add("vizcacha", 0.3, { give: 0, x: nook.x, z: nook.z });
+    return { v, nook, body, hide: 0, greeted: false, hop: 0, look: 0, dist: Infinity };
   });
 
   // Squeak bubble (one shared sprite).
@@ -229,6 +233,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
         e.hop = Math.max(0, e.hop - dt * 1.8);
         const hopY = rm ? 0 : Math.sin(e.hop * Math.PI * 2) * 0.12 * e.hop;
         e.v.body.position.y = -0.46 * e.hide + Math.max(0, hopY);
+        e.body.solid = e.hide < 0.5;
         // Head follows the traveler when close; otherwise a slow idle glance.
         let lookT = Math.sin(t * 0.6 + e.nook.x) * 0.4;
         if (e.dist < 9) {
@@ -310,6 +315,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
       return true;
     },
     dispose() {
+      for (const e of eggs) creatures.remove(e.body);
       if (open) closePanel();
       window.removeEventListener("world:passport-complete", onComplete);
       offModal();

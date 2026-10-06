@@ -7,9 +7,12 @@
  * Auto-dismount: entering an interior (`world:interior {inside: true}`; the llama is left at the spot you
  * had ~0.4 s earlier, outside the door) and on `world:teleport` (the llama trots home to the trailhead,
  * so it never ends up stranded on a slope you teleported away from).
+ * Body ("ride-llama", creatures.ts): solid while waiting (the traveler walks around it, others steer
+ * around it); not solid while ridden (it is part of the traveler, whose radius core widens).
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient, L } from "../contract";
+import { creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
 import { angleLerp, llamaHome, rideAction } from "./mount/logic";
@@ -36,6 +39,7 @@ export const create: CreateAmbient = (env) => {
   g.position.set(home.x, groundAt(home.x, home.z), home.z);
   g.rotation.y = home.yaw;
 
+  const body = creatures.add("ride-llama", 0.6, { x: home.x, z: home.z, give: 0.5 });
   let riding = false;
   let rider: THREE.Object3D | null = null;
   let stamped = false;
@@ -179,6 +183,9 @@ export const create: CreateAmbient = (env) => {
         dist = Math.hypot(avatar.x - g.position.x, avatar.z - g.position.z);
       }
       g.rotation.y = yaw;
+      body.solid = !riding;
+      body.x = g.position.x;
+      body.z = g.position.z;
 
       // ---- animation: trot scaled by speed, idle sway when stopped
       speedS += (speed - speedS) * (1 - Math.exp(-dt * 8));
@@ -244,6 +251,7 @@ export const create: CreateAmbient = (env) => {
       return true;
     },
     dispose() {
+      creatures.remove(body);
       for (const off of offs) off();
       if (riding) {
         riding = false;

@@ -272,7 +272,9 @@ export async function composeJourneyCard(
     const shown = lines.slice(0, maxLines);
     if (lines.length > maxLines)
       shown[maxLines - 1] = fitText(ctx, `${shown[maxLines - 1]} ${lines.slice(maxLines).join(" ")}`, w - u * 2);
-    shown.forEach((l, i) => ctx.fillText(l, x, top + lab * 1.45 + i * val * 1.18));
+    shown.forEach((l, i) => {
+      ctx.fillText(l, x, top + lab * 1.45 + i * val * 1.18);
+    });
     return lab * 1.45 + shown.length * val * 1.18;
   };
   const gapY = u * (wide ? 1.6 : 2.4);

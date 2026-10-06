@@ -305,3 +305,57 @@
 .qn-npc-foot[hidden] {
   display: none;
 }
+
+/* ---------- errand delivered: thank-you card from the tambo (top center, under the toasts) */
+.qn-npc-thanks {
+  position: absolute;
+  top: calc(var(--qn-top) + 96px);
+  left: 50%;
+  width: min(400px, calc(100vw - 2 * var(--qn-side)));
+  translate: -50% -12px;
+  padding: 12px 16px 12px 16px;
+  border: 2.5px solid var(--qn-ink);
+  border-radius: 10px;
+  background: var(--qn-paper);
+  box-shadow:
+    4px 4px 0 var(--qn-ink),
+    0 18px 40px -18px rgb(31 26 23 / 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    translate 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.qn-npc-thanks.is-on {
+  opacity: 1;
+  translate: -50% 0;
+}
+.qn-npc-thanks-seal {
+  float: right;
+  margin: -2px 0 6px 10px;
+  padding: 4px 8px 3px;
+  border: 3px double var(--qn-accent);
+  border-radius: 6px;
+  color: var(--qn-accent);
+  font: 800 0.7rem / 1.1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  rotate: 4deg;
+}
+.qn-npc-thanks-who {
+  display: block;
+  font: 800 0.95rem / 1.2 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.qn-npc-thanks-text {
+  margin: 6px 0 0;
+  font: 400 0.95rem / 1.45 var(--font-body, "Hanken Grotesk", sans-serif);
+}
+@media (prefers-reduced-motion: reduce) {
+  .qn-npc-thanks {
+    transition: none;
+  }
+}

@@ -342,16 +342,33 @@ function pisonays(c: Ctx): Inst[] {
   return out;
 }
 
+/** Phones (quality.ts deviceProfile): fewer ichu tufts and trees on top of the "low" budget. */
+export const PHONE_DENSITY = { cover: 0.7, trees: 0.8 } as const;
+
 /**
- * Full vegetation plan. `avoid` = extra [x, z, r] discs to keep clear (e.g. big rocks).
- * Same layout + quality → same plan.
+ * Full vegetation plan. `avoid` = extra [x, z, r] discs to keep clear (e.g. big rocks). `density` scales the
+ * ichu (cover) and tree budgets; trail-edge flowers and path-side perch trees are kept (they are what a
+ * walker sees up close). Same layout + quality + density → same plan.
  */
 export function planFlora(
   L: FloraLayout,
   quality: "low" | "high",
   avoid: Array<[number, number, number]> = [],
+  density: { cover: number; trees: number } = { cover: 1, trees: 1 },
 ): FloraPlan {
-  const N = COUNTS[quality];
+  const B = COUNTS[quality];
+  const cv = (n: number) => Math.round(n * density.cover);
+  const tr = (n: number) => Math.round(n * density.trees);
+  const N = {
+    ...B,
+    ichuTall: cv(B.ichuTall),
+    ichuShort: cv(B.ichuShort),
+    ichuDry: cv(B.ichuDry),
+    quenua: tr(B.quenua),
+    aliso: tr(B.aliso),
+    unca: tr(B.unca),
+    chusquea: tr(B.chusquea),
+  };
   const c: Ctx = { L, avoid: [...avoid] };
   // Trees first (ground cover avoids their trunks).
   const pisonay = pisonays(c);

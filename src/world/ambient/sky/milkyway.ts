@@ -5,7 +5,7 @@
  */
 import * as THREE from "three";
 import { noOutline } from "../../toon";
-import { CONSTELLATIONS, CRUX } from "./constellations";
+import { ATOQ, CONSTELLATIONS, CRUX } from "./constellations";
 
 /** Band coverage along the Milky Way (degrees): 0 = south horizon at midnight, 90 = zenith, 180 = north. */
 const U0 = -10;
@@ -71,7 +71,8 @@ function bandTextures(): { dust: THREE.CanvasTexture; mask: THREE.CanvasTexture 
   const X = (u: number) => (u - U0) * sx;
   const Y = (v: number) => (VH - v) * sy;
 
-  const darkClouds = (g: CanvasRenderingContext2D, rift: string, body: string) => {
+  // `k`: canvas scale (the mask canvas is half size). setTransform replaces any ctx.scale, so it is folded in here.
+  const darkClouds = (g: CanvasRenderingContext2D, rift: string, body: string, k = 1) => {
     if ("filter" in g) g.filter = "blur(3px)";
     // The Great Rift splitting the bright part of the river.
     g.fillStyle = rift;
@@ -82,11 +83,11 @@ function bandTextures(): { dust: THREE.CanvasTexture; mask: THREE.CanvasTexture 
     g.closePath();
     g.fill();
     g.fillStyle = body;
-    for (const k of CONSTELLATIONS) {
+    for (const c of CONSTELLATIONS) {
       g.save();
       // Box center sits at (u, v); local y down = canvas y down.
-      g.setTransform(sx, 0, 0, sy, X(k.u - k.w / 2), Y(k.v + k.h / 2));
-      g.fill(new Path2D(k.path));
+      g.setTransform(sx * k, 0, 0, sy * k, X(c.u - c.w / 2) * k, Y(c.v + c.h / 2) * k);
+      g.fill(new Path2D(c.path));
       g.restore();
     }
     if ("filter" in g) g.filter = "none";
@@ -123,7 +124,18 @@ function bandTextures(): { dust: THREE.CanvasTexture; mask: THREE.CanvasTexture 
   mg.fillStyle = "#fff";
   mg.fillRect(0, 0, mc.width, mc.height);
   mg.scale(0.5, 0.5);
-  darkClouds(mg, "rgba(0,0,0,0.55)", "rgba(0,0,0,0.93)");
+  darkClouds(mg, "rgba(0,0,0,0.55)", "rgba(0,0,0,0.93)", 0.5);
+  // Atoq (hidden fox) lives in the green channel only; the shader blends it in once revealed.
+  // Small shape: a lighter blur keeps its ears, legs and tail readable.
+  if ("filter" in mg) mg.filter = "blur(1.5px)";
+  mg.globalCompositeOperation = "multiply";
+  mg.fillStyle = "rgb(255,20,255)";
+  mg.save();
+  mg.setTransform(sx * 0.5, 0, 0, sy * 0.5, X(ATOQ.u - ATOQ.w / 2) * 0.5, Y(ATOQ.v + ATOQ.h / 2) * 0.5);
+  mg.fill(new Path2D(ATOQ.path));
+  mg.restore();
+  mg.globalCompositeOperation = "source-over";
+  if ("filter" in mg) mg.filter = "none";
 
   const dust = new THREE.CanvasTexture(c);
   dust.colorSpace = THREE.SRGBColorSpace;
@@ -146,6 +158,7 @@ const FRAG = /* glsl */ `
 uniform sampler2D tDust;
 uniform sampler2D tMask;
 uniform float uOpacity;
+uniform float uAtoq;
 varying vec2 vUv;
 varying float vUp;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -175,7 +188,9 @@ void main() {
   vec2 q = vec2(u * 0.18, v * 0.35);
   float clumps = 0.55 + 0.3 * noise(q) + 0.15 * noise(q * 2.7 + 5.0);
   float glow = lum * exp(-pow(v / (w * 1.15), 2.0)) * clumps * 0.42;
-  float mask = texture2D(tMask, vUv).r;
+  vec2 mk = texture2D(tMask, vUv).rg;
+  // g carries the other clouds too: the fox alone is g / r.
+  float mask = mk.r * mix(1.0, clamp(mk.g / max(mk.r, 0.02), 0.0, 1.0), uAtoq);
   // Star dust: denser where the river is bright, thinning off its centre line.
   float band = exp(-pow(v / (w * 1.5), 2.0));
   float dens = clamp(band * (0.2 + 0.5 * lum), 0.0, 0.7);
@@ -192,6 +207,10 @@ export interface MilkyWay {
   object: THREE.Object3D;
   /** Per frame: follow the camera, turn with the sky (time 0 = midnight) and fade. No allocations. */
   update(camera: THREE.Vector3, time: number, opacity: number): void;
+  /** Fade the hidden fox (Atoq) into the band (0 hidden … 1 drawn). */
+  setAtoq(v: number): void;
+  /** World direction of Atoq's centre for the current sky rotation (no allocation). */
+  atoqDir(out: THREE.Vector3): THREE.Vector3;
   dispose(): void;
 }
 
@@ -200,7 +219,7 @@ export function createMilkyWay(): MilkyWay {
   const { dust, mask } = bandTextures();
   // Additive: black adds nothing, so alpha stays 1 and opacity scales the colour.
   const mat = new THREE.ShaderMaterial({
-    uniforms: { tDust: { value: dust }, tMask: { value: mask }, uOpacity: { value: 0 } },
+    uniforms: { tDust: { value: dust }, tMask: { value: mask }, uOpacity: { value: 0 }, uAtoq: { value: 0 } },
     vertexShader: VERT,
     fragmentShader: FRAG,
     transparent: true,
@@ -215,15 +234,23 @@ export function createMilkyWay(): MilkyWay {
   mesh.renderOrder = -9;
   noOutline(mesh);
   const axis = new THREE.Vector3(0, Math.sin(LAT), Math.cos(LAT));
+  const atoqLocal = new THREE.Vector3();
+  bandDir(ATOQ.u, ATOQ.v, atoqLocal);
   return {
     object: mesh,
     update(camera, time, opacity) {
+      // The sky turns once per day around the south celestial pole (kept current even when faded out).
+      mesh.quaternion.setFromAxisAngle(axis, -time * Math.PI * 2);
       mesh.visible = opacity > 0.01;
       if (!mesh.visible) return;
       mat.uniforms.uOpacity!.value = opacity;
       mesh.position.copy(camera);
-      // The sky turns once per day around the south celestial pole.
-      mesh.quaternion.setFromAxisAngle(axis, -time * Math.PI * 2);
+    },
+    setAtoq(v) {
+      mat.uniforms.uAtoq!.value = Math.min(1, Math.max(0, v));
+    },
+    atoqDir(out) {
+      return out.copy(atoqLocal).applyQuaternion(mesh.quaternion);
     },
     dispose() {
       geo.dispose();

@@ -7,9 +7,12 @@
  *    (to its tree when there is one) — never aggressive.
  * Rare but findable: until the traveler has had a good look (stamp `fauna:oso`), the guide bear is moved,
  * unseen, ahead of the traveler along the trail. Instanced: five draw calls for every bear.
+ * Body ("bear", creatures.ts): solid while on the ground (not hidden or up a trunk); it barely yields
+ * (give 0.15), steers its walks around others and is only ever nudged onto dry ground.
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../contract";
+import { type Body, creatures, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
 import { rng } from "../tex";
@@ -70,6 +73,7 @@ interface Bear {
   look: number;
   pose: Pose;
   draw: Pose;
+  body: Body;
 }
 
 export const create: CreateAmbient = (env): Ambient => {
@@ -161,7 +165,10 @@ export const create: CreateAmbient = (env): Ambient => {
     look: 0,
     pose: copyPose({} as Pose, POSES.walk),
     draw: copyPose({} as Pose, POSES.walk),
+    body: creatures.add("bear", (i === 0 ? 0.95 : 0.86) * 0.78, { solid: false, give: 0.15 }),
   }));
+  const dry = (x: number, z: number) => !extra?.isWater(x, z);
+  const steered = { x: 0, z: 0 };
 
   // ---------------------------------------------------------------- traveler tracking
   let avT = 0;
@@ -520,7 +527,9 @@ export const create: CreateAmbient = (env): Ambient => {
           else startEat(b, 12 + R() * 10);
           b.speed = 0.8;
         } else {
-          const want = Math.atan2(dx, dz);
+          // Look-ahead: bend the heading around the traveler and other animals.
+          creatures.steer(b.body, (dx / dist) * b.speed, (dz / dist) * b.speed, 1.2, steered);
+          const want = Math.hypot(steered.x, steered.z) > 1e-3 ? Math.atan2(steered.x, steered.z) : Math.atan2(dx, dz);
           const turn = angleDiff(b.yaw, want);
           b.yaw += Math.max(-1.8 * dt, Math.min(1.8 * dt, turn));
           moving = b.speed * Math.max(0.25, Math.cos(turn)) * Math.min(1, dist * 2);
@@ -579,6 +588,20 @@ export const create: CreateAmbient = (env): Ambient => {
 
     // Night: once nobody is watching, the bear is gone to its day bed.
     if (!awake && (!seen || d > 40) && b.mode !== "hidden") b.mode = "hidden";
+
+    // Solid on the ground only (not hidden, not up a trunk); eased out of overlaps onto dry ground.
+    const grounded = b.mode === "eat" || b.mode === "walk" || b.mode === "stand";
+    if (b.mode === "hidden") park(b.body);
+    else {
+      b.body.solid = grounded;
+      b.body.x = b.x;
+      b.body.z = b.z;
+    }
+    if (grounded && creatures.resolve(b.body, dry, 0.05)) {
+      b.x = b.body.x;
+      b.z = b.body.z;
+      b.y = groundAt(b.x, b.z);
+    }
 
     // Pose easing + slope pitch.
     if (b.mode === "walk" || b.mode === "eat") {
@@ -693,6 +716,7 @@ export const create: CreateAmbient = (env): Ambient => {
       for (const m of meshes) m.instanceMatrix.needsUpdate = true;
     },
     dispose() {
+      for (const b of bears) creatures.remove(b.body);
       offMount();
       offStamp();
       for (const m of meshes) {

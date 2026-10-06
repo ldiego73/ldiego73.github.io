@@ -278,3 +278,109 @@
   cursor: progress;
   animation: none;
 }
+
+/*
+ * Reward skin "aguayo" (world passport complete): a woven aguayo trim around the cabinet and a khipu
+ * marquee (twisted primary cord with knotted pendant cords). Pure CSS, only when data-skin="aguayo".
+ */
+.cab-khipu {
+  display: none;
+}
+.cabinet[data-skin="aguayo"] {
+  --wool-red: #b8304f;
+  --wool-gold: #e2a83c;
+  --wool-green: #2f7d5b;
+  --wool-indigo: #34418f;
+  --wool-cotton: #efe2c4;
+  padding: 22px;
+  box-shadow:
+    inset 0 0 0 4px var(--edge),
+    inset 0 0 0 7px var(--wool-cotton),
+    inset 0 0 0 10px var(--wool-indigo),
+    0 0 0 4px var(--edge),
+    0 24px 40px -24px rgb(0 0 0 / 0.6);
+}
+/* The woven band: zig-zag diamonds over a red ground, framed by gold and green stripes. */
+.cabinet[data-skin="aguayo"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 12px;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(135deg, var(--wool-gold) 25%, transparent 25%) -6px 0 / 12px 12px,
+    linear-gradient(225deg, var(--wool-gold) 25%, transparent 25%) -6px 0 / 12px 12px,
+    linear-gradient(315deg, var(--wool-green) 25%, transparent 25%) 0 0 / 12px 12px,
+    linear-gradient(45deg, var(--wool-green) 25%, transparent 25%) 0 0 / 12px 12px,
+    var(--wool-red);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+.cabinet[data-skin="aguayo"] > * {
+  position: relative;
+  z-index: 1;
+}
+.cabinet[data-skin="aguayo"] > .cab-toasts {
+  position: absolute;
+  z-index: 3;
+}
+.cabinet[data-skin="aguayo"] > .sr-only {
+  position: absolute;
+}
+.cabinet[data-skin="aguayo"] .cab-marquee {
+  margin: -10px -10px 22px;
+  border-bottom: 0;
+  /* Primary cord: a twisted two-ply rope along the bottom edge of the marquee. */
+  background:
+    repeating-linear-gradient(60deg, #6b4423 0 4px, #c58b4a 4px 8px) bottom / 100% 8px no-repeat,
+    var(--neon);
+  padding-bottom: 18px;
+}
+/* Pendant cords hang from the primary cord, each with a couple of knots (khipu). */
+.cabinet[data-skin="aguayo"] .cab-khipu {
+  display: block;
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: calc(100% - 2px);
+  height: 18px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, #1f1a17 0 2.5px, transparent 3px) 0 5px / 22px 10px repeat-x,
+    radial-gradient(circle, #1f1a17 0 2.5px, transparent 3px) 11px 12px / 22px 10px repeat-x,
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 9px,
+      var(--wool-red) 9px 12px,
+      transparent 12px 20px,
+      var(--wool-gold) 20px 23px,
+      transparent 23px 31px,
+      var(--wool-cotton) 31px 34px,
+      transparent 34px 42px,
+      var(--wool-green) 42px 45px,
+      transparent 45px 53px,
+      var(--wool-indigo) 53px 56px,
+      transparent 56px 66px
+    );
+  -webkit-mask: linear-gradient(#000 55%, transparent);
+  mask: linear-gradient(#000 55%, transparent);
+}
+.cabinet[data-skin="aguayo"] .cab-hud {
+  padding-top: 4px;
+}
+.cabinet[data-skin="aguayo"] .cab-screen {
+  box-shadow:
+    inset 0 0 0 4px var(--edge),
+    0 0 0 3px var(--wool-gold);
+}
+.cabinet[data-skin="aguayo"] .cab-screen:focus-visible {
+  box-shadow:
+    inset 0 0 0 4px var(--neon),
+    0 0 0 3px var(--wool-gold);
+}

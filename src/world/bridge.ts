@@ -1,7 +1,9 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Artifact } from "../data/career";
 import { artifactsOnBridge } from "./artifacts";
 import type { Collider, Station, WorldEnv } from "./contract";
+import { flattenToonGroup, vertexToon } from "./merge-colors";
 import { C, canvasTex, DYE, Kit, rng, toonMapped } from "./props";
 
 /**
@@ -241,7 +243,11 @@ export function buildBridge(env: WorldEnv, station: Station): Bridge {
       );
     }
   }
-  inner.add(kit.build("bridge-deck"));
+  // Planks, hangers, abutments and guide walls: one vertex-colored mesh instead of one per color.
+  const deckMat = vertexToon();
+  const deckG = kit.build("bridge-deck");
+  flattenToonGroup(deckG, deckMat);
+  inner.add(deckG);
   box.dispose();
 
   // Woven ropes.
@@ -249,6 +255,7 @@ export function buildBridge(env: WorldEnv, station: Station): Bridge {
   ropeTex.repeat.set(Math.round(length * 3), 1);
   const ropeMat = toonMapped(env, ropeTex);
   const geos: THREE.BufferGeometry[] = [];
+  const ropeGeos: THREE.BufferGeometry[] = [];
   const ropeAt = (dx: number, dy: number, extraSag: number) => {
     const rp: THREE.Vector3[] = [];
     for (let i = 0; i <= 24; i++) {
@@ -261,14 +268,22 @@ export function buildBridge(env: WorldEnv, station: Station): Bridge {
           .addScaledVector(f.nrm, dy - Math.sin(Math.PI * u) * extraSag),
       );
     }
-    const tg = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp), 64, dy > 0.5 ? 0.06 : 0.05, 6, false);
-    geos.push(tg);
-    inner.add(new THREE.Mesh(tg, ropeMat));
+    ropeGeos.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp), 64, dy > 0.5 ? 0.06 : 0.05, 6, false));
     return rp;
   };
   const rails = [ropeAt(-deckW / 2, 0.95, -0.05), ropeAt(deckW / 2, 0.95, -0.05)];
   ropeAt(-deckW / 2, 0.0, 0);
   ropeAt(deckW / 2, 0.0, 0);
+  // Four ropes, one material: one mesh (a bare Mesh, not a Group: ambient/c4.ts counts inner's Groups).
+  const ropeGeo = mergeGeometries(ropeGeos, false);
+  for (const g of ropeGeos) g.dispose();
+  if (ropeGeo) {
+    ropeGeo.computeBoundingSphere();
+    geos.push(ropeGeo);
+    const ropes = new THREE.Mesh(ropeGeo, ropeMat);
+    ropes.name = "bridge-ropes";
+    inner.add(ropes);
+  }
 
   // Artifact cords tied to the railing, alternating sides, hanging over the gorge.
   const arts = artifactsOnBridge();
@@ -300,23 +315,31 @@ export function buildBridge(env: WorldEnv, station: Station): Bridge {
       new THREE.Vector3(0, -len * 0.55, 0.16),
       new THREE.Vector3(0, -len, 0.1),
     ]);
-    const tg = new THREE.TubeGeometry(curve, 16, 0.035, 5, false);
-    geos.push(tg);
-    g.add(new THREE.Mesh(tg, mat));
-    // Knots: one per use (where this artifact showed up along the climb).
+    // Cord, knots (one per use: where this artifact showed up along the climb) and tassel share the
+    // glow material: merged into one mesh. Non-indexed so the tube, spheres and cone merge together.
+    const flat = (geo: THREE.BufferGeometry) => {
+      const n = geo.toNonIndexed();
+      geo.dispose();
+      return n;
+    };
+    const parts: THREE.BufferGeometry[] = [flat(new THREE.TubeGeometry(curve, 16, 0.035, 5, false))];
     art.uses.forEach((_, k) => {
-      const km = new THREE.Mesh(knotGeo, mat);
       const p = curve.getPointAt(0.3 + (k / Math.max(1, art.uses.length)) * 0.62);
-      km.position.copy(p);
-      km.scale.set(1, 0.8, 1);
-      g.add(km);
+      parts.push(knotGeo.toNonIndexed().scale(1, 0.8, 1).translate(p.x, p.y, p.z));
     });
-    // Tassel at the end + a cotton tag at the tie.
-    const tassel = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 6), mat);
-    geos.push(tassel.geometry);
-    tassel.position.set(0, -len - 0.1, 0.1);
-    tassel.rotation.x = Math.PI;
-    g.add(tassel);
+    // Tassel at the end (+ a cotton tag at the tie, below).
+    parts.push(
+      flat(new THREE.ConeGeometry(0.07, 0.26, 6))
+        .rotateX(Math.PI)
+        .translate(0, -len - 0.1, 0.1),
+    );
+    const cordGeo = mergeGeometries(parts, false);
+    for (const pg of parts) pg.dispose();
+    if (cordGeo) {
+      cordGeo.computeBoundingSphere();
+      geos.push(cordGeo);
+      g.add(new THREE.Mesh(cordGeo, mat));
+    }
     const tag = new THREE.Mesh(tagGeo, env.toon(C.cotton));
     tag.position.set(0, -0.06, 0.05);
     g.add(tag);
@@ -389,6 +412,7 @@ export function buildBridge(env: WorldEnv, station: Station): Bridge {
       for (const g of geos) g.dispose();
       ropeTex.dispose();
       ropeMat.dispose();
+      deckMat.dispose();
       for (const c of cords) for (const mm of c.mats) mm.dispose();
       group.removeFromParent();
     },

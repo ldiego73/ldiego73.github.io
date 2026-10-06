@@ -8,6 +8,7 @@
  */
 import * as THREE from "three";
 import type { WorldEnv } from "../../contract";
+import { type Body, creatures, park } from "../../creatures";
 import { gradientMap } from "../../toon";
 import type { QuadParts, QuadRig } from "./models";
 import { P, type Pose } from "./sim";
@@ -91,6 +92,8 @@ export interface QuadState {
   glint: number;
   /** 0..1 extra eye size so a far glint still reads (keep 0 up close). */
   eyeBoost: number;
+  /** Collision body (set by the owner from QuadSet.bodies): walkToward steers it around others. */
+  body?: Body;
 }
 
 export function makeQuadState(pose: Pose): QuadState {
@@ -115,6 +118,9 @@ export class QuadSet {
   /** World position of each animal's head (for facing tests), updated by draw(). */
   readonly headPos: THREE.Vector3[];
   readonly headFwd: THREE.Vector3[];
+  /** One collision body per animal (solid only while drawn). */
+  readonly bodies: Body[];
+  private readonly okGround?: (x: number, z: number) => boolean;
 
   constructor(
     env: WorldEnv,
@@ -123,8 +129,22 @@ export class QuadSet {
     name: string,
     material: THREE.Material,
     readonly scale: number,
-    opts: { tailTip: THREE.ColorRepresentation; tipFrom: number; eyeDark: string; eyeGlow: string; shadow: boolean },
+    opts: {
+      tailTip: THREE.ColorRepresentation;
+      tipFrom: number;
+      eyeDark: string;
+      eyeGlow: string;
+      shadow: boolean;
+      /** Collision body: creatures kind, radius, give (see creatures.ts) and the ground it may be pushed onto. */
+      body: { kind: string; r: number; give: number; ok?: (x: number, z: number) => boolean };
+    },
   ) {
+    this.bodies = Array.from({ length: count }, () => {
+      const b = creatures.add(opts.body.kind, opts.body.r, { solid: false, give: opts.body.give });
+      park(b);
+      return b;
+    });
+    this.okGround = opts.body.ok;
     this.rig = parts.rig;
     this.nTail = parts.rig.tailTaper.length;
     this.group.name = name;
@@ -168,6 +188,8 @@ export class QuadSet {
   }
 
   hide(i: number) {
+    const b = this.bodies[i];
+    if (b) park(b);
     this.body.setMatrixAt(i, ZERO);
     this.head.setMatrixAt(i, ZERO);
     for (let k = 0; k < 4; k++) {
@@ -180,6 +202,17 @@ export class QuadSet {
   }
 
   draw(i: number, st: QuadState) {
+    // A solid body while on show: eased out of any overlap (a few cm per frame, never into water).
+    const body = this.bodies[i];
+    if (body) {
+      body.solid = true;
+      body.x = st.x;
+      body.z = st.z;
+      if (creatures.resolve(body, this.okGround, 0.08)) {
+        st.x = body.x;
+        st.z = body.z;
+      }
+    }
     const r = this.rig;
     const p = st.pose;
     const S = this.scale;
@@ -240,6 +273,7 @@ export class QuadSet {
   }
 
   dispose(scene: THREE.Scene) {
+    for (const b of this.bodies) creatures.remove(b);
     scene.remove(this.group);
     for (const m of this.meshes) {
       m.geometry.dispose();

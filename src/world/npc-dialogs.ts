@@ -16,6 +16,8 @@ export interface DNode {
   next?: string;
   /** 2–3 branches. When present, `next` is ignored. */
   choices?: DChoice[];
+  /** Side effect fired once when the node is shown (errands: the traveler took the khipu). */
+  action?: "accept";
 }
 
 export interface Convo {
@@ -497,6 +499,117 @@ export const NPC_DIALOGS: NpcDialog[] = [
     ],
   },
 ];
+
+// ------------------------------------------------------------------ chasqui errands (ambient/errand/state.ts)
+
+/** Errand offers, by mission id. Any chasqui can give the next one; "yes" carries `action: "accept"`. */
+export const MISSION_DIALOGS: Record<"mission:1" | "mission:2" | "mission:3", Convo> = {
+  "mission:1": {
+    id: "mission:1",
+    start: "a",
+    nodes: {
+      a: {
+        text: l(
+          "¡Viajero, espera! Mis piernas ya corrieron su tramo y este khipu no puede quedarse quieto.",
+          "Traveler, wait! My legs have run their leg, and this khipu can't stand still.",
+        ),
+        next: "b",
+      },
+      b: {
+        text: l(
+          "Lleva este khipu al tambo de Xepelin, camino arriba. Cuenta los despliegues de la temporada: que no se pierda ni un nudo.",
+          "Take this khipu up the trail to the Xepelin tambo. It counts the season's deploys: don't lose a single knot.",
+        ),
+        choices: [
+          { label: l("Lo llevo", "I'll take it"), next: "yes" },
+          { label: l("Ahora no", "Not now"), next: "no" },
+        ],
+      },
+      yes: {
+        text: l(
+          "¡Ayllu! Te lo amarro a la mochila. Sigue las piedras hacia arriba; el tambo te espera.",
+          "Ayllu! I'll tie it to your pack. Follow the stones uphill; the tambo is expecting you.",
+        ),
+        action: "accept",
+      },
+      no: {
+        text: l(
+          "Está bien. El khipu espera; los chasquis también sabemos hacer cola.",
+          "Fair enough. The khipu will wait; chasquis know how to queue too.",
+        ),
+      },
+    },
+  },
+  "mission:2": {
+    id: "mission:2",
+    start: "a",
+    nodes: {
+      a: {
+        text: l(
+          "Dicen que entregaste el khipu de Xepelin sin un nudo suelto. Tengo otro relevo, más largo.",
+          "Word is you delivered the Xepelin khipu without a loose knot. I have another relay, a longer one.",
+        ),
+        next: "b",
+      },
+      b: {
+        text: l(
+          "Este lleva los puntajes de la semana al Tambo arcade, pasando el puente de cuerdas. ¿Lo cruzas por mí?",
+          "This one carries the week's high scores to the Arcade Tambo, past the rope bridge. Will you cross it for me?",
+        ),
+        choices: [
+          { label: l("Cruzo el puente", "I'll cross it"), next: "yes" },
+          { label: l("Luego", "Later"), next: "no" },
+        ],
+      },
+      yes: {
+        text: l(
+          "Agárrate de las sogas en el puente y no mires abajo. El khipu va contigo.",
+          "Hold the ropes on the bridge and don't look down. The khipu goes with you.",
+        ),
+        action: "accept",
+      },
+      no: {
+        text: l(
+          "Los puntajes pueden esperar. Los jugadores, no tanto.",
+          "The scores can wait. The players, not so much.",
+        ),
+      },
+    },
+  },
+  "mission:3": {
+    id: "mission:3",
+    start: "a",
+    nodes: {
+      a: {
+        text: l(
+          "Último relevo del día, y el más alto: este khipu va al Puesto del chasqui, casi en la cumbre.",
+          "Last relay of the day, and the highest: this khipu goes to the Chasqui Post, near the summit.",
+        ),
+        next: "b",
+      },
+      b: {
+        text: l(
+          "Ahí termina el camino y se cierra el ciclo. ¿Llevas el último tramo?",
+          "That's where the trail ends and the loop closes. Will you run the last leg?",
+        ),
+        choices: [
+          { label: l("Llevo el último tramo", "I'll run the last leg"), next: "yes" },
+          { label: l("Todavía no", "Not yet"), next: "no" },
+        ],
+      },
+      yes: {
+        text: l(
+          "Sube con calma: el aire se adelgaza, pero el mensaje siempre avanza.",
+          "Climb steady: the air gets thin, but the message always moves forward.",
+        ),
+        action: "accept",
+      },
+      no: {
+        text: l("Aquí estaré. La cumbre no se mueve.", "I'll be here. The summit isn't going anywhere."),
+      },
+    },
+  },
+};
 
 // ------------------------------------------------------------------ state machine
 

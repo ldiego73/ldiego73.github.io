@@ -85,6 +85,8 @@ export const create: CreateAmbient = (env): Ambient => {
     eyeDark: "#3a2a12",
     eyeGlow: "#e8f7a8",
     shadow: high,
+    // A big cat holds its ground: it yields little when pressed (the traveler slides around it).
+    body: { kind: "puma", r: 0.62, give: 0.3, ok: (x, z) => !g.water(x, z) },
   });
   const tracker = new TrailTracker(trail);
   const view = new View(env.camera);
@@ -118,6 +120,9 @@ export const create: CreateAmbient = (env): Ambient => {
     unseen: 0,
     walked: 0,
   }));
+  cats.forEach((c, i) => {
+    c.st.body = set.bodies[i];
+  });
 
   const tp = new THREE.Vector3();
   const tan = new THREE.Vector3();

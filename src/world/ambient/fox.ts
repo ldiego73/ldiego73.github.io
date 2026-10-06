@@ -63,6 +63,7 @@ export const create: CreateAmbient = (env): Ambient => {
     eyeDark: "#2a1d10",
     eyeGlow: "#f3e7a0",
     shadow: high,
+    body: { kind: "fox", r: 0.4, give: 1, ok: (x, z) => !g.water(x, z) },
   });
   const tracker = new TrailTracker(trail);
   const view = new View(env.camera);
@@ -94,6 +95,9 @@ export const create: CreateAmbient = (env): Ambient => {
     unseen: 0,
     side: 1,
   }));
+  foxes.forEach((f, i) => {
+    f.st.body = set.bodies[i];
+  });
 
   const tp = new THREE.Vector3();
   const tan = new THREE.Vector3();

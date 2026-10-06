@@ -7,10 +7,12 @@
  *
  * The stream's centerline (with the exact water height) is read from the "stream" ribbon mesh the terrain
  * builds; the pool from the "waterfall-cliff" group. Instanced: twelve draw calls for everything.
+ * Bodies ("duck", creatures.ts): solid only while perched on a rock; in the water they are not obstacles.
  */
 import * as THREE from "three";
 import { sfx } from "../../audio";
 import type { Ambient, CreateAmbient } from "../contract";
+import { creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
 import { duckParts, HIP, NECK, PLUMAGE, rockGeometry, SHOULDER, WATERLINE } from "./duck/model";
@@ -291,6 +293,7 @@ export const create: CreateAmbient = (env): Ambient => {
     }
   }
   const n = ducks.length;
+  const bodies = ducks.map((d) => creatures.add("duck", 0.32, { x: d.x, z: d.z, solid: false }));
 
   // ---------------------------------------------------------------- meshes
   const g = duckParts();
@@ -920,6 +923,10 @@ export const create: CreateAmbient = (env): Ambient => {
           }
         }
 
+        const body = bodies[i]!;
+        body.x = d.x;
+        body.z = d.z;
+        body.solid = d.visible && d.mode === "perch";
         if (!d.visible) hideDuck(i);
         else pose(i, d, A);
       }
@@ -977,6 +984,7 @@ export const create: CreateAmbient = (env): Ambient => {
       }
     },
     dispose() {
+      for (const b of bodies) creatures.remove(b);
       offMount();
       for (const m of meshes) {
         env.scene.remove(m);

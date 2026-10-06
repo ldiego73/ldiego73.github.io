@@ -1,5 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { emptyState, evaluate, leaderboard, recordEnd, recordStart, recordStat } from "./store";
+import {
+  activeSkin,
+  arcadeUnlockedCount,
+  CHULLO_AT,
+  chulloUnlocked,
+  emptyState,
+  evaluate,
+  grantWorldPassport,
+  leaderboard,
+  load,
+  recordEnd,
+  recordStart,
+  recordStat,
+  save,
+  setSkin,
+  WALKER_ID,
+  WORLD_GAME,
+} from "./store";
 import type { Achievement } from "./types";
 
 const t = { es: "x", en: "x" };
@@ -40,5 +57,57 @@ describe("arcade store", () => {
       { game: "a", best: 10 },
       { game: "c", best: 0 },
     ]);
+  });
+});
+
+describe("cross rewards", () => {
+  const walker: Achievement = {
+    id: WALKER_ID,
+    title: t,
+    description: t,
+    rule: { kind: "stat", game: WORLD_GAME, key: "passport", gte: 1 },
+  };
+  test("world passport unlocks the walker once, without touching losses or played-all", () => {
+    const s = emptyState();
+    expect(grantWorldPassport(s)).toBe(true);
+    expect(grantWorldPassport(s)).toBe(false);
+    expect(evaluate(s, [walker, ...achievements], ["bug"]).map((a) => a.id)).toEqual([WALKER_ID]);
+    expect(s.games.world?.losses).toBe(0);
+  });
+  test("chullo counts arcade achievements but not the walker", () => {
+    const s = emptyState();
+    const ids = [WALKER_ID, "a", "b", "c", "d", "e", "f"];
+    for (const id of ids.slice(0, 6)) s.unlocked[id] = 1;
+    expect(arcadeUnlockedCount(s, ids)).toBe(5);
+    expect(chulloUnlocked(s, ids)).toBe(false);
+    s.unlocked.f = 1;
+    expect(chulloUnlocked(s, ids)).toBe(true);
+    expect(CHULLO_AT).toBe(6);
+  });
+  test("skin only applies once unlocked and survives a save/load round trip", () => {
+    const mem = new Map<string, string>();
+    const g = globalThis as unknown as { localStorage?: unknown };
+    const prev = g.localStorage;
+    g.localStorage = {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => void mem.set(k, v),
+    };
+    try {
+      const s = emptyState();
+      setSkin(s, "aguayo");
+      expect(activeSkin(s)).toBe("neon");
+      s.unlocked[WALKER_ID] = 1;
+      setSkin(s, "aguayo");
+      expect(activeSkin(s)).toBe("aguayo");
+      save(s);
+      expect(load().skin).toBe("aguayo");
+      // Older saves (no skin) and junk values load as the default.
+      mem.set("ldiego73-arcade-v1", JSON.stringify({ games: {}, unlocked: {} }));
+      expect(load()).toEqual({ games: {}, unlocked: {} });
+      mem.set("ldiego73-arcade-v1", JSON.stringify({ games: {}, unlocked: {}, skin: "gold" }));
+      expect(load().skin).toBeUndefined();
+    } finally {
+      g.localStorage = prev;
+    }
   });
 });

@@ -1,6 +1,8 @@
 import { CATALOG, loadPassport, mergedPassport, passportComplete, recordStamp } from "../../lib/passport";
 import type { CreateAmbient, L } from "../contract";
 import { emit, on } from "../events";
+import { formatDuration, loadJourney } from "../journey";
+import { errandRows, loadErrands } from "./errand/state";
 import "./passport/passport.css";
 
 const COPY = {
@@ -17,10 +19,23 @@ const COPY = {
   secretos: { es: "Secretos", en: "Secrets" },
   campos: { es: "Campos", en: "Fields" },
   fauna: { es: "Fauna", en: "Wildlife" },
+  extras: { es: "Encargos, récords y fiestas", en: "Errands, records and festivals" },
   arcade: { es: "Arcade", en: "Arcade" },
   stamps: { es: "sellos", en: "stamps" },
   achievements: { es: "logros", en: "achievements" },
   total: { es: "Total", en: "Total" },
+  best: { es: "Mejor subida", en: "Best climb" },
+  noBest: {
+    es: "sin tiempo aún: sal de la puerta del camino y llega a la cumbre sin viaje rápido",
+    en: "no time yet: leave the trailhead and reach the summit without fast travel",
+  },
+  climbs: { es: "subidas", en: "climbs" },
+  errand: { es: "Encargo", en: "Errand" },
+  errandTo: { es: "khipu {place}", en: "khipu {place}" },
+  done: { es: "entregado", en: "delivered" },
+  carrying: { es: "en curso", en: "in progress" },
+  todo: { es: "pendiente: habla con un chasqui", en: "pending: talk to a chasqui" },
+  later: { es: "pendiente", en: "pending" },
 } satisfies Record<string, L>;
 
 export const create: CreateAmbient = (env, hudRoot) => {
@@ -88,7 +103,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
   function checkComplete() {
     if (completionSent || !passportComplete(state)) return;
     completionSent = true;
-    emit("world:passport-complete", { total: CATALOG.filter((stamp) => stamp.kind !== "egg").length });
+    emit("world:passport-complete", { total: CATALOG.length });
   }
 
   function render() {
@@ -103,6 +118,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
       { label: COPY.secretos, kinds: ["egg"] },
       { label: COPY.campos, kinds: ["field"] },
       { label: COPY.fauna, kinds: ["fauna"] },
+      { label: COPY.extras, kinds: ["npc", "record", "festival"] },
     ];
     for (const section of sections) {
       const title = document.createElement("h3");
@@ -121,6 +137,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
         grid.append(seal);
       }
       body.append(title, grid);
+      if (section.label === COPY.extras) body.append(extrasDetail());
     }
     const arcadeTitle = document.createElement("h3");
     arcadeTitle.textContent = text(COPY.arcade);
@@ -142,6 +159,44 @@ export const create: CreateAmbient = (env, hudRoot) => {
       achievements.append(row);
     }
     body.append(arcadeTitle, achievements);
+  }
+
+  /** Best climb time and each errand's state, under the "errands, records and festivals" seals. */
+  function extrasDetail() {
+    const list = document.createElement("ul");
+    list.className = "qn-passport-extras";
+    const row = (label: string, value: string, on: boolean) => {
+      const li = document.createElement("li");
+      li.classList.toggle("is-on", on);
+      const k = document.createElement("strong");
+      k.textContent = label;
+      const v = document.createElement("span");
+      v.textContent = value;
+      li.append(k, v);
+      list.append(li);
+    };
+    const journey = loadJourney();
+    row(
+      text(COPY.best),
+      journey.bestMs !== null
+        ? `${formatDuration(journey.bestMs, env.lang)} · ${journey.climbs} ${text(COPY.climbs)}`
+        : text(COPY.noBest),
+      journey.bestMs !== null,
+    );
+    const errands = loadErrands();
+    let offered = false;
+    errandRows(errands).forEach(({ mission, status }, i) => {
+      const place = text(COPY.errandTo).replace("{place}", text(mission.place));
+      let state: string;
+      if (status === "done") state = text(COPY.done);
+      else if (status === "active") state = text(COPY.carrying);
+      else {
+        state = text(offered ? COPY.later : COPY.todo);
+        offered = true;
+      }
+      row(`${text(COPY.errand)} ${["I", "II", "III"][i]}`, `${place} · ${state}`, status !== "todo");
+    });
+    return list;
   }
 
   function close() {

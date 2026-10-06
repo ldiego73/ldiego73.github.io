@@ -2,11 +2,12 @@
  * Audio graph + track runners on top of any BaseAudioContext (live or offline).
  *
  *   TrackRunner.gain -> duck -> pause -> master -> limiter -> destination
+ *   music bus (place motifs) -> duck ...       (layers that belong to the music: ducked and paused with it)
  *   stinger bus ---------------------------^
  *   sfx bus / ambient bus -----------------^   (world one-shots and soundscape: same mute/volume, no music duck)
  */
-import type { Stinger, Track } from "./contract";
-import { Scheduler, slew } from "./scheduler";
+import type { MusicClock, Stinger, Track } from "./contract";
+import { Scheduler, slew, stepSeconds } from "./scheduler";
 import { STINGERS } from "./stingers";
 import { VoiceBank } from "./voices";
 
@@ -82,6 +83,16 @@ export class TrackRunner {
     }
   }
 
+  /** Where this runner is on its step grid (for layers that play in time with the music). */
+  clock(out: MusicClock = { trackId: "", step: 0, time: 0, stepSec: 0, swing: 0 }): MusicClock {
+    out.trackId = this.track.id;
+    out.step = this.sched.step;
+    out.time = this.sched.time;
+    out.stepSec = stepSeconds(this.track, this.intensity);
+    out.swing = Math.min(0.5, Math.max(0, this.track.swing ?? 0));
+    return out;
+  }
+
   fadeIn(ms: number) {
     const g = this.gain.gain;
     const now = this.engine.ctx.currentTime;
@@ -119,6 +130,8 @@ export class AudioEngine {
   readonly sfxBus: GainNode;
   /** Continuous world soundscape; dipped while a stinger plays. */
   readonly ambientBus: GainNode;
+  /** Extra music layers (world place motifs): same duck/pause as the tracks. */
+  readonly musicBus: GainNode;
   private limiter: DynamicsCompressorNode;
   private clip: WaveShaperNode;
 
@@ -143,6 +156,9 @@ export class AudioEngine {
     this.ambientBus = ctx.createGain();
     this.ambientBus.gain.value = 1;
     this.ambientBus.connect(this.master);
+    this.musicBus = ctx.createGain();
+    this.musicBus.gain.value = 1;
+    this.musicBus.connect(this.duckNode);
     this.master.connect(this.limiter);
     // last-resort soft clip so a transient that slips past the limiter can never exceed full scale
     this.clip = ctx.createWaveShaper();
@@ -240,6 +256,7 @@ export class AudioEngine {
   }
 
   dispose() {
+    this.musicBus.disconnect();
     this.sfxBus.disconnect();
     this.ambientBus.disconnect();
     this.master.disconnect();

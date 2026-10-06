@@ -4,8 +4,10 @@ import { type Cabinet, createCabinet } from "../arcade-lobby/cabinet";
 import type { GameMeta } from "../games/core/types";
 import { GAMES } from "../games/registry";
 import { denoiseText } from "../lib/signal";
+import { type MergedCabinet, mergeCabinet } from "./arcade-merge";
 import { stationsInOrder } from "./artifacts";
 import { type Collider, type Lang, STATIONS, type WorldEnv } from "./contract";
+import { flattenToonGroup, vertexToon } from "./merge-colors";
 import {
   C,
   canvasTex,
@@ -354,6 +356,14 @@ export function buildArcade(
   const z0 = z1 - d;
   const zc = (z0 + z1) / 2;
   const kit = new Kit(env);
+  // Every Kit build below folds its per-color meshes into one vertex-colored mesh (fades clone it).
+  const vMat = vertexToon();
+  own.mats.push(vMat);
+  const kbuild = (k: Kit, name: string) => {
+    const b = k.build(name);
+    flattenToonGroup(b, vMat);
+    return b;
+  };
   // Plinth seated tile by tile on the terrain (no gaps on slopes).
   for (let x = -w / 2 - 0.6; x < w / 2 + 2.9; x += 1.0)
     for (let z = z0 - 0.6; z < z1 + 0.6; z += 1.0)
@@ -367,7 +377,7 @@ export function buildArcade(
     const k = new Kit(env);
     build(k);
     const g = new THREE.Group();
-    g.add(k.build(name));
+    g.add(kbuild(k, name));
     group.add(g);
     return g;
   };
@@ -396,7 +406,7 @@ export function buildArcade(
   rk.box(w + 0.2, 0.12, d + 0.2, 0, h + 0.1, zc, C.woodDark);
   thatchRoof(rk, rand, w, d, h + 0.18, 2.6, 0, zc);
   const roofG = new THREE.Group();
-  roofG.add(rk.build("arcade-roof"));
+  roofG.add(kbuild(rk, "arcade-roof"));
   // Woven rug (dye stripes) in front of the cabinets.
   ["red", "ochre", "indigo", "turq", "red"].forEach((dye, i) => {
     kit.box(5.2, 0.02, 0.36, 0, 0.16, zc + 0.9 + i * 0.36, DYE[dye as keyof typeof DYE]);
@@ -408,7 +418,7 @@ export function buildArcade(
   // Cords for the hanging lanterns.
   for (const x of [-3.2, 0.4, 3.6])
     kit.stick(new THREE.Vector3(x, h + 0.1, zc + 0.6), new THREE.Vector3(x, h - 1.45, zc + 0.6), 0.02, C.cotton, 4);
-  group.add(kit.build("arcade-house"));
+  group.add(kbuild(kit, "arcade-house"));
   group.add(roofG);
   const roofFade = fadeable(roofG, env);
   const roofEase = new Ease01(0.35, env.reducedMotion);
@@ -440,6 +450,7 @@ export function buildArcade(
   // Nine cabinets in a cozy shallow arc along the back wall.
   const games = GAMES.slice(0, 9);
   const attracts: Attract[] = [];
+  const merged: MergedCabinet[] = [];
   const span = 9.0;
   const cabinets = games.map((meta, i) => {
     const u = games.length > 1 ? i / (games.length - 1) - 0.5 : 0;
@@ -447,6 +458,9 @@ export function buildArcade(
     const z = z0 + 0.95 + u * u * 2.4;
     const color = CAB_COLOR[meta.neon] ?? DYE.ochre;
     const cab = createCabinet({ color, marquee: meta.marquee, lang });
+    // ~25 box meshes → 4 (body+edges, trim, screen, marquee): one draw per pass each.
+    const mc = mergeCabinet(cab);
+    if (mc) merged.push(mc);
     cab.group.position.set(x, 0.14, z);
     cab.group.rotation.y = -u * 0.9;
     const at = createAttract(meta.slug, meta.title[lang], color);
@@ -542,6 +556,7 @@ export function buildArcade(
       for (const tt of torches) tt.dispose();
       for (const a of attracts) a.dispose();
       for (const c of cabinets) c.cab.dispose();
+      for (const mc of merged) mc.dispose();
       roofFade.dispose();
       beamFade.dispose();
       own.dispose(group);

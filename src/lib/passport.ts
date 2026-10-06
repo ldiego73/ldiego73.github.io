@@ -38,6 +38,15 @@ export const CATALOG: readonly PassportStamp[] = [
   { id: "egg:golden-khipu", kind: "egg", label: { es: "Khipu dorado", en: "Golden khipu" } },
   { id: "field:huerto", kind: "field", label: { es: "Huerto de código", en: "Code garden" } },
   { id: "field:khipu-board", kind: "field", label: { es: "Khipu de escritos", en: "Writing khipu" } },
+  { id: "mission:1", kind: "npc", label: { es: "Encargo del chasqui I", en: "Chasqui errand I" } },
+  { id: "mission:2", kind: "npc", label: { es: "Encargo del chasqui II", en: "Chasqui errand II" } },
+  { id: "mission:3", kind: "npc", label: { es: "Encargo del chasqui III", en: "Chasqui errand III" } },
+  { id: "record:climb", kind: "record", label: { es: "Contrarreloj a la cumbre", en: "Summit time trial" } },
+  { id: "festival:inti-raymi", kind: "festival", label: { es: "Inti Raymi", en: "Inti Raymi" } },
+  { id: "festival:snow", kind: "festival", label: { es: "Nieve en la cumbre", en: "Snow on the summit" } },
+  { id: "egg:golden-condor", kind: "egg", label: { es: "Cóndor dorado", en: "Golden condor" } },
+  { id: "egg:waterfall-cave", kind: "egg", label: { es: "Cueva tras la cascada", en: "Cave behind the waterfall" } },
+  { id: "egg:atoq", kind: "egg", label: { es: "Atoq · el zorro del cielo", en: "Atoq · the sky fox" } },
   { id: "fauna:oso", kind: "fauna", label: { es: "Oso de anteojos", en: "Spectacled bear" } },
   { id: "fauna:pato", kind: "fauna", label: { es: "Pato de los torrentes", en: "Torrent duck" } },
   { id: "fauna:perdiz", kind: "fauna", label: { es: "Perdiz andina", en: "Andean tinamou" } },
@@ -88,9 +97,12 @@ export function recordStamp(state: PassportState, id: string, time = Date.now())
   return true;
 }
 
+const REQUIRED = new Set<PassportStamp["kind"]>(["station", "summit", "constellation", "weather", "ride", "field"]);
+
 export function passportComplete(state: PassportState): boolean {
-  // Eggs and wildlife are bonus finds (the puma and the bear are rare): they never gate completion.
-  return CATALOG.every((stamp) => stamp.kind === "egg" || stamp.kind === "fauna" || validTime(state.stamps[stamp.id]));
+  // Only the walk itself gates completion. Eggs, wildlife, errands, the time trial and date-dependent
+  // stamps (Inti Raymi, winter snow) are bonus finds.
+  return CATALOG.every((stamp) => !REQUIRED.has(stamp.kind) || validTime(state.stamps[stamp.id]));
 }
 
 /** Read-only merged progress: arcade remains owned by its existing store. */

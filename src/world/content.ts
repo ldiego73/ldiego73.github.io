@@ -3,6 +3,7 @@ import { COMPANIES } from "../data/career";
 import { mountCabinet } from "../games/core/shell";
 import type { GameMeta } from "../games/core/types";
 import { t as tr, type UIKey } from "../i18n/ui";
+import { diagramFor } from "./ambient/c4/diagrams";
 import { khipuFor, stationsInOrder } from "./artifacts";
 import { type Bridge, buildBridge } from "./bridge";
 import { type Collider, type Content, type CreateContent, STATIONS, type Station, type WorldEnv } from "./contract";
@@ -74,6 +75,11 @@ interface Spot {
   priority: number;
   game?: GameMeta;
   cabinetIndex?: number;
+  /**
+   * The C4 ambient (ambient/c4.ts) owns E here ("E · Ver arquitectura"): content keeps the auto panel and the
+   * tap-to-read path, but shows no E prompt of its own and ignores E, so there's one clear E action.
+   */
+  eOwnedElsewhere?: boolean;
 }
 
 const KIND_COLOR: Record<Station["kind"], string> = {
@@ -214,6 +220,7 @@ export const createContent: CreateContent = (env: WorldEnv, hudRoot: HTMLElement
           prompt: "qn.read",
           priority: 2,
           panel: () => hud.artifact(s.artifact),
+          eOwnedElsewhere: !!diagramFor(s.artifact.id),
         });
       }
       bridge.hits.forEach((h, i) => {
@@ -556,7 +563,9 @@ export const createContent: CreateContent = (env: WorldEnv, hudRoot: HTMLElement
         if (active?.panel && dismissed !== active.id) hud.panel(active.id, active.panel);
         else if (!forced) hud.panel(null);
         const panelOpen = hud.panelKey() === active?.id;
-        hud.prompt(active && (active.kind === "cabinet" || !panelOpen) ? `${L(active.prompt)}` : null);
+        hud.prompt(
+          active && !active.eOwnedElsewhere && (active.kind === "cabinet" || !panelOpen) ? `${L(active.prompt)}` : null,
+        );
       }
       arcade?.focusCabinet(active?.kind === "cabinet" ? (active.cabinetIndex ?? null) : null);
 
@@ -608,7 +617,7 @@ export const createContent: CreateContent = (env: WorldEnv, hudRoot: HTMLElement
     },
     interact() {
       if (content.gameOpen) return;
-      if (!active) return;
+      if (!active || active.eOwnedElsewhere) return;
       if (active.kind === "cabinet" && active.game) {
         openGame(active.game);
         return;

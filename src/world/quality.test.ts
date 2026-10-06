@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createGovernor, DEFAULT_GOVERNOR, LEVELS } from "./quality";
+import { createGovernor, DEFAULT_GOVERNOR, deviceProfile, LEVELS } from "./quality";
 
 const run = (g: ReturnType<typeof createGovernor>, fps: number, seconds: number) => {
   const ms = 1000 / fps;
@@ -65,5 +65,30 @@ describe("quality governor", () => {
     g.setEnabled(false);
     run(g, 10, 20);
     expect(steps).toEqual([]);
+  });
+});
+
+describe("device profile", () => {
+  test("phones: touch + small screen; constrained when few cores or little memory", () => {
+    expect(deviceProfile({ coarse: true, minSide: 390, cores: 8, memory: 8 })).toEqual({
+      phone: true,
+      constrained: false,
+    });
+    expect(deviceProfile({ coarse: true, minSide: 390, cores: 6, memory: 4 })).toEqual({
+      phone: true,
+      constrained: true,
+    });
+    // iOS reports no deviceMemory: decided by the cores alone.
+    expect(deviceProfile({ coarse: true, minSide: 375, cores: 4 }).constrained).toBe(true);
+  });
+
+  test("desktops, touch laptops and big tablets get no extra cuts", () => {
+    expect(deviceProfile({ coarse: false, minSide: 390, cores: 2, memory: 2 })).toEqual({
+      phone: false,
+      constrained: false,
+    });
+    expect(deviceProfile({ coarse: true, minSide: 1024, cores: 4 }).phone).toBe(false);
+    expect(deviceProfile({ coarse: true, minSide: 744, cores: 4 }).phone).toBe(false);
+    expect(deviceProfile({ coarse: true, minSide: 0 }).phone).toBe(false);
   });
 });

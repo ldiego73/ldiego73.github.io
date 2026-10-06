@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import type { WorldEnv } from "../../contract";
 import { canvasTex, offFontsReady, onFontsReady, redraw } from "../../props";
+import { inkMask } from "../../toon";
 
 export interface SignAtlas {
   material: THREE.MeshBasicMaterial;
@@ -50,6 +51,7 @@ export function signAtlas(
       const m = new THREE.Mesh(g, material);
       m.name = "qnf-sign";
       env.noOutline(m);
+      inkMask(m);
       return m;
     },
     dispose() {

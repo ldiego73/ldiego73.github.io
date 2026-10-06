@@ -607,3 +607,13 @@
     transition: none;
   }
 }
+
+/* Short landscape phones: keep station panels usable (a narrow column that leaves room for the
+   touch controls and the C4/exhibit panel on the other side). */
+@media (max-height: 520px) and (min-width: 641px) {
+  .qn-panel {
+    top: calc(var(--qn-top) + 44px);
+    width: min(360px, 46vw);
+    max-height: max(180px, calc(100dvh - var(--qn-top) - 44px - var(--qn-bottom) - 12px));
+  }
+}

@@ -6,11 +6,16 @@
  *   colors (same pattern as the rocks/ichu), so the whole bestiary is ~30 draw calls and keeps the ink.
  * - Motion: leader-follow boids (fauna-sim.ts) + procedural pacing gaits; necks pitch to graze and turn
  *   to watch the traveler; herds drift away and bolt if the traveler runs at them.
- * - Budget: ≈55 animals on high, ≈32 on low; herds farther than 120 u step at 4 Hz.
+ * - Budget: ≈55 animals on high, ≈32 on low; herds farther than 120 u (70 u on phones) step at 4 Hz.
  * - Interact: E right next to an alpaca shows a tiny text bubble; anything else returns false.
+ * - Bodies (creatures.ts): every animal registers ("vicuna", "alpaca", "llama", "vizcacha", "condor" — the
+ *   condors never solid). Herds bend their wanted velocity around other herds, the traveler and predators
+ *   (look-ahead steer inside flockStep), then resolve any overlap only onto their own good ground, so a
+ *   grazing herd is never shoved over a terrace wall or onto the path. Caravan llamas only yield sideways.
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient, WorldEnv } from "./contract";
+import { type Body, creatures } from "./creatures";
 import { ALPACA, type CamelidSpec, camelidParts, condorParts, LLAMA, VICUNA, vizcachaParts } from "./fauna-models";
 import {
   type Agent,
@@ -36,11 +41,16 @@ import {
   turnToward,
   wrapAngle,
 } from "./fauna-sim";
+import { detectDevice } from "./quality";
 
 const NEAR = 120;
 const FAR_STEP = 0.25;
 const RUN_SPEED = 5;
 const HELLO_R = 3.5;
+/** Body radii (world units, before the per-animal scale): about half the body length. */
+const BODY_R = { vicuna: 0.55, alpaca: 0.5, llama: 0.62 } as const;
+/** Look-ahead of the herd steering (seconds). */
+const AHEAD = 0.9;
 
 type Species = "vicuna" | "alpaca" | "llama";
 
@@ -61,6 +71,7 @@ interface Beast extends Agent {
   tail: number;
   hop: number;
   seed: number;
+  body: Body;
 }
 
 interface Herd {
@@ -151,6 +162,8 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
   const high = env.quality === "high";
   const rm = env.reducedMotion;
   const motion = rm ? 0.5 : 1;
+  /** Herds within this distance step every frame (phones: nearer, the rest at 4 Hz). */
+  const near = detectDevice().phone ? 70 : NEAR;
   const group = new THREE.Group();
   group.name = "fauna";
   env.scene.add(group);
@@ -317,7 +330,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
 
   const vicunaHerds = herdSizes(high ? 3 : 2, 4, high ? 7 : 6, R);
   const alpacaHerds = herdSizes(high ? 4 : 3, 3, high ? 5 : 4, R);
-  const mkBeast = (x: number, z: number, slot: number, scale: number): Beast => ({
+  const mkBeast = (species: Species, x: number, z: number, slot: number, scale: number): Beast => ({
     x,
     z,
     vx: 0,
@@ -338,13 +351,16 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     tail: 0,
     hop: 0,
     seed: R() * 100,
+    body: creatures.add(species, BODY_R[species] * scale, { x, z, give: 1 }),
   });
   const counts = { vicuna: 0, alpaca: 0, llama: 0 };
   const addHerd = (species: "vicuna" | "alpaca", size: number, r: GroundRules, home: { x: number; z: number }) => {
     const members: Beast[] = [];
     for (let i = 0; i < size; i++) {
       const p = findSpot(r, home.x, home.z, 4 + size * 0.6, 30) ?? home;
-      members.push(mkBeast(p.x, p.z, counts[species]++, species === "vicuna" ? 0.95 + R() * 0.12 : 0.9 + R() * 0.18));
+      members.push(
+        mkBeast(species, p.x, p.z, counts[species]++, species === "vicuna" ? 0.95 + R() * 0.12 : 0.9 + R() * 0.18),
+      );
     }
     herds.push({
       species,
@@ -414,7 +430,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
   }
 
   // The summit is a narrow peak (pickHome wants room to graze): a small herd on the last open ledge.
-  summit: for (let t = 0.97; t > 0.86; t -= 0.01) {
+  ledge: for (let t = 0.97; t > 0.86; t -= 0.01) {
     const tp = trail.pointAt(t);
     const tg = trail.tangentAt(t);
     for (const side of [1, -1])
@@ -431,7 +447,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
         const home = { x, z };
         homes.push(home);
         addHerd("vicuna", high ? 4 : 3, upper, home);
-        break summit;
+        break ledge;
       }
   }
 
@@ -455,7 +471,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     pause: 0,
     // Each llama keeps its own t; the one furthest along the walking direction leads, the rest follow.
     llamas: Array.from({ length: caravanN }, (_, i) => ({
-      ...mkBeast(0, 0, i, 1 + (i === 0 ? 0.06 : -0.03 * i)),
+      ...mkBeast("llama", 0, 0, i, 1 + (i === 0 ? 0.06 : -0.03 * i)),
       t: startT + spacing * i,
       lat: -0.75,
       latGoal: -0.75,
@@ -529,6 +545,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     rock: Rock;
     slot: number;
     seed: number;
+    body: Body;
   }
   const vizs: Viz[] = [];
   for (const rock of colonySites) {
@@ -557,6 +574,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
         rock,
         slot: vizs.length,
         seed: R() * 100,
+        body: creatures.add("vizcacha", 0.28, { x, z }),
       });
     }
   }
@@ -591,6 +609,8 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       y: 0,
       z: 0,
       seed: R() * 100,
+      // Always on the wing: listed for queries (soundscape, text mode), never an obstacle.
+      body: creatures.add("condor", 0.9, { solid: false }),
     };
   });
 
@@ -766,6 +786,18 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
 
   // ---------------------------------------------------------------- herd step
   const threat = { x: 0, z: 0, running: false };
+  // Shared per-step state for the (allocation-free) steering and ground callbacks below.
+  let steerHerd: Herd | null = null;
+  let groundRules: GroundRules = valley;
+  let offGround = false;
+  const steerMember = (i: number, want: { x: number; z: number }) => {
+    const b = steerHerd?.members[i];
+    if (b) creatures.steer(b.body, want.x, want.z, AHEAD, want);
+  };
+  /** Where a herd animal may stand (anywhere while it is still stranded on bad ground). */
+  const okGround = (x: number, z: number) => offGround || goodGround(groundRules, x, z);
+  const okViz = (x: number, z: number) => goodGround(vizRules, x, z);
+  const crowd: Body[] = [];
   const stepHerd = (h: Herd, dt: number, av: THREE.Vector3) => {
     const lead = h.members[0];
     if (!lead) return;
@@ -801,11 +833,23 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     threat.x = av.x;
     threat.z = av.z;
     threat.running = travelerSpeed > RUN_SPEED;
-    const alarm = flockStep(h.members, h.goal, threat, h.params, dt);
+    steerHerd = h;
+    // Dev (collision tests): `window.__faunaCalm = true` keeps herds from fleeing the traveler.
+    const calm = import.meta.env?.DEV && (window as unknown as { __faunaCalm?: boolean }).__faunaCalm;
+    const alarm = flockStep(h.members, calm ? null : h.goal, calm ? null : threat, h.params, dt, steerMember);
     const stride = h.species === "vicuna" ? 1.15 : 0.85;
+    groundRules = h.rules;
     for (const [i, b] of h.members.entries()) {
-      const bad = !goodGround(h.rules, b.x, b.z);
-      moveAgent(b, dt, (x, z) => bad || goodGround(h.rules, x, z));
+      offGround = !goodGround(h.rules, b.x, b.z);
+      const ok = okGround;
+      moveAgent(b, dt, ok);
+      // Settle out of any overlap (herd mates, other herds, the traveler), never off its own ground.
+      b.body.x = b.x;
+      b.body.z = b.z;
+      if (creatures.resolve(b.body, ok, 1.5 * dt + 0.02)) {
+        b.x = b.body.x;
+        b.z = b.body.z;
+      }
       animateBeast(b, h.spec, dt, av, alarm[i] ?? 0, stride);
     }
   };
@@ -813,6 +857,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
   // ---------------------------------------------------------------- caravan step
   const tp = new THREE.Vector3();
   const tg = new THREE.Vector3();
+  const blockers: Body[] = [];
   const stepCaravan = (dt: number, av: THREE.Vector3) => {
     const len = trail.length;
     const dir = caravan.dir;
@@ -829,6 +874,18 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       const fwd = Math.sin(lead.yaw) * dx + Math.cos(lead.yaw) * dz;
       if (Math.hypot(dx, dz) < 4.2 && fwd > -0.5) blocked = true;
     }
+    // Anyone (the traveler, an animal) standing just ahead of any llama of the string: wait.
+    if (!blocked)
+      for (const l of caravan.llamas) {
+        const fx = l.x + Math.sin(l.yaw) * 1.1;
+        const fz = l.z + Math.cos(l.yaw) * 1.1;
+        for (const o of creatures.near(fx, fz, 0.9, blockers, l.body))
+          if (o.solid && o.kind !== "llama") {
+            blocked = true;
+            break;
+          }
+        if (blocked) break;
+      }
     if (blocked) caravan.pause = 1.2;
     caravan.pause -= dt;
     const v = caravan.pause > 0 ? 0 : 1.15 * motion;
@@ -856,8 +913,21 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
         l.latGoal = side * (trail.halfWidth - 0.55);
       } else l.latGoal = caravan.dir * 0.75;
       l.lat = damp(l.lat, l.latGoal, 1.6, dt);
-      const nx = tp.x + rx * l.lat;
-      const nz = tp.z + rz * l.lat;
+      // Pressed by a body (the traveler squeezing past): give way on the paving — sideways (clamped to the
+      // path) and, for what the side step can't absorb, a little back along the trail.
+      l.body.x = tp.x + rx * l.lat;
+      l.body.z = tp.z + rz * l.lat;
+      let along = 0;
+      if (creatures.resolve(l.body, undefined, 0.3)) {
+        const lim = trail.halfWidth - 0.45;
+        const ox = l.body.x - tp.x;
+        const oz = l.body.z - tp.z;
+        l.lat = clamp(ox * rx + oz * rz, -lim, lim);
+        along = ox * tg.x + oz * tg.z;
+        l.t += along / len;
+      }
+      const nx = tp.x + rx * l.lat + tg.x * along;
+      const nz = tp.z + rz * l.lat + tg.z * along;
       l.vx = dt > 0 ? (nx - l.x) / dt : 0;
       l.vz = dt > 0 ? (nz - l.z) / dt : 0;
       if (Math.hypot(l.vx, l.vz) > 6) {
@@ -866,6 +936,8 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       }
       l.x = nx;
       l.z = nz;
+      l.body.x = nx;
+      l.body.z = nz;
       animateBeast(l, LLAMA, dt, close ? av : null, close ? 0.1 : 0, 1.2);
       // Face the walking direction even when paused.
       if (Math.hypot(l.vx, l.vz) < 0.12)
@@ -926,17 +998,33 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
               step = Math.hypot(hx - z.x, hz - z.z);
             }
           }
-          z.from = { x: z.x, z: z.z };
-          z.to = { x: hx, z: hz };
-          z.hopping = true;
-          z.hopT = 0;
-          z.yaw = Math.atan2(hx - z.x, hz - z.z);
+          // Never land on another body: wait a moment and pick again.
+          let taken = false;
+          for (const o of creatures.near(hx, hz, z.body.r, crowd, z.body)) if (o.solid) taken = true;
+          if (taken) {
+            z.rest = 0.3 + R() * 0.6;
+            z.homeA += (R() - 0.5) * 1.2;
+          } else {
+            z.from = { x: z.x, z: z.z };
+            z.to = { x: hx, z: hz };
+            z.hopping = true;
+            z.hopT = 0;
+            z.yaw = Math.atan2(hx - z.x, hz - z.z);
+          }
         } else if (z.hide <= 0 && R() < 0.25) {
           // Wander to a new sunning spot around the rock.
           z.homeA += (R() - 0.5) * 1.6;
           z.rest = 0.2;
         } else z.rest = 2 + R() * 5;
       }
+    }
+    // On the ground between hops it is a (small) body: nudged out of overlaps, never onto bad ground.
+    z.body.solid = !z.hopping;
+    z.body.x = z.x;
+    z.body.z = z.z;
+    if (!z.hopping && creatures.resolve(z.body, okViz, 0.06)) {
+      z.x = z.body.x;
+      z.z = z.body.z;
     }
     z.y = env.heightAt(z.x, z.z);
     z.crouch = damp(z.crouch, z.hide > 0 && !z.hopping ? 1 : 0, 6, dt);
@@ -1012,6 +1100,8 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     c.x = x;
     c.y = y;
     c.z = z;
+    c.body.x = x;
+    c.body.z = z;
     rootMatrix(mRoot, x, y, z, yaw, divePitch, c.bank, 1.45);
     cBody.set(i, mRoot);
     cCollar.set(i, mRoot);
@@ -1094,7 +1184,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       if (!lead) continue;
       h.acc += dt;
       const dist = Math.hypot(lead.x - avatar.x, lead.z - avatar.z);
-      if (!shouldStep(h.acc, dist, NEAR, FAR_STEP)) continue;
+      if (!shouldStep(h.acc, dist, near, FAR_STEP)) continue;
       // Integrate long far-steps in small slices so steering stays stable.
       let left = h.acc;
       h.acc = 0;
@@ -1146,6 +1236,32 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     placeBubble();
   };
 
+  // Dev (collision tests): pin one animal of a kind at (x, z) — it stays there (with `__faunaCalm` for herds).
+  if (import.meta.env?.DEV)
+    group.userData.debug = {
+      pin(kind: "alpaca" | "vicuna" | "vizcacha", x: number, z: number) {
+        if (kind === "vizcacha") {
+          const v = vizs[0];
+          if (!v) return false;
+          v.x = x;
+          v.z = z;
+          v.hopping = false;
+          v.rest = 1e9;
+          return true;
+        }
+        const h = herds.find((hh) => hh.species === kind);
+        const b = h?.members[0];
+        if (!h || !b) return false;
+        b.x = x;
+        b.z = z;
+        b.vx = 0;
+        b.vz = 0;
+        h.home = { x, z };
+        h.goal = null;
+        return true;
+      },
+    };
+
   // Pose everything once so the first frame (and the title view) is not a pile at the origin.
   update(1 / 60, trail.pointAt(0.006), 0);
 
@@ -1174,6 +1290,10 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       return nearest ? PROMPT[env.lang] : null;
     },
     dispose() {
+      for (const h of herds) for (const b of h.members) creatures.remove(b.body);
+      for (const l of caravan.llamas) creatures.remove(l.body);
+      for (const z of vizs) creatures.remove(z.body);
+      for (const c of condors) creatures.remove(c.body);
       env.scene.remove(group);
       for (const p of parts) p.mesh.dispose();
       for (const g of geos) g.dispose();

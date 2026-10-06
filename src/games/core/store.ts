@@ -8,9 +8,15 @@ export interface GameRecord {
   stats: Record<string, number>;
 }
 
+/** Cabinet skins: "neon" is the default; "aguayo" is the reward for completing the world passport. */
+export type CabinetSkin = "neon" | "aguayo";
+export const SKINS: readonly CabinetSkin[] = ["neon", "aguayo"];
+
 export interface ArcadeState {
   games: Record<string, GameRecord>;
   unlocked: Record<string, number>;
+  /** Selected cabinet skin (optional: older saves have none and read as "neon"). */
+  skin?: CabinetSkin;
 }
 
 const KEY = "ldiego73-arcade-v1";
@@ -25,7 +31,9 @@ export function load(): ArcadeState {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyState();
     const parsed = JSON.parse(raw) as ArcadeState;
-    return { games: parsed.games ?? {}, unlocked: parsed.unlocked ?? {} };
+    const out: ArcadeState = { games: parsed.games ?? {}, unlocked: parsed.unlocked ?? {} };
+    if (SKINS.includes(parsed.skin as CabinetSkin)) out.skin = parsed.skin;
+    return out;
   } catch {
     return emptyState();
   }
@@ -95,4 +103,38 @@ export function evaluate(s: ArcadeState, achievements: Achievement[], allGames: 
 /** Leaderboard rows: best score per game, highest first. */
 export function leaderboard(s: ArcadeState, games: string[]): Array<{ game: string; best: number }> {
   return games.map((game) => ({ game, best: s.games[game]?.best ?? 0 })).sort((a, b) => b.best - a.best);
+}
+
+// ---------------------------------------------------------------- cross rewards (world ↔ arcade)
+
+/** Arcade achievement granted by completing the world passport (Qhapaq Ñan). */
+export const WALKER_ID = "qhapaq-nan-walker";
+/** Pseudo game record that carries world progress into the arcade rules ({ kind: "stat", game: "world" }). */
+export const WORLD_GAME = "world";
+/** Arcade achievements (not counting the walker) that unlock the golden-thread chullo in the world. */
+export const CHULLO_AT = 6;
+
+/** Marks the world passport as complete (idempotent). Returns true when it changed the state. */
+export function grantWorldPassport(s: ArcadeState): boolean {
+  const r = rec(s, WORLD_GAME);
+  if ((r.stats.passport ?? 0) >= 1) return false;
+  r.stats.passport = 1;
+  return true;
+}
+
+/** Unlocked arcade achievements that count toward the world reward (the walker itself doesn't). */
+export function arcadeUnlockedCount(s: ArcadeState, ids: readonly string[]): number {
+  return ids.filter((id) => id !== WALKER_ID && s.unlocked[id]).length;
+}
+
+export const chulloUnlocked = (s: ArcadeState, ids: readonly string[]) => arcadeUnlockedCount(s, ids) >= CHULLO_AT;
+
+export const skinUnlocked = (s: ArcadeState) => !!s.unlocked[WALKER_ID];
+
+/** The skin the cabinets wear: the saved choice, but only once it's unlocked. */
+export const activeSkin = (s: ArcadeState): CabinetSkin => (skinUnlocked(s) && s.skin === "aguayo" ? "aguayo" : "neon");
+
+export function setSkin(s: ArcadeState, skin: CabinetSkin): void {
+  if (skin === "neon") delete s.skin;
+  else if (skinUnlocked(s)) s.skin = skin;
 }

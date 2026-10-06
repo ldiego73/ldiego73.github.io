@@ -138,6 +138,80 @@
   list-style: square;
 }
 
+/* Wildlife field guide: species facts as a two-column definition list. */
+.kw-tm-latin {
+  text-transform: none;
+  font: italic 500 0.85rem / 1 var(--font-body, system-ui, sans-serif);
+  color: #5b4a3a;
+}
+.kw-tm-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 4px 0 8px;
+  max-width: 68ch;
+}
+.kw-tm-facts dt {
+  font: 400 0.68rem / 1.9 var(--font-arcade, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5b4a3a;
+}
+.kw-tm-facts dd {
+  margin: 0;
+}
+@media (max-width: 480px) {
+  .kw-tm-facts {
+    grid-template-columns: 1fr;
+  }
+  .kw-tm-facts dd {
+    margin-bottom: 4px;
+  }
+}
+
+/* Passport (in-world dialog only). */
+.kw-tm-summary {
+  font-size: 1.05rem;
+}
+.kw-tm-count {
+  font: 400 0.72rem / 1 var(--font-arcade, monospace);
+  color: #5b4a3a;
+}
+.kw-textdoc .kw-tm-stamps {
+  list-style: none;
+  padding-left: 0;
+  columns: 2 15rem;
+  column-gap: 1.5rem;
+}
+.kw-textdoc .kw-tm-stamps li {
+  break-inside: avoid;
+}
+.kw-tm-stamps .is-missing {
+  color: #5b4a3a;
+}
+.kw-tm-mark {
+  display: inline-block;
+  width: 1.1em;
+  font-weight: 800;
+  color: #2a7d4f;
+}
+.kw-tm-stamps .is-missing .kw-tm-mark {
+  color: #8f877b;
+}
+.kw-tm-state {
+  font-size: 0.85em;
+  color: #5b4a3a;
+}
+.kw-tm-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Static page version (no WebGL / no JS): scrolls on its own above the stage. */
 .kw-textpage {
   position: absolute;

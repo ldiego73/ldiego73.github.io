@@ -1,0 +1,65 @@
+/* Cross-reward toast (arcade ↔ world): a woven-edge card at the top center, paper + ink like the HUD. */
+.kx-rewards-layer {
+  pointer-events: none;
+}
+.kx-rewards-layer > * {
+  pointer-events: none;
+}
+.kx-reward-toast {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--qn-top) + 64px);
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  max-width: min(360px, calc(100% - 28px));
+  padding: 12px 18px 14px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, #e2a83c 25%, transparent 25%) -5px 0 / 10px 8px repeat-x,
+    linear-gradient(225deg, #e2a83c 25%, transparent 25%) -5px 0 / 10px 8px repeat-x,
+    linear-gradient(#b8304f, #b8304f) 0 0 / 100% 8px no-repeat,
+    var(--qn-paper);
+  padding-top: 18px;
+  box-shadow: var(--qn-shadow);
+  color: var(--qn-ink);
+  text-align: center;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
+.kx-reward-toast.is-on {
+  visibility: visible;
+  animation: kx-reward-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.kx-reward-kicker {
+  font: 700 0.72rem / 1.2 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--qn-muted);
+}
+.kx-reward-toast b {
+  font: 800 1.1rem / 1.15 var(--font-display, "Archivo", sans-serif);
+  color: #9a6b12;
+}
+.kx-reward-toast > span:last-child {
+  font-size: 0.92rem;
+}
+@keyframes kx-reward-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.kx-rewards-layer.is-reduced .kx-reward-toast.is-on {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kx-reward-toast.is-on {
+    animation: none;
+  }
+}

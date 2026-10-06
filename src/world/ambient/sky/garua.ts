@@ -37,8 +37,9 @@ const GaruaShader = {
 export interface Garua {
   object: THREE.Object3D;
   setCount(n: number): void;
-  /** amount 0..1; color = current fog color (drops are a lighter version of it). */
-  update(dt: number, center: THREE.Vector3, amount: number, color: THREE.Color): void;
+  /** amount 0..1; color = current fog color (drops are a lighter version of it); heavy 0..1 turns the
+   *  garúa into rain ("lluvia"): more, longer, faster streaks. */
+  update(dt: number, center: THREE.Vector3, amount: number, color: THREE.Color, heavy?: number): void;
   dispose(): void;
 }
 
@@ -85,16 +86,30 @@ export function createGarua(max: number, count: number): Garua {
   const U = mat.uniforms;
   const off = U.uOffset!.value as THREE.Vector3;
   const vel = U.uVel!.value as THREE.Vector3;
-  const setCount = (n: number) => geo.setDrawRange(0, Math.max(0, Math.min(max, n)) * 2);
+  let base = count;
+  let shown = -1;
+  const draw = (n: number) => {
+    const c = Math.max(0, Math.min(max, Math.round(n)));
+    if (c === shown) return;
+    shown = c;
+    geo.setDrawRange(0, c * 2);
+  };
+  const setCount = (n: number) => {
+    base = n;
+    draw(n);
+  };
   setCount(count);
   let t = 0;
   return {
     object: lines,
     setCount,
-    update(dt, center, amount, color) {
+    update(dt, center, amount, color, heavy = 0) {
       lines.visible = amount > 0.02;
       if (!lines.visible) return;
       t += dt;
+      draw(base * (1 + 0.6 * heavy));
+      vel.y = -FALL * (1 + 0.9 * heavy);
+      U.uLen!.value = 0.55 + 0.75 * heavy;
       // A slow gusting wind; offsets stay wrapped so float precision never degrades.
       vel.x = 0.9 + Math.sin(t * 0.13) * 0.6;
       vel.z = 0.4 + Math.cos(t * 0.09) * 0.5;
@@ -103,7 +118,7 @@ export function createGarua(max: number, count: number): Garua {
       off.z = (off.z + vel.z * dt) % BOX.z;
       (U.uCenter!.value as THREE.Vector3).copy(center);
       (U.uColor!.value as THREE.Color).copy(color).lerp(WHITE, 0.55);
-      U.uAlpha!.value = amount * 0.55;
+      U.uAlpha!.value = amount * (0.55 + 0.2 * heavy);
     },
     dispose() {
       geo.dispose();

@@ -257,6 +257,16 @@ export const ACHIEVEMENTS: Achievement[] = [
     description: t("Juega los 9 juegos del arcade.", "Play all 9 arcade games."),
     rule: { kind: "played-all" },
   },
+  {
+    // Cross reward: granted when the world passport (Qhapaq Ñan) is complete; unlocks the aguayo cabinet skin.
+    id: "qhapaq-nan-walker",
+    title: t("Caminante del Qhapaq Ñan", "Qhapaq Ñan Walker"),
+    description: t(
+      "Completa el pasaporte del mundo andino. Recompensa: cabinas de aguayo.",
+      "Complete the Andean world passport. Reward: aguayo cabinets.",
+    ),
+    rule: { kind: "stat", game: "world", key: "passport", gte: 1 },
+  },
 ];
 
 export const gameBySlug = (slug: string) => GAMES.find((g) => g.slug === slug);

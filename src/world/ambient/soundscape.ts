@@ -8,6 +8,13 @@
  *   rain     while `world:weather` says kind "garua" (read by string name, detail checked defensively)
  *   birds    by day, sparse procedural chirps from random directions; crickets + an owl at night
  *   steps    from avatar position deltas; stone / grass / water / wood (inside); softer while riding a llama
+ *   places   each station (and the summit) has a short musical motif that fades in over the world music while the
+ *            traveler is near it, in time with the track's step grid (./soundscape/motifs.ts, motif-player.ts);
+ *            during Inti Raymi (calendar.ts) a festival band plays from the nearest "dancer"
+ *   critters positional animal calls (puma growl at night, fox yips at dusk, condor, vicuña alarm when the herd
+ *            flees, alpaca/llama hums, vizcacha/duck/tinamou whistles, colibrí buzz, bear huff) and people
+ *            murmur/laughter, read from the shared `creatures` registry (./soundscape/critters.ts, calls.ts);
+ *            birdsong leans toward registered tangaras/sparrows. No body of a kind -> no sound of it.
  *   events   world:stamp -> chime, none for the summit (music stinger) (eggs: vizcacha squeak / golden sparkle, once per id per session),
  *            world:modal -> paper open/close, world:teleport -> whoosh, world:mount -> llama hum,
  *            world:interior -> door, world:map / world:help -> tick
@@ -15,17 +22,23 @@
  * Silent until the music player's output() is live (audio unlocked by the COMENZAR gesture, not muted, tab
  * visible). Built on the shared AudioContext; the music engine dips this bus while stingers play.
  */
+import type { MusicClock } from "../../audio/contract";
 import { getMusic } from "../../audio/player";
 import { hashSeed, rng, sfx, sfxForStamp } from "../../audio/sfx";
-import type { CreateAmbient } from "../contract";
+import { festivalOf, worldDate } from "../calendar";
+import { type CreateAmbient, STATIONS } from "../contract";
+import { creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { on } from "../events";
+import { playCall } from "./soundscape/calls";
+import { type CallRequest, Critters, type Listener, type Situation } from "./soundscape/critters";
 import { Layers } from "./soundscape/layers";
 import {
   altitude01,
   birdCall,
   birdGap,
   cricketChirp,
+  falloff,
   isGarua,
   mixTargets,
   panFor,
@@ -33,6 +46,17 @@ import {
   surfaceAt,
   waterLevel,
 } from "./soundscape/mix";
+import { MotifPlayer } from "./soundscape/motif-player";
+import {
+  FESTIVAL_FULL,
+  FESTIVAL_OUT,
+  pickPlace,
+  proximity,
+  STATION_FULL,
+  STATION_OUT,
+  SUMMIT_FULL,
+  SUMMIT_OUT,
+} from "./soundscape/motifs";
 
 const PROBE_HZ = 5;
 const RING = [3, 6, 10, 15, 21];
@@ -51,7 +75,47 @@ export const create: CreateAmbient = (env) => {
   const fall = extra?.stream.fallBase ?? null;
 
   let layers: Layers | null = null;
+  let motifs: MotifPlayer | null = null;
   let disposed = false;
+
+  // places with a motif: every non-build station, plus the summit
+  const places: Array<{ id: string; x: number; z: number; full: number; out: number }> = [];
+  for (const s of STATIONS) {
+    if (s.kind === "build") continue;
+    try {
+      const p = env.stationPose(s.id).position;
+      places.push({ id: s.id, x: p.x, z: p.z, full: STATION_FULL, out: STATION_OUT });
+    } catch {
+      /* station not placed in this world */
+    }
+  }
+  places.push({ id: "summit", x: summit.x, z: summit.z, full: SUMMIT_FULL, out: SUMMIT_OUT });
+  const weights = new Map<string, number>();
+  let place: string | null = null;
+  let festival = false;
+  let festivalCheck = 0;
+
+  const critters = new Critters(creatures, rand, { low, isWater: extra ? (x, z) => extra.isWater(x, z) : undefined });
+  const calls: CallRequest[] = [];
+  const listener: Listener = { x: 0, z: 0, rx: 1, rz: 0 };
+  const sit: Situation = { night: false, time: 0.5, raining: false, inside: false };
+  /** The music's step grid, refreshed once per frame (null while nothing plays). */
+  const clockBuf: MusicClock = { trackId: "", step: 0, time: 0, stepSec: 0, swing: 0 };
+  let clockNow: MusicClock | null = null;
+  /** Last few calls (dev diagnostics only). */
+  const heard: string[] = [];
+  if (import.meta.env?.DEV && typeof window !== "undefined") {
+    (window as unknown as { __kwSound?: unknown }).__kwSound = {
+      state: () => ({
+        place,
+        festival,
+        level: place ? (motifs?.level(place) ?? 0) : 0,
+        festivalLevel: motifs?.level("festival") ?? 0,
+        clock: clockNow ? { ...clockNow } : null,
+        heard: heard.slice(),
+      }),
+    };
+  }
 
   // situation (from events)
   let inside = false;
@@ -153,11 +217,56 @@ export const create: CreateAmbient = (env) => {
     else waterPan = best ? panFor(bx, bz, e[0], e[2]) : 0;
   };
 
+  /** Place motifs: the nearest place leads (hysteresis), the Inti Raymi band plays from the nearest dancer. */
+  const probePlaces = (x: number, z: number) => {
+    const m = motifs;
+    if (!m) return;
+    if (clock >= festivalCheck) {
+      festivalCheck = clock + 60;
+      festival = festivalOf(worldDate()) === "inti-raymi";
+    }
+    let festW = 0;
+    let festPan = 0;
+    // the band plays in A minor with the day/night tracks; over the summit theme it rests
+    const summitTrack = clockNow?.trackId === "world.summit";
+    if (festival && !summitTrack) {
+      const b = creatures.nearestOf("dancer", x, z);
+      if (b) {
+        festW = proximity(Math.hypot(b.x - x, b.z - z), FESTIVAL_FULL, FESTIVAL_OUT);
+        festPan = panFor(b.x - x, b.z - z, listener.rx, listener.rz) * 0.7;
+      }
+    }
+    const room = (game ? 0 : inside ? 0.5 : 1) * (modal ? 0.7 : 1);
+    m.set("festival", festW * room, festPan);
+    weights.clear();
+    // over the summit theme only the summit motif fits (A major); elsewhere only the station motifs (A minor)
+    for (const p of places) {
+      if ((p.id === "summit") !== summitTrack) continue;
+      const w = proximity(Math.hypot(p.x - x, p.z - z), p.full, p.out);
+      if (w > 0) weights.set(p.id, w);
+    }
+    place = pickPlace(weights, place);
+    for (const p of places) {
+      const lead = p.id === place;
+      const w = lead ? (weights.get(p.id) ?? 0) * room * (1 - 0.6 * festW) : 0;
+      m.set(p.id, w, lead ? panFor(p.x - x, p.z - z, listener.rx, listener.rz) * 0.5 : 0);
+    }
+  };
+
   const scheduleLife = (now: number, mixDay: number, mixNight: number, alt: number) => {
     const l = layers;
     if (!l) return;
     if (mixDay > 0.05 && now >= nextBird) {
-      if (nextBird > 0) l.chirps(birdCall(rand), now + 0.05, rand() * 1.6 - 0.8, (0.12 + rand() * 0.13) * mixDay);
+      if (nextBird > 0) {
+        // lean toward a registered songbird when one is around, else anywhere
+        const bird = critters.nearestSongbird(listener.x, listener.z, 35);
+        const base = (0.12 + rand() * 0.13) * mixDay;
+        if (bird) {
+          const d = Math.hypot(bird.x - listener.x, bird.z - listener.z);
+          const pan = panFor(bird.x - listener.x, bird.z - listener.z, listener.rx, listener.rz);
+          l.chirps(birdCall(rand), now + 0.05, pan, base * (0.7 + 0.6 * falloff(d, 8, 35)));
+        } else l.chirps(birdCall(rand), now + 0.05, rand() * 1.6 - 0.8, base);
+      }
       nextBird = now + birdGap(rand(), alt, raining, low);
     }
     if (mixNight > 0.05 && now >= nextCricket) {
@@ -200,7 +309,10 @@ export const create: CreateAmbient = (env) => {
       }
       if (!layers || layers.ctx !== out.ctx) {
         layers?.dispose();
+        motifs?.dispose();
         layers = new Layers(out.ctx, out.ambient);
+        motifs = new MotifPlayer(out.ctx, out.music ?? out.ambient);
+        place = null;
         probeClock = 1;
       }
       const now = out.ctx.currentTime;
@@ -230,8 +342,15 @@ export const create: CreateAmbient = (env) => {
       }
 
       // --- continuous layers at a few Hz
+      const e = env.camera.matrixWorld.elements;
+      listener.x = avatar.x;
+      listener.z = avatar.z;
+      listener.rx = e[0] ?? 1;
+      listener.rz = e[2] ?? 0;
+      clockNow = game ? null : (music.clock?.(clockBuf) ?? null);
       probeClock += dt;
       if (probeClock >= 1 / PROBE_HZ) {
+        const probeDt = probeClock;
         probeClock = 0;
         probeWater(avatar.x, avatar.z);
         const alt = altitude01(avatar.y, y0, y1);
@@ -246,7 +365,28 @@ export const create: CreateAmbient = (env) => {
           waterPan,
         });
         scheduleLife(now, mix.day * mix.master, mix.night * mix.master, alt);
+        probePlaces(avatar.x, avatar.z);
+        sit.night = night;
+        sit.time = env.sky.time();
+        sit.raining = raining;
+        sit.inside = inside;
+        if (!game) {
+          for (const c of critters.probe(now, probeDt, listener, sit, calls)) {
+            if (import.meta.env?.DEV) {
+              heard.push(`${c.kind}:${c.call}@${c.dist.toFixed(0)}`);
+              if (heard.length > 12) heard.shift();
+            }
+            playCall(out.ctx, layers.master, c.call, now + 0.03, {
+              level: c.level,
+              pan: c.pan,
+              dist: c.dist,
+              r: rand,
+              variant: c.variant,
+            });
+          }
+        }
       }
+      motifs?.update(clockNow);
     },
     dispose() {
       if (disposed) return;
@@ -254,6 +394,9 @@ export const create: CreateAmbient = (env) => {
       for (const c of cleanups.splice(0)) c();
       layers?.dispose();
       layers = null;
+      motifs?.dispose();
+      motifs = null;
+      if (typeof window !== "undefined") delete (window as unknown as { __kwSound?: unknown }).__kwSound;
     },
   };
 };

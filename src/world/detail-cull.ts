@@ -6,6 +6,7 @@
  * own fades), checked a slice per frame.
  */
 import * as THREE from "three";
+import { detectDevice } from "./quality";
 
 /**
  * World radius → max camera distance. Chosen so a mesh is hidden only once it would cover fewer than
@@ -18,10 +19,20 @@ export const CULL_BANDS: Array<[radius: number, distance: number]> = [
   [2, 420],
 ];
 
-export function cullDistance(radius: number): number {
-  for (const [r, d] of CULL_BANDS) if (radius <= r) return d;
+/**
+ * Phones: a smaller, denser screen (and the "low" tier's shorter fog) makes the same detail cover fewer
+ * pixels, and draw calls cost more on mobile GPUs: details drop at 70% of the desktop distance.
+ */
+export const PHONE_CULL = 0.7;
+
+/** Max camera distance for a mesh of world radius `radius`; `factor` scales the bands (PHONE_CULL on phones). */
+export function cullDistance(radius: number, factor = 1): number {
+  for (const [r, d] of CULL_BANDS) if (radius <= r) return d * factor;
   return Number.POSITIVE_INFINITY;
 }
+
+/** The band factor for the running device. */
+export const deviceCullFactor = () => (detectDevice().phone ? PHONE_CULL : 1);
 
 interface Entry {
   obj: THREE.Mesh;
@@ -42,8 +53,9 @@ export interface DetailCull {
 
 export function createDetailCull(
   root: THREE.Object3D,
-  opts: { skip?: (o: THREE.Object3D) => boolean } = {},
+  opts: { skip?: (o: THREE.Object3D) => boolean; factor?: number } = {},
 ): DetailCull {
+  const factor = opts.factor ?? deviceCullFactor();
   const entries: Entry[] = [];
   const known = new WeakSet<THREE.Object3D>();
   const tmp = new THREE.Vector3();
@@ -73,7 +85,7 @@ export function createDetailCull(
       if (!bs) return;
       m.matrixWorld.decompose(tmp, new THREE.Quaternion(), scale);
       const r = bs.radius * Math.max(scale.x, scale.y, scale.z);
-      const d = own ? own + r : cullDistance(r);
+      const d = own ? own + r : cullDistance(r, factor);
       if (!Number.isFinite(d)) return;
       entries.push({ obj: m, center: bs.center.clone(), d2: d * d, mask: m.layers.mask, hidden: false });
     });

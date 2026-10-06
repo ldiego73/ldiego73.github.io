@@ -10,13 +10,15 @@
  * the puna. Day and dusk only; they sleep at night. First flush stamps `fauna:perdiz`.
  *
  * Draw calls: body, head, right wing, left wing, legs, feather puffs (6 InstancedMeshes, zero per-frame
- * allocations).
+ * allocations). Bodies ("tinamou", creatures.ts): solid on the ground, not in flight; walks steer around.
  */
 import * as THREE from "three";
 import { sfx } from "../../audio/sfx";
 import type { Ambient, CreateAmbient } from "../contract";
+import { creatures, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
+import { detectDevice } from "../quality";
 import { gradientMap } from "../toon";
 import { mirrorX, PLUMAGE, tinamouParts } from "./tinamou/model";
 import {
@@ -81,7 +83,8 @@ export const create: CreateAmbient = (env): Ambient => {
   const rm = env.reducedMotion;
   const G = low ? 3 : 4;
   const N = G * PER_GROUP;
-  const NF = rm ? 12 : low ? 28 : 56;
+  // Feather puffs: fewer on reduced motion, low quality and mid-range phones (quality.ts deviceProfile).
+  const NF = rm ? 12 : detectDevice().constrained ? 16 : low ? 28 : 56;
 
   // ---------------------------------------------------------------- meshes
   const parts = tinamouParts();
@@ -299,14 +302,16 @@ export const create: CreateAmbient = (env): Ambient => {
       grp.az = az;
       grp.nerve = 0;
       const size = 2 + Math.floor(R() * (low ? 2 : 3));
+      // One bird at the tuft, the others spread round it (never on top of each other).
+      const a0 = R() * TAU;
       for (let k = 0; k < PER_GROUP; k++) {
         const b = birds[g * PER_GROUP + k]!;
         if (k >= size) {
           b.st = "away";
           continue;
         }
-        const a = R() * TAU;
-        const r = k === 0 ? 0 : 0.45 + R() * 0.9;
+        const a = a0 + (k * TAU) / Math.max(1, size - 1) + (R() - 0.5) * 0.5;
+        const r = k === 0 ? 0 : 0.7 + R() * 0.6;
         b.x = ax + Math.cos(a) * r;
         b.z = az + Math.sin(a) * r;
         offPath(b);
@@ -424,7 +429,11 @@ export const create: CreateAmbient = (env): Ambient => {
     mPart.compose(v.set(px, py, pz), q, ONE);
     mesh.setMatrixAt(i, mOut.multiplyMatrices(mRoot, mPart));
   };
+  const bodies = birds.map(() => creatures.add("tinamou", 0.22, { solid: false }));
+  const dryGround = (x: number, z: number) => !isWater(x, z);
+  const steered = { x: 0, z: 0 };
   const hide = (i: number) => {
+    park(bodies[i]!);
     body.setMatrixAt(i, hidden);
     head.setMatrixAt(i, hidden);
     wingsR.setMatrixAt(i, hidden);
@@ -546,7 +555,10 @@ export const create: CreateAmbient = (env): Ambient => {
               }
             }
             if (b.act === 1) {
-              const step = 0.28 * dt;
+              // Pick its way around the traveler and covey mates.
+              creatures.steer(bodies[i]!, Math.sin(b.yaw) * 0.28, Math.cos(b.yaw) * 0.28, 1.5, steered);
+              if (Math.abs(steered.x) + Math.abs(steered.z) > 1e-4) b.yaw = Math.atan2(steered.x, steered.z);
+              const step = Math.hypot(steered.x, steered.z) * dt;
               b.x += Math.sin(b.yaw) * step;
               b.z += Math.cos(b.yaw) * step;
               if (isWater(b.x, b.z)) {
@@ -618,6 +630,14 @@ export const create: CreateAmbient = (env): Ambient => {
           }
         }
 
+        const bd = bodies[i]!;
+        bd.solid = b.st === "ground" || b.st === "freeze" || b.delay > 0;
+        bd.x = b.x;
+        bd.z = b.z;
+        if (bd.solid && creatures.resolve(bd, dryGround, 0.04)) {
+          b.x = bd.x;
+          b.z = bd.z;
+        }
         setRoot(b.x, b.y + lift * S, b.z, b.yaw, pitch, roll);
         body.setMatrixAt(i, mRoot);
         setPart(head, i, hp.x, hp.y - 0.03 * b.crouch, hp.z - 0.02 * b.crouch, headPitch, 0, 0);
@@ -663,6 +683,7 @@ export const create: CreateAmbient = (env): Ambient => {
       for (const m of meshes) m.instanceMatrix.needsUpdate = true;
     },
     dispose() {
+      for (const b of bodies) creatures.remove(b);
       for (const off of offs) off();
       for (const m of meshes) {
         env.scene.remove(m);

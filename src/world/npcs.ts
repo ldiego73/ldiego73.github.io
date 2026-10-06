@@ -2,10 +2,27 @@ import "./hud.css";
 import "./npc.css";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { sfx } from "../audio";
 import { t as tr, type UIKey } from "../i18n/ui";
+import { CATALOG } from "../lib/passport";
+import { makeChip, releaseChips, trailChips } from "./ambient/errand/chips";
+import {
+  ARRIVE_R,
+  accept as acceptErrand,
+  arrive as arriveErrand,
+  type ErrandState,
+  loadErrands,
+  type Mission,
+  missionById,
+  offerable,
+  saveErrands,
+  targetT,
+} from "./ambient/errand/state";
 import type { Ambient, CreateAmbient, WorldEnv } from "./contract";
 import { STATIONS } from "./contract";
-import { type Convo, DialogMachine, NPC_DIALOGS, type NpcDialog } from "./npc-dialogs";
+import { type Body, creatures } from "./creatures";
+import { emit } from "./events";
+import { type Convo, DialogMachine, MISSION_DIALOGS, NPC_DIALOGS, type NpcDialog } from "./npc-dialogs";
 import { DYE } from "./palette";
 
 /**
@@ -18,6 +35,12 @@ import { DYE } from "./palette";
  * Dialog is a DOM paper-and-ink speech card anchored to the NPC's head (docked on narrow screens), with a typewriter
  * reveal, Space/E to advance, 1–3 or buttons for choices, Esc to close. "Talked to N chasquis" persists in
  * localStorage, with a toast at milestones.
+ *
+ * Errands (ambient/errand/state.ts): any chasqui offers the next of three khipu relays when its tambo is a good
+ * walk uphill. Accepting ties a knotted khipu to the traveler's pack, shows an objective chip (top-left trail
+ * chips) and emits `world:mission`; walking into the target plaza delivers it (thank-you card, `mission:N` stamp).
+ * Every chasqui (and Sisa's llama) is a solid Body in `creatures`: they look ahead and change lane around other
+ * bodies, and separation keeps them from overlapping.
  */
 
 const C_INK = "#1f1a17";
@@ -576,6 +599,13 @@ interface Npc {
   convoIdx: number;
   ledT: number;
   seed: number;
+  body: Body;
+  llamaBody: Body | null;
+  /** Separation offset from other bodies (decays back to the lane). */
+  offX: number;
+  offZ: number;
+  /** 0..1 slow-down when the way ahead is blocked on both sides. */
+  block: number;
 }
 
 const damp = (cur: number, target: number, rate: number, dt: number) =>
@@ -692,6 +722,15 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
       convoIdx: 0,
       ledT: 0,
       seed: i * 7.3 + 1,
+      body: creatures.add("chasqui", 0.36 * spec.look.scale * Math.max(1, spec.look.girth), {
+        give: 0.35,
+        x: pos.x,
+        z: pos.z,
+      }),
+      llamaBody: llama ? creatures.add("pack-llama", 0.5, { give: 0.3, x: pos.x, z: pos.z }) : null,
+      offX: 0,
+      offZ: 0,
+      block: 0,
     });
   });
   for (const k of Object.values(P)) k.dispose();
@@ -751,8 +790,172 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
     toastTimer = window.setTimeout(() => toast.classList.remove("is-on"), 3200);
   };
 
+  // ------------------------------------------------------------------ errands: state, khipu on the pack, chip, thanks
+  let errands: ErrandState = loadErrands();
+  /** After "not now", chasquis just chat for a while before offering again. */
+  let offerCooldown = 0;
+  let avatarT = 0;
+  const avatarPos = new THREE.Vector3();
+  const L = (x: { es: string; en: string }) => x[lang];
+  const stampLabel = (id: string) => CATALOG.find((c) => c.id === id)?.label ?? { es: id, en: id };
+
+  const chips = trailChips(hudRoot);
+  const errandChip = makeChip("errand", 1);
+  errandChip.label.textContent = lang === "es" ? "Encargo" : "Errand";
+  chips.appendChild(errandChip.chip);
+  let chipText = "";
+
+  const thanks = el("div", "qn-npc-thanks");
+  thanks.setAttribute("role", "status");
+  thanks.setAttribute("aria-live", "polite");
+  const thanksWho = el("strong", "qn-npc-thanks-who");
+  const thanksText = el("p", "qn-npc-thanks-text");
+  const thanksSeal = el("span", "qn-npc-thanks-seal");
+  thanks.append(thanksSeal, thanksWho, thanksText);
+  layer.appendChild(thanks);
+  let thanksTimer = 0;
+  const showThanks = (m: Mission) => {
+    thanksSeal.textContent = L(stampLabel(m.id));
+    thanksWho.textContent = L(m.thanks.who);
+    thanksText.textContent = L(m.thanks.text);
+    thanks.classList.remove("is-on");
+    void thanks.offsetWidth;
+    thanks.classList.add("is-on");
+    window.clearTimeout(thanksTimer);
+    thanksTimer = window.setTimeout(() => thanks.classList.remove("is-on"), 6500);
+  };
+
+  /** The knotted khipu tied under the traveler's pack while an errand is carried. */
+  let carried: { mesh: THREE.Mesh; swing: number } | null = null;
+  const findPack = (traveler: THREE.Object3D) => {
+    let pack: THREE.Object3D | null = null;
+    traveler.traverse((o) => {
+      if (!pack && o.type === "Group" && Math.abs(o.position.z + 0.25) < 0.02 && Math.abs(o.position.y - 0.28) < 0.02)
+        pack = o;
+    });
+    return pack as THREE.Object3D | null;
+  };
+  const attachKhipu = () => {
+    if (carried) return true;
+    const traveler = env.scene.getObjectByName("traveler");
+    if (!traveler) return false;
+    const pack = findPack(traveler);
+    const P2 = protos();
+    const p = new Part();
+    const colors = [DYE.red, DYE.ochre, DYE.indigo, DYE.turq, DYE.red, DYE.cotton];
+    // Top cord across the pack's bottom edge, with a loop at each end tied to the straps.
+    p.add(P2.cyl6, DYE.cotton, 0, 0, 0, 0, 0, Math.PI / 2, 0.022, 0.34, 0.022);
+    for (const sx of [-1, 1]) p.add(P2.torus, DYE.cotton, 0.17 * sx, 0.025, 0, 0, 0, 0, 0.04, 0.04, 0.04);
+    colors.forEach((c, i) => {
+      const x = -0.14 + i * 0.056;
+      const len = 0.19 + ((i * 7) % 3) * 0.04;
+      p.add(P2.cyl6, c, x, -len / 2, 0, 0, 0, 0, 0.014, len, 0.014);
+      // Knots (two or three per cord: the count is the message) and a little tassel end.
+      const knots = 2 + (i % 2);
+      for (let k = 0; k < knots; k++) p.add(P2.lowSph, c, x, -0.06 - k * 0.055, 0, 0, 0, 0, 0.027, 0.027, 0.027);
+      p.add(P2.cone, c, x, -len - 0.02, 0, Math.PI, 0, 0, 0.02, 0.05, 0.02);
+    });
+    for (const g of Object.values(P2)) g.dispose();
+    const mesh = p.mesh(mat, "traveler:khipu");
+    if (pack) {
+      mesh.position.set(0, -0.2, -0.11);
+      pack.add(mesh);
+    } else {
+      mesh.position.set(0, 0.62, -0.36);
+      traveler.add(mesh);
+    }
+    carried = { mesh, swing: 0 };
+    return true;
+  };
+  const detachKhipu = () => {
+    if (!carried) return;
+    carried.mesh.removeFromParent();
+    carried.mesh.geometry.dispose();
+    carried = null;
+  };
+
+  const missionDistance = (m: Mission) => {
+    const pose = targetPose(m);
+    const straight = Math.hypot(pose.x - avatarPos.x, pose.z - avatarPos.z);
+    const along = Math.abs(targetT(m) - avatarT) * len;
+    return Math.max(straight, along);
+  };
+  const targetPoses = new Map<string, THREE.Vector3>();
+  const targetPose = (m: Mission) => {
+    let p = targetPoses.get(m.to);
+    if (!p) {
+      p = env.stationPose(m.to).position.clone();
+      targetPoses.set(m.to, p);
+    }
+    return p;
+  };
+  const renderChip = () => {
+    const m = errands.active ? missionById(errands.active) : null;
+    if (!m) {
+      errandChip.chip.hidden = true;
+      chipText = "";
+      return;
+    }
+    const d = missionDistance(m);
+    const meters = d >= 100 ? Math.round(d / 10) * 10 : Math.max(1, Math.round(d));
+    const text =
+      lang === "es" ? `lleva el khipu ${L(m.place)} · ${meters} m` : `take the khipu ${L(m.place)} · ${meters} m`;
+    if (text !== chipText) {
+      chipText = text;
+      errandChip.value.textContent = text;
+    }
+    errandChip.chip.hidden = false;
+  };
+
+  const startErrand = (m: Mission) => {
+    const next = acceptErrand(errands, m.id);
+    if (next === errands) return;
+    errands = next;
+    saveErrands(errands);
+    attachKhipu();
+    renderChip();
+    errandChip.chip.classList.remove("is-flash");
+    void errandChip.chip.offsetWidth;
+    errandChip.chip.classList.add("is-flash");
+    sfx.play("open");
+    emit("world:mission", { id: m.id, state: "accepted", to: m.to });
+  };
+  const completeErrand = (stationId: string) => {
+    const r = arriveErrand(errands, stationId);
+    if (!r.completed) return;
+    errands = r.state;
+    saveErrands(errands);
+    detachKhipu();
+    renderChip();
+    showThanks(r.completed);
+    emit("world:stamp", { id: r.completed.id, kind: "npc", label: stampLabel(r.completed.id) });
+    emit("world:mission", { id: r.completed.id, state: "done", to: r.completed.to });
+  };
+  let errandClock = 0;
+  const updateErrand = (dt: number, avatar: THREE.Vector3) => {
+    offerCooldown = Math.max(0, offerCooldown - dt);
+    if (carried) {
+      // The khipu swings a little with the walk.
+      const v = Math.min(1, avatar.distanceTo(avatarPos) / Math.max(dt, 1e-3) / 4);
+      carried.swing += dt * (3 + v * 6);
+      carried.mesh.rotation.x = rm ? 0.12 * v : 0.1 + Math.sin(carried.swing) * 0.12 * v + 0.12 * v;
+    }
+    avatarPos.copy(avatar);
+    errandClock -= dt;
+    if (errandClock > 0) return;
+    errandClock = 0.25;
+    avatarT = trail.nearestT(avatar.x, avatar.z);
+    const m = errands.active ? missionById(errands.active) : null;
+    if (!m) return;
+    // The avatar may load after the NPCs (or come back from a reload mid-errand).
+    if (!carried) attachKhipu();
+    const p = targetPose(m);
+    if ((p.x - avatar.x) ** 2 + (p.z - avatar.z) ** 2 < ARRIVE_R * ARRIVE_R) completeErrand(m.to);
+    else renderChip();
+  };
+
   let near: Npc | null = null;
-  let active: { npc: Npc; m: DialogMachine } | null = null;
+  let active: { npc: Npc; m: DialogMachine; mission: Mission | null; fired: string | null } | null = null;
   let renderedNode: string | null = null;
   let renderedChoices = -1;
   let talked = new Set(readTalked());
@@ -805,12 +1008,20 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
   };
 
   const open = (npc: Npc) => {
-    const convos = npc.dialog.convos;
-    const convo = convos[npc.convoIdx % convos.length] as Convo;
-    npc.convoIdx++;
+    // The next errand, when its tambo is a good walk uphill from here; otherwise the chasqui's own talk.
+    const mission = offerCooldown > 0 ? null : offerable(errands, avatarT);
+    let convo: Convo;
+    if (mission) {
+      convo = MISSION_DIALOGS[mission.id];
+      emit("world:mission", { id: mission.id, state: "offered", to: mission.to });
+    } else {
+      const convos = npc.dialog.convos;
+      convo = convos[npc.convoIdx % convos.length] as Convo;
+      npc.convoIdx++;
+    }
     const m = new DialogMachine(convo, lang);
     if (rm) m.revealAll();
-    active = { npc, m };
+    active = { npc, m, mission, fired: null };
     renderedNode = null;
     npc.mode = "talk";
     nameEl.textContent = npc.dialog.name;
@@ -830,6 +1041,8 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
 
   const close = () => {
     if (!active) return;
+    // Walking away from an offer (or "not now") rests the offers for a while.
+    if (active.mission && errands.active !== active.mission.id) offerCooldown = 45;
     active.npc.mode = "attend";
     active.npc.timer = 1.2;
     active = null;
@@ -842,6 +1055,12 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
   const step = (fn: () => unknown) => {
     if (!active) return;
     fn();
+    // A node with an action fires it once when it's shown (errand accepted on the "yes" line).
+    const a = active;
+    if (a.m.node?.action === "accept" && a.fired !== a.m.nodeId && a.mission) {
+      a.fired = a.m.nodeId;
+      startErrand(a.mission);
+    }
     if (!active.m.open) close();
     else {
       if (rm) active.m.revealAll();
@@ -887,6 +1106,8 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
   const base = new THREE.Vector3();
   const tg = new THREE.Vector3();
   const proj = new THREE.Vector3();
+  const push = { x: 0, z: 0 };
+  const nearBuf: Body[] = [];
   let clock = 0;
 
   const surfaceY = (x: number, z: number) => env.heightAt(x, z) + 0.06;
@@ -913,6 +1134,8 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
     const jogging = r.jog !== undefined && n.jogT < 3;
     let want = jogging ? (r.jog ?? r.speed) : r.speed;
     if (distA < 4.5) want *= THREE.MathUtils.clamp((distA - 1.2) / 3.3, 0.2, 1);
+    // Something blocks the whole path ahead (a bear lying across it, a herd): slow down and wait.
+    want *= 1 - 0.85 * n.block;
 
     if (n.mode === "talk" || n.mode === "attend" || n.mode === "turn") want = 0;
     if (n.mode === "rest") want = n.rest?.out && n.rest.k >= 1 ? 0 : Math.min(r.speed, 1.3);
@@ -987,6 +1210,30 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
       const dt2 = (o.t - n.t) * len * n.dir;
       if (dt2 > 0 && dt2 < 2.2 && n.speed > o.speed + 0.2) laneT = -n.dir * 0.42 * hw;
     }
+    // Look ahead for other bodies (animals, people, other chasquis) and change lane early to pass them.
+    n.block = 0;
+    if (n.mode === "walk" && !n.rest) {
+      const me = n.body.r;
+      for (const b of creatures.near(base.x, base.z, 4.5, nearBuf, n.body)) {
+        if (b === n.llamaBody || b.kind === "traveler" || !b.solid) continue;
+        const bx = b.x - base.x;
+        const bz = b.z - base.z;
+        const ahead = (bx * tg.x + bz * tg.z) * n.dir;
+        if (ahead < -0.4 || ahead > 4) continue;
+        const lb = bx * rx + bz * rz;
+        const clear = b.r + me + 0.35;
+        if (Math.abs(lb - laneT) >= clear) continue;
+        // Pass on the side with more room; if neither side fits inside the path, wait behind it.
+        const left = lb - clear;
+        const right = lb + clear;
+        const lim = hw * 0.92;
+        const canL = left >= -lim;
+        const canR = right <= lim;
+        if (canL && (!canR || Math.abs(left - laneT) <= Math.abs(right - laneT))) laneT = left;
+        else if (canR) laneT = right;
+        else n.block = Math.max(n.block, THREE.MathUtils.clamp(1 - (ahead - 1.2) / 2.5, 0, 1));
+      }
+    }
     n.laneTarget = laneT;
     n.lane = damp(n.lane, n.laneTarget, 2.5, dt);
 
@@ -1001,6 +1248,18 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
       n.pos.x = lx;
       n.pos.z = lz;
     }
+    // Separation from other solid bodies: an offset that eases back to the lane once the way is clear.
+    const body = n.body;
+    body.x = n.pos.x + n.offX;
+    body.z = n.pos.z + n.offZ;
+    creatures.separate(body, push);
+    const k = body.give;
+    n.offX = damp(n.offX + push.x * k, 0, 1.5, dt);
+    n.offZ = damp(n.offZ + push.z * k, 0, 1.5, dt);
+    n.pos.x += n.offX;
+    n.pos.z += n.offZ;
+    body.x = n.pos.x;
+    body.z = n.pos.z;
     n.pos.y = surfaceY(n.pos.x, n.pos.z);
 
     // Facing: movement direction, or the traveler when engaged, or the trail when idle at a rest spot.
@@ -1034,6 +1293,16 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
       if (n.llamaSpeed > 0.15) n.llamaYaw = angleDamp(n.llamaYaw, Math.atan2(dx, dz), 5, dt);
     }
     if (d > 8) n.llamaPos.set(gx, 0, gz);
+    const lb = n.llamaBody;
+    if (lb) {
+      lb.x = n.llamaPos.x;
+      lb.z = n.llamaPos.z;
+      creatures.separate(lb, push);
+      n.llamaPos.x += push.x * lb.give;
+      n.llamaPos.z += push.z * lb.give;
+      lb.x = n.llamaPos.x;
+      lb.z = n.llamaPos.z;
+    }
     n.llamaPos.y = surfaceY(n.llamaPos.x, n.llamaPos.z);
   };
 
@@ -1200,11 +1469,25 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
 
   let tagFor: Npc | null = null;
   let night: boolean | null = null;
+  let bodyClock = 0;
 
   const ambient: Ambient = {
     update(dt, avatar) {
       dt = Math.min(dt, 0.05);
       clock += dt;
+      updateErrand(dt, avatar);
+      bodyClock -= dt;
+      if (bodyClock <= 0) {
+        // The registry is reset by core on (re)mount: make sure our bodies are still in it.
+        bodyClock = 1;
+        const all = creatures.all();
+        for (const n of npcs) {
+          if (!all.includes(n.body))
+            n.body = creatures.add("chasqui", n.body.r, { give: 0.35, x: n.pos.x, z: n.pos.z });
+          if (n.llamaBody && !all.includes(n.llamaBody))
+            n.llamaBody = creatures.add("pack-llama", 0.5, { give: 0.3, x: n.llamaPos.x, z: n.llamaPos.z });
+        }
+      }
 
       // Who is close enough to talk?
       let best: Npc | null = null;
@@ -1292,7 +1575,13 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
     dispose() {
       window.removeEventListener("keydown", onKey, true);
       window.clearTimeout(toastTimer);
+      window.clearTimeout(thanksTimer);
+      detachKhipu();
+      errandChip.chip.remove();
+      releaseChips(chips);
       for (const n of npcs) {
+        creatures.remove(n.body);
+        if (n.llamaBody) creatures.remove(n.llamaBody);
         for (const g of n.rig.geos) g.dispose();
         if (n.llama) for (const g of n.llama.geos) g.dispose();
       }
@@ -1321,6 +1610,19 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
       open(id: string) {
         const n = npcs.find((x) => x.spec.id === id);
         if (n) open(n);
+      },
+      errands: () => ({ ...errands, carrying: !!carried, chip: chipText }),
+      /** Accept the next errand directly (screenshots). */
+      acceptNext() {
+        const m = offerable(errands, 0);
+        if (m) startErrand(m);
+      },
+      reset() {
+        errands = { done: 0, active: null };
+        saveErrands(errands);
+        detachKhipu();
+        offerCooldown = 0;
+        renderChip();
       },
     };
     (window as unknown as { __npcs?: typeof debug }).__npcs = debug;

@@ -1,5 +1,6 @@
 /** Ground-following locomotion shared by the puma and the fox (no allocations per call). */
 import type { WorldEnv } from "../../contract";
+import { creatures } from "../../creatures";
 import type { WorldEnvExtra } from "../../env";
 import type { QuadState } from "./rig";
 import { ease, turnToward } from "./sim";
@@ -17,8 +18,11 @@ export function ground(env: WorldEnv): Ground {
   };
 }
 
+const want = { x: 0, z: 0 };
+
 /**
- * Turn toward (tx, tz) and walk forward `speed` u/s; steers around water. Returns the remaining distance.
+ * Turn toward (tx, tz) and walk forward `speed` u/s; steers around water, and (when the state has a body)
+ * around other animals and the traveler with a 1 s look-ahead. Returns the remaining distance.
  * `len` is half the body length (for the slope sample).
  */
 export function walkToward(
@@ -35,8 +39,15 @@ export function walkToward(
   const dz = tz - st.z;
   const d = Math.hypot(dx, dz);
   if (d < 0.05) return d;
-  st.yaw = turnToward(st.yaw, Math.atan2(dx, dz), turnRate * dt);
-  const step = Math.min(d, speed * dt);
+  let sp = speed;
+  let head = Math.atan2(dx, dz);
+  if (st.body) {
+    creatures.steer(st.body, (dx / d) * speed, (dz / d) * speed, 1, want);
+    sp = Math.hypot(want.x, want.z);
+    if (sp > 1e-4) head = Math.atan2(want.x, want.z);
+  }
+  st.yaw = turnToward(st.yaw, head, turnRate * dt);
+  const step = Math.min(d, sp * dt);
   const nx = st.x + Math.sin(st.yaw) * step;
   const nz = st.z + Math.cos(st.yaw) * step;
   if (g.water(nx + Math.sin(st.yaw) * len, nz + Math.cos(st.yaw) * len)) {

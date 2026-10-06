@@ -18,6 +18,7 @@ import {
   WORLD_HALF,
 } from "./layout";
 import { WORLD } from "./palette";
+import { detectDevice } from "./quality";
 import { canvasTex, fbm, noise2, rng } from "./tex";
 import type { ToonCache } from "./toon";
 
@@ -719,7 +720,12 @@ export function createScenery(
         avoid.push([p.x, p.z, Math.max(s.x, s.z) * 0.95 + 0.15]);
       }
     }
-    return createFlora(L, toon.toon("#fff").gradientMap, quality, { reducedMotion, avoid });
+    // Phones get a lighter flora on top of "low" (quality.ts deviceProfile); desktop is unchanged.
+    return createFlora(L, toon.toon("#fff").gradientMap, quality, {
+      reducedMotion,
+      avoid,
+      phone: detectDevice().phone,
+    });
   })();
   for (const o of flora.objects) {
     group.add(o);

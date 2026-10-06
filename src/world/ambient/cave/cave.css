@@ -1,0 +1,43 @@
+/* Cave caption: a paper strip above the prompt pill, ink border like the HUD. */
+.kx-cave-layer,
+.kx-cave-layer > * {
+  pointer-events: none;
+}
+.kx-cave-caption {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--qn-bottom) + 132px);
+  width: max-content;
+  max-width: min(440px, calc(100% - 28px));
+  margin: 0;
+  padding: 12px 18px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 6px;
+  background: var(--qn-paper);
+  box-shadow: var(--qn-shadow);
+  color: var(--qn-ink);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  text-align: center;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
+.kx-cave-caption.is-on {
+  visibility: visible;
+  animation: kx-cave-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes kx-cave-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kx-cave-caption.is-on {
+    animation: none;
+  }
+}

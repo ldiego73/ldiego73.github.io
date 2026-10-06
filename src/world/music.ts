@@ -10,7 +10,9 @@ import { STATIONS, type WorldEnv } from "./contract";
  * State machine
  *   track:     day | night by `env.sky.isNight()` (2 s crossfade on flip); `summit` while within SUMMIT_IN of the
  *              trail end (hysteresis SUMMIT_OUT), then back to day/night. The `summit` stinger plays on the first arrival.
- *   intensity: summit 0.9 > interior 0.3 > tour 0.5 > near a station 0.45 > trail 0.15..0.3 (grows with progress).
+ *   intensity: summit 0.9 > interior 0.3 > near a station 0.2 > tour 0.5 > trail 0.15..0.3 (grows with progress).
+ *              Near a station the track stays calm (sparse quena, no charango) because the station's own place
+ *              motif (soundscape, ambient/soundscape/motifs.ts) is the lift there; a full lead would fight it.
  *              Eased here (about 1.2 s) so the engine ramp never sees steps.
  *   duck:      0.5 while a dialog (photo preview, name editor) is open, else 1.
  *
@@ -25,7 +27,9 @@ import { STATIONS, type WorldEnv } from "./contract";
 const FADE_MS = 2000;
 const SUMMIT_IN = 12;
 const SUMMIT_OUT = 17;
-const STATION_NEAR = 9;
+const STATION_NEAR = 13;
+/** Below the full lead's gate (0.35 - GATE_WIDTH): leaves room for the station motif. */
+const STATION_CALM = 0.2;
 const GAME_SETTLE = 350;
 
 type Mood = "day" | "night" | "summit";
@@ -77,8 +81,8 @@ export function createWorldMusic(env: WorldEnv): WorldMusic {
   const target = (c: WorldMusicCtx): number => {
     if (atSummit) return 0.9;
     if (inside) return 0.3;
+    for (const p of stations) if (Math.hypot(p.x - c.x, p.z - c.z) < STATION_NEAR) return STATION_CALM;
     if (c.touring) return 0.5;
-    for (const p of stations) if (Math.hypot(p.x - c.x, p.z - c.z) < STATION_NEAR) return 0.45;
     return 0.15 + 0.15 * Math.min(1, Math.max(0, c.t));
   };
 

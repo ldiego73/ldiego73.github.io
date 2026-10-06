@@ -1,12 +1,14 @@
 import * as THREE from "three";
 import { FullScreenQuad, Pass } from "three/examples/jsm/postprocessing/Pass.js";
-import { NO_OUTLINE_LAYER } from "./toon";
+import { inkMaskScene, NO_OUTLINE_LAYER } from "./toon";
 
 /**
  * Hand-inked outlines: a normal + depth prepass (outlined layer only), then a full-screen
  * edge detect that mixes ink into the color buffer. Ink color and distance fade are uniforms
  * so day/night and the title view can retune them. Ink also dissolves into the scene fog (linear
  * `THREE.Fog` near/far or `FogExp2` density, read every frame) so misty distances stay soft.
+ * Labels tagged with `inkMask()` draw a depth-tested mask into the prepass alpha (1 = ink allowed,
+ * 0 = a label is in front), so lines of the geometry behind a label never cross its text.
  */
 const OutlineShader = {
   uniforms: {
@@ -49,6 +51,9 @@ const OutlineShader = {
     vec3 nrm(vec2 uv) { return texture2D(tNormal, uv).xyz * 2.0 - 1.0; }
     void main() {
       vec4 col = texture2D(tDiffuse, vUv);
+      // Prepass alpha: 1 = ink allowed, 0 = a tagged label is in front (soft at its filtered edge).
+      float inkOk = texture2D(tNormal, vUv).a;
+      if (inkOk < 0.004) { gl_FragColor = col; return; }
       vec2 o = uTexel * uThick;
       float zc = viewZ(vUv);
       vec3 nc = nrm(vUv);
@@ -70,7 +75,7 @@ const OutlineShader = {
       edge *= 1.0 - smoothstep(uFade.x, uFade.y, zmin);
       // Gone by the time the fog has eaten ~60% of the color.
       edge *= 1.0 - smoothstep(0.05, 0.6, fogAt(zmin));
-      col.rgb = mix(col.rgb, uInk, edge * uStrength);
+      col.rgb = mix(col.rgb, uInk, edge * uStrength * inkOk);
       gl_FragColor = col;
     }`,
 };
@@ -133,6 +138,15 @@ export class InkOutlinePass extends Pass {
     renderer.clear();
     renderer.render(scene, cam);
     scene.overrideMaterial = ov;
+    // Ink mask: visible tagged labels multiply the prepass alpha by (1 − coverage) where they pass
+    // the depth test against the outlined geometry (one tiny draw per visible label, no world traversal).
+    const masks = inkMaskScene(scene);
+    if (masks) {
+      const autoClear = renderer.autoClear;
+      renderer.autoClear = false;
+      renderer.render(masks, cam);
+      renderer.autoClear = autoClear;
+    }
     scene.background = bg;
     scene.fog = fog;
     cam.layers.mask = layers;
