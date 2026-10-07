@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { emptyState } from "../games/core/store";
 import { ACHIEVEMENTS } from "../games/registry";
 import { STATIONS } from "../world/contract";
+import { SELVA_STATIONS } from "../world/selva/contract";
 import {
   CATALOG,
   emptyPassport,
@@ -10,6 +11,7 @@ import {
   PASSPORT_KEY,
   passportComplete,
   recordStamp,
+  requiredStamps,
   savePassport,
 } from "./passport";
 
@@ -70,6 +72,16 @@ describe("Qhapaq Ñan passport", () => {
       "egg:golden-condor",
       "egg:waterfall-cave",
       "egg:atoq",
+      "wasi:sala",
+      "wasi:estudio",
+      "wasi:buzon",
+      "wasi:mesa",
+      ...SELVA_STATIONS.map((station) => `selva:station:${station.id}`),
+      "selva:ride:canoe",
+      "selva:field:dosel",
+      ...["guacamayo", "mono", "perezoso", "bufeo", "caiman", "ronsoco", "tucan", "jaguar"].map(
+        (id) => `selva:fauna:${id}`,
+      ),
     ];
     expect(CATALOG.map((stamp) => stamp.id).sort()).toEqual(expected.sort());
     expect(new Set(expected).size).toBe(CATALOG.length);
@@ -145,7 +157,7 @@ describe("Qhapaq Ñan passport", () => {
     const view = mergedPassport(state, arcade);
     expect(view.worldCollected).toBe(2);
     expect(view.arcadeCollected).toBe(1);
-    expect(view.total).toBe(41 + ACHIEVEMENTS.length);
+    expect(view.total).toBe(CATALOG.length + ACHIEVEMENTS.length);
     expect(view.collected).toBe(3);
     expect(view.percentage).toBe(Math.round(300 / view.total));
     expect(view.world.find((stamp) => stamp.id === "egg:vizcacha-1")?.label).toEqual({ es: "???", en: "???" });
@@ -175,12 +187,24 @@ describe("Qhapaq Ñan passport", () => {
     const bonus = new Set(["egg", "fauna", "npc", "record", "festival"]);
     for (const stamp of CATALOG) if (!bonus.has(stamp.kind)) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
-    expect(mergedPassport(state, emptyState()).worldCollected).toBe(21);
+    expect(mergedPassport(state, emptyState()).worldCollected).toBe(21 + 4 + SELVA_STATIONS.length + 2);
     delete state.stamps["weather:fog"];
     expect(passportComplete(state)).toBe(false);
     for (const stamp of CATALOG) state.stamps[stamp.id] = 1234;
-    const arcade = emptyState();
-    for (const achievement of ACHIEVEMENTS) arcade.unlocked[achievement.id] = 1234;
-    expect(mergedPassport(state, arcade).percentage).toBe(100);
+    const arcadeAll = emptyState();
+    for (const achievement of ACHIEVEMENTS) arcadeAll.unlocked[achievement.id] = 1234;
+    expect(mergedPassport(state, arcadeAll).percentage).toBe(100);
+  });
+
+  test("each world is its own passport page; complete means every page", () => {
+    const state = emptyPassport();
+    for (const stamp of requiredStamps("qhapaq")) state.stamps[stamp.id] = 1234;
+    expect(passportComplete(state, "qhapaq")).toBe(true);
+    expect(passportComplete(state, "wasi")).toBe(false);
+    expect(passportComplete(state)).toBe(false);
+    for (const stamp of requiredStamps("wasi")) state.stamps[stamp.id] = 1234;
+    for (const stamp of requiredStamps("selva")) state.stamps[stamp.id] = 1234;
+    expect(passportComplete(state)).toBe(true);
+    expect(requiredStamps("selva").some((stamp) => stamp.id.startsWith("selva:fauna:"))).toBe(false);
   });
 });

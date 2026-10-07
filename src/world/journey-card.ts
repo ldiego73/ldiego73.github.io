@@ -4,12 +4,18 @@
  * weather and the llama ride, plus an invitation back to the site. Available any time from the passport
  * and the summit panel (`world:postcard`); before the first summit it reads "En el camino" with the
  * progress so far. Vertical (1080×1350, feeds) or wide (1200×630, links). Drawn on a 2D canvas.
+ *
+ * World-aware: on the Antisuyu jungle page (`world: "selva"`, passed by selva/index.ts or read from
+ * `document.documentElement.dataset.world`) the card is "Your Antisuyu postcard": the cord shows the jungle
+ * stations, the canoe trip and canopy walkway replace climb time and llama ride, wildlife is the jungle's, and
+ * the link points to /{lang}/world/selva. The mountain card is drawn exactly as before.
  */
 import { COMPANIES } from "../data/career";
 import type { Lang } from "./contract";
 import { createModal } from "./dialogs";
-import { formatDuration, type JourneySummary } from "./journey";
+import { formatDuration, type JourneySummary, type PostcardWorld } from "./journey";
 import { DYE, fonts } from "./palette";
+import { SELVA_STATIONS, type SelvaStationKind } from "./selva/contract";
 
 export type CardFormat = "story" | "wide";
 const SIZE: Record<CardFormat, [number, number]> = { story: [1080, 1350], wide: [1200, 630] };
@@ -73,6 +79,34 @@ const COPY = {
   },
 } as const;
 
+/** Jungle overrides (everything else on the card reads COPY). */
+const SELVA_COPY = {
+  es: {
+    reached: "Llegué a la collpa",
+    heading: "KHIPU · Antisuyu",
+    title: "Tu postal del Antisuyu",
+    canoe: "Viaje en canoa",
+    canopy: "Puentes del dosel",
+    stations: "Estaciones",
+    text: (s: JourneySummary, url: string) =>
+      s.reached
+        ? `Llegué a la collpa de guacamayos del Antisuyu de Luis Diego, con ${s.stamps.got} sellos de la selva${s.wildlife.length ? ` y ${s.wildlife.length} animales vistos` : ""}. Camina el tuyo → ${url}`
+        : `Voy recorriendo el Antisuyu de Luis Diego: ${s.route.filter((r) => r.stamped).length} de ${s.route.length} estaciones y ${s.stamps.got} sellos de la selva. Camina el tuyo → ${url}`,
+  },
+  en: {
+    reached: "I reached the clay lick",
+    heading: "KHIPU · Antisuyu",
+    title: "Your Antisuyu postcard",
+    canoe: "Canoe trip",
+    canopy: "Canopy walkway",
+    stations: "Stations",
+    text: (s: JourneySummary, url: string) =>
+      s.reached
+        ? `I reached the macaw clay lick of Luis Diego's Antisuyu, with ${s.stamps.got} jungle stamps${s.wildlife.length ? ` and ${s.wildlife.length} animals spotted` : ""}. Walk yours → ${url}`
+        : `I'm walking Luis Diego's Antisuyu: ${s.route.filter((r) => r.stamped).length} of ${s.route.length} stations and ${s.stamps.got} jungle stamps so far. Walk yours → ${url}`,
+  },
+} as const;
+
 const INK = "#1f1a17";
 const SEPIA = "#5b4a3a";
 const PAPER = "#f3ead8";
@@ -90,7 +124,27 @@ const stationDye = (id: string) => {
   );
 };
 
-export const worldUrl = (lang: Lang) => `ldiego73.github.io/${lang}/world`;
+/** Jungle station dyes by kind (the jungle map's markers use the same ones). */
+const SELVA_KIND_DYE: Record<SelvaStationKind, string> = {
+  gate: DYE.alpaca,
+  uses: DYE.turq,
+  blog: DYE.indigo,
+  landing: DYE.turq,
+  projects: DYE.ochre,
+  arcade: DYE.ochre,
+  collpa: DYE.red,
+};
+export const selvaStationDye = (id: string) => {
+  const kind = SELVA_STATIONS.find((s) => s.id === id)?.kind;
+  return kind ? SELVA_KIND_DYE[kind] : DYE.ochre;
+};
+
+export const worldUrl = (lang: Lang, world: PostcardWorld = "qhapaq") =>
+  world === "selva" ? `ldiego73.github.io/${lang}/world/selva` : `ldiego73.github.io/${lang}/world`;
+
+/** The page's world for the postcard: the jungle when the page says so, else the mountain. */
+const pageWorld = (): PostcardWorld =>
+  typeof document !== "undefined" && document.documentElement.dataset.world === "selva" ? "selva" : "qhapaq";
 
 /** Draw `img` covering the box (centre crop). */
 function cover(
@@ -127,10 +181,11 @@ function drawRoute(
   ctx.fillRect(x, y, w, Math.max(3, u * 0.5));
   const n = s.route.length;
   const gap = w / n;
+  const dye = s.world === "selva" ? selvaStationDye : stationDye;
   s.route.forEach((r, i) => {
     const cx = x + gap * (i + 0.5);
     const len = h * (0.7 + ((i * 37) % 5) * 0.06);
-    ctx.strokeStyle = r.stamped ? stationDye(r.id) : "rgb(91 74 58 / 0.35)";
+    ctx.strokeStyle = r.stamped ? dye(r.id) : "rgb(91 74 58 / 0.35)";
     ctx.lineWidth = Math.max(3, u * 0.55);
     ctx.lineCap = "round";
     ctx.setLineDash(r.stamped ? [] : [u * 0.8, u * 0.8]);
@@ -140,7 +195,7 @@ function drawRoute(
     ctx.stroke();
     ctx.setLineDash([]);
     if (r.stamped) {
-      ctx.fillStyle = stationDye(r.id);
+      ctx.fillStyle = dye(r.id);
       for (let k = 0; k < 2; k++) {
         ctx.beginPath();
         ctx.ellipse(cx, y + len * (0.38 + k * 0.3), u * 0.85, u * 0.65, 0, 0, Math.PI * 2);
@@ -174,6 +229,8 @@ export async function composeJourneyCard(
   o: { lang: Lang; traveler: string; format: CardFormat },
 ): Promise<HTMLCanvasElement> {
   const c = COPY[o.lang];
+  const jungle = s.world === "selva";
+  const sc = SELVA_COPY[o.lang];
   const f = fonts();
   try {
     await Promise.all([
@@ -208,7 +265,7 @@ export async function composeJourneyCard(
   ctx.strokeRect(ph.x, ph.y, ph.w, ph.h);
   ctx.strokeRect(lw / 2, lw / 2, W - lw, H - lw);
   // Badge on the photo.
-  const badge = s.reached ? c.reached : c.onWay;
+  const badge = s.reached ? (jungle ? sc.reached : c.reached) : c.onWay;
   ctx.font = `800 ${Math.round(u * (wide ? 1.9 : 2.6))}px ${f.display}`;
   const bw = ctx.measureText(badge).width + u * 3;
   const bh = u * (wide ? 3.6 : 4.8);
@@ -228,7 +285,7 @@ export async function composeJourneyCard(
   ctx.fillStyle = INK;
   const big = u * (wide ? 4 : 6.2);
   ctx.font = `900 ${big}px ${f.display}`;
-  ctx.fillText("KHIPU · Qhapaq Ñan", col.x, y);
+  ctx.fillText(jungle ? sc.heading : "KHIPU · Qhapaq Ñan", col.x, y);
   y += big * 1.12;
   if (o.traveler) {
     ctx.font = `700 ${u * (wide ? 2 : 2.8)}px ${f.body}`;
@@ -279,16 +336,22 @@ export async function composeJourneyCard(
   };
   const gapY = u * (wide ? 1.6 : 2.4);
   const best = j.climbs > 1 ? `${time} · ${j.climbs} ${c.climbs}` : time;
+  // Jungle: no climb clock and no llama; the canoe trip and the canopy walkway take their cells.
   y +=
     Math.max(
-      cell(c.best, best, col.x, y, half),
+      jungle ? cell(sc.canoe, s.rodeCanoe ? c.yes : c.none, col.x, y, half) : cell(c.best, best, col.x, y, half),
       cell(c.stamps, `${s.stamps.got} / ${s.stamps.total}`, col.x + half, y, half),
     ) + gapY;
   y +=
     cell(c.wildlife, s.wildlife.length ? s.wildlife.map((l) => l[o.lang]).join(", ") : c.none, col.x, y, col.w, 2) +
     gapY;
-  cell(c.weather, s.weather.length ? s.weather.map((l) => l[o.lang]).join(", ") : c.none, col.x, y, half);
-  cell(c.llama, s.rodeLlama ? c.yes : c.none, col.x + half, y, half);
+  if (jungle) {
+    cell(sc.canopy, s.canopy ? c.yes : c.none, col.x, y, half);
+    cell(sc.stations, `${s.route.filter((r) => r.stamped).length} / ${s.route.length}`, col.x + half, y, half);
+  } else {
+    cell(c.weather, s.weather.length ? s.weather.map((l) => l[o.lang]).join(", ") : c.none, col.x, y, half);
+    cell(c.llama, s.rodeLlama ? c.yes : c.none, col.x + half, y, half);
+  }
 
   // Footer: dye band + invitation.
   const fy = H - pad - u * (wide ? 3 : 4);
@@ -303,7 +366,7 @@ export async function composeJourneyCard(
   ctx.fillText(`${c.invite} →`, col.x, fy);
   ctx.textAlign = "right";
   ctx.font = `600 ${u * (wide ? 1.7 : 2.3)}px ${f.mono}`;
-  ctx.fillText(worldUrl(o.lang), col.x + col.w, fy + u * 0.2);
+  ctx.fillText(worldUrl(o.lang, s.world), col.x + col.w, fy + u * 0.2);
   ctx.textAlign = "left";
   return cv;
 }
@@ -324,9 +387,15 @@ export function createJourneyDialog(
     summary: () => JourneySummary;
     traveler: () => string;
     onOpenChange: (open: boolean) => void;
+    /** The page's world; defaults to `document.documentElement.dataset.world` ("selva" → jungle, else mountain). */
+    world?: PostcardWorld;
   },
 ): JourneyDialog {
+  const world = o.world ?? pageWorld();
+  const jungle = world === "selva";
   const c = COPY[lang];
+  const title = jungle ? SELVA_COPY[lang].title : c.title;
+  const heading = jungle ? SELVA_COPY[lang].heading : "KHIPU · Qhapaq Ñan";
   let url: string | null = null;
   let file: File | null = null;
   let shot: HTMLCanvasElement | null = null;
@@ -343,7 +412,7 @@ export function createJourneyDialog(
   const h = document.createElement("h2");
   h.id = "kw-journey-h";
   h.className = "kw-modal-title";
-  h.textContent = c.title;
+  h.textContent = title;
   const tabs = document.createElement("div");
   tabs.className = "kw-journey-tabs";
   tabs.setAttribute("role", "group");
@@ -384,12 +453,12 @@ export function createJourneyDialog(
   row.append(dl, share, copy, close);
   modal.panel.append(h, tabs, img, row);
 
-  const shareText = () => c.text(o.summary(), `https://${worldUrl(lang)}/`);
+  const shareText = () => (jungle ? SELVA_COPY[lang].text : c.text)(o.summary(), `https://${worldUrl(lang, world)}/`);
   close.addEventListener("click", () => modal.close());
   share.addEventListener("click", async () => {
     if (!file) return;
     try {
-      await navigator.share({ files: [file], title: "KHIPU · Qhapaq Ñan", text: shareText() });
+      await navigator.share({ files: [file], title: heading, text: shareText() });
     } catch {
       /* cancelled or unsupported */
     }
@@ -412,11 +481,11 @@ export function createJourneyDialog(
     const blob = await new Promise<Blob | null>((r) => card.toBlob(r, "image/png"));
     if (!blob) return;
     if (url) URL.revokeObjectURL(url);
-    const name = `khipu-qhapaq-nan-${format}.png`;
+    const name = `khipu-${jungle ? "antisuyu" : "qhapaq-nan"}-${format}.png`;
     url = URL.createObjectURL(blob);
     file = new File([blob], name, { type: "image/png" });
     img.src = url;
-    img.alt = `${c.title}. ${shareText()}`;
+    img.alt = `${title}. ${shareText()}`;
     dl.href = url;
     dl.download = name;
     share.hidden = !(typeof navigator.canShare === "function" && navigator.canShare({ files: [file] }));

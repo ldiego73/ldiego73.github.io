@@ -4,7 +4,7 @@
  * content (avatar, stations, HUD panels) and ambients (fauna, NPCs) load lazily through ./contract.ts.
  *
  * env.extra (core helpers outside the contract; type `WorldEnvExtra` in ./env.ts):
- *   groundAt(x, z)                      ground incl. bridge decks
+ *   groundAt(x, z)                      ground incl. bridge decks and the highest registered deck (decks.ts)
  *   isGrass(x, z)                       open grass (not path/plaza/water/gorge/cliff, gentle slope)
  *   randomGrassPoint(rand?, near?)      random grass point as Vector3 (y on ground) or null
  *   isWater(x, z)                       river or mountain stream
@@ -26,6 +26,10 @@
  * and after they are disposed. Core registers the traveler (kind "traveler") and, after each move, pushes
  * the traveler out of solid bodies (animals, people) like any collider: only onto standable ground, with the
  * velocity into the body removed so walking into a llama slides around it instead of shaking.
+ *
+ * Decks (decks.ts): raised surfaces ambients register (the Wasi plinth and steps). The traveler stands on a
+ * deck it can step up to (≤ MAX_STEP above the feet; only what is underfoot while airborne), a reachable deck
+ * counts as walkable, and the follow camera keeps above decks. Cleared with the creatures registry.
  */
 import * as THREE from "three";
 import { COMPANIES } from "../data/career";
@@ -44,6 +48,7 @@ import {
 } from "./contract";
 import { creatures } from "./creatures";
 import { worldData } from "./data";
+import { decks, standOn, topOf } from "./decks";
 import { createNameEditor, createPhotoMode, placeAt } from "./dialogs";
 import { createEngine, disposeTree, type Quality } from "./engine";
 import { createEnv } from "./env";
@@ -73,6 +78,8 @@ export interface WorldOptions {
   lang: Lang;
   /** Skip the title (dev / deep link). */
   skipIntro?: boolean;
+  /** Coming back from another world (trailhead.ts ARRIVALS): skip the title and start here. */
+  arrive?: { x: number; z: number; yaw: number } | null;
 }
 
 const Q_KEY = "ldiego73-world-quality";
@@ -259,7 +266,7 @@ export function mountWorld(host: HTMLElement, opts: WorldOptions): () => void {
       requestAnimationFrame(() =>
         setTimeout(() => {
           if (disposed) return;
-          start(host, lang, reducedMotion, mods, opts.skipIntro ?? false, {
+          start(host, lang, reducedMotion, mods, (opts.skipIntro ?? false) || !!opts.arrive, opts.arrive ?? null, {
             progress: (p, step) => loader.progress(p, step),
             done: () => loader.done(),
             alive: () => !disposed,
@@ -291,6 +298,7 @@ async function start(
   reducedMotion: boolean,
   mods: Awaited<ReturnType<typeof loadContent>>,
   skipIntro: boolean,
+  arrive: { x: number; z: number; yaw: number } | null,
   ui: {
     progress(p: number, step?: LoadStep): void;
     done(): void;
@@ -360,7 +368,8 @@ async function start(
       layout,
       sky,
       toon,
-      groundAt: (x, z) => mods.deckHeightAt?.(x, z) ?? layout.groundAt(x, z),
+      // Fauna and people stand on the highest registered deck too (decks.ts; none on a bare mountain).
+      groundAt: (x, z) => topOf(decks, mods.deckHeightAt?.(x, z) ?? layout.groundAt(x, z), x, z),
     });
 
     await step(70, "terrain");
@@ -397,8 +406,13 @@ async function start(
 
     // ---------------------------------------------------------------- ambients (fauna, NPC chasquis)
     // Bodies register at create time: start from an empty registry, and empty it after they are disposed.
+    // Same for the raised decks ambients register (decks.ts).
     creatures.clear();
-    early.push(() => creatures.clear());
+    decks.clear();
+    early.push(() => {
+      creatures.clear();
+      decks.clear();
+    });
     const spawn0 = layout.trail.pointAt(0.006);
     const me = creatures.add("traveler", BODY_R, { x: spawn0.x, z: spawn0.z, give: 1 });
     const ambients: Ambient[] = [];
@@ -438,9 +452,10 @@ async function start(
     // ---------------------------------------------------------------- input + controls
     const input = createInput(engine.canvas, { onPad: (a) => onPad(a) });
     input.enabled = false;
-    const cam = createFollowCam(camera, layout.heightAt);
-    // The camera never ends up behind the waterfall cliff or inside the cave's rock.
-    for (const name of ["waterfall-cliff", "cave-walls", "cave-liner", "cave-roof"]) {
+    // The camera keeps above terrain and above any registered deck (a house floor over a dip in the slope).
+    const cam = createFollowCam(camera, (x, z) => topOf(decks, layout.heightAt(x, z), x, z));
+    // The camera never ends up behind the waterfall cliff, inside the cave's rock or inside the Antisuyu punku.
+    for (const name of ["waterfall-cliff", "cave-walls", "cave-liner", "cave-roof", "tinkuy-punku"]) {
       const o = scene.getObjectByName(name);
       if (o) cam.occluders.push(o);
     }
@@ -590,11 +605,13 @@ async function start(
     const spawnT = 0.006;
     const sp = layout.trail.pointAt(spawnT);
     const st = layout.trail.tangentAt(spawnT);
-    const pos = new THREE.Vector3(sp.x, layout.groundAt(sp.x, sp.z), sp.z);
+    const pos = arrive
+      ? new THREE.Vector3(arrive.x, layout.groundAt(arrive.x, arrive.z), arrive.z)
+      : new THREE.Vector3(sp.x, layout.groundAt(sp.x, sp.z), sp.z);
     const vel = new THREE.Vector2();
     let vy = 0;
     let grounded = true;
-    let yaw = Math.atan2(st.x, st.z);
+    let yaw = arrive ? arrive.yaw : Math.atan2(st.x, st.z);
     cam.behind(yaw);
     cam.pitch = 0.32;
     cam.dist = 9.5;
@@ -659,10 +676,23 @@ async function start(
       }
       return [x, z];
     };
-    /** Avatar ground: the content bridge deck when standing on it, else terrain (core deck fallback over the gap). */
-    const groundAt = (x: number, z: number) => mods.deckHeightAt?.(x, z) ?? layout.groundAt(x, z);
-    const canStand = (x: number, z: number) =>
-      layout.walkable(x, z) && groundAt(x, z) - pos.y < MAX_STEP + Math.max(0, vy * 0.1);
+    /** Layout ground: the content bridge deck when standing on it, else terrain (core deck fallback over the gap). */
+    const baseGround = (x: number, z: number) => mods.deckHeightAt?.(x, z) ?? layout.groundAt(x, z);
+    /** Snap height (teleport, fast travel): the highest registered deck there, else the layout ground. */
+    const groundAt = (x: number, z: number) => topOf(decks, baseGround(x, z), x, z);
+    /**
+     * How far above the feet a registered deck still counts (decks.ts): a step up while grounded, only what is
+     * under the feet while airborne (a jump never pops the traveler up through a deck overhead).
+     */
+    const deckReach = () => (grounded ? MAX_STEP + Math.max(0, vy * 0.1) : 0.05);
+    /** Ground under the traveler's feet: a reachable deck, else the layout ground. */
+    const feetGround = (x: number, z: number) => standOn(decks, baseGround(x, z), x, z, pos.y, deckReach());
+    const canStand = (x: number, z: number) => {
+      const d = decks.heightAt(x, z, pos.y + deckReach());
+      const base = baseGround(x, z);
+      const g = d !== null && d > base ? d : base;
+      return (d !== null || layout.walkable(x, z)) && g - pos.y < MAX_STEP + Math.max(0, vy * 0.1);
+    };
 
     // ---------------------------------------------------------------- guided tour (walks the spline, then steps off to each station)
     let touring = false;
@@ -903,14 +933,16 @@ async function start(
     cleanups.push(() => fade.remove());
     let fadeTimer = 0;
     cleanups.push(() => clearTimeout(fadeTimer));
+    /** Walkable ground or a registered deck (fast travel may land on a deck). */
+    const standable = (x: number, z: number) => layout.walkable(x, z) || decks.heightAt(x, z) !== null;
     const snapWalkable = (x: number, z: number): [number, number] => {
-      if (layout.walkable(x, z)) return [x, z];
+      if (standable(x, z)) return [x, z];
       for (let r = 0.6; r <= 5; r += 0.6)
         for (let k = 0; k < 12; k++) {
           const a = (k / 12) * Math.PI * 2;
           const nx = x + Math.cos(a) * r;
           const nz = z + Math.sin(a) * r;
-          if (layout.walkable(nx, nz)) return [nx, nz];
+          if (standable(nx, nz)) return [nx, nz];
         }
       const p = layout.trail.pointAt(layout.trail.nearestT(x, z));
       return [p.x, p.z];
@@ -1126,7 +1158,7 @@ async function start(
       } else vel.multiplyScalar(0.2);
       pushOutOfBodies();
 
-      const ground = groundAt(pos.x, pos.z);
+      const ground = feetGround(pos.x, pos.z);
       // No jumping while seated on a llama (the jump press is consumed and ignored).
       if (phase === "play" && input.takeJump() && grounded && !riding) {
         vy = JUMP_V;
@@ -1235,6 +1267,7 @@ async function start(
         /** "2026-06-24" or null for the real date (snow / Inti Raymi switch without reload). */
         setDate: (d: string | null) => setWorldDate(d ? new Date(`${d}T12:00:00`) : null),
         creatures,
+        decks,
         /** Walk toward world direction (dx, dz) for `secs` seconds at `speed` u/s (default walking pace). */
         walk(dx: number, dz: number, secs: number, speed = WALK) {
           const d = Math.hypot(dx, dz) || 1;

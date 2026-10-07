@@ -202,6 +202,13 @@
   font-size: 0.85em;
   color: #5b4a3a;
 }
+/* One page per world: a ruled heading above its stamp groups. */
+.kw-tm-passport [data-page] {
+  margin-top: 1.6em;
+  font-size: 1.3rem;
+  padding-bottom: 4px;
+  border-bottom: 2px solid #1f1a17;
+}
 .kw-tm-live {
   position: absolute;
   width: 1px;
@@ -276,4 +283,12 @@
     border-width: 0;
     box-shadow: none;
   }
+}
+
+/* The punku link to the jungle page: a clear call to travel, still a plain link. */
+.kw-textdoc .kw-tm-travel {
+  font-weight: 800;
+}
+.kw-textdoc .kw-tm-travel::after {
+  content: " →";
 }

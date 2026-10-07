@@ -97,7 +97,8 @@
   background: var(--passport-ochre);
 }
 .qn-passport-book h2,
-.qn-passport-book h3 {
+.qn-passport-book h3,
+.qn-passport-book h4 {
   font-family: var(--font-display, "Archivo", sans-serif);
   font-stretch: 75%;
   text-wrap: balance;
@@ -107,14 +108,111 @@
   font-size: clamp(1.4rem, 4vw, 2rem);
   line-height: 1.15;
 }
-.qn-passport-book h3 {
-  margin: 28px 0 12px;
+.qn-passport-book h4 {
+  margin: 24px 0 12px;
   border-bottom: 1px solid var(--passport-muted);
   padding-bottom: 6px;
+  font-size: 1.05rem;
 }
 .qn-passport-totals {
   margin: 18px 0 0;
   font-variant-numeric: tabular-nums;
+}
+/* Overall progress: an ink-bordered strip filled with dye. */
+.qn-passport-meter {
+  height: 10px;
+  margin: 8px 0 0;
+  border: 2px solid var(--passport-ink);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--passport-muted) 12%, var(--passport-paper));
+  overflow: hidden;
+}
+.qn-passport-meter span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--passport-dye);
+}
+
+/* Page tabs: one per world + arcade. They scroll sideways on phones instead of widening the book. */
+.qn-passport-tabs {
+  position: sticky;
+  top: -24px;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  margin: 18px -24px 0;
+  padding: 12px 24px 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  border-bottom: 2.5px solid var(--passport-ink);
+  background: var(--passport-paper);
+}
+.qn-passport .qn-passport-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  border-bottom-width: 2px;
+  border-radius: 8px 8px 4px 4px;
+  background: color-mix(in srgb, var(--passport-muted) 10%, var(--passport-paper));
+  color: var(--passport-muted);
+  white-space: nowrap;
+}
+.qn-passport .qn-passport-tab[aria-selected="true"] {
+  background: var(--passport-ink);
+  color: var(--passport-paper);
+}
+/* Inside the scrolling tab strip an outer ring would be clipped: draw it inset. */
+.qn-passport .qn-passport-tab:focus-visible {
+  outline-offset: -5px;
+}
+.qn-passport-tab-count {
+  font: 600 0.78rem / 1 var(--font-mono, "JetBrains Mono", monospace);
+  font-variant-numeric: tabular-nums;
+}
+.qn-passport-tab.is-done .qn-passport-tab-count::after {
+  content: " ✓";
+}
+.qn-passport-page {
+  padding-top: 4px;
+}
+.qn-passport-page[hidden] {
+  display: none;
+}
+.qn-passport-page:focus-visible {
+  outline-offset: 6px;
+}
+.qn-passport-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 18px 0 4px;
+}
+.qn-passport-page-head h3 {
+  margin: 0;
+  font-size: clamp(1.15rem, 3.4vw, 1.45rem);
+}
+.qn-passport-page-progress {
+  margin: 0;
+  color: var(--passport-muted);
+  font: 600 0.85rem / 1.2 var(--font-mono, "JetBrains Mono", monospace);
+  font-variant-numeric: tabular-nums;
+}
+/* "Page complete": a small round dye stamp, slightly askew like a real one. */
+.qn-passport-page-seal {
+  margin-left: auto;
+  padding: 6px 12px;
+  border: 3px double var(--passport-dye);
+  border-radius: 999px;
+  color: var(--passport-dye);
+  font: 800 0.75rem / 1.1 var(--font-display, "Archivo", sans-serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: rotate(-4deg);
 }
 .qn-passport-grid {
   display: grid;
@@ -172,6 +270,11 @@
 @media (max-width: 640px) {
   .qn-passport-book {
     padding: 18px;
+  }
+  .qn-passport-tabs {
+    top: -18px;
+    margin: 14px -18px 0;
+    padding: 10px 18px 8px;
   }
   .qn-passport-button {
     bottom: calc(max(18px, env(safe-area-inset-bottom)) + 210px);

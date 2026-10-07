@@ -83,6 +83,44 @@ describe("journey", () => {
     expect(s.stamps.got).toBe(5);
   });
 
+  test("the mountain summary keeps its shape; the jungle summary reads the jungle page", () => {
+    const stamps = {
+      "station:gate": 1,
+      summit: 2,
+      "ride:llama": 3,
+      "selva:station:puerto": 4,
+      "selva:station:collpa": 5,
+      "selva:ride:canoe": 6,
+      "selva:fauna:bufeo": 7,
+      "fauna:puma": 8,
+    };
+    const m = summarize({ stamps }, emptyJourney());
+    expect(m.world).toBe("qhapaq");
+    expect(m.route[0]?.id).toBe("gate");
+    expect(m.rodeLlama).toBe(true);
+    const s = summarize({ stamps }, emptyJourney(), "selva");
+    expect(s.world).toBe("selva");
+    expect(s.reached).toBe(true);
+    expect(s.route.map((r) => r.id)).toEqual([
+      "puerto",
+      "regaton",
+      "maloca",
+      "embarcadero",
+      "palafitos",
+      "arcade",
+      "collpa",
+    ]);
+    expect(s.route.filter((r) => r.stamped).map((r) => r.id)).toEqual(["puerto", "collpa"]);
+    expect(s.wildlife.map((l) => l.en)).toEqual(["Pink river dolphin"]);
+    expect(s.rodeCanoe).toBe(true);
+    expect(s.canopy).toBe(false);
+    expect(s.rodeLlama).toBe(false);
+    expect(s.stamps.got).toBe(4);
+    expect(s.stamps.total).toBeGreaterThan(s.stamps.got);
+    // Reaching the mountain summit says nothing about the jungle road.
+    expect(summarize({ stamps: { summit: 1 } }, emptyJourney(), "selva").reached).toBe(false);
+  });
+
   test("announces start, void and done transitions once each", () => {
     const m = memory();
     const seen: ClimbNotice[] = [];

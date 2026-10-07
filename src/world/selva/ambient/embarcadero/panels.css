@@ -1,0 +1,127 @@
+/* Jungle content stations: extras on top of the mountain's paper-and-ink data dialog (fields.css, prefix qnf-).
+   Tabs for the trader's stalls, ware lists, project cards, the bark-cloth list. Prefix qns-. */
+
+/* A thin river-and-forest selvage instead of the highland weave, so the jungle panels read as their own. */
+.qns .qnf-panel::before {
+  background: linear-gradient(
+    90deg,
+    #4f7d3a 0 22%,
+    #b8432f 22% 30%,
+    #87803c 30% 52%,
+    #2b3550 52% 60%,
+    #9a6b35 60% 84%,
+    #3c8d93 84%
+  );
+}
+
+.qns-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 12px;
+  padding: 0;
+}
+.qns-tab {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 2px solid var(--qnf-ink);
+  border-radius: 999px;
+  background: var(--qnf-paper);
+  color: var(--qnf-ink);
+  font: 700 0.8rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.qns-tab:hover {
+  background: #fff7e6;
+}
+.qns-tab[aria-selected="true"] {
+  background: var(--qns-dye, var(--qnf-accent));
+  color: #fff8ee;
+  box-shadow: 2px 2px 0 var(--qnf-ink);
+}
+.qns-tab:focus-visible {
+  outline: 3px solid var(--qnf-ochre);
+  outline-offset: 2px;
+}
+
+.qns-wares {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.qns-wares li {
+  display: grid;
+  gap: 1px;
+  padding: 6px 10px;
+  border-left: 5px solid var(--qns-dye, var(--qnf-accent));
+  border-radius: 4px;
+  background: var(--qnf-paper-2);
+  overflow-wrap: anywhere;
+}
+.qns-ware-name {
+  font: 700 0.9rem / 1.25 var(--font-mono, "JetBrains Mono", monospace);
+}
+.qns-ware-name a {
+  color: var(--qnf-ink);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+.qns-ware-name a:hover {
+  color: var(--qnf-accent);
+}
+.qns-ware-why {
+  font-size: 0.84rem;
+  color: var(--qnf-muted);
+}
+.qns-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+}
+.qns-chips li {
+  padding: 3px 9px;
+  border: 2px solid var(--qnf-ink);
+  border-radius: 999px;
+  background: var(--qnf-paper-2);
+  font: 600 0.76rem / 1.3 var(--font-mono, "JetBrains Mono", monospace);
+}
+
+.qns-uses {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+.qns-uses li {
+  display: grid;
+  grid-template-columns: 3.2em minmax(0, 1fr);
+  gap: 1px 10px;
+  padding: 7px 0;
+  border-bottom: 1px dashed rgb(31 26 23 / 0.35);
+  font-size: 0.86rem;
+}
+.qns-uses .qns-year {
+  grid-row: span 2;
+  font: 700 0.82rem / 1.4 var(--font-mono, "JetBrains Mono", monospace);
+  color: var(--qns-dye, var(--qnf-accent));
+}
+.qns-uses .qns-who {
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .qns-tab {
+    min-height: 34px;
+    padding: 0 8px;
+    font-size: 0.74rem;
+  }
+}

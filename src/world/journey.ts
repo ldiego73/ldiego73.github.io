@@ -2,11 +2,13 @@
  * The traveler's journey record for the summit postcard: climb timing (gate → summit, walking only; fast
  * travel voids the attempt), best / last time, number of climbs and the first summit date. Stored in
  * localStorage next to the passport; everything else on the postcard (stamps, wildlife, weather, llama)
- * comes from the passport itself.
+ * comes from the passport itself. `summarize(…, "selva")` builds the jungle page's postcard instead (route of
+ * SELVA_STATIONS, canoe trip and canopy walkway, jungle wildlife; no climb clock there).
  */
-import { CATALOG, loadPassport, type PassportState } from "../lib/passport";
+import { CATALOG, loadPassport, type PassportState, worldOf } from "../lib/passport";
 import { type L, STATIONS } from "./contract";
 import { emit, type WorldEvents } from "./events";
+import { SELVA_STATIONS } from "./selva/contract";
 
 export const JOURNEY_KEY = "ldiego73-world-journey-v1";
 
@@ -330,7 +332,13 @@ export function samplePath(p: GhostPath, time: number, out: { x: number; z: numb
 
 // ---------------------------------------------------------------- postcard summary (journey + passport)
 
+/** Which page the postcard is made on: the mountain (default) or the Antisuyu jungle. */
+export type PostcardWorld = "qhapaq" | "selva";
+/** Jungle "reached": the traveler got to the collpa at the end of the road (also what opens its fast travel). */
+export const SELVA_END_STAMP = "selva:station:collpa";
+
 export interface JourneySummary {
+  world: PostcardWorld;
   reached: boolean;
   journey: JourneyState;
   /** Trail stations in order with whether the traveler stamped them. */
@@ -339,18 +347,46 @@ export interface JourneySummary {
   wildlife: L[];
   weather: L[];
   rodeLlama: boolean;
+  /** Jungle only (false on the mountain): canoe trip and canopy walkway stamps. */
+  rodeCanoe: boolean;
+  canopy: boolean;
 }
 
+/**
+ * Postcard data from the passport (+ the climb record on the mountain). The mountain summary is unchanged from
+ * before the jungle existed: it counts every catalog stamp and wildlife of every page. The jungle summary is
+ * scoped to the jungle's passport page (route = SELVA_STATIONS, its stamps, its wildlife).
+ */
 export function summarize(
   passport: PassportState = loadPassport(),
   journey: JourneyState = loadJourney(),
+  world: PostcardWorld = "qhapaq",
 ): JourneySummary {
   const has = (id: string) => typeof passport.stamps[id] === "number";
+  const flags = { rodeCanoe: has("selva:ride:canoe"), canopy: has("selva:field:dosel") };
+  if (world === "selva") {
+    const page = CATALOG.filter((c) => worldOf(c) === "selva");
+    const of = (kind: string) => page.filter((c) => c.kind === kind && has(c.id)).map((c) => c.label);
+    return {
+      world,
+      reached: has(SELVA_END_STAMP),
+      journey,
+      route: [...SELVA_STATIONS]
+        .sort((a, b) => a.t - b.t)
+        .map((s) => ({ id: s.id, label: s.label, stamped: has(`selva:station:${s.id}`) })),
+      stamps: { got: page.filter((c) => has(c.id)).length, total: page.length },
+      wildlife: of("fauna"),
+      weather: of("weather"),
+      rodeLlama: false,
+      ...flags,
+    };
+  }
   const route = STATIONS.filter((s) => s.kind !== "build")
     .sort((a, b) => a.t - b.t)
     .map((s) => ({ id: s.id, label: s.label, stamped: has(`station:${s.id}`) }));
   const of = (kind: string) => CATALOG.filter((c) => c.kind === kind && has(c.id)).map((c) => c.label);
   return {
+    world,
     reached: has("summit") || journey.firstSummitAt !== null,
     journey,
     route,
@@ -358,5 +394,6 @@ export function summarize(
     wildlife: of("fauna"),
     weather: of("weather"),
     rodeLlama: has("ride:llama"),
+    ...flags,
   };
 }

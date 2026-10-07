@@ -1,7 +1,8 @@
 import { type ArcadeState, load as loadArcade } from "../games/core/store";
 import { ACHIEVEMENTS } from "../games/registry";
 import { type L, STATIONS } from "../world/contract";
-import type { StampKind } from "../world/events";
+import type { StampKind, WorldId } from "../world/events";
+import { SELVA_STATIONS } from "../world/selva/contract";
 
 export const PASSPORT_KEY = "ldiego73-passport-v1";
 export interface PassportState {
@@ -11,7 +12,17 @@ export interface PassportStamp {
   id: string;
   kind: StampKind;
   label: L;
+  /** Passport page: one per world. Absent means the mountain ("qhapaq"). */
+  world?: WorldId;
 }
+
+/** Passport pages in reading order. */
+export const WORLD_PAGES: ReadonlyArray<{ id: WorldId; label: L }> = [
+  { id: "qhapaq", label: { es: "Qhapaq Ñan", en: "Qhapaq Ñan" } },
+  { id: "wasi", label: { es: "Wasi · la casa", en: "Wasi · the house" } },
+  { id: "selva", label: { es: "Antisuyu · la selva", en: "Antisuyu · the jungle" } },
+];
+export const worldOf = (stamp: Pick<PassportStamp, "world">): WorldId => stamp.world ?? "qhapaq";
 
 export const CATALOG: readonly PassportStamp[] = [
   ...STATIONS.filter((station) => station.kind !== "build").map((station) => ({
@@ -52,6 +63,52 @@ export const CATALOG: readonly PassportStamp[] = [
   { id: "fauna:perdiz", kind: "fauna", label: { es: "Perdiz andina", en: "Andean tinamou" } },
   { id: "fauna:zorro", kind: "fauna", label: { es: "Zorro andino", en: "Andean fox" } },
   { id: "fauna:puma", kind: "fauna", label: { es: "Puma", en: "Puma" } },
+  // Wasi: the house at the trailhead, one stamp per room.
+  { id: "wasi:sala", kind: "room", world: "wasi", label: { es: "Sala · trayectoria", en: "Living room · career" } },
+  {
+    id: "wasi:estudio",
+    kind: "room",
+    world: "wasi",
+    label: { es: "Estudio · formación y CV", en: "Study · education and CV" },
+  },
+  {
+    id: "wasi:buzon",
+    kind: "room",
+    world: "wasi",
+    label: { es: "Rincón del chasqui · contacto", en: "Chasqui corner · contact" },
+  },
+  {
+    id: "wasi:mesa",
+    kind: "room",
+    world: "wasi",
+    label: { es: "Mesa del viajero · pasaporte", en: "Traveler's table · passport" },
+  },
+  // Antisuyu: the jungle road.
+  ...SELVA_STATIONS.map((station) => ({
+    id: `selva:station:${station.id}`,
+    kind: "station" as const,
+    world: "selva" as const,
+    label: station.label,
+  })),
+  { id: "selva:ride:canoe", kind: "ride", world: "selva", label: { es: "Viaje en canoa", en: "Canoe trip" } },
+  { id: "selva:field:dosel", kind: "field", world: "selva", label: { es: "Puentes del dosel", en: "Canopy walkway" } },
+  ...(
+    [
+      ["guacamayo", "Guacamayo escarlata", "Scarlet macaw"],
+      ["mono", "Mono fraile", "Squirrel monkey"],
+      ["perezoso", "Perezoso", "Sloth"],
+      ["bufeo", "Bufeo colorado", "Pink river dolphin"],
+      ["caiman", "Caimán negro", "Black caiman"],
+      ["ronsoco", "Ronsoco", "Capybara"],
+      ["tucan", "Tucán", "Toucan"],
+      ["jaguar", "Otorongo · jaguar", "Otorongo · jaguar"],
+    ] as const
+  ).map(([id, es, en]) => ({
+    id: `selva:fauna:${id}`,
+    kind: "fauna" as const,
+    world: "selva" as const,
+    label: { es, en },
+  })),
 ];
 
 const ids = new Set(CATALOG.map((stamp) => stamp.id));
@@ -97,12 +154,25 @@ export function recordStamp(state: PassportState, id: string, time = Date.now())
   return true;
 }
 
-const REQUIRED = new Set<PassportStamp["kind"]>(["station", "summit", "constellation", "weather", "ride", "field"]);
+const REQUIRED = new Set<PassportStamp["kind"]>([
+  "station",
+  "summit",
+  "constellation",
+  "weather",
+  "ride",
+  "field",
+  "room",
+]);
 
-export function passportComplete(state: PassportState): boolean {
-  // Only the walk itself gates completion. Eggs, wildlife, errands, the time trial and date-dependent
+/** Stamps that gate completion (optionally one page only). */
+export const requiredStamps = (world?: WorldId) =>
+  CATALOG.filter((stamp) => REQUIRED.has(stamp.kind) && (!world || worldOf(stamp) === world));
+
+/** Every page done. Optionally one world's page only. */
+export function passportComplete(state: PassportState, world?: WorldId): boolean {
+  // Only the walks themselves gate completion. Eggs, wildlife, errands, the time trial and date-dependent
   // stamps (Inti Raymi, winter snow) are bonus finds.
-  return CATALOG.every((stamp) => !REQUIRED.has(stamp.kind) || validTime(state.stamps[stamp.id]));
+  return requiredStamps(world).every((stamp) => validTime(state.stamps[stamp.id]));
 }
 
 /** Read-only merged progress: arcade remains owned by its existing store. */

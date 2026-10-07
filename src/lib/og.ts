@@ -4,7 +4,7 @@
  * Same visual language as the site: night background, bone ink, khipu dyes, Archivo / JetBrains Mono / Silkscreen.
  * Screenshots of the 3D world, the arcade hall and each game live in src/assets/og (captured once, committed).
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
 import satori from "satori";
@@ -71,6 +71,7 @@ const COPY = {
     min: "min de lectura",
     world: "Camina mi carrera: un tambo por empresa, del valle a la cumbre.",
     worldTag: "Mundo 3D",
+    selva: "El camino de la selva del Antisuyu, junto a un gran río: lo que uso, lo que escribo y lo que construyo.",
     arcade: "9 juegos en bloques sobre bugs, incidentes y despliegues.",
     play: "Juega en el navegador",
     repos: "en GitHub",
@@ -85,6 +86,7 @@ const COPY = {
     min: "min read",
     world: "Walk my career: one tambo per company, from the valley to the summit.",
     worldTag: "3D world",
+    selva: "The Antisuyu jungle road beside a great river: what I use, what I write and what I build.",
     arcade: "9 blocky games about bugs, incidents and deploys.",
     play: "Play in the browser",
     repos: "on GitHub",
@@ -396,6 +398,16 @@ function shotCard(
 
 export const worldCard = (lang: Lang) =>
   shotCard(shot("world"), COPY[lang].worldTag, "KHIPU · Qhapaq Ñan", COPY[lang].world, C.turq);
+
+/** The Antisuyu jungle page; uses src/assets/og/selva.jpg once captured, else the mountain shot. */
+export const selvaCard = (lang: Lang) =>
+  shotCard(
+    shot(existsSync(join(root, "src", "assets", "og", "selva.jpg")) ? "selva" : "world"),
+    COPY[lang].worldTag,
+    "Antisuyu",
+    COPY[lang].selva,
+    C.turq,
+  );
 
 export const arcadeCard = (lang: Lang, lede: string) =>
   shotCard(shot("arcade"), COPY[lang].play, "ARCADE", lede || COPY[lang].arcade, C.ochre, "Pixel", 620);

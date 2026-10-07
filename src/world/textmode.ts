@@ -6,21 +6,26 @@
  * capture-phase Esc, focus trap, focus restore and `world:modal` on open/close.
  * Styles: textmode.css (imported by index.ts and world.astro).
  *
- * Besides the stations it narrates the wildlife you can meet (wildlife.ts: where, when, what it does) and,
- * in the in-world dialog only, the traveler's passport: stamps collected / missing per section and the best
+ * Right after the trailhead it narrates the Wasi house (its four rooms: career by company, education and
+ * resume, contact, the traveler's table) and the tinkuy crossroads with the Antisuyu branch to the punku,
+ * which links to the jungle page. Besides the stations it narrates the wildlife you can meet (wildlife.ts:
+ * where, when, what it does) and, in the in-world dialog only, the traveler's passport: stamps collected /
+ * missing per world page and section, and the best
  * climb (journey.ts). The passport is read fresh on every open and kept live while open (`world:stamp`,
  * `world:climb`): items update in place and a polite live region announces new stamps.
  */
-import { ARTIFACTS, COMPANIES, type Company } from "../data/career";
+import { ARTIFACTS, CERTIFICATIONS, COMPANIES, type Company, EDUCATION } from "../data/career";
 import { SITE, SOCIALS } from "../data/site";
 import { fmtPeriod, t } from "../i18n/ui";
-import { CATALOG, loadPassport } from "../lib/passport";
+import { CATALOG, loadPassport, WORLD_PAGES, worldOf } from "../lib/passport";
 import { aiPoints, artifactUses, hostOfEducation, stationsInOrder } from "./artifacts";
 import type { Lang } from "./contract";
 import type { WorldData } from "./data";
-import { emit, on, type StampKind } from "./events";
+import { emit, on, type StampKind, type WorldId } from "./events";
 import { formatDuration, loadJourney } from "./journey";
-import { WILDLIFE } from "./wildlife";
+import { SELVA_STATIONS } from "./selva/contract";
+import { worldUrl } from "./travel";
+import { type Species, WILDLIFE } from "./wildlife";
 
 const COPY = {
   es: {
@@ -53,7 +58,8 @@ const COPY = {
     does: "Qué hace",
     gives: "Da el sello",
     passport: "Tu pasaporte",
-    passportLede: "Los sellos que llevas en este dispositivo, por sección. Se actualiza mientras juegas.",
+    passportLede:
+      "Los sellos que llevas en este dispositivo, por página (una por mundo) y sección. Se actualiza mientras juegas.",
     got: "conseguido",
     missing: "falta",
     secret: "Sello secreto, aún sin descubrir",
@@ -75,7 +81,27 @@ const COPY = {
       record: "Récords",
       festival: "Fiestas",
       fauna: "Fauna",
+      room: "Habitaciones",
     } as Record<string, string>,
+    wasi: "Wasi · la casa del camino",
+    wasiLede:
+      "Junto a la puerta del camino, al oeste del sendero y junto al punto de partida, está la wasi (casa) de Luis Diego, sobre una plataforma de piedra nivelada; un caminito de lajas lleva del sendero a unos escalones de piedra y a su puerta. Adentro hay cuatro espacios; abrir lo que muestra cada uno (tecla E) da un sello en la página Wasi del pasaporte.",
+    salaLede: "La trayectoria empresa por empresa, de la más reciente a la primera, con sus cargos:",
+    estudioLede: "Formación, certificaciones y el CV para llevar.",
+    education: "Formación",
+    certs: "Certificaciones",
+    resumeEs: "CV en español (PDF)",
+    resumeEn: "CV en inglés (PDF)",
+    buzonLede: "Desde aquí salen los mensajes para Luis Diego:",
+    mesaLede:
+      "Sobre la mesa del viajero esperan tu pasaporte, con un sello por cada lugar descubierto en cada mundo, y la postal de tu viaje para compartir. El pasaporte se abre con la tecla P; la postal, con el botón «Mi postal» del pasaporte.",
+    tinkuy: "Tinkuy · el cruce de caminos",
+    tinkuyLede:
+      "Donde el caminito de la Wasi llega al sendero, frente a la plaza de la puerta, se cruzan los caminos. Un poste señala los rumbos: el Qhapaq Ñan sube hacia la cumbre, la Wasi espera al otro lado del sendero y un camino de tierra baja hacia el Antisuyu.",
+    antisuyuLede:
+      "Desde el borde oriental de la plaza, el ramal del Antisuyu desciende hacia el sureste hasta un punku, una portada de piedra trapezoidal. Al cruzarla viajas a la selva: un camino casi llano por el bosque, junto a un gran río que se puede recorrer en canoa, con puentes colgantes en el dosel cerca del final.",
+    selvaStops: "Paradas del camino de la selva",
+    selvaLink: "Cruzar el punku: ir al camino del Antisuyu",
   },
   en: {
     title: "Qhapaq Ñan · text mode",
@@ -107,7 +133,7 @@ const COPY = {
     does: "What it does",
     gives: "Stamp",
     passport: "Your passport",
-    passportLede: "The stamps you hold on this device, by section. It updates while you play.",
+    passportLede: "The stamps you hold on this device, by page (one per world) and section. It updates while you play.",
     got: "collected",
     missing: "missing",
     secret: "Secret stamp, not found yet",
@@ -129,7 +155,27 @@ const COPY = {
       record: "Records",
       festival: "Festivals",
       fauna: "Wildlife",
+      room: "Rooms",
     } as Record<string, string>,
+    wasi: "Wasi · the house on the road",
+    wasiLede:
+      "By the trailhead gate, west of the path and next to the starting point, stands Luis Diego's wasi (house), on a levelled stone platform; a short flagstone walk leads from the path up a few stone steps to its door. Inside there are four rooms; opening what each one shows (E key) adds a stamp to the Wasi page of the passport.",
+    salaLede: "The career company by company, most recent first, with its roles:",
+    estudioLede: "Education, certifications and the resume to take with you.",
+    education: "Education",
+    certs: "Certifications",
+    resumeEs: "Resume in Spanish (PDF)",
+    resumeEn: "Resume in English (PDF)",
+    buzonLede: "Messages for Luis Diego leave from here:",
+    mesaLede:
+      "On the traveler's table wait your passport, with a stamp for every place found in every world, and your journey postcard to share. Open the passport with the P key; the postcard with the passport's \"My postcard\" button.",
+    tinkuy: "Tinkuy · the crossroads",
+    tinkuyLede:
+      "Where the Wasi's walk meets the path, across from the gate plaza, the roads meet. A signpost points the ways: the Qhapaq Ñan climbs to the summit, the Wasi waits across the path and a dirt road goes down toward the Antisuyu.",
+    antisuyuLede:
+      "From the east edge of the plaza, the Antisuyu branch goes down to the south-east to a punku, a trapezoidal stone doorway. Crossing it takes you to the jungle: a mostly flat road through the forest beside a wide river you can travel by canoe, with hanging bridges in the canopy near the end.",
+    selvaStops: "Stops on the jungle road",
+    selvaLink: "Cross the punku: go to the Antisuyu road",
   },
 } as const;
 
@@ -163,15 +209,17 @@ function companyHtml(c: Company, lang: Lang, level: number): string {
 }
 
 /** The field guide (wildlife.ts) as headings + definition lists. */
-export function renderWildlife(lang: Lang, level: number): string {
+export function renderWildlife(lang: Lang, level: number, list: ReadonlyArray<Species> = WILDLIFE): string {
   const cp = COPY[lang];
   const label = (id: string) => CATALOG.find((x) => x.id === id)?.label[lang] ?? id;
-  return WILDLIFE.map(
-    (w) => `<h${level}>${esc(w.name[lang])} <span class="kw-tm-latin" lang="la">${esc(w.latin)}</span></h${level}>
+  return list
+    .map(
+      (w) => `<h${level}>${esc(w.name[lang])} <span class="kw-tm-latin" lang="la">${esc(w.latin)}</span></h${level}>
 <dl class="kw-tm-facts"><dt>${esc(cp.where)}</dt><dd>${esc(w.where[lang])}</dd><dt>${esc(cp.when)}</dt><dd>${esc(w.when[lang])}</dd><dt>${esc(cp.does)}</dt><dd>${esc(w.does[lang])}</dd>${
-      w.stamp ? `<dt>${esc(cp.gives)}</dt><dd>${esc(label(w.stamp))}</dd>` : ""
-    }</dl>`,
-  ).join("\n");
+        w.stamp ? `<dt>${esc(cp.gives)}</dt><dd>${esc(label(w.stamp))}</dd>` : ""
+      }</dl>`,
+    )
+    .join("\n");
 }
 
 /** Secret finds keep their names hidden until found (same rule as the passport panel). */
@@ -186,7 +234,18 @@ export function passportItem(lang: Lang, id: string, got: boolean): string {
   return `<span class="kw-tm-mark" aria-hidden="true">${got ? "✓" : "·"}</span> ${esc(name)} <span class="kw-tm-state">(${esc(got ? cp.got : cp.missing)})</span>`;
 }
 
-/** The passport, grouped by section in catalog order: counts, collected / missing items, best climb. */
+/** Stamp-kind groups of one world page, in catalog order. */
+const pageGroups = (world: WorldId) => {
+  const list = CATALOG.filter((x) => worldOf(x) === world);
+  const kinds: StampKind[] = [];
+  for (const st of list) if (!kinds.includes(st.kind)) kinds.push(st.kind);
+  return { list, groups: kinds.map((kind) => ({ kind, list: list.filter((x) => x.kind === kind) })) };
+};
+
+/**
+ * The passport, one part per world page (WORLD_PAGES) and inside it one group per stamp kind, in catalog
+ * order: counts, collected / missing items, best climb. Pages are headings at `level`, groups one below.
+ */
 export function renderPassport(
   lang: Lang,
   stamps: Readonly<Record<string, unknown>>,
@@ -195,30 +254,83 @@ export function renderPassport(
 ): string {
   const cp = COPY[lang];
   const has = (id: string) => typeof stamps[id] === "number";
-  const kinds: StampKind[] = [];
-  for (const st of CATALOG) if (!kinds.includes(st.kind)) kinds.push(st.kind);
+  const count = (list: ReadonlyArray<{ id: string }>) =>
+    `<span class="kw-tm-count">${list.filter((x) => has(x.id)).length} ${esc(cp.of)} ${list.length}</span>`;
   const total = CATALOG.length;
   const got = CATALOG.filter((x) => has(x.id)).length;
-  const groups = kinds
-    .map((k) => {
-      const list = CATALOG.filter((x) => x.kind === k);
-      const n = list.filter((x) => has(x.id)).length;
-      const items = list
-        .map(
-          (x) =>
-            `<li data-stamp="${esc(x.id)}" class="${has(x.id) ? "is-got" : "is-missing"}">${passportItem(lang, x.id, has(x.id))}</li>`,
-        )
-        .join("");
-      return `<h${level} data-kind="${esc(k)}">${esc(cp.kinds[k] ?? k)} <span class="kw-tm-count">${n} ${esc(cp.of)} ${list.length}</span></h${level}><ul class="kw-tm-stamps">${items}</ul>`;
-    })
-    .join("\n");
+  const pages = WORLD_PAGES.map((page) => {
+    const { list, groups } = pageGroups(page.id);
+    const body = groups
+      .map(({ kind, list: items }) => {
+        const lis = items
+          .map(
+            (x) =>
+              `<li data-stamp="${esc(x.id)}" class="${has(x.id) ? "is-got" : "is-missing"}">${passportItem(lang, x.id, has(x.id))}</li>`,
+          )
+          .join("");
+        return `<h${level + 1} data-group="${esc(`${page.id}:${kind}`)}">${esc(cp.kinds[kind] ?? kind)} ${count(items)}</h${level + 1}><ul class="kw-tm-stamps">${lis}</ul>`;
+      })
+      .join("\n");
+    return `<h${level} data-page="${esc(page.id)}">${esc(page.label[lang])} ${count(list)}</h${level}>\n${body}`;
+  }).join("\n");
   const best = journey.bestMs
     ? `${esc(formatDuration(journey.bestMs, lang))} · ${esc(cp.climbs(journey.climbs))}`
     : esc(cp.noBest);
   return `<p>${esc(cp.passportLede)}</p>
 <p class="kw-tm-summary"><strong class="kw-tm-total">${got} ${esc(cp.of)} ${total}</strong> ${esc(cp.stamps)}</p>
 <p><strong>${esc(cp.best)}:</strong> <span class="kw-tm-best">${best}</span></p>
-${groups}`;
+${pages}`;
+}
+
+/** Room heading: the passport label of that Wasi room (single source of the room names). */
+const roomLabel = (lang: Lang, room: string) => CATALOG.find((x) => x.id === `wasi:${room}`)?.label[lang] ?? room;
+
+/** The Wasi house at the trailhead: exterior, then its four rooms and what each one shows. */
+function wasiHtml(lang: Lang, h3: number): string {
+  const cp = COPY[lang];
+  const L = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const h = `h${h3}`;
+  const h4 = `h${Math.min(6, h3 + 1)}`;
+  const latest = (c: Company) => c.stages.reduce((m, s) => (s.start > m ? s.start : m), "");
+  const companies = COMPANIES.filter((c) => !c.education).sort((a, b) => latest(b).localeCompare(latest(a)));
+  const sala = companies
+    .map((c) => {
+      const stages = [...c.stages].sort((a, b) => b.start.localeCompare(a.start));
+      const first = stages[stages.length - 1]?.start ?? "";
+      const open = stages.some((s) => !s.end);
+      const last = open ? undefined : stages.reduce((m, s) => ((s.end ?? "") > m ? (s.end ?? "") : m), "");
+      const roles = stages
+        .map((s) => `<li>${esc(s.role[lang])} · ${esc(fmtPeriod(lang, s.start, s.end))}</li>`)
+        .join("");
+      return `<${h4}>${esc(c.name)}</${h4}><p class="kw-tm-meta">${esc(fmtPeriod(lang, first, last))}</p><ul>${roles}</ul>`;
+    })
+    .join("\n");
+  const edu = EDUCATION.map((e) => `<li>${esc(e.title[lang])} · ${esc(e.school)} · ${esc(e.years)}</li>`).join("");
+  const certs = CERTIFICATIONS.map((c) => `<li>${esc(c.name)} · ${esc(c.years)}</li>`).join("");
+  const soc = SOCIALS.filter((x) => !x.url.startsWith("mailto:"))
+    .map((x) => `<li>${link(x.url, x.name, true)}</li>`)
+    .join("");
+  return `<p>${esc(cp.wasiLede)}</p>
+<${h}>${esc(roomLabel(lang, "sala"))}</${h}><p>${esc(cp.salaLede)}</p>${sala}
+<${h}>${esc(roomLabel(lang, "estudio"))}</${h}><p>${esc(cp.estudioLede)}</p><p class="kw-tm-label">${esc(cp.education)}</p><ul>${edu}</ul><p class="kw-tm-label">${esc(cp.certs)}</p><ul>${certs}</ul>
+<ul class="kw-tm-links"><li>${link(SITE.resume.es, cp.resumeEs)}</li><li>${link(SITE.resume.en, cp.resumeEn)}</li></ul>
+<${h}>${esc(roomLabel(lang, "buzon"))}</${h}><p>${esc(cp.buzonLede)}</p>
+<ul class="kw-tm-links">
+<li>${esc(cp.email)}: ${link(`mailto:${SITE.email}`, SITE.email)}</li>
+<li>${link(SITE.calendly, L("qn.contact.book"), true)}</li>
+<li>${link(`/${lang}/#contact`, cp.contactPage)}</li>
+</ul>
+<p class="kw-tm-label">${esc(cp.socials)}</p><ul class="kw-tm-links">${soc}</ul>
+<${h}>${esc(roomLabel(lang, "mesa"))}</${h}><p>${esc(cp.mesaLede)}</p>`;
+}
+
+/** The tinkuy signpost and the Antisuyu branch to the punku, with a plain link to the jungle page. */
+function tinkuyHtml(lang: Lang, h3: number): string {
+  const cp = COPY[lang];
+  const stops = SELVA_STATIONS.map((s) => `<li>${esc(s.label[lang])}</li>`).join("");
+  return `<p>${esc(cp.tinkuyLede)}</p><p>${esc(cp.antisuyuLede)}</p>
+<p><a class="kw-tm-travel" href="${esc(worldUrl(lang, "selva"))}">${esc(cp.selvaLink)}</a></p>
+<h${h3}>${esc(cp.selvaStops)}</h${h3}><ol>${stops}</ol>`;
 }
 
 /** The full narration as an HTML string (escaped). `headingLevel` is the level of the document title. */
@@ -255,8 +367,12 @@ export function renderTextMode(
   if (opts.passport) section("passport", cp.passport, `<div class="kw-tm-passport"></div>`);
   for (const s of stations) {
     const label = s.label[lang];
-    if (s.kind === "gate") section(s.id, label, `<p>${esc(cp.gate)}</p><p>${esc(L("qn.gate.next"))}</p>`);
-    else if (s.kind === "company") {
+    if (s.kind === "gate") {
+      section(s.id, label, `<p>${esc(cp.gate)}</p><p>${esc(L("qn.gate.next"))}</p>`);
+      // The trailhead is also the crossroads: the Wasi house and the road to the other worlds.
+      section("wasi", cp.wasi, wasiHtml(lang, h3));
+      section("tinkuy", cp.tinkuy, tinkuyHtml(lang, h3));
+    } else if (s.kind === "company") {
       const c = COMPANIES.find((x) => x.id === s.companyId);
       if (!c) continue;
       let body = companyHtml(c, lang, h3);
@@ -527,10 +643,17 @@ export function createTextMode(host: HTMLElement, lang: Lang, data: WorldData): 
       li.className = "is-got";
       li.innerHTML = passportItem(lang, id, true);
     }
-    const list = CATALOG.filter((x) => x.kind === st.kind);
-    const count = passportBox.querySelector<HTMLElement>(`[data-kind="${CSS.escape(st.kind)}"] .kw-tm-count`);
-    if (count)
-      count.textContent = `${list.filter((x) => typeof stamps[x.id] === "number").length} ${cp.of} ${list.length}`;
+    const world = worldOf(st);
+    const counted = (list: ReadonlyArray<{ id: string }>) =>
+      `${list.filter((x) => typeof stamps[x.id] === "number").length} ${cp.of} ${list.length}`;
+    const { list, groups } = pageGroups(world);
+    const group = groups.find((g) => g.kind === st.kind);
+    const groupCount = passportBox.querySelector<HTMLElement>(
+      `[data-group="${CSS.escape(`${world}:${st.kind}`)}"] .kw-tm-count`,
+    );
+    if (groupCount && group) groupCount.textContent = counted(group.list);
+    const pageCount = passportBox.querySelector<HTMLElement>(`[data-page="${CSS.escape(world)}"] .kw-tm-count`);
+    if (pageCount) pageCount.textContent = counted(list);
     const total = passportBox.querySelector<HTMLElement>(".kw-tm-total");
     if (total)
       total.textContent = `${CATALOG.filter((x) => typeof stamps[x.id] === "number").length} ${cp.of} ${CATALOG.length}`;

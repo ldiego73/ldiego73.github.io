@@ -8,7 +8,9 @@ How ldiego73.github.io is put together: a static Astro site with three Three.js 
 │        │                                                                           │
 │        ├── home ── src/lib/khipu (Three.js khipu, rope physics)                    │
 │        ├── arcade ── src/arcade-lobby (3D hall) + src/games/<slug> (9 games)       │
-│        └── world ── src/world (KHIPU · Qhapaq Ñan: core + content + ambients)      │
+│        ├── world ── src/world (Qhapaq Ñan mountain + Wasi house: core, content,   │
+│        │            ambients)                                                      │
+│        └── world/selva ── src/world/selva (Antisuyu jungle: own runtime, page)     │
 │                                   │                                                │
 │                     src/audio (procedural Web Audio: music, SFX, ambience)         │
 └────────────────────────────────────────────────────────────────────────────────────┘
@@ -20,7 +22,7 @@ How ldiego73.github.io is put together: a static Astro site with three Three.js 
 ### Routing and i18n
 
 - **Config.** `astro.config.mjs` sets `site`, i18n with locales `es` (the default) and `en`, `prefixDefaultLocale: true`, and the MDX and sitemap integrations. Fonts load through the Astro Fonts API.
-- **Pages.** Every page lives under `src/pages/[lang]/`: home, `projects/`, `blog/`, `arcade/` (lobby plus `[game].astro`), `world.astro`, `cv.astro`, `uses.astro` and `rss.xml.ts`.
+- **Pages.** Every page lives under `src/pages/[lang]/`: home, `projects/`, `blog/`, `arcade/` (lobby plus `[game].astro`), `world/index.astro` (mountain), `world/selva.astro` (jungle), `cv.astro`, `uses.astro` and `rss.xml.ts`.
 - **Root page.** `src/pages/index.astro` picks the language in this order: a saved `localStorage.lang`, then `navigator.languages`, then Spanish.
 - **UI strings.** They live in `src/i18n/ui.ts` (`t()`, `LANGS`, helpers).
 - **Language switch.** `src/lib/lang-switch.ts` keeps the reader in place. It goes to the equivalent route (or the translated twin of a post), carries over the section in view as `#hash`, and remembers the choice.
@@ -62,13 +64,27 @@ How ldiego73.github.io is put together: a static Astro site with three Three.js 
 - **Analytics.** Umami is cookieless and restricted to the production domain. `src/lib/vitals.ts` sends real-user LCP, CLS and INP to Umami as `web-vital` events.
 - **Contact form.** It posts to Formspree (`SITE.formEndpoint`). Without an endpoint, it falls back to a pre-filled `mailto:`.
 
-## 2. 3D world: KHIPU · Qhapaq Ñan
+## 2. 3D worlds: the Tawantinsuyu
+
+The world is a set of worlds, each loaded only when the traveler goes there (`WorldId` in `src/world/events.ts`):
+
+| World | Where it lives | How it loads |
+| --- | --- | --- |
+| `qhapaq`: the Qhapaq Ñan mountain climb | `/{lang}/world/`, `src/world/` | The page's main bundle |
+| `wasi`: the owner's Andean house at the trailhead (career, education and CV, contact, passport table) | Inside the mountain page, `src/world/ambient/wasi.ts` | The exterior is built with the mountain. The interior (`ambient/wasi/interior.ts`) is a dynamic `import()` fired within ~45 u of the house and disposed beyond 120 u |
+| `selva`: the Antisuyu jungle road (uses, blog, projects, arcade, canoe, canopy, Amazon fauna) | `/{lang}/world/selva/`, `src/world/selva/` | Its own page and runtime. It never imports the mountain's layout, terrain, fauna, NPCs or content |
+
+**Travelling between worlds.** `src/world/trailhead.ts` holds the tinkuy (crossroads) coordinates: the Wasi footprint, the Antisuyu branch path and the stone punku. `ambient/tinkuy.ts` builds the signpost, the branch and the punku. Near the punku it prefetches the jungle page (`prefetchWorld` in `src/world/travel.ts`); E there calls `travelTo`, which emits `world:travel`, fades and navigates. The jungle's own punku travels back to `/{lang}/world/?from=selva`; the mountain page reads `?from=` with `arrivalFrom()` and starts at `ARRIVALS.selva` on the branch, skipping the title.
+
+**One passport, one page per world.** `src/lib/passport.ts` tags every stamp with its `world` (absent means `qhapaq`), lists the pages in `WORLD_PAGES`, and `passportComplete(state, world?)` checks one page or all of them. The passport ambient (`ambient/passport.ts`) runs in both runtimes and opens on the page of the current world (`setPassportWorld`, i.e. `document.documentElement.dataset.world`). The arcade reward needs every page.
+
+### 2.1 Mountain: KHIPU · Qhapaq Ñan
 
 Route `/{lang}/world/`. A floating-island title gives way to a camera swoop, then a third-person climb of the Qhapaq Ñan (the Inca road). The career is the climb: one tambo (way station) per company in chronological order, then the Artifact Bridge, the arcade tambo, the AI Intihuatana, the chasqui post and the summit. The station list is `STATIONS` in `src/world/contract.ts`. Positions are `t` along the trail, from 0 in the valley to 1 at the summit.
 
 ### Page and boot
 
-`src/pages/[lang]/world.astro` renders the following at build time:
+`src/pages/[lang]/world/index.astro` renders the following at build time:
 
 - the khipu loader (`loaderHtml` from `src/world/loader.ts`);
 - the full accessible text mode (`renderTextMode` from `src/world/textmode.ts`), which also serves as the no-WebGL / no-JS fallback;
@@ -125,6 +141,10 @@ Modules do not import each other. They talk through typed window events (`src/wo
   - Owners `add` a body, write its x/z every frame, and call `separate`, `steer` or `resolve` so nothing walks through anything else.
   - `park` takes a body out of play without removing it.
   - `keepOut(x, z, r)` declares no-go circles (camps, story circles, festival plazas) that fauna steers around, and that can be switched off when a place is empty.
+- **`src/world/decks.ts`.** The registry of raised walkable surfaces (the Wasi plinth and steps, the jungle piers, stairs, boardwalks, porches, raft and viewpoint):
+  - Ambients `add({ shape, y })` a circle, an axis-aligned box or an oriented box (`obox`, station frames) with a constant or per-point height, and call the returned remover on dispose.
+  - Both runtimes stand the traveler on a deck it can step up to (within `MAX_STEP` of the feet; only what is underfoot while airborne), count a reachable deck as walkable, and keep the follow camera above decks. Under a high deck the traveler stays on the terrain.
+  - `env.extra.groundAt` (mountain) and `env.selva.groundAt` (jungle) include the highest deck, so fauna and people stand on the planks. The registry is cleared with `creatures`.
 - **Passport** (`src/lib/passport.ts`, `localStorage` key `ldiego73-passport-v1`).
   - `CATALOG` lists every stamp and decides completeness.
   - It is the only source for "visited". The map's fast travel unlocks only after the summit stamp.
@@ -149,11 +169,22 @@ The look is toon shading with hand-inked outlines.
   - Repeated things are instanced.
   - `detail-cull.ts` hides small meshes beyond a distance band (`CULL_BANDS`), rescanning every 5 s, with a tighter factor on phones.
 - **Quality governor.** `quality.ts` steps the cost down only when frame times stay low (pixel ratio, then outline) and back up with hysteresis. A manual quality choice disables it.
-- **Camera occluders.** `camera.ts` raycasts against named occluders (waterfall cliff, cave) and per-area occluders, so the camera never ends up inside rock.
+- **Camera occluders.** `camera.ts` raycasts against named occluders (waterfall cliff, cave, the Antisuyu punku) and per-area occluders, so the camera never ends up inside rock.
 
 ### Dev hook
 
 In dev builds only (`import.meta.env.DEV`), the world host element exposes `__kw`. It provides `setTime`, `setDate`, `teleport(t, side)`, `orbit`, `face`, `walk`, `tour`, `state()`, `creatures`, `scene` and `engine`. The screenshot scripts in `src/world/dev/`, `fauna-dev/` and `npc-dev/` drive the world harness through it.
+
+### 2.2 Jungle: Antisuyu (`src/world/selva/`)
+
+Route `/{lang}/world/selva/`. Not a climb but a long, mostly flat road (about 815 u) west → east through the lowland forest, beside a wide brown river. `src/world/selva/contract.ts` is its seam: `SELVA_STATIONS` (punku, the trader's boat with the uses, the blog maloca, the canoe landing, the project stilt houses, the floating arcade, the macaw clay lick), `CANOE_STRETCH`, `CANOPY_T`, the `SelvaLayout` interface and `SelvaEnv` (= `WorldEnv` + `env.selva` helpers). It reuses the mountain's contract types, so jungle ambients are written the same way.
+
+- **Runtime.** `selva/index.ts` (`mountSelva`) composes the shared modules: engine, toon and ink, sky, follow camera, input, chrome, avatar, creatures, decks, detail cull, quality governor, loader, photo mode, passport and rewards. It duplicates the mountain's movement loop on purpose (same constants). No title: it starts at the punku. `selva/env.ts` builds `SelvaEnv`; `selva/music.ts` picks day and night tracks.
+- **Ground.** `selva/layout.ts` is pure and tested: heightfield, road spline, river, plazas, walkable test, canoe route and the canopy walkway deck (`canopyDeckAt`). `selva/scenery.ts` (+ `scenery/`) builds terrain, river water, the instanced forest, the far canopy carpet, the walkway and the mist; `scenery/clearance.ts` keeps vegetation off roads, plazas, docks and the station footprints (`ambient/embarcadero/footprints.ts`).
+- **Ambients.** Every top-level `selva/ambient/<name>.ts` exporting `create` is globbed by the jungle runtime (helpers in same-name folders). Stations: `regaton`, `maloca`, `embarcadero`, `canoe`, `palafitos`, `arcade`, `collpa`, `dosel`, `punku`. Fauna: `guacamayos`, `monos`, `perezoso`, `bufeo`, `caiman`, `ronsoco`, `tucan`, `jaguar`, `insects`, plus `soundscape`. Shared fauna kit in `ambient/wild/`.
+- **Canoe ride.** `selva/ride.ts` is the hook: the canoe ambient emits `world:mount {vehicle: "canoe"}`, sets `ride.active` and writes `ride.pose` every frame; the runtime moves the traveler there instead of walking and fills `ride.intent` from the controls.
+- **Map, postcard and text mode.** `selva/map.ts` (M or gamepad Y; fast travel after the `selva:station:collpa` stamp), the world-aware postcard (`summarize(…, "selva")`, `createJourneyDialog({ world })`), and `selva/textmode.ts` (`renderSelvaTextMode`, rendered at build time by `selva.astro`, with the field guide `selva/wildlife.ts`).
+- **Harnesses.** `bunx vite --config src/world/selva/dev/vite.config.ts --port 5203` (`?lang=es&skip=1`, same `__kw` hook) and the scenery-only harness in `selva/scenery-dev/`.
 
 ## 3. Arcade
 
@@ -196,8 +227,8 @@ E2E tests (`e2e/smoke.spec.ts`) check that every page renders without errors or 
 
 **Add a world system** (an animal, people, props, an effect):
 
-1. Create `src/world/ambient/<name>.ts` that exports `create: CreateAmbient`. Put builders and pure logic in `src/world/ambient/<name>/`, with tests for the logic.
-2. Register moving bodies in `creatures`, and declare `keepOut` zones for static gatherings.
+1. Create `src/world/ambient/<name>.ts` (mountain) or `src/world/selva/ambient/<name>.ts` (jungle) that exports `create: CreateAmbient`. Put builders and pure logic in `src/world/ambient/<name>/`, with tests for the logic.
+2. Register moving bodies in `creatures`, and declare `keepOut` zones for static gatherings. Register floors, decks and steps above the terrain in `decks` (walkable areas only cover ground-level paths).
 3. Use `env.toon`, instancing and merging. Call `noOutline` only for glows and particles.
 4. Respect `env.quality`, `env.reducedMotion` and `env.sky.isNight()`.
 5. If it has an interaction, implement `prompt()` together with `interact()`, and emit `world:modal` while a panel is open.
@@ -211,7 +242,13 @@ E2E tests (`e2e/smoke.spec.ts`) check that every page renders without errors or 
 
 The catalog decides when the passport is complete and therefore when the arcade reward unlocks, so update the passport tests.
 
-**Add or move a station:** edit `STATIONS` in `src/world/contract.ts`. This change ripples to:
+**Add a new world:**
+
+1. Add its id to `WorldId` (`src/world/events.ts`) and a page to `WORLD_PAGES`, with its stamps tagged `world`, in `src/lib/passport.ts`.
+2. Small and close to the trail: build it as a mountain ambient whose heavy part is a dynamic `import()` loaded on approach (like the Wasi). Large: give it its own folder, contract, runtime and page (like `src/world/selva/`), and a portal in `src/world/trailhead.ts` + `travel.ts` (`worldUrl`, `ARRIVALS`).
+3. Give it its own text mode, OG card (`src/pages/og/[...route].png.ts`) and an e2e smoke test. Keep mountain-only modules out of its bundle.
+
+**Add or move a station:** edit `STATIONS` in `src/world/contract.ts` (mountain) or `SELVA_STATIONS` in `src/world/selva/contract.ts` (jungle). This change ripples to:
 
 - the passport catalog (one stamp per non-build station);
 - the map and fast travel;

@@ -10,7 +10,7 @@ import { noOutline, type ToonCache } from "./toon";
  * Reach them as `(env as WorldEnvExtra).extra` (or `"extra" in env`); the contract types stay unchanged.
  */
 export interface WorldExtra {
-  /** Ground the avatar stands on (terrain, bridge decks over the gorge). */
+  /** Ground to stand on: terrain, bridge decks over the gorge and the highest deck registered in decks.ts. */
   groundAt(x: number, z: number): number;
   /** Open grass: not path, plaza, water, gorge or cliff; gentle slope. */
   isGrass(x: number, z: number): boolean;

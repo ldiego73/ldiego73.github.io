@@ -1,36 +1,42 @@
 ---
+/**
+ * Antisuyu, the jungle world (/{lang}/world/selva/): its own page and bundle, separate from the mountain.
+ * Build time: the khipu loader (jungle copy), the accessible text mode as the no-WebGL / failed-load fallback,
+ * and the repos + posts JSON (#world-data) like the mountain page. The client lazy-imports the jungle runtime.
+ */
 import { Font } from "astro:assets";
-import Analytics from "../../components/Analytics.astro";
-import "../../styles/global.css";
-import "../../world/world.css";
-import "../../world/textmode.css";
-import { SITE } from "../../data/site";
-import { LANGS, type Lang, t } from "../../i18n/ui";
-import { getRepos } from "../../lib/github";
-import { getPosts } from "../../lib/posts";
-import { loaderHtml } from "../../world/loader";
-import { renderTextMode, textModeCopy } from "../../world/textmode";
+import Analytics from "../../../components/Analytics.astro";
+import "../../../styles/global.css";
+import "../../../world/world.css";
+import "../../../world/textmode.css";
+import { SITE } from "../../../data/site";
+import { LANGS, type Lang } from "../../../i18n/ui";
+import { getRepos } from "../../../lib/github";
+import { getPosts } from "../../../lib/posts";
+import { selvaLoaderHtml } from "../../../world/selva/copy";
+import { renderSelvaTextMode, selvaTextCopy } from "../../../world/selva/textmode";
 
 export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
 const lang = Astro.params.lang as Lang;
 const other: Lang = lang === "es" ? "en" : "es";
-// Core-owned copy for the Andean world (the shared i18n keys still describe the old neon world).
 const COPY = {
   es: {
-    title: "Khipu · Qhapaq Ñan, mundo explorable",
+    title: "Antisuyu · la selva, mundo explorable",
     description:
-      "Sube la montaña por el Qhapaq Ñan: cada tambo del camino guarda un capítulo de la carrera de Luis Diego. Experiencia 3D opcional; todo su contenido también está en el sitio.",
-    sr: "Mundo 3D opcional: una montaña andina donde el camino inca recorre la carrera de Luis Diego. Todo su contenido también está en el sitio.",
+      "Recorre el camino de la selva del Antisuyu junto a un gran río: paradas con lo que uso, mis escritos, proyectos y el arcade. Experiencia 3D opcional; todo su contenido también está en el sitio.",
+    sr: "Mundo 3D opcional: el camino de la selva del Antisuyu, junto a un río, con paradas sobre el trabajo de Luis Diego. Todo su contenido también está en el sitio.",
     noWebgl:
       "Tu navegador no puede mostrar el mundo 3D (WebGL no disponible). Aquí tienes el mismo recorrido en texto; todo el contenido también está en el sitio.",
+    site: "Volver al sitio",
   },
   en: {
-    title: "Khipu · Qhapaq Ñan, an explorable world",
+    title: "Antisuyu · the jungle, an explorable world",
     description:
-      "Climb the mountain along the Qhapaq Ñan: every tambo on the trail holds a chapter of Luis Diego's career. Optional 3D experience; all of its content is also on the site.",
-    sr: "Optional 3D world: an Andean mountain where the Inca trail walks through Luis Diego's career. All of its content is also on the site.",
+      "Walk the Antisuyu jungle road beside a great river: stops with what I use, my writing, projects and the arcade. Optional 3D experience; all of its content is also on the site.",
+    sr: "Optional 3D world: the Antisuyu jungle road beside a river, with stops about Luis Diego's work. All of its content is also on the site.",
     noWebgl:
       "Your browser can't show the 3D world (WebGL unavailable). Here is the same walk in text; all of the content is also on the site.",
+    site: "Back to the site",
   },
 }[lang];
 const title = `${COPY.title} · ${SITE.name}`;
@@ -54,15 +60,16 @@ const worldData = {
   })),
 };
 const description = COPY.description;
-const tm = textModeCopy(lang);
-const textDoc = renderTextMode(lang, worldData, { headingLevel: 1, titleId: "kw-tm-title" });
-const canonical = new URL(`/${lang}/world/`, Astro.site);
-const altUrl = new URL(`/${other}/world/`, Astro.site);
+const tm = selvaTextCopy(lang);
+const textDoc = renderSelvaTextMode(lang, worldData, { headingLevel: 1, titleId: "kw-tm-title" });
+const canonical = new URL(`/${lang}/world/selva/`, Astro.site);
+const altUrl = new URL(`/${other}/world/selva/`, Astro.site);
 const esUrl = lang === "es" ? canonical : altUrl;
 const enUrl = lang === "en" ? canonical : altUrl;
+const ogImage = new URL(`/og/${lang}/world/selva.png`, Astro.site);
 ---
 <!doctype html>
-<html lang={lang} data-theme="light">
+<html lang={lang} data-theme="light" data-world="selva">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -73,16 +80,16 @@ const enUrl = lang === "en" ? canonical : altUrl;
     <link rel="alternate" hreflang="en" href={enUrl} />
     <link rel="alternate" hreflang="x-default" href={esUrl} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <meta name="theme-color" content="#a9dcd4" />
+    <meta name="theme-color" content="#cfe0bf" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:image" content={new URL(`/og/${lang}/world.png`, Astro.site)} />
+    <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={title} />
-    <meta name="twitter:image" content={new URL(`/og/${lang}/world.png`, Astro.site)} />
+    <meta name="twitter:image" content={ogImage} />
     <meta property="og:locale" content={lang === "es" ? "es_PE" : "en_US"} />
     <meta name="twitter:card" content="summary_large_image" />
     <Analytics />
@@ -96,12 +103,13 @@ const enUrl = lang === "en" ? canonical : altUrl;
     <script type="application/json" id="world-data" set:html={JSON.stringify(worldData).replace(/</g, "\\u003c")} />
     <a class="kw-skip" href="#kw-text" data-skip>{tm.skip}</a>
     <main id="world" class="kw-root" data-lang={lang} aria-label={COPY.title}>
-      <p class="sr-only">{COPY.sr} <a href={`/${lang}/`}>{t(lang, "world.back")}</a></p>
-      <div class="kw-loader" data-loading set:html={loaderHtml(lang)} />
+      <p class="sr-only">{COPY.sr} <a href={`/${lang}/`}>{COPY.site}</a></p>
+      <div class="kw-loader" data-loading set:html={selvaLoaderHtml(lang)} />
       <section id="kw-text" class="kw-textpage" data-fallback hidden aria-labelledby="kw-tm-title">
         <div class="kw-textpage-note">
           <p data-nowebgl hidden>{COPY.noWebgl}</p>
-          <a class="kw-btn" href={`/${lang}/`}>{t(lang, "world.back")}</a>
+          <a class="kw-btn" href={`/${lang}/world/`}>{tm.back}</a>
+          <a class="kw-btn" href={`/${lang}/`}>{COPY.site}</a>
         </div>
         <article class="kw-textdoc" set:html={textDoc} />
       </section>
@@ -133,7 +141,6 @@ const enUrl = lang === "en" ? canonical : altUrl;
     };
     skip?.addEventListener("click", (e) => {
       if (mounted) {
-        // The world is up: open the text-mode dialog over it instead of jumping.
         e.preventDefault();
         window.dispatchEvent(new CustomEvent("world:textmode"));
         return;
@@ -143,10 +150,10 @@ const enUrl = lang === "en" ? canonical : altUrl;
     if (!webgl()) {
       showText(true);
     } else {
-      import("../../world/index")
-        .then(({ mountWorld }) => {
+      import("../../../world/selva/index")
+        .then(({ mountSelva }) => {
           const lang = host.dataset.lang === "en" ? "en" : "es";
-          const dispose = mountWorld(host, { lang, skipIntro: new URLSearchParams(location.search).has("skip") });
+          const dispose = mountSelva(host, { lang });
           mounted = true;
           window.addEventListener("pagehide", (e) => {
             if (!e.persisted) dispose();
@@ -165,7 +172,7 @@ const enUrl = lang === "en" ? canonical : altUrl;
     margin: 0;
     padding: 0;
     overflow: hidden;
-    background: #a9dcd4;
+    background: #cfe0bf;
     overscroll-behavior: none;
   }
   .sr-only {

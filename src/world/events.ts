@@ -4,6 +4,12 @@
  */
 import type { L } from "./contract";
 
+/**
+ * The worlds of the Tawantinsuyu. "qhapaq" is the mountain climb (/world/), "wasi" the house at the trailhead
+ * (lazy interior inside the mountain page), "selva" the Antisuyu jungle road (its own page, /world/selva/).
+ */
+export type WorldId = "qhapaq" | "wasi" | "selva";
+
 export type StampKind =
   | "station"
   | "summit"
@@ -17,7 +23,9 @@ export type StampKind =
   /** Date-dependent: Inti Raymi, snow at the summit. */
   | "festival"
   /** Climb time trial. */
-  | "record";
+  | "record"
+  /** A room of the Wasi house. */
+  | "room";
 
 export interface StampDetail {
   /** Stable id, e.g. "station:auna", "constellation:yacana", "egg:golden-khipu". */
@@ -34,6 +42,8 @@ export interface MountDetail {
   speedMul: number;
   /** Extra height of the avatar's feet above the ground while seated (0 when not riding). */
   seatHeight: number;
+  /** What is ridden; absent means the llama (older emitters). */
+  vehicle?: "llama" | "canoe";
 }
 
 export interface TeleportDetail {
@@ -75,6 +85,11 @@ export interface WorldEvents {
    * whether it is a new best). The ghost ambient records/replays the path from these.
    */
   "world:climb": { phase: "start" | "void" | "done"; ms?: number; prevBestMs?: number | null; isBest?: boolean };
+  /**
+   * The traveler is leaving for another world (portal / door crossed). Emitted right before the fade and the
+   * navigation, so sound and analytics can react; `travelTo()` in ./travel.ts does the rest.
+   */
+  "world:travel": { from: WorldId; to: WorldId };
 }
 
 export function emit<K extends keyof WorldEvents>(name: K, detail: WorldEvents[K]): void {

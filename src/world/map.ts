@@ -6,12 +6,15 @@
  * the traveler has reached the summit (`summit` stamp, kept in storage); then the map emits
  * `world:teleport {to}` and index.ts moves the traveler with a short fade.
  * Next to the canvas, a keyboard list of stations (the accessible version of the map).
+ * Landmarks at the trailhead (the Wasi house, the Antisuyu punku; trailhead.ts) are drawn as labelled
+ * diamonds only: they are not fast-travel stops.
  */
 import "./map.css";
 import type { Lang } from "./contract";
 import { emit, on } from "./events";
 import { fonts } from "./palette";
 import { createOverlay, esc } from "./textmode";
+import { PUNKU, WASI } from "./trailhead";
 
 export interface MapStop {
   id: string;
@@ -32,6 +35,12 @@ export const PASSPORT_KEY = "ldiego73-passport-v1";
 const LEGACY_VISITED_KEY = "ldiego73-world-visited-v1";
 /** Stops that count as visited from the start (the trailhead). */
 export const ALWAYS_OPEN = new Set(["gate"]);
+
+/** Non-teleport landmarks: label-only markers on the paper map. */
+export const LANDMARKS: ReadonlyArray<{ id: string; label: { es: string; en: string }; x: number; z: number }> = [
+  { id: "wasi", label: { es: "Wasi", en: "Wasi" }, x: WASI.x, z: WASI.z },
+  { id: "punku", label: { es: "Punku del Antisuyu", en: "Antisuyu punku" }, x: PUNKU.x, z: PUNKU.z },
+];
 
 /** Square bounds around points, padded. */
 export function mapBounds(pts: ReadonlyArray<{ x: number; z: number }>, pad: number): MapBounds {
@@ -381,6 +390,36 @@ export function createBigMap(
         ctx.fillText(text, lx, P.y);
       }
     });
+
+    // Landmarks: small ink diamonds with a label (no number, no travel).
+    const d0 = Math.max(4, side / 110);
+    for (const m of LANDMARKS) {
+      project(bounds, cssW, cssH, m.x, m.z, P);
+      ctx.beginPath();
+      ctx.moveTo(P.x, P.y - d0);
+      ctx.lineTo(P.x + d0, P.y);
+      ctx.lineTo(P.x, P.y + d0);
+      ctx.lineTo(P.x - d0, P.y);
+      ctx.closePath();
+      ctx.fillStyle = "#c4383f";
+      ctx.fill();
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = ink;
+      ctx.stroke();
+      if (!showAll) continue;
+      ctx.font = `400 9px ${f.arcade}`;
+      const text = m.label[lang].toUpperCase();
+      const tw = ctx.measureText(text).width;
+      let lx = P.x - d0 - 4 - tw;
+      if (lx < 6) lx = P.x + d0 + 4;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(243, 234, 216, 0.92)";
+      ctx.strokeText(text, lx, P.y);
+      ctx.fillStyle = ink;
+      ctx.fillText(text, lx, P.y);
+    }
 
     // Traveler: ochre arrow pointing along their heading.
     const pl = o.player();

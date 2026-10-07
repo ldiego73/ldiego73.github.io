@@ -4,7 +4,7 @@ Guide for coding agents working on this repository. Read [ARCHITECTURE.md](ARCHI
 
 ## Project in one paragraph
 
-This is the personal site of Luis Diego, a static Astro site deployed to GitHub Pages. It has bilingual routes (`/es/…`, `/en/…`). The career is told as an Andean khipu. The site also has a blog, projects, a CV, a `/uses` page, an arcade of nine Three.js games, and "KHIPU · Qhapaq Ñan", an explorable 3D world in which the traveler climbs a mountain past one tambo per company. Everything visual and audible in the games and the world is procedural: geometry, canvas textures and Web Audio.
+This is the personal site of Luis Diego, a static Astro site deployed to GitHub Pages. It has bilingual routes (`/es/…`, `/en/…`). The career is told as an Andean khipu. The site also has a blog, projects, a CV, a `/uses` page, an arcade of nine Three.js games, and "KHIPU", a set of explorable 3D worlds: the Qhapaq Ñan mountain (the traveler climbs past one tambo per company), the Wasi house at its trailhead, and the Antisuyu jungle road on its own page. Everything visual and audible in the games and the world is procedural: geometry, canvas textures and Web Audio.
 
 ## Toolchain
 
@@ -27,6 +27,7 @@ This is the personal site of Luis Diego, a static Astro site deployed to GitHub 
 | `bun run arcade:dev --port 5180` | Game harness: `/?game=<slug>&lang=es&theme=dark&autostart=1` |
 | `bunx vite --config src/world/dev/vite.config.ts --port 5191` | World harness: `/?lang=es` (`&skip=1` skips the title) |
 | `bunx vite --config src/world/content-dev/vite.config.ts --port 5192` | World content with a mock `WorldEnv` |
+| `bunx vite --config src/world/selva/dev/vite.config.ts --port 5203` | Jungle (Antisuyu) harness: `/?lang=es&skip=1` |
 
 ### Definition of done
 
@@ -72,13 +73,14 @@ Run it with `bunx playwright test -c .pw-alt.config.ts`.
 - **Secrets.** There are none in the repository. `.env` files are gitignored and not used. The form endpoint, analytics ID and other public values live in `src/data/site.ts`.
 - **Accessibility.**
   - Content stays in semantic HTML.
-  - The 3D world has a full text mode (`src/world/textmode.ts`) that must keep describing what the world actually does.
+  - Every 3D world has a full text mode (`src/world/textmode.ts`, `src/world/selva/textmode.ts`) that must keep describing what the world actually does.
   - Respect `prefers-reduced-motion`.
   - Keep keyboard and gamepad paths working.
 
 ## Code conventions
 
 - **Pure logic apart from rendering.** Rules, math and state machines go in DOM-free and Three-free modules with a colocated `*.test.ts`. Examples: `layout.ts`, `fauna-sim.ts`, `quality.ts`, `calendar.ts`, `ambient/*/logic.ts`, and `games/<slug>/state.ts`. Three.js code goes in view and builder files.
+- **Worlds load separately.** The jungle page (`src/world/selva/`) must not import mountain-only modules (`layout.ts`, `terrain.ts`, `trail.ts`, `fauna.ts`, `npcs.ts`, `content.ts`, `landmarks.ts`). Shared pieces (engine, toon, camera, input, avatar, creatures, decks, passport) are fine.
 - **World modules do not import each other.** They communicate through typed window events in `src/world/events.ts` (`emit` / `on`), the `WorldEnv` contract, and shared registries such as `creatures.ts`.
 - **One feature, one place.**
   - A new world system is an ambient in `src/world/ambient/<name>.ts`, with helpers in `src/world/ambient/<name>/`.

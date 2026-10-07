@@ -1,0 +1,80 @@
+/* Floating arcade: fullscreen game overlay (same layout as the mountain's .qn-game, own prefix qns-game). */
+.qns-game-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: #16171d;
+  font: 400 15px / 1.5 var(--font-body, "Hanken Grotesk", system-ui, sans-serif);
+}
+.qns-game-layer[hidden] {
+  display: none;
+}
+.qns-game-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px max(14px, env(safe-area-inset-left));
+  background: #f3ead8;
+  border-bottom: 2.5px solid #1f1a17;
+  color: #1f1a17;
+}
+.qns-game-title {
+  margin: 0;
+  font: 800 1.25rem / 1.05 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 68%;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.qns-game-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2.5px solid #1f1a17;
+  border-radius: 6px;
+  background: #f3ead8;
+  color: #1f1a17;
+  box-shadow: 3px 3px 0 #1f1a17;
+  font: 800 0.9rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 75%;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+.qns-game-back kbd {
+  padding: 1px 5px;
+  border: 1.5px solid #1f1a17;
+  border-radius: 4px;
+  font: 600 0.72rem / 1.2 var(--font-mono, monospace);
+}
+.qns-game-back:focus-visible {
+  outline: 3px solid #dda63c;
+  outline-offset: 3px;
+}
+.qns-game-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+.qns-game-msg {
+  margin: 30vh auto 16px;
+  color: #efe6d6;
+  font: 600 0.95rem var(--font-mono, monospace);
+  text-align: center;
+}
+.qns-game-host > .qns-game-back {
+  display: flex;
+  width: max-content;
+  margin: 0 auto;
+}
+@media (max-width: 640px) {
+  .qns-game-back kbd {
+    display: none;
+  }
+}
