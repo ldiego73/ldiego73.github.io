@@ -131,10 +131,14 @@ export const create: CreateAmbient = (env, hudRoot) => {
   const heading = document.createElement("h2");
   heading.id = "qn-passport-title";
   heading.textContent = text(COPY.title);
+  // Close: an X that stays pinned to the top-right corner while the book scrolls (phones scroll a long way).
   const closeButton = document.createElement("button");
   closeButton.type = "button";
-  closeButton.className = "qn-passport-close";
-  closeButton.textContent = text(COPY.close);
+  closeButton.className = "qn-passport-x";
+  closeButton.setAttribute("aria-label", text(COPY.close));
+  closeButton.title = text(COPY.close);
+  closeButton.innerHTML =
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   const postcardButton = document.createElement("button");
   postcardButton.type = "button";
   postcardButton.className = "qn-passport-close qn-passport-postcard";
@@ -182,7 +186,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
     body.tabIndex = 0;
     return { id, label, tab, count, body };
   });
-  panel.append(heading, closeButton, postcardButton, summary, meter, tablist, ...pages.map((page) => page.body));
+  panel.append(closeButton, heading, postcardButton, summary, meter, tablist, ...pages.map((page) => page.body));
   overlay.append(panel);
   layer.append(button, toast, overlay);
   hudRoot.append(layer);

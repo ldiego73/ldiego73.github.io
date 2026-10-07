@@ -60,6 +60,7 @@ import { createStandLatch, type Seat, SIT_SQUEEZE, seatedFeetY, seatFrom } from 
 import { createSky, hasWeather } from "../sky";
 import { disposeTextures, redrawAll } from "../tex";
 import { focusStep } from "../textmode";
+import { canopyPlatforms } from "./scenery/platforms";
 import "../textmode.css";
 import { createToonCache } from "../toon";
 import { announceTraveler, loadTraveler } from "../traveler";
@@ -93,6 +94,8 @@ const MAX_STEP = 0.9;
 /** Within this distance of a station plaza it counts as visited (passport stamp): the plaza plus the docks
  * beside it, so a canoe landing counts as a visit (the jetty at the foot of the bank stairs, where the canoe
  * puts the traveler, is ~13.3 u from its plaza; plazas are ≥ 98 u apart, so no stop catches another). */
+/** Height of the camera-occluder proxy for the walkway ceiba trunks (ground to the first limbs). */
+const TRUNK_PROXY_H = 24;
 const VISIT_R = 14;
 const FADE_MS = 300;
 /** Humid haze through the sky's weather hook (0..1 fog, 0..1 cover). */
@@ -378,6 +381,23 @@ async function start(
     input.enabled = false;
     // Above the terrain and above any registered deck (piers, boardwalks, house floors).
     const cam = createFollowCam(camera, (x, z) => topOf(decks, layout.heightAt(x, z), x, z));
+    // Walking round a canopy-walkway ceiba, the follow camera must not end up inside or behind its trunk.
+    // Proxy trunks (plain opaque cylinders, never added to the scene, so never drawn) are raycast only near
+    // each platform; the instanced forest itself is too heavy to raycast every few frames.
+    const trunkGeo = new THREE.CylinderGeometry(1, 1, 1, 10);
+    const trunkMat = new THREE.MeshBasicMaterial();
+    for (const p of canopyPlatforms(layout)) {
+      const base = layout.heightAt(p.x, p.z);
+      const proxy = new THREE.Mesh(trunkGeo, trunkMat);
+      proxy.scale.set(p.trunk * 1.05, TRUNK_PROXY_H, p.trunk * 1.05);
+      proxy.position.set(p.x, base + TRUNK_PROXY_H / 2, p.z);
+      proxy.updateMatrixWorld(true);
+      cam.areaOccluders.push({ objects: [proxy], x: p.x, z: p.z, r: 18 });
+    }
+    cleanups.push(() => {
+      trunkGeo.dispose();
+      trunkMat.dispose();
+    });
     let runHold = false;
     const music = createSelvaMusic(env);
     cleanups.push(() => music.dispose());

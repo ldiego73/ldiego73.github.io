@@ -274,7 +274,11 @@
   .qn-passport-tabs {
     top: -18px;
     margin: 14px -18px 0;
-    padding: 10px 18px 8px;
+    padding: 10px 62px 8px 18px;
+  }
+  .qn-passport-x {
+    top: -8px;
+    margin: -6px -6px 0 10px;
   }
   .qn-passport-button {
     bottom: calc(max(18px, env(safe-area-inset-bottom)) + 210px);
@@ -321,7 +325,37 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* "Mi postal" sits next to "Cerrar pasaporte": give the pair some breathing room. */
-.qn-passport-postcard {
-  margin-left: 12px;
+/* Close X: floated beside the title and sticky, so it stays in the top-right corner over the tabs bar while
+   the book scrolls. The tabs leave room for it on the right. */
+.qn-passport-x {
+  position: sticky;
+  top: -12px;
+  z-index: 2;
+  float: right;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px 0 12px;
+  padding: 0;
+  border: 2.5px solid var(--passport-ink);
+  border-radius: 8px;
+  background: var(--passport-paper);
+  box-shadow: 3px 3px 0 var(--passport-ink);
+  color: var(--passport-ink);
+  cursor: pointer;
+}
+.qn-passport-x:hover {
+  background: color-mix(in srgb, var(--passport-ochre) 35%, var(--passport-paper));
+}
+.qn-passport-x:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--passport-ink);
+}
+.qn-passport-x:focus-visible {
+  outline: 3px solid var(--passport-dye);
+  outline-offset: 2px;
+}
+.qn-passport-tabs {
+  padding-right: 68px;
 }
