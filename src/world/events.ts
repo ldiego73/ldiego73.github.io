@@ -46,6 +46,30 @@ export interface MountDetail {
   vehicle?: "llama" | "canoe";
 }
 
+/** How the avatar sits: "bench" hands on the knees, "desk" hands forward on a keyboard (typing). */
+export type SitPose = "bench" | "desk";
+
+/**
+ * `world:sit`: sit down on a seat (an ambient asks, the runtime decides) or stand up (anyone; the runtime
+ * then puts the traveler back on walkable ground). See ./seat.ts for the full protocol.
+ */
+export interface SitDetail {
+  seated: boolean;
+  /** Seat id (e.g. "wasi:sala", "selva:collpa"), so owners know which seat is taken. */
+  id?: string;
+  /** World x/z of the hips and y of the seat SURFACE (the runtime puts the feet at y − SIT_HIP). */
+  x?: number;
+  y?: number;
+  z?: number;
+  /** Facing while seated (rotation.y; models face +Z). */
+  yaw?: number;
+  pose?: SitPose;
+  /** Where the follow camera looks while seated (a facing like `yaw`; default `yaw`, i.e. from behind). */
+  view?: number;
+  /** Walkable world point to stand back up on (default: where the traveler sat down from). */
+  stand?: { x: number; z: number };
+}
+
 export interface TeleportDetail {
   /** Station id from STATIONS, or "summit" / "trailhead". */
   to: string;
@@ -90,6 +114,8 @@ export interface WorldEvents {
    * navigation, so sound and analytics can react; `travelTo()` in ./travel.ts does the rest.
    */
   "world:travel": { from: WorldId; to: WorldId };
+  /** Sit down on a seat / stand up (./seat.ts). The runtime echoes `{seated: false}` when it refuses a seat. */
+  "world:sit": SitDetail;
 }
 
 export function emit<K extends keyof WorldEvents>(name: K, detail: WorldEvents[K]): void {

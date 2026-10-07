@@ -37,16 +37,16 @@ const COPY = {
     stamp: "Sello del pasaporte",
     gate: "Cruzas un punku de piedra, una portada inca trapezoidal con musgo, y entras a la selva. Detrás de ti, el mismo punku te devuelve al Qhapaq Ñan.",
     regaton:
-      "Un bote de regatón, el comerciante del río: una canoa larga de motor peque-peque con cabina techada de irapay, amarrada a un muelle. En el muelle extiende su mercancía en puestos: las herramientas con las que trabajo, agrupadas como en la página «Lo que uso». Cada puesto abre su lista.",
+      "Un bote de regatón, el comerciante del río: una canoa larga de motor peque-peque con cabina techada de irapay, amarrada a un muelle. En el muelle extiende su mercancía en puestos: las herramientas con las que trabajo, agrupadas como en la página «Lo que uso». Cada puesto abre su lista. Desde el embarcadero de balsa, al pie de la escalera, una tabla sube a bordo: puedes caminar bajo la cabina, donde también se ve la mercancía. El bote no zarpa.",
     usesLink: "Ver «Lo que uso»",
     maloca: (n: number) =>
-      `Una maloca redonda, la casa comunal, con techo cónico de hojas de palma, bancas alrededor de un fogón y, colgadas en la pared, telas de corteza (llanchama) pintadas: una por artículo, las ${n} más recientes primero. Las de rojo achiote son del blog del sitio; las de negro huito, de Medium.`,
+      `Una maloca redonda, la casa comunal, con techo cónico de hojas de palma, bancas alrededor de un fogón y, colgadas en la pared, telas de corteza (llanchama) pintadas: una por artículo, las ${n} más recientes primero. Las de rojo achiote son del blog del sitio; las de negro huito, de Medium. Adentro, un pasillo entre las bancas y la pared da toda la vuelta; frente a cada tela, «E · Leer» abre ese artículo.`,
     noPosts: "Esta vez no llegaron los artículos, así que las paredes están desnudas.",
     site: "blog del sitio",
     medium: "Medium",
     blogLink: "Ver el blog",
     embarcadero:
-      "Un muelle de madera y una escalera que baja por la barranca hasta un embarcadero flotante de balsa, donde espera una canoa tallada de un solo tronco con su remo. En el embarcadero, «E · Subir a la canoa» te sienta en ella y la canoa baja sola por el río, remando a ritmo tranquilo, hasta el muelle de los palafitos. Adelante (W o el joystick) rema más rápido y atrás (S) más despacio; solo puedes bajar en los muelles. Desde los palafitos puedes hacer el viaje de vuelta.",
+      "Un muelle de madera y una escalera que baja por la barranca hasta un embarcadero flotante de balsa, donde espera una canoa tallada de un solo tronco con su remo. En el embarcadero, «E · Subir a la canoa» te sienta en ella y tú controlas el remo por todo el río. Adelante acelera, atrás frena y permite retroceder, y los lados giran, con inercia y una corriente suave hacia el este. Usa WASD, flechas o joystick; correr da un impulso. Cerca de cualquiera de los dos muelles, al ir despacio, «E · Bajar aquí» o Esc te deja en el embarcadero. Llegar al otro muelle da un sello.",
     palafitos:
       "Una hilera de casas sobre pilotes en la orilla, unidas por pasarelas de tablas, con el muelle de la canoa en el medio. Cada casa es un proyecto de la página de proyectos y lleva un letrero tallado: primero los casos de estudio, luego los repositorios de GitHub con más estrellas.",
     cases: "Casos de estudio",
@@ -56,13 +56,13 @@ const COPY = {
     noDesc: "Sin descripción.",
     projectsLink: "Ver proyectos",
     arcade:
-      "Una casa flotante sobre troncos de balsa, en una cocha junto al camino, con techo de palma y gabinetes de arcade. En cada gabinete, «E · Jugar» abre el juego real ahí mismo, igual que en el tambo arcade de la montaña.",
+      "Una casa flotante sobre troncos de balsa, en una cocha junto al camino, con techo de palma y gabinetes de arcade. Una pasarela con barandas lleva de la plaza a la balsa. En cada gabinete, «E · Jugar» abre el juego real ahí mismo, igual que en el tambo arcade de la montaña.",
     arcadeLink: "Abrir el arcade",
     dosel:
-      "Pasado el arcade, el camino deja el suelo y sube a una pasarela de puentes colgantes entre ceibas, a la altura del dosel. Cruzarla entera, de un extremo al otro sin bajarte, da un sello.",
+      "Pasado el arcade, el camino deja el suelo y sube a una pasarela de puentes colgantes entre ceibas, a la altura del dosel. Junto a tres ceibas, la baranda se abre a una plataforma de tablas que rodea el tronco y puedes recorrer. Cruzarla entera, de un extremo al otro sin bajarte, da un sello; pasar por las plataformas no lo interrumpe.",
     doselTitle: "Puentes del dosel",
     collpa:
-      "El fin del camino: un mirador de madera con una banca, frente a una collpa al otro lado del río, un barranco de arcilla rojiza donde los guacamayos vienen a comer la tierra.",
+      "El fin del camino: un mirador de madera con una banca, frente a una collpa al otro lado del río, un barranco de arcilla rojiza donde los guacamayos vienen a comer la tierra. Puedes sentarte en la banca (tecla E) a mirar la collpa; al moverte, saltar o pulsar E o Esc te levantas.",
     collpaSign: "Fin del camino — vuelve por el punku o en canoa.",
     wildlife: "Fauna de la selva",
     backTitle: "De vuelta a la montaña",
@@ -80,16 +80,16 @@ const COPY = {
     stamp: "Passport stamp",
     gate: "You walk through a stone punku, a mossy trapezoidal Inca doorway, into the jungle. Behind you, the same punku takes you back to the Qhapaq Ñan.",
     regaton:
-      "A regatón's boat, the river trader: a long peke-peke motor canoe with a palm-thatched cabin, moored at a dock. On the dock his wares are laid out on stalls: the tools I work with, grouped as on the “Uses” page. Each stall opens its list.",
+      "A regatón's boat, the river trader: a long peke-peke motor canoe with a palm-thatched cabin, moored at a dock. On the dock his wares are laid out on stalls: the tools I work with, grouped as on the “Uses” page. Each stall opens its list. From the balsa jetty at the foot of the stairs a plank leads aboard: you can walk under the cabin, where the wares can be browsed too. The boat stays moored.",
     usesLink: "See “Uses”",
     maloca: (n: number) =>
-      `A round maloca, the communal house, with a conical palm-thatched roof, benches around a fire and, hanging on the wall, painted bark cloths (llanchama): one per article, the ${n} newest first. The achiote-red ones are from the site's blog; the huito-black ones, from Medium.`,
+      `A round maloca, the communal house, with a conical palm-thatched roof, benches around a fire and, hanging on the wall, painted bark cloths (llanchama): one per article, the ${n} newest first. The achiote-red ones are from the site's blog; the huito-black ones, from Medium. Inside, an aisle between the benches and the wall goes all the way round; in front of each cloth, “E · Read” opens that article.`,
     noPosts: "The articles didn't arrive this time, so the walls are bare.",
     site: "site blog",
     medium: "Medium",
     blogLink: "Read the blog",
     embarcadero:
-      "A wooden pier and a stair down the bank to a floating balsa jetty, where a dugout canoe carved from a single trunk waits with its paddle. On the jetty, “E · Board the canoe” seats you in it and the canoe goes down the river on its own, paddling at an easy pace, to the stilt houses' dock. Forward (W or the joystick) paddles faster and back (S) slower; you can only get off at the docks. From the stilt houses you can make the trip back.",
+      "A wooden pier and a stair down the bank to a floating balsa jetty, where a dugout canoe carved from a single trunk waits with its paddle. On the jetty, “E · Board the canoe” seats you in it and you control the paddle across the whole river. Forward accelerates, back brakes and reverses, and sideways turns, with inertia and a gentle eastward current. Use WASD, arrows or joystick; run gives a boost. Near either dock at low speed, “E · Get off here” or Esc lands you on the jetty. Reaching the other dock earns a stamp.",
     palafitos:
       "A row of stilt houses on the riverbank, joined by plank boardwalks, with the canoe dock in the middle. Each house is a project from the projects page and has a carved sign: the case studies first, then the most-starred GitHub repositories.",
     cases: "Case studies",
@@ -99,13 +99,13 @@ const COPY = {
     noDesc: "No description.",
     projectsLink: "See projects",
     arcade:
-      "A floating house on balsa logs, in an oxbow pond beside the road, with a palm roof and arcade cabinets. At each cabinet, “E · Play” opens the real game right there, as in the mountain's arcade tambo.",
+      "A floating house on balsa logs, in an oxbow pond beside the road, with a palm roof and arcade cabinets. A railed boardwalk leads from the plaza onto the raft. At each cabinet, “E · Play” opens the real game right there, as in the mountain's arcade tambo.",
     arcadeLink: "Open the arcade",
     dosel:
-      "Past the arcade, the road leaves the ground and climbs onto a walkway of hanging bridges between ceiba trees, at canopy height. Crossing it end to end without getting off gives a stamp.",
+      "Past the arcade, the road leaves the ground and climbs onto a walkway of hanging bridges between ceiba trees, at canopy height. Beside three ceibas the railing opens onto a plank platform that rings the trunk and that you can walk around. Crossing it end to end without getting off gives a stamp; stepping onto the platforms does not break it.",
     doselTitle: "Canopy bridges",
     collpa:
-      "The end of the road: a wooden viewpoint with a bench, facing a collpa across the river, a reddish clay cliff where macaws come to eat the earth.",
+      "The end of the road: a wooden viewpoint with a bench, facing a collpa across the river, a reddish clay cliff where macaws come to eat the earth. You can sit on the bench (E key) to watch the collpa; moving, jumping or pressing E or Esc stands you up.",
     collpaSign: "End of the road — head back through the punku or by canoe.",
     wildlife: "Jungle wildlife",
     backTitle: "Back to the mountain",

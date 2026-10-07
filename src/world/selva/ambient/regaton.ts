@@ -7,10 +7,14 @@
  * panel with tabs for the five stalls (←/→ switch), each item with its reason and link, and a link to
  * /{lang}/uses/. Facts come only from src/data/uses.ts and career.ts SKILLS (regaton/logic.ts).
  *
- * Draw calls: one vertex-colored mesh for the whole station + one merged sign mesh + the selection marker.
+ * Draw calls: one vertex-colored mesh for the whole station, the boat's cabin roof (its own mesh: it fades while
+ * the traveler is aboard), one merged sign mesh and the selection marker.
  * Walkable (raised decks, station.ts addDeck): the level dock deck on stilts at the bank edge, the landing at
- * the top of the stairs, the stair treads down the bank and the floating balsa landing beside the boat (its
- * other edges are water and steep bank, which are not walkable). Colliders: stalls, the river-side railing.
+ * the top of the stairs, the stair treads down the bank, the floating balsa landing beside the boat and, from
+ * it, a short plank over the gunwale onto the boat's floor, which runs bow to stern under the thatched cabin
+ * (the boat stays moored: it is a place to stand, not a vehicle). Aboard, by the cabin, "E · Ver mercancía"
+ * opens the same wares panel. Every other edge is water or steep bank, which are not walkable. Colliders:
+ * stalls, the river-side railing, the boat's gunwales (open where the plank lands), cabin posts and cargo.
  */
 import * as THREE from "three";
 import { createMarker } from "../../ambient/fields/geo";
@@ -18,7 +22,7 @@ import { createFieldPanel, el } from "../../ambient/fields/panel";
 import { fit } from "../../ambient/fields/signs";
 import type { CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
-import { DYE, FONT, Kit, rng } from "../../props";
+import { DYE, Ease01, FONT, fadeable, Kit, rng } from "../../props";
 import type { SelvaEnv } from "../contract";
 import {
   A,
@@ -73,9 +77,27 @@ const DECK = { x0: -7.2, x1: 4.9, z0: -8.9, z1: -4.7 };
 /** Deck top above the station origin (the apron is flat at 0; the planks clear it everywhere). */
 const DECK_Y = 0.1;
 const STAIR_X = 4.05;
-const BOAT_Z = -16.3;
+/** Foot of the stairs (the balsa landing) and the boat moored beside it (hull along local x). */
+const FOOT_Z = -14.1;
+const BOAT_Z = -16.6;
+const BOAT = { x: -1.2, len: 11, w: 2.6 };
+/** Walkable floor inside the hull (where the beam is wide enough), its height above the water. */
+const BOAT_FLOOR = { x0: -4.6, x1: 2.4, hz: 0.8, y: 0.42 };
+/** Plank from the balsa landing over the gunwale onto the floor (local x range), its top above the water. */
+const PLANK = { x0: 1.6, x1: 2.6, y: 0.6 };
+/** Cabin posts (local x) on both gunwales, and the "E" spot aboard (by the cabin, centre of the boat). */
+const CABIN_X = [-3.2, -1.1, 1.0];
+const BOAT_SPOT = { lx: -0.6, lz: BOAT_Z, r: 1.3 };
 /** Station board at the plaza's road corner, turned toward the road (keeps the stalls in view). */
 const BOARD = { x: -5.4, z: 1.4, ry: 0.55 };
+/** Cargo in the bow: local x, z offset from the keel line, kind, height above the floor. */
+const CARGO: Array<[number, number, "bananas" | "sack" | "crate" | "pot", number]> = [
+  [-4.7, -0.35, "bananas", 0],
+  [-4.6, 0.4, "sack", 0],
+  [-3.95, -0.3, "crate", 0],
+  [-3.95, -0.3, "crate", 0.33],
+  [-3.9, 0.42, "pot", 0],
+];
 const boardPost = (dx: number): [number, number] => [
   BOARD.x + dx * Math.cos(BOARD.ry) - 0.06 * Math.sin(BOARD.ry),
   BOARD.z - dx * Math.sin(BOARD.ry) - 0.06 * Math.cos(BOARD.ry),
@@ -107,33 +129,48 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   deck(kit, rand, { x0: STAIR_X - 0.65, x1: STAIR_X + 0.65, z0: landZ0, z1: DECK.z0, y: DECK_Y, along: "z" });
   stilt(kit, STAIR_X - 0.6, DECK.z0 - 0.95, water - 2, DECK_Y - 0.08, 0.08);
   stilt(kit, STAIR_X + 0.6, DECK.z0 - 0.95, water - 2, DECK_Y - 0.08, 0.08);
-  const footZ = BOAT_Z + 2.2;
+  const footZ = FOOT_Z;
   const STAIR_A: [number, number] = [STAIR_X, landZ0];
   const STAIR_B: [number, number] = [STAIR_X, footZ + 0.4];
   const RAFT_Y = water + 0.3;
   stairs(kit, STAIR_A, DECK_Y, STAIR_B, water + 0.36, 1.1);
-  const RAFT = { x0: STAIR_X - 1.2, x1: STAIR_X + 1.2, z0: footZ - 1.0, z1: footZ + 0.6 };
+  // The landing reaches west past the stairs so the boarding plank starts on it.
+  const RAFT = { x0: PLANK.x0 - 0.2, x1: STAIR_X + 1.2, z0: footZ - 1.0, z1: footZ + 0.6 };
   balsaRaft(kit, rand, { ...RAFT, y: RAFT_Y });
 
   // The regatón's boat: long hull along local x, cabin of thatch amidships, peke-peke motor at the stern.
-  const hullLen = 11;
   dugout(kit, {
-    x: -1.2,
+    x: BOAT.x,
     y: water,
     z: BOAT_Z,
     ry: Math.PI / 2,
-    len: hullLen,
-    w: 2.1,
+    len: BOAT.len,
+    w: BOAT.w,
     h: 0.75,
     color: "#2f6a73",
     thwarts: 0,
   });
-  // Gunwale stripe and a plank floor inside.
-  deck(kit, rand, { x0: -5.6, x1: 3.2, z0: BOAT_Z - 0.6, z1: BOAT_Z + 0.6, y: water + 0.42, along: "x" });
-  // Cabin posts + roof.
-  for (const x of [-3.2, -0.2, 2.2])
-    for (const z of [-0.62, 0.62]) kit.cyl(0.05, 0.05, 1.5, x, water + 0.4, BOAT_Z + z, A.wood, 5);
-  irapayRoof(kit, rand, { w: 5.4, d: 1.3, y: water + 1.9, h: 0.75, ox: -0.5, oz: BOAT_Z, over: 0.3 });
+  // A plank floor inside, bow to stern (planks across the beam so the floor reads as a walkable deck).
+  const fy = water + BOAT_FLOOR.y;
+  deck(kit, rand, {
+    x0: BOAT_FLOOR.x0 - 0.6,
+    x1: BOAT_FLOOR.x1 + 0.4,
+    z0: BOAT_Z - BOAT_FLOOR.hz,
+    z1: BOAT_Z + BOAT_FLOOR.hz,
+    y: fy,
+    along: "z",
+  });
+  // Boarding plank: from the balsa landing over the gunwale, on two cleats.
+  const plankZ0 = BOAT_Z + BOAT_FLOOR.hz - 0.5;
+  deck(kit, rand, { x0: PLANK.x0, x1: PLANK.x1, z0: plankZ0, z1: RAFT.z0 + 0.5, y: water + PLANK.y, along: "x" });
+  for (const z of [plankZ0 + 0.1, RAFT.z0 + 0.4])
+    kit.box(PLANK.x1 - PLANK.x0, 0.12, 0.12, (PLANK.x0 + PLANK.x1) / 2, water + PLANK.y - 0.2, z, A.woodDark);
+  // Cabin posts on the gunwales + roof, high enough to walk under.
+  for (const x of CABIN_X)
+    for (const z of [-1, 1]) kit.cyl(0.05, 0.06, 2.0, x, fy - 0.02, BOAT_Z + z * (BOAT_FLOOR.hz + 0.08), A.wood, 5);
+  // The cabin roof is its own mesh: it fades while the traveler is aboard so the camera sees the deck.
+  const cabinKit = new Kit(env);
+  irapayRoof(cabinKit, rand, { w: 4.8, d: 1.95, y: fy + 1.98, h: 0.75, ox: -1.1, oz: BOAT_Z, over: 0.3 });
   // Peke-peke: engine block on the stern plus the long-tail shaft into the water.
   kit.box(0.5, 0.4, 0.45, 4.1, water + 0.42, BOAT_Z, "#3a3a38");
   kit.box(0.35, 0.18, 0.3, 4.1, water + 0.82, BOAT_Z, A.achiote);
@@ -143,17 +180,12 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
     0.04,
     "#4a4a46",
   );
-  // Cargo on board: bananas, sacks, a crate stack, clay pots.
-  goods(kit, rand, -4.6, water + 0.42, BOAT_Z - 0.3, "bananas");
-  goods(kit, rand, -4.2, water + 0.42, BOAT_Z + 0.35, "sack");
-  goods(kit, rand, -2.4, water + 0.42, BOAT_Z, "crate");
-  goods(kit, rand, -2.4, water + 0.75, BOAT_Z, "crate");
-  goods(kit, rand, -1.2, water + 0.42, BOAT_Z - 0.35, "pot");
-  goods(kit, rand, 1.4, water + 0.42, BOAT_Z + 0.3, "sack");
-  // Mooring lines from the bow and stern to the landing posts.
+  // Cargo stowed in the bow (out of the walkway aboard): bananas, sacks, a crate stack, clay pots.
+  for (const [x, dz, kind, lift] of CARGO) goods(kit, rand, x, fy + lift, BOAT_Z + dz, kind);
+  // Mooring lines from the stern and bow to the landing post and the bank.
   kit.stick(
-    new THREE.Vector3(3.6, water + 0.7, BOAT_Z + 0.8),
-    new THREE.Vector3(STAIR_X - 0.6, water + 0.9, footZ),
+    new THREE.Vector3(3.6, water + 0.7, BOAT_Z + 0.7),
+    new THREE.Vector3(STAIR_X + 0.6, water + 0.9, footZ - 0.9),
     0.02,
     A.rope,
   );
@@ -205,6 +237,11 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
     for (const dx of [-0.85, 0.85]) kit.cyl(0.04, 0.045, 2.0, x + dx, y, STALL_Z + 0.55, A.wood, 5);
   });
   group.add(bake(kit, "selva-regaton", mat));
+  const cabinMat = stationMaterial();
+  const cabin = bake(cabinKit, "selva-regaton-cabin", cabinMat);
+  group.add(cabin);
+  const cabinFade = fadeable(cabin, env);
+  const cabinEase = new Ease01(0.45, env.reducedMotion);
 
   // Carved signs: one per stall, plus the station board facing the road.
   const SIGN_W = 1.3;
@@ -273,7 +310,29 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
     addDeck(f, STAIR_X - 0.65, landZ0, STAIR_X + 0.65, DECK.z0, DECK_Y, "regaton-landing"),
     addDeck(f, STAIR_X - 0.55, STAIR_B[1], STAIR_X + 0.55, landZ0, stairY(STAIR_A, DECK_Y, STAIR_B, water + 0.36)),
     addDeck(f, RAFT.x0, RAFT.z0, RAFT.x1, RAFT.z1, RAFT_Y, "regaton-raft"),
+    addDeck(f, PLANK.x0, plankZ0, PLANK.x1, RAFT.z0 + 0.5, water + PLANK.y, "regaton-plank"),
+    addDeck(
+      f,
+      BOAT_FLOOR.x0,
+      BOAT_Z - BOAT_FLOOR.hz,
+      BOAT_FLOOR.x1,
+      BOAT_Z + BOAT_FLOOR.hz,
+      water + BOAT_FLOOR.y,
+      "regaton-boat",
+    ),
   ];
+  // Aboard: gunwales (the landing side open where the plank comes over), cabin posts, the cargo in the bow.
+  const gz = BOAT_FLOOR.hz + 0.2;
+  for (const c of segmentCircles(f, [BOAT_FLOOR.x0, BOAT_Z - gz], [BOAT_FLOOR.x1 + 0.6, BOAT_Z - gz], 0.2))
+    env.addCollider(c);
+  for (const [a, b] of [
+    [BOAT_FLOOR.x0, PLANK.x0 - 0.35],
+    [PLANK.x1 + 0.35, BOAT_FLOOR.x1 + 0.6],
+  ] as const)
+    for (const c of segmentCircles(f, [a, BOAT_Z + gz], [b, BOAT_Z + gz], 0.2)) env.addCollider(c);
+  for (const x of CABIN_X)
+    for (const z of [-1, 1]) env.addCollider(at(f, x, BOAT_Z + z * (BOAT_FLOOR.hz + 0.08), 0.08));
+  env.addCollider(at(f, -4.2, BOAT_Z, 0.7));
   for (const x of STALL_X) env.addCollider(at(f, x, STALL_Z - 0.1, 0.72));
   for (const c of segmentCircles(f, [DECK.x0, DECK.z0], [STAIR_X - 0.7, DECK.z0], 0.3)) env.addCollider(c);
   for (const dx of [-1.15, 1.15]) env.addCollider(at(f, ...boardPost(dx), 0.2));
@@ -362,6 +421,13 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
 
   // ------------------------------------------------------------------ frame loop
   const spots: Spot[] = STALL_X.map((x) => ({ lx: x, lz: STALL_Z + SPOT_DZ, r: 1.15 }));
+  /** The last spot is aboard, by the cabin: it opens the panel on the stall last browsed. */
+  const ABOARD = spots.length;
+  spots.push(BOAT_SPOT);
+  const markNear = (i: number) => {
+    if (i === ABOARD) marker.place(BOAT_SPOT.lx, fy + 2.9, BOAT_Z);
+    else marker.place(STALL_X[i] as number, (stallYs[i] as number) + 2.75, STALL_Z);
+  };
   let near = -1;
   let inRange = false;
   return {
@@ -374,11 +440,14 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
       }
       const lx = lxOf(f, avatar.x, avatar.z);
       const lz = lzOf(f, avatar.x, avatar.z);
-      inRange = Math.hypot(lx + 1, lz + 6.5) < 9;
+      // The dock and its stalls, or aboard the boat (the panel stays open on either).
+      inRange = Math.hypot(lx + 1, lz + 6.5) < 9 || (Math.abs(lx - BOAT.x) < 6.5 && Math.abs(lz - BOAT_Z) < 2.5);
       near = nearestSpot(spots, lx, lz);
+      const aboard = Math.abs(lx - BOAT.x) < 5.5 && Math.abs(lz - BOAT_Z) < 1.6;
+      cabinFade.set(Math.max(0.12, cabinEase.step(aboard ? 0 : 1, dt)));
       if (panel.isOpen() && !inRange) panel.close();
       if (!panel.isOpen()) {
-        if (near >= 0) marker.place(STALL_X[near] as number, (stallYs[near] as number) + 2.75, STALL_Z);
+        if (near >= 0) markNear(near);
         else marker.hide();
       }
       marker.update(dt, t);
@@ -393,7 +462,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
         return true;
       }
       if (near < 0) return false;
-      select(near);
+      select(near === ABOARD ? sel : near);
+      if (near === ABOARD) markNear(ABOARD);
       panel.open();
       return true;
     },
@@ -408,8 +478,10 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
       signs.dispose();
       creatures.removeKeepOut(keep);
       for (const off of unDeck) off();
+      cabinFade.dispose();
       disposeTree(group);
       mat.dispose();
+      cabinMat.dispose();
     },
   };
 };

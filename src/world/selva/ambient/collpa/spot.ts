@@ -29,6 +29,37 @@ export const CLAY_V: readonly [number, number] = [0.08, 0.8];
 /** Viewpoint deck centre in the station frame (local x, local z), at the bank edge. */
 export const VIEW_LOCAL: readonly [number, number] = [0, -7.2];
 
+/**
+ * The viewpoint bench seat (../../../seat.ts), in the station frame: hips a little forward of the bench centre
+ * (VIEW_LOCAL + 0.4, the backrest on its +Z side) so the body clears the backrest, the seat surface `h` above
+ * the station origin, facing local −Z (across the river, at the clay lick), standing up toward the railing.
+ */
+export const BENCH_SEAT = {
+  lx: VIEW_LOCAL[0],
+  lz: VIEW_LOCAL[1] + 0.35,
+  h: 0.56,
+  standLz: VIEW_LOCAL[1] - 0.6,
+} as const;
+
+/** The bench seat in world space for a station frame (origin x/z, yaw) at world height `y0`. */
+export function benchSeat(frame: { x: number; z: number; yaw: number }, y0: number) {
+  const c = Math.cos(frame.yaw);
+  const s = Math.sin(frame.yaw);
+  const wx = (lx: number, lz: number) => frame.x + lx * c + lz * s;
+  const wz = (lx: number, lz: number) => frame.z - lx * s + lz * c;
+  return {
+    id: "selva:collpa",
+    x: wx(BENCH_SEAT.lx, BENCH_SEAT.lz),
+    y: y0 + BENCH_SEAT.h,
+    z: wz(BENCH_SEAT.lx, BENCH_SEAT.lz),
+    // Facing local −Z: the station yaw turned half a circle.
+    yaw: frame.yaw + Math.PI,
+    view: frame.yaw + Math.PI,
+    pose: "bench" as const,
+    stand: { x: wx(BENCH_SEAT.lx, BENCH_SEAT.standLz), z: wz(BENCH_SEAT.lx, BENCH_SEAT.standLz) },
+  };
+}
+
 export interface CliffLayout {
   stationPose(id: string): { position: { x: number; y: number; z: number }; yaw: number };
   riverDist(x: number, z: number): number;

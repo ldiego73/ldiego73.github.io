@@ -8,6 +8,8 @@
  * The massif behind the face is a keep-out for walking fauna. The deck is a raised walkable deck at its real
  * height (station.ts addDeck) on every terrain resolution, out to its railings (railing colliders keep the
  * traveler inside them; beyond the deck the bank is not walkable ground anyway).
+ * The bench is a seat (../../seat.ts, collpa/spot.ts benchSeat): "E · Sentarse" sits the traveler facing the
+ * clay lick to watch the macaws; seated, "E · Levantarse" (or moving, jumping, Esc) stands up.
  *
  * Draw calls: the cliff (one vertex-colored mesh), the deck/bench/sign posts (one), the sign (one).
  */
@@ -15,9 +17,11 @@ import * as THREE from "three";
 import { fit } from "../../ambient/fields/signs";
 import type { CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
+import { emit, on } from "../../events";
 import { FONT, Kit, rng } from "../../props";
+import { nearSeat, SIT_COPY, sitDetail } from "../../seat";
 import type { SelvaEnv } from "../contract";
-import { collpaCliff, MASSIF_DEPTH, VIEW_LOCAL } from "./collpa/spot";
+import { benchSeat, collpaCliff, MASSIF_DEPTH, VIEW_LOCAL } from "./collpa/spot";
 import {
   A,
   bake,
@@ -113,11 +117,28 @@ export const create: CreateAmbient = (baseEnv) => {
   const keeps = [creatures.keepOut(f.x, f.z, 8), ...cliff.footprint.map((c) => creatures.keepOut(c.x, c.z, c.r))];
   const cull = stationCull(group, new THREE.Vector3(f.x, f.y, f.z), 230);
 
+  // ------------------------------------------------------------------ the bench seat
+  const seat = benchSeat(f, f.y);
+  let seated = false;
+  let near = false;
+  const offSit = on("world:sit", (d) => {
+    seated = !!d?.seated && d.id === seat.id;
+  });
+
   return {
-    update() {
+    update(_dt, avatar) {
       cull(env.camera);
+      near = !seated && Math.abs(avatar.y - f.y) < 1.5 && nearSeat([seat], avatar.x, avatar.z) !== null;
+    },
+    prompt: () => (seated ? SIT_COPY.stand[lang] : near ? SIT_COPY.sit[lang] : null),
+    interact() {
+      if (seated) emit("world:sit", { seated: false });
+      else if (near) emit("world:sit", sitDetail(seat));
+      else return false;
+      return true;
     },
     dispose() {
+      offSit();
       signs.dispose();
       for (const k of keeps) creatures.removeKeepOut(k);
       unDeck();

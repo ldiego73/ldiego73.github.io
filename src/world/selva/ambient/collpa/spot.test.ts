@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildSelvaLayout } from "../../layout";
-import { collpaCliff } from "./spot";
+import { benchSeat, collpaCliff } from "./spot";
 
 const L = buildSelvaLayout({ cells: 280 });
 const cliff = collpaCliff(L);
@@ -32,5 +32,25 @@ describe("collpa cliff", () => {
   });
   test("footprint covers the massif behind the face, away from the river", () => {
     for (const c of cliff.footprint) expect(L.isWater(c.x, c.z)).toBe(false);
+  });
+});
+
+describe("collpa bench seat", () => {
+  const seat = benchSeat(cliff.frame, 10);
+  test("faces the clay lick across the river", () => {
+    const p = cliff.point(0, 0.5);
+    const to = Math.atan2(p.x - seat.x, p.z - seat.z);
+    const d = Math.atan2(Math.sin(to - seat.yaw), Math.cos(to - seat.yaw));
+    expect(Math.abs(d)).toBeLessThan(0.05);
+  });
+  test("sits on the viewpoint and stands up toward the river railing, on dry land", () => {
+    expect(Math.hypot(seat.x - cliff.view.x, seat.z - cliff.view.z)).toBeLessThan(0.5);
+    expect(seat.y).toBeCloseTo(10.56);
+    const s = Math.hypot(seat.stand.x - seat.x, seat.stand.z - seat.z);
+    expect(s).toBeGreaterThan(0.8);
+    expect(s).toBeLessThan(1.5);
+    // The stand point is further toward the cliff than the seat.
+    const p = cliff.point(0, 0);
+    expect(Math.hypot(p.x - seat.stand.x, p.z - seat.stand.z)).toBeLessThan(Math.hypot(p.x - seat.x, p.z - seat.z));
   });
 });

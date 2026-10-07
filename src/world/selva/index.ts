@@ -27,7 +27,8 @@
  * toggles the jungle's paper map (./map.ts), whose fast travel opens after the `selva:station:collpa` stamp.
  * Events handled: `world:modal {open}` (counter; freezes walking while > 0), `world:mount` (speed multiplier,
  * seat height, vehicle), `world:teleport {to}` (a SELVA_STATIONS id: fade + move to its plaza), `world:game`,
- * `world:interior`, `world:textmode`. Emitted: `world:stamp` `selva:station:<id>` once the traveler comes within
+ * `world:interior`, `world:textmode`, `world:sit` (../seat.ts: pinned to a seat; movement, jump, Esc, a spare
+ * E or the canoe stand up). Emitted: `world:stamp` `selva:station:<id>` once the traveler comes within
  * VISIT_R of a station plaza; `world:quality` from the governor.
  * Vehicles: ./ride.ts (the canoe writes `ride.pose` while `ride.active`; see its header for the protocol).
  * Decks (../decks.ts): piers, boardwalks, floors and the raft that station ambients register. The traveler
@@ -55,6 +56,7 @@ import { summarize } from "../journey";
 import { createJourneyDialog } from "../journey-card";
 import { createLoader, type LoadStep } from "../loader";
 import { createGovernor, detectDevice, LEVELS } from "../quality";
+import { createStandLatch, type Seat, SIT_SQUEEZE, seatedFeetY, seatFrom } from "../seat";
 import { createSky, hasWeather } from "../sky";
 import { disposeTextures, redrawAll } from "../tex";
 import { focusStep } from "../textmode";
@@ -367,6 +369,8 @@ async function start(
         if (a.prompt && !safe(() => a.prompt?.() ?? null, null)) continue;
         if (safe(() => a.interact?.() ?? false, false)) return;
       }
+      // Seated and nothing else wants E: stand up (../seat.ts).
+      standUp();
     };
 
     // ---------------------------------------------------------------- input + controls
@@ -625,6 +629,10 @@ async function start(
       if (gameOpen || dialogOpen) return;
       if (e.key === "Escape") {
         if (ambients.some((a) => safe(() => a.escape?.() ?? false, false))) e.preventDefault();
+        else if (seat) {
+          standUp();
+          e.preventDefault();
+        }
         return;
       }
       if (modals > 0 && !(e.code === "KeyH" && helpOpen())) return;
@@ -700,6 +708,58 @@ async function start(
       }),
     );
 
+    // ---------------------------------------------------------------- sitting (world:sit, ../seat.ts)
+    let seat: Seat | null = null;
+    const sitFrom = { x: 0, z: 0 };
+    const standLatch = createStandLatch();
+    /** Stand up (the listener below puts the traveler back on walkable ground). No-op on foot. */
+    const standUp = () => {
+      if (seat) emit("world:sit", { seated: false });
+    };
+    cleanups.push(
+      on("world:mount", (d) => {
+        if (d?.riding) standUp();
+      }),
+      on("world:sit", (d) => {
+        if (d?.seated) {
+          const s = seatFrom(d);
+          // Not now (a vehicle owns the traveler, a game is open): refuse, so the seat owner and avatar reset.
+          if (!s || riding || ride.active || gameOpen) {
+            emit("world:sit", { seated: false });
+            return;
+          }
+          if (!seat) {
+            sitFrom.x = pos.x;
+            sitFrom.z = pos.z;
+          }
+          seat = s;
+          standLatch.reset();
+          pos.set(s.x, seatedFeetY(s), s.z);
+          vel.set(0, 0);
+          vy = 0;
+          grounded = true;
+          yaw = s.yaw;
+          cam.behind(s.view);
+          return;
+        }
+        if (!seat) return;
+        const st = seat.stand ?? sitFrom;
+        const fromY = seat.y;
+        seat = null;
+        // Like a canoe landing: decks within a step of the seat count (the viewpoint deck, not the bank below).
+        let [x, z] = snapWalkable(st.x, st.z, fromY);
+        // Out of any collider the stand point may touch (when that is still standable).
+        const [rx, rz] = resolve(x, z);
+        if (layout.walkable(rx, rz) || decks.heightAt(rx, rz, fromY + MAX_STEP) !== null) [x, z] = [rx, rz];
+        pos.set(x, standOn(decks, layout.groundAt(x, z), x, z, fromY, MAX_STEP), z);
+        vel.set(0, 0);
+        vy = 0;
+        grounded = true;
+        me.x = x;
+        me.z = z;
+      }),
+    );
+
     // ---------------------------------------------------------------- fast travel (world:teleport {to: station id})
     const fade = document.createElement("div");
     fade.className = "kw-fade";
@@ -724,6 +784,7 @@ async function start(
         if (gameOpen || ride.active || !d?.to) return;
         const target = stationFront(d.to);
         if (!target) return;
+        standUp();
         const move = () => {
           pos.set(target.x, groundAt(target.x, target.z), target.z);
           vel.set(0, 0);
@@ -843,6 +904,11 @@ async function start(
         mx = m.x;
         my = m.y;
       }
+      // Seated: a vehicle taking over, movement (once released since sitting) or jump stands up.
+      if (seat) {
+        if (ride.active || standLatch.wantsUp({ x: mx, y: my }, input.takeJump())) standUp();
+        else mx = my = 0;
+      }
       const wx = -fz * mx + fx * my;
       const wz = fx * mx + fz * my;
 
@@ -926,6 +992,16 @@ async function start(
         if (pos.y < ground) pos.y = ground;
         spd = vel.length();
         if (spd > 0.3) yaw = angleLerp(yaw, Math.atan2(vel.x, vel.y), Math.min(1, dt * 11));
+        if (seat) {
+          // Pinned to the seat: no walking, gravity or push-out (seats stand between colliders).
+          pos.set(seat.x, seatedFeetY(seat), seat.z);
+          vel.set(0, 0);
+          vy = 0;
+          grounded = true;
+          yaw = seat.yaw;
+          me.x = pos.x;
+          me.z = pos.z;
+        }
       }
 
       avatar.group.position.copy(pos);
@@ -933,7 +1009,10 @@ async function start(
       avatar.group.rotation.y = yaw;
       avatar.update(dt, { speed: spd, running: spd > (WALK + 0.4) * speedMul, grounded, t: time });
 
-      if (!reducedMotion) cam.squeeze += ((inside ? 1 : 0) - cam.squeeze) * (1 - Math.exp(-dt * 3));
+      // Closer inside a house, a little closer while seated.
+      const squeeze = inside ? 1 : seat ? SIT_SQUEEZE : 0;
+      if (!reducedMotion) cam.squeeze += (squeeze - cam.squeeze) * (1 - Math.exp(-dt * 3));
+      else cam.squeeze = squeeze;
       cam.update(dt, time, camTarget.set(pos.x, pos.y + seatHeight, pos.z), {
         facing: yaw,
         moving: Math.max(spd, rideSpeed) > 0.4,
@@ -985,6 +1064,7 @@ async function start(
         env,
         ride,
         teleport(t: number, side = 0, faceBack = false) {
+          standUp();
           const p = layout.trail.pointAt(t);
           const tg = layout.trail.tangentAt(t);
           pos.set(p.x - tg.z * side, 0, p.z + tg.x * side);
@@ -1003,6 +1083,7 @@ async function start(
           cam.snap();
         },
         face(x: number, z: number, tx: number, tz: number) {
+          standUp();
           pos.set(x, groundAt(x, z), z);
           vel.set(0, 0);
           yaw = Math.atan2(tx - x, tz - z);
@@ -1044,6 +1125,7 @@ async function start(
           time: sky.sky.time(),
           touring: false,
           riding: ride.active,
+          seated: seat?.id ?? null,
           stamped: [...stamped],
         }),
       };

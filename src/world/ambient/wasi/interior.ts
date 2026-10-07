@@ -14,12 +14,13 @@
  *
  * Draw calls: floor 1, rugs 1, furniture 1, zócalo ×4 (inside each wall group, so they follow the cutaway),
  * khipu 1, niches 1, tapestry 1, laptop screen 1, table paper 1, lamp/candle glows ×3 (night only).
+ * While the traveler sits at the desk (`setTyping`), the laptop screen is redrawn with code being typed.
  */
 import * as THREE from "three";
 import type { WorldEnv } from "../../contract";
 import { flattenToonGroup, vertexToon } from "../../merge-colors";
 import { DYE } from "../../palette";
-import { C, canvasTex, FONT, glowSprite, Kit, rng, toonMapped } from "../../props";
+import { C, canvasTex, FONT, glowSprite, Kit, redraw, rng, toonMapped } from "../../props";
 import { khipuCords } from "./content";
 import type { WallSet } from "./exterior";
 import { W_COL } from "./exterior";
@@ -39,6 +40,8 @@ export interface WasiInterior {
   setNight(night: boolean): void;
   /** Shows or hides everything (rooms and the wall-mounted pieces inside the wall groups). */
   setVisible(visible: boolean): void;
+  /** The traveler sits at the desk (../../seat.ts): the laptop screen brightens and fills with typed code. */
+  setTyping(on: boolean): void;
   update(t: number): void;
   dispose(): void;
 }
@@ -574,11 +577,12 @@ export function buildInterior(env: WorldEnv, host: InteriorHost, hudRoot: HTMLEl
 
   // ------------------------------------------------------------------ textured small pieces
   // Laptop screen: an editor with code lines.
+  const codeCols = ["#dda63c", "#2a9d8f", "#c4383f", "#a9b8ff", "#efe6d6"];
   const screenTex = canvasTex(128, 84, (ctx, w, h) => {
     ctx.fillStyle = "#1d2230";
     ctx.fillRect(0, 0, w, h);
     const r = rng(5);
-    const cols = ["#dda63c", "#2a9d8f", "#c4383f", "#a9b8ff", "#efe6d6"];
+    const cols = codeCols;
     for (let y = 8; y < h - 4; y += 7) {
       let x = 8 + Math.floor(r() * 3) * 8;
       while (x < w - 12 && r() < 0.85) {
@@ -599,6 +603,48 @@ export function buildInterior(env: WorldEnv, host: InteriorHost, hudRoot: HTMLEl
   screen.position.set(desk.lx, desk.y + 0.17, desk.lz - 0.15);
   screen.rotation.x = -0.22;
   group.add(screen);
+
+  // Typing (seated at the desk): new code appears token by token at ~8 Hz under a blinking cursor, scrolling
+  // up a row at the bottom; the screen glows a little brighter. Static (brighter only) with reduced motion.
+  type Tok = readonly [x: number, w: number, color: string];
+  const tokRand = rng(17);
+  const newRow = (): Tok[] => {
+    const row: Tok[] = [];
+    let x = 8 + Math.floor(tokRand() * 3) * 8;
+    while (x < 116 && (row.length === 0 || tokRand() < 0.8)) {
+      const lw = 6 + tokRand() * 22;
+      row.push([x, lw, codeCols[Math.floor(tokRand() * codeCols.length)]!]);
+      x += lw + 5;
+    }
+    return row;
+  };
+  const ROWS = 10;
+  const rows: Tok[][] = Array.from({ length: 5 }, newRow);
+  let cur = newRow();
+  let curN = 0;
+  let typing = false;
+  let tick = 0;
+  const drawTyping = (cursor: boolean) => {
+    redraw(screenTex, (ctx, w, h) => {
+      ctx.fillStyle = "#1d2230";
+      ctx.fillRect(0, 0, w, h);
+      const line = (row: readonly Tok[], y: number, n: number) => {
+        for (let i = 0; i < n; i++) {
+          const [x, lw, c] = row[i]!;
+          ctx.fillStyle = c;
+          ctx.fillRect(x, y, lw, 3);
+        }
+      };
+      for (const [i, row] of rows.entries()) line(row, 8 + i * 7, row.length);
+      const y = 8 + rows.length * 7;
+      line(cur, y, curN);
+      if (cursor) {
+        const last = cur[curN - 1];
+        ctx.fillStyle = "#efe6d6";
+        ctx.fillRect(last ? last[0] + last[1] + 2 : cur[0]![0], y - 1, 3, 5);
+      }
+    });
+  };
 
   // Table paper: the open passport (stamped pages) and a postcard of the mountain.
   const paperTex = canvasTex(256, 128, (ctx, w, h) => {
@@ -713,6 +759,12 @@ export function buildInterior(env: WorldEnv, host: InteriorHost, hudRoot: HTMLEl
     group,
     panels,
     setNight,
+    setTyping(on) {
+      if (on === typing) return;
+      typing = on;
+      screenMat.color.setScalar(on ? 1.35 : 1);
+      if (on) drawTyping(true);
+    },
     setVisible(v) {
       if (v === shown) return;
       shown = v;
@@ -725,6 +777,16 @@ export function buildInterior(env: WorldEnv, host: InteriorHost, hudRoot: HTMLEl
       khipu.visible = host.walls.left.scale.y > 0.85;
       niches.visible = host.walls.back.scale.y > 0.85;
       tapestry.visible = host.walls.right.scale.y > 0.85;
+      if (typing && !env.reducedMotion && t - tick > 0.12) {
+        tick = t;
+        if (++curN > cur.length) {
+          rows.push(cur);
+          if (rows.length > ROWS) rows.shift();
+          cur = newRow();
+          curN = 0;
+        }
+        drawTyping(Math.floor(t * 2.5) % 2 === 0);
+      }
       if (!night) return;
       const f = Math.sin(t * 11.3) * 0.05 + Math.sin(t * 19.7) * 0.04;
       candle.scale.y = 1 + f * 2;

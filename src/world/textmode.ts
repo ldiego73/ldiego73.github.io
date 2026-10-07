@@ -85,7 +85,7 @@ const COPY = {
     } as Record<string, string>,
     wasi: "Wasi · la casa del camino",
     wasiLede:
-      "Junto a la puerta del camino, al oeste del sendero y junto al punto de partida, está la wasi (casa) de Luis Diego, sobre una plataforma de piedra nivelada; un caminito de lajas lleva del sendero a unos escalones de piedra y a su puerta. Adentro hay cuatro espacios; abrir lo que muestra cada uno (tecla E) da un sello en la página Wasi del pasaporte.",
+      "Junto a la puerta del camino, al oeste del sendero y junto al punto de partida, está la wasi (casa) de Luis Diego, sobre una plataforma de piedra nivelada; un caminito de lajas lleva del sendero a unos escalones de piedra y a su puerta. Adentro hay cuatro espacios; abrir lo que muestra cada uno (tecla E) da un sello en la página Wasi del pasaporte. Puedes sentarte (tecla E) en el poyo de la sala, mirando el khipu de la pared, y en la silla del escritorio del estudio, frente a la laptop; al moverte, saltar o pulsar Esc te levantas.",
     salaLede: "La trayectoria empresa por empresa, de la más reciente a la primera, con sus cargos:",
     estudioLede: "Formación, certificaciones y el CV para llevar.",
     education: "Formación",
@@ -159,7 +159,7 @@ const COPY = {
     } as Record<string, string>,
     wasi: "Wasi · the house on the road",
     wasiLede:
-      "By the trailhead gate, west of the path and next to the starting point, stands Luis Diego's wasi (house), on a levelled stone platform; a short flagstone walk leads from the path up a few stone steps to its door. Inside there are four rooms; opening what each one shows (E key) adds a stamp to the Wasi page of the passport.",
+      "By the trailhead gate, west of the path and next to the starting point, stands Luis Diego's wasi (house), on a levelled stone platform; a short flagstone walk leads from the path up a few stone steps to its door. Inside there are four rooms; opening what each one shows (E key) adds a stamp to the Wasi page of the passport. You can sit down (E key) on the sala's adobe bench, facing the wall khipu, and on the chair at the study's desk, in front of the laptop; moving, jumping or pressing Esc stands you up.",
     salaLede: "The career company by company, most recent first, with its roles:",
     estudioLede: "Education, certifications and the resume to take with you.",
     education: "Education",

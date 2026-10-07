@@ -10,8 +10,10 @@
  * three landmark trees flanking the lower tambos. Ichu thickens toward the puna; the short green ichu
  * dominates the valley; flowers line the trail edges.
  */
+
 import { HALF_WIDTH, type Layout, RIVER_LEVEL, rimRadius, terraceMask } from "../layout";
 import { rng } from "../tex";
+import { nearTrailheadBuilt } from "../trailhead";
 
 export type FloraLayout = Pick<Layout, "heightAt" | "trailQuery" | "plazas" | "streamDist" | "isGrass" | "trail">;
 
@@ -93,7 +95,7 @@ export function slopeAt(L: FloraLayout, x: number, z: number) {
   return Math.hypot(L.heightAt(x + e, z) - L.heightAt(x - e, z), L.heightAt(x, z + e) - L.heightAt(x, z - e)) / (2 * e);
 }
 
-/** Common clearance: rim, trail band + pad, plazas + spurs (+ plazaPad), stream, river level. */
+/** Common clearance: rim, trail band + pad, plazas + spurs (+ plazaPad), stream, trailhead buildings, river level. */
 export function clearOf(L: FloraLayout, x: number, z: number, pad: number, plazaPad = pad, trailD?: number): boolean {
   if (Math.hypot(x, z) > rimRadius(Math.atan2(z, x)) - 4) return false;
   if ((trailD ?? L.trailQuery(x, z).d) < HALF_WIDTH + pad) return false;
@@ -102,6 +104,7 @@ export function clearOf(L: FloraLayout, x: number, z: number, pad: number, plaza
     if (distSeg(x, z, p.tx, p.tz, p.x, p.z) < p.spur + pad) return false;
   }
   if (L.streamDist(x, z) < 2.8 + pad * 0.5) return false;
+  if (nearTrailheadBuilt(x, z, pad * 0.5)) return false;
   return L.heightAt(x, z) >= RIVER_LEVEL + 0.6;
 }
 

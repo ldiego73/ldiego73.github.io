@@ -1,6 +1,6 @@
 /**
- * Pure canoe logic (no DOM, no three.js): the river route as an arc-length polyline, the pose of the canoe at
- * a distance along it, the paddling speed from the rider's intent, and the dock geometry derived from the
+ * Pure canoe logic (no DOM, no three.js): player steering, hull-safe water projection, docking,
+ * the legacy polyline used for mooring headings, and dock geometry derived from the
  * layout (pier from the station apron to the top of the bank, stairs down the bank, floating jetty beside the
  * mooring point on the water).
  *
@@ -87,40 +87,186 @@ function pointAt(r: Route, s: number): Pt {
 /** Model yaw (models face +Z; yaw = rotation.y) for a heading (dx, dz). */
 export const yawOf = (dx: number, dz: number) => Math.atan2(dx, dz);
 
-/** Auto-paddle cruise speed (u/s): the 160 u stretch takes a little under a minute. */
-export const CRUISE = 3.2;
-export const MIN_SPEED = 1.2;
-export const MAX_SPEED = 6.4;
-/** Distance from either end over which the canoe eases in/out of the dock. */
-export const EASE_DIST = 9;
-
-/**
- * Wanted paddling speed. `intent` is the rider's world-space movement (|v| ≤ 1, already camera-rotated);
- * its projection on the travel direction speeds the canoe up (W toward the bow) or slows it down (S), never
- * reversing it. Running adds a burst. Near both docks the speed eases so the canoe glides in and out.
+/** Free navigation uses camera-relative world intent projected onto the bow (+Z).
+ * Forward/back sets signed thrust (back first brakes, then reverses); lateral intent turns at rest too.
+ * This preserves WASD, touch and gamepad semantics without making a backward input turn the boat around.
  */
-export function paddleSpeed(o: {
-  intentX: number;
-  intentZ: number;
-  running: boolean;
-  /** Unit travel direction (the route tangent times the trip direction). */
-  dirX: number;
-  dirZ: number;
-  /** Distance travelled since leaving and distance left to the destination. */
-  sinceStart: number;
-  toGo: number;
-}): number {
-  const along = Math.max(-1, Math.min(1, o.intentX * o.dirX + o.intentZ * o.dirZ));
-  let v = CRUISE * (1 + (along >= 0 ? 0.75 : 0.6) * along);
-  if (o.running && along > 0.2) v *= 1.3;
-  v = Math.max(MIN_SPEED, Math.min(MAX_SPEED, v));
-  const ease = Math.min(1, 0.35 + (0.65 * o.sinceStart) / EASE_DIST, 0.3 + (0.7 * o.toGo) / EASE_DIST);
-  return Math.max(0.6, v * ease);
+export const CRUISE = 4.5;
+export const MAX_SPEED = 6.5;
+export const TURN_RATE = 1.2;
+export const HULL_MARGIN = 2.5;
+export const BOUNDS_MARGIN = 8;
+export interface Boat {
+  x: number;
+  z: number;
+  yaw: number;
+  vx: number;
+  vz: number;
+}
+export interface NavigationWater {
+  river: { pts: Array<[number, number]> };
+  bounds: { x0: number; x1: number; z0: number; z1: number };
+  isWater(x: number, z: number): boolean;
+  riverDist(x: number, z: number): number;
 }
 
-/** Smooth approach of the current speed toward the wanted one (paddle strokes, not instant). */
-export const approach = (cur: number, want: number, dt: number, rate = 1.6) =>
-  cur + (want - cur) * (1 - Math.exp(-dt * rate));
+/** Conservative circular hull envelope includes both tips at every yaw, including coarse terrain banks. */
+export function boatWater(l: NavigationWater, x: number, z: number): boolean {
+  const b = l.bounds;
+  if (
+    x < b.x0 + BOUNDS_MARGIN ||
+    x > b.x1 - BOUNDS_MARGIN ||
+    z < b.z0 + BOUNDS_MARGIN ||
+    z > b.z1 - BOUNDS_MARGIN ||
+    l.riverDist(x, z) > -HULL_MARGIN ||
+    !l.isWater(x, z)
+  )
+    return false;
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    if (!l.isWater(x + Math.cos(a) * HULL_MARGIN, z + Math.sin(a) * HULL_MARGIN)) return false;
+  }
+  return true;
+}
+
+/** Nearest centerline point and downstream tangent, including the river beyond the old shortcut. */
+function riverNear(l: NavigationWater, x: number, z: number) {
+  let best = Infinity;
+  let out = { x, z, tx: 1, tz: 0 };
+  for (let i = 1; i < l.river.pts.length; i++) {
+    const a = l.river.pts[i - 1] as Pt;
+    const b = l.river.pts[i] as Pt;
+    const dx = b[0] - a[0],
+      dz = b[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    if (!len) continue;
+    const u = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (len * len)));
+    const px = a[0] + dx * u,
+      pz = a[1] + dz * u;
+    const d = (x - px) ** 2 + (z - pz) ** 2;
+    if (d < best) {
+      best = d;
+      out = { x: px, z: pz, tx: dx / len, tz: dz / len };
+    }
+  }
+  return out;
+}
+
+/** Project toward the local centerline, preserving travel along the bank instead of rejecting the step.
+ * Water queries include the real heightfield: a geometrically wet bank can still be dry at low resolution.
+ * Bisection retains a valid hull envelope; the last valid pose is the fallback at world corners.
+ */
+export function clampBoat(l: NavigationWater, x: number, z: number, previous: { x: number; z: number }) {
+  const b = l.bounds;
+  const limit = (v: number, lo: number, hi: number) => Math.max(lo + BOUNDS_MARGIN, Math.min(hi - BOUNDS_MARGIN, v));
+  x = limit(x, b.x0, b.x1);
+  z = limit(z, b.z0, b.z1);
+  if (boatWater(l, x, z)) return { x, z };
+  const c = riverNear(l, x, z);
+  const cx = limit(c.x, b.x0, b.x1),
+    cz = limit(c.z, b.z0, b.z1);
+  const from = boatWater(l, cx, cz) ? { x: cx, z: cz } : previous;
+  let lo = 0,
+    hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const u = (lo + hi) / 2;
+    if (boatWater(l, from.x + (x - from.x) * u, from.z + (z - from.z) * u)) lo = u;
+    else hi = u;
+  }
+  return { x: from.x + (x - from.x) * lo, z: from.z + (z - from.z) * lo };
+}
+
+export interface WaterBody {
+  x: number;
+  z: number;
+  r: number;
+  solid: boolean;
+  kind: string;
+}
+/** Inertia and drag with a gentle 0.22 u/s downstream current. No input means no paddle thrust. */
+export function stepBoat(
+  l: NavigationWater,
+  boat: Boat,
+  intent: { x: number; z: number; running: boolean },
+  dt: number,
+  bodies: readonly WaterBody[] = [],
+): Boat {
+  dt = Math.max(0, Math.min(0.05, dt));
+  const hx = Math.sin(boat.yaw),
+    hz = Math.cos(boat.yaw);
+  // Steer toward the stick (camera-relative): full turn rate until within ~35° of it, and paddle only with the
+  // part of the stick that points ahead. A stick pointing behind turns the canoe around instead of crawling
+  // backward (a pure cross/dot split turns slowest exactly when the target is behind).
+  const mag = Math.min(1, Math.hypot(intent.x, intent.z));
+  const dot = intent.x * hx + intent.z * hz;
+  const cross = intent.x * hz - intent.z * hx;
+  const angle = mag > 1e-4 ? Math.atan2(cross, dot) : 0;
+  const along = mag * Math.max(0, Math.cos(angle));
+  const turn = mag * Math.max(-1, Math.min(1, angle / 0.6));
+  const yaw = boat.yaw + turn * TURN_RATE * dt;
+  const current = riverNear(l, boat.x, boat.z);
+  const thrust = along * (along < 0 ? 2.2 : (intent.running ? MAX_SPEED : CRUISE) - 0.22);
+  const k = 1 - Math.exp(-dt * 1.1);
+  let vx = boat.vx + (Math.sin(yaw) * thrust + current.tx * 0.22 - boat.vx) * k;
+  let vz = boat.vz + (Math.cos(yaw) * thrust + current.tz * 0.22 - boat.vz) * k;
+  // Soft world edge: remove outward momentum gradually before the hard hull-safe limit.
+  const b = l.bounds;
+  if ((vx < 0 && boat.x < b.x0 + BOUNDS_MARGIN + 6) || (vx > 0 && boat.x > b.x1 - BOUNDS_MARGIN - 6))
+    vx *= Math.exp(-dt * 4);
+  if ((vz < 0 && boat.z < b.z0 + BOUNDS_MARGIN + 6) || (vz > 0 && boat.z > b.z1 - BOUNDS_MARGIN - 6))
+    vz *= Math.exp(-dt * 4);
+  let x = boat.x + vx * dt,
+    z = boat.z + vz * dt;
+  for (const o of bodies) {
+    if (!o.solid || o.kind === "traveler" || o.kind === "canoe") continue;
+    const dx = x - o.x,
+      dz = z - o.z,
+      d = Math.hypot(dx, dz),
+      r = 1.1 + o.r;
+    if (d >= r) continue;
+    const nx = d > 1e-5 ? dx / d : Math.sin(yaw + Math.PI / 2);
+    const nz = d > 1e-5 ? dz / d : Math.cos(yaw + Math.PI / 2);
+    const push = Math.min(r - d, dt * 2);
+    x += nx * push;
+    z += nz * push;
+    const into = vx * nx + vz * nz;
+    if (into < 0) {
+      vx -= nx * into * k;
+      vz -= nz * into * k;
+    }
+  }
+  const p = clampBoat(l, x, z, boat);
+  const dx = x - p.x,
+    dz = z - p.z,
+    d = Math.hypot(dx, dz);
+  if (d > 1e-6) {
+    const nx = dx / d,
+      nz = dz / d,
+      outward = vx * nx + vz * nz;
+    // A small rebound, keeping tangential velocity so the canoe slides and can turn off the bank.
+    if (outward > 0) {
+      vx -= nx * outward * 1.12;
+      vz -= nz * outward * 1.12;
+    }
+  }
+  return { ...p, yaw, vx, vz };
+}
+
+/** Only slow boats alongside a real mooring can land; never dismount into open water. */
+export function dockingEnd(boat: Boat, docks: readonly DockGeo[]): 0 | 1 | null {
+  if (Math.hypot(boat.vx, boat.vz) > 0.85) return null;
+  let best = 3.2,
+    end: 0 | 1 | null = null;
+  for (const d of docks) {
+    const distance = Math.hypot(boat.x - d.moor.x, boat.z - d.moor.z);
+    if (distance <= best) {
+      best = distance;
+      end = d.end;
+    }
+  }
+  return end;
+}
+export const earnsRideStamp = (boarded: 0 | 1, landed: 0 | 1) => boarded !== landed;
 
 /** Shortest-arc angle interpolation. */
 export function angleLerp(a: number, b: number, k: number) {
@@ -199,8 +345,8 @@ export type Trip =
   | { kind: "moored"; end: 0 | 1 }
   /** Step from the jetty down into the canoe (u: 0 → 1). */
   | { kind: "boarding"; end: 0 | 1; u: number }
-  /** Paddling: s is the arc length along the route; dir +1 goes start → end, -1 end → start. */
-  | { kind: "riding"; s: number; dir: 1 | -1; speed: number }
+  /** Player owns the hull pose and velocity until choosing a nearby dock. */
+  | { kind: "riding"; boat: Boat }
   /** Step from the canoe up onto the destination jetty (u: 0 → 1). */
   | { kind: "landing"; end: 0 | 1; u: number };
 
@@ -286,28 +432,14 @@ export function alongPath(pts: ReadonlyArray<P3>, u: number): [number, number, n
 
 const dist3 = (a: P3, b: P3) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
 
-export function stepTrip(trip: Trip, dt: number, length: number, want = CRUISE): Trip {
-  switch (trip.kind) {
-    case "moored":
-      return trip;
-    case "boarding": {
-      const u = trip.u + dt / HOP_TIME;
-      if (u < 1) return { ...trip, u };
-      return { kind: "riding", s: trip.end === 0 ? 0 : length, dir: trip.end === 0 ? 1 : -1, speed: 0.8 };
-    }
-    case "riding": {
-      const speed = approach(trip.speed, want, dt);
-      const s = trip.s + trip.dir * speed * dt;
-      if (trip.dir === 1 && s >= length) return { kind: "landing", end: 1, u: 0 };
-      if (trip.dir === -1 && s <= 0) return { kind: "landing", end: 0, u: 0 };
-      return { ...trip, s, speed };
-    }
-    case "landing": {
-      const u = trip.u + dt / HOP_TIME;
-      if (u < 1) return { ...trip, u };
-      return { kind: "moored", end: trip.end };
-    }
+/** Only boarding and landing are automatic; navigation never changes state without interaction. */
+export function stepTrip(trip: Trip, dt: number, boat: Boat): Trip {
+  if (trip.kind === "boarding" || trip.kind === "landing") {
+    const u = trip.u + dt / HOP_TIME;
+    if (u < 1) return { ...trip, u };
+    return trip.kind === "boarding" ? { kind: "riding", boat } : { kind: "moored", end: trip.end };
   }
+  return trip;
 }
 
 /**

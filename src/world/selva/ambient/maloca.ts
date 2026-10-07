@@ -3,10 +3,11 @@
  * conical palm-thatch roof reaching almost to the ground over a low bark wall, four tall house posts, benches
  * in a ring around a fire, and on the wall painted bark cloths (llanchama): one per post, newest first, at most
  * ten, achiote red for the site's blog and huito indigo-black for Medium (maloca/logic.ts). Walking inside
- * fades the roof so the camera sees in. "E · Leer relato" in front of a cloth opens a paper panel with that
- * post (date, source, description, link) and the list of all cloths; ←/→ browse; a link goes to
- * /{lang}/blog/. Posts come from the page's world data (src/world/data.ts); with none, the walls are bare
- * and the panel says so.
+ * fades the roof so the camera sees in. Inside, a clear circular aisle runs between the bench ring and the
+ * wall (maloca/logic.ts sizes it), so the traveler can walk all the way round past every cloth; standing in
+ * front of one shows "E · Leer: <title>", which opens a paper panel with that post (date, source,
+ * description, link) and the list of all cloths; ←/→ browse; a link goes to /{lang}/blog/. Posts come from
+ * the page's world data (src/world/data.ts); with none, the walls are bare and the panel says so.
  *
  * Draw calls: walls/benches/posts (one vertex-colored mesh), the roof (one, fadeable), the cloth + sign atlas
  * (one merged mesh), the fire (one unlit flame mesh), the marker.
@@ -33,12 +34,26 @@ import {
 } from "./embarcadero/amazon";
 import "./embarcadero/panels.css";
 import { at, lxOf, lzOf, nearestSpot, type Spot, stationFrame, stationGroup } from "./embarcadero/station";
-import { type Cloth, clothAngles, cloths, PAINT } from "./maloca/logic";
+import {
+  AISLE_R,
+  BENCH_R,
+  benchAngles,
+  type Cloth,
+  clothAngles,
+  cloths,
+  interiorColliders,
+  PAINT,
+  POST_R,
+  POSTS_AT,
+  promptTitle,
+  SPOT_R,
+  WALL_R,
+} from "./maloca/logic";
 
 const STATION = "maloca";
 const S = {
   kicker: { es: "Maloca de relatos · Blog", en: "Story maloca · Blog" },
-  read: { es: "E · Leer relato", en: "E · Read story" },
+  read: { es: "E · Leer: ", en: "E · Read: " },
   look: { es: "E · Ver la maloca", en: "E · Look around" },
   close: { es: "E · Cerrar", en: "E · Close" },
   closeAria: { es: "Cerrar", en: "Close" },
@@ -59,15 +74,14 @@ const S = {
   board: { es: "MALOCA DE RELATOS · BLOG", en: "STORY MALOCA · BLOG" },
 } satisfies Record<string, L>;
 
-/** Maloca centre (local), radius, wall height, roof eave and apex heights. */
+/** Maloca centre (local), radius (maloca/logic.ts), wall height, roof eave and apex heights. */
 const MC = { x: 0, z: -7.6 };
-const R = 5.0;
+const R = WALL_R;
 const WALL = 1.25;
 const EAVE = 1.45;
 const APEX = 7.4;
 /** Half angle of the door opening (radians, toward +Z: the plaza and the road). */
 const DOOR_HALF = 0.3;
-const BENCH_R = 3.0;
 
 export const create: CreateAmbient = (baseEnv, hudRoot) => {
   const env = baseEnv as SelvaEnv;
@@ -106,8 +120,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   }
   // Four tall house posts with a square of beams under the roof.
   const posts: Array<[number, number]> = [];
-  for (const a of [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4]) {
-    const [x, z] = ring(a, 2.0);
+  for (const a of POSTS_AT) {
+    const [x, z] = ring(a, POST_R);
     posts.push([x, z]);
     kit.cyl(0.16, 0.2, 5.0, x, 0, z, A.woodDark, 7);
   }
@@ -116,14 +130,12 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
     const b = posts[(i + 1) % 4] as [number, number];
     kit.stick(new THREE.Vector3(a[0], 4.8, a[1]), new THREE.Vector3(b[0], 4.8, b[1]), 0.1, A.wood);
   }
-  // Benches in a ring around the fire, open toward the door.
-  for (let i = 0; i < 10; i++) {
-    const a = ((i + 0.5) / 10) * Math.PI * 2;
-    if (Math.min(a, Math.PI * 2 - a) < 0.45) continue;
+  // Benches in a ring around the fire, open toward the door (inside the aisle: maloca/logic.ts).
+  for (const a of benchAngles()) {
     const [x, z] = ring(a, BENCH_R);
     kit.box(1.35, 0.08, 0.38, x, 0.38, z, A.plank, a);
     for (const k of [-0.5, 0.5]) {
-      const [lx, lz] = ring(a + k * 0.38, BENCH_R);
+      const [lx, lz] = ring(a + (k * 1.15) / BENCH_R, BENCH_R);
       kit.box(0.1, 0.38, 0.32, lx, 0, lz, A.woodDark, a);
     }
   }
@@ -217,25 +229,13 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   env.scene.add(group);
 
   // ------------------------------------------------------------------ world registration
-  // Walkable: the floor inside the wall and the doorway (joined to the plaza).
-  for (let r = 0; r <= R - 0.7; r += 1.1) {
-    const n = Math.max(1, Math.round((2 * Math.PI * r) / 1.1));
-    for (let k = 0; k < n; k++) env.addWalkable(at(f, ...ring((k / n) * Math.PI * 2, r), 0.75));
-  }
+  // Walkable: the whole floor inside the wall (one circle; the wall colliders keep the traveler in) and the
+  // doorway (joined to the plaza).
+  env.addWalkable(at(f, MC.x, MC.z, R));
   for (let r = R - 0.6; r <= R + 1.6; r += 0.6) env.addWalkable(at(f, ...ring(0, r), 1.0));
-  // Solid: the wall ring (not the door), the benches, the house posts, the fire.
-  for (let i = 0; i < 56; i++) {
-    const a = ((i + 0.5) / 56) * Math.PI * 2;
-    if (Math.min(a, Math.PI * 2 - a) < DOOR_HALF + 0.05) continue;
-    env.addCollider(at(f, ...ring(a, R + 0.05), 0.32));
-  }
-  for (let i = 0; i < 10; i++) {
-    const a = ((i + 0.5) / 10) * Math.PI * 2;
-    if (Math.min(a, Math.PI * 2 - a) < 0.45) continue;
-    env.addCollider(at(f, ...ring(a, BENCH_R), 0.45));
-  }
-  for (const [x, z] of posts) env.addCollider(at(f, x, z, 0.3));
-  env.addCollider(at(f, MC.x, MC.z, 0.85));
+  // Solid: the wall ring (not the door), the benches (pegs along each seat), the house posts, the fire. The
+  // aisle between the benches and the wall stays clear all the way round (maloca/logic.ts tests it).
+  for (const c of interiorColliders(DOOR_HALF)) env.addCollider(at(f, MC.x + c.x, MC.z + c.z, c.r));
   const keep = creatures.keepOut(...worldOf(f, MC.x, MC.z), R + 3);
   const cull = stationCull(group, new THREE.Vector3(f.x, f.y, f.z));
 
@@ -315,9 +315,10 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   };
 
   // ------------------------------------------------------------------ frame loop
+  // One spot per cloth on the aisle right in front of it.
   const spots: Spot[] = angles.map((a) => {
-    const [lx, lz] = ring(a, R - 1.25);
-    return { lx, lz, r: 1.0 };
+    const [lx, lz] = ring(a, AISLE_R);
+    return { lx, lz, r: SPOT_R };
   });
   /** With no posts, one spot just inside the door shows the "bare walls" note. */
   if (!list.length) spots.push({ lx: MC.x, lz: MC.z + R - 1.2, r: 1.6 });
@@ -353,7 +354,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
     prompt() {
       if (panel.isOpen()) return inRange ? T(S.close) : null;
       if (near < 0) return null;
-      return T(list.length ? S.read : S.look);
+      const c = list[near];
+      return c ? `${T(S.read)}${promptTitle(c.post.title)}` : T(S.look);
     },
     interact() {
       if (panel.isOpen()) {

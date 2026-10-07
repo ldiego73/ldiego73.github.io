@@ -8,11 +8,15 @@
  *
  * Why a pond: this station sits on the road's dry side (side +1), ~35 u and a 4 u drop away from the river,
  * so the raft floats in its own cocha instead (a flat water disc whose back edge meets the rising forest
- * floor, giving a natural shoreline). Walkable: the gangplank and the raft deck in front of the cabinets, raised
- * decks at the raft's real height (station.ts addDeck); the pond around them is not walkable ground.
+ * floor, giving a natural shoreline). Walkable: a railed boardwalk straight from the plaza onto the raft and the
+ * raft deck in front of the cabinets, raised decks at the raft's real height (station.ts addDeck, one level
+ * step of 0.12 from the plaza); the pond around them is not walkable ground. The roof posts flank the
+ * boardwalk's landing (none on its axis), rope railings and their colliders close the raft's open edges, and
+ * each cabinet is solid with its "E · Jugar · <game>" spot on the deck right in front of it.
  *
- * Draw calls: one vertex-colored mesh (raft, roof, rim, lilies), the pond water, the sign, 4 per cabinet
- * (body, trim, screen, marquee), the marker.
+ * Draw calls: one vertex-colored mesh (raft, boardwalk, rails, reeds, lilies), the roof (one, fadeable while
+ * the traveler is on the raft), the pond water, the sign, 4 per cabinet (body, trim, screen, marquee), the
+ * marker.
  */
 import * as THREE from "three";
 import { createAttract } from "../../../arcade-lobby/attract";
@@ -25,7 +29,7 @@ import { type MergedCabinet, mergeCabinet } from "../../arcade-merge";
 import type { CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { on } from "../../events";
-import { FONT, Kit, rng } from "../../props";
+import { Ease01, FONT, fadeable, Kit, rng } from "../../props";
 import { gradientMap } from "../../toon";
 import type { SelvaEnv } from "../contract";
 import { cabColor, raftGames } from "./arcade/logic";
@@ -34,12 +38,15 @@ import {
   A,
   bake,
   balsaRaft,
+  deck,
   disposeTree,
   drawCarved,
   irapayRoof,
+  railing,
   signBoards,
   stationCull,
   stationMaterial,
+  stilt,
 } from "./embarcadero/amazon";
 import {
   addDeck,
@@ -49,6 +56,7 @@ import {
   lzOf,
   nearestSpot,
   type Spot,
+  segmentCircles,
   stationFrame,
   stationGroup,
 } from "./embarcadero/station";
@@ -63,6 +71,32 @@ const RAFT = { x0: -4.3, x1: 4.3, z0: -12.6, z1: -6.9 };
 const RAFT_TOP = 0.12;
 const WATER = 0.06;
 const CAB_Z = -11.5;
+/** Boardwalk from the plaza (overlapping its rim) to the raft: half width, plaza end, where its rails start. */
+const WALK = { hw: 1.2, z1: -4.5, rail0: -5.3 };
+/** Roof posts: back row across the raft, front row clear of the boardwalk's landing. */
+const ROOF_POSTS: Array<[number, number]> = [
+  ...[RAFT.x0 + 0.2, 0, RAFT.x1 - 0.2].map((x): [number, number] => [x, RAFT.z0 + 0.25]),
+  ...[RAFT.x0 + 0.2, -1.55, 1.55, RAFT.x1 - 0.2].map((x): [number, number] => [x, RAFT.z1 - 0.25]),
+];
+/** Rails on the raft's open edges (local segments): both sides of the front, beside the boardwalk, and the ends. */
+const RAFT_RAILS: Array<[[number, number], [number, number]]> = [
+  [
+    [RAFT.x0 + 0.08, RAFT.z1 - 0.08],
+    [-WALK.hw - 0.05, RAFT.z1 - 0.08],
+  ],
+  [
+    [WALK.hw + 0.05, RAFT.z1 - 0.08],
+    [RAFT.x1 - 0.08, RAFT.z1 - 0.08],
+  ],
+  [
+    [RAFT.x0 + 0.08, RAFT.z1 - 0.08],
+    [RAFT.x0 + 0.08, RAFT.z0 + 0.6],
+  ],
+  [
+    [RAFT.x1 - 0.08, RAFT.z1 - 0.08],
+    [RAFT.x1 - 0.08, RAFT.z0 + 0.6],
+  ],
+];
 
 export const create: CreateAmbient = (baseEnv) => {
   const env = baseEnv as SelvaEnv;
@@ -76,13 +110,12 @@ export const create: CreateAmbient = (baseEnv) => {
   const group = stationGroup(f, "selva-arcade");
   const mat = stationMaterial();
   const kit = new Kit(env);
-  // Mud rim round the pond's front half (where it meets the flat plaza) and reeds.
+  // Reed clumps round the pond's front half (where it meets the flat plaza); none where the boardwalk runs.
   for (let i = 0; i < 36; i++) {
     const a = (i / 36) * Math.PI * 2;
     const x = POND.x + Math.sin(a) * POND.r;
     const z = POND.z + Math.cos(a) * POND.r;
-    if (ground(x, z) > WATER + 0.25) continue;
-    kit.box(1.25, 0.16, 0.7, x, Math.min(0, ground(x, z)) - 0.06, z, i % 2 ? A.mud : "#5a4630", a + Math.PI / 2);
+    if (ground(x, z) > WATER + 0.25 || Math.abs(x) < WALK.hw + 0.8) continue;
     if (i % 3 === 0)
       for (let k = 0; k < 4; k++)
         kit.cyl(
@@ -117,13 +150,28 @@ export const create: CreateAmbient = (baseEnv) => {
     [5.4, -12.6, 1.2],
   ] as const)
     kit.box(w, 0.01, 0.08, x, WATER + 0.005, z, "#a89272", rand() * 0.4);
-  // The raft, its deck planks and the gangplank to the plaza.
+  // The raft and the boardwalk from the plaza: planks across, joists, short piles into the pond, rope rails.
   balsaRaft(kit, rand, { ...RAFT, y: RAFT_TOP });
-  kit.box(1.2, 0.06, 1.9, 0, Math.max(0, ground(0, -6.0)) + 0.06, -6.0, A.plank, 0, -0.04);
-  // Roof posts and the palm roof over the raft (ridge along x).
-  for (const x of [RAFT.x0 + 0.2, 0, RAFT.x1 - 0.2])
-    for (const z of [RAFT.z0 + 0.25, RAFT.z1 - 0.25]) kit.cyl(0.07, 0.08, 2.75, x, RAFT_TOP, z, A.wood, 6);
-  irapayRoof(kit, rand, {
+  deck(kit, rand, {
+    x0: -WALK.hw,
+    x1: WALK.hw,
+    z0: RAFT.z1 - 0.15,
+    z1: WALK.z1,
+    y: RAFT_TOP,
+    along: "x",
+    joists: true,
+  });
+  for (const x of [-WALK.hw + 0.08, WALK.hw - 0.08]) {
+    for (const z of [WALK.rail0, (WALK.rail0 + RAFT.z1) / 2]) stilt(kit, x, z, -0.9, RAFT_TOP - 0.08, 0.07);
+    railing(kit, [x, WALK.rail0], [x, RAFT.z1 + 0.05], RAFT_TOP);
+  }
+  // Rope rails round the raft's open front and sides (the boardwalk lands in the gap).
+  for (const [a, b] of RAFT_RAILS) railing(kit, a, b, RAFT_TOP);
+  // Roof posts and the palm roof over the raft (ridge along x); the front row flanks the boardwalk.
+  for (const [x, z] of ROOF_POSTS) kit.cyl(0.07, 0.08, 2.75, x, RAFT_TOP, z, A.wood, 6);
+  // The palm roof is its own mesh (fades while the traveler is on the raft, so the camera sees the cabinets).
+  const roofKit = new Kit(env);
+  irapayRoof(roofKit, rand, {
     w: RAFT.x1 - RAFT.x0,
     d: RAFT.z1 - RAFT.z0,
     y: RAFT_TOP + 2.7,
@@ -143,7 +191,13 @@ export const create: CreateAmbient = (baseEnv) => {
     kit.cyl(0.07, 0.08, 1.8, x, -0.6, z, A.woodDark, 5);
   // Station board on two posts at the plaza edge, right of the gangplank.
   for (const dx of [-1.1, 1.1]) kit.cyl(0.06, 0.07, 1.55, 3.6 + dx, ground(3.6 + dx, -4.4), -4.4, A.woodDark, 5);
-  group.add(bake(kit, "selva-arcade", mat));
+  const base = bake(kit, "selva-arcade", mat);
+  group.add(base);
+  const roofMat = stationMaterial();
+  const roof = bake(roofKit, "selva-arcade-roof", roofMat);
+  group.add(roof);
+  const roofFade = fadeable(roof, env);
+  const roofEase = new Ease01(0.45, env.reducedMotion);
 
   // Pond water: an irregular disc, a hair above the flat ground (polygon offset wins the depth tie).
   const pondGeo = new THREE.CircleGeometry(POND.r, 40);
@@ -225,10 +279,13 @@ export const create: CreateAmbient = (baseEnv) => {
   // than its plank so the traveler can step round the roof post standing at its raft end.
   const unDeck = [
     addDeck(f, RAFT.x0, CAB_Z + 0.4, RAFT.x1, RAFT.z1, RAFT_TOP, "arcade-raft"),
-    addDeck(f, -0.85, RAFT.z1 - 0.2, 0.85, -4.8, RAFT_TOP, "arcade-gangplank"),
+    addDeck(f, -WALK.hw, RAFT.z1 - 0.2, WALK.hw, WALK.z1, RAFT_TOP, "arcade-boardwalk"),
   ];
   for (const c of cabs) env.addCollider(at(f, c.group.position.x, c.group.position.z, 0.5));
-  for (const x of [RAFT.x0 + 0.2, 0, RAFT.x1 - 0.2]) env.addCollider(at(f, x, RAFT.z1 - 0.25, 0.15));
+  for (const [x, z] of ROOF_POSTS) if (z > CAB_Z) env.addCollider(at(f, x, z, 0.15));
+  for (const [a, b] of RAFT_RAILS) for (const c of segmentCircles(f, a, b, 0.2)) env.addCollider(c);
+  for (const x of [-WALK.hw - 0.05, WALK.hw + 0.05])
+    for (const c of segmentCircles(f, [x, WALK.rail0], [x, RAFT.z1 - 0.1], 0.15)) env.addCollider(c);
   for (const dx of [-1.1, 1.1]) env.addCollider(at(f, 3.6 + dx, -4.4, 0.18));
   const keep = creatures.keepOut(f.x, f.z, 13);
   const cull = stationCull(group, new THREE.Vector3(f.x, f.y, f.z));
@@ -275,9 +332,14 @@ export const create: CreateAmbient = (baseEnv) => {
           for (const a of attracts) a.draw(env.reducedMotion ? 0 : t);
         }
       }
+      // On the raft (or its landing end of the boardwalk) the roof fades so the camera sees in.
+      const aboard = lz < RAFT.z1 + 0.6 && Math.abs(lx) < RAFT.x1 + 0.5;
+      roofFade.set(Math.max(0.12, roofEase.step(aboard ? 0 : 1, dt)));
       if (!env.reducedMotion) {
-        // The raft rocks gently on the pond.
-        group.children[0]?.position.set(0, Math.sin(t * 0.8) * 0.012, 0);
+        // The raft rocks gently on the pond (with its roof).
+        const bob = Math.sin(t * 0.8) * 0.012;
+        base.position.set(0, bob, 0);
+        roof.position.set(0, bob, 0);
       }
     },
     prompt() {
@@ -308,8 +370,10 @@ export const create: CreateAmbient = (baseEnv) => {
       for (const m of merged) m.dispose();
       creatures.removeKeepOut(keep);
       for (const u of unDeck) u();
+      roofFade.dispose();
       disposeTree(group);
       mat.dispose();
+      roofMat.dispose();
       pondMat.dispose();
     },
   };

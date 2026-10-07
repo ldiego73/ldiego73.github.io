@@ -20,7 +20,9 @@ import {
   platform,
   ROOMS,
   roomAt,
+  SEATS,
   STEPS,
+  seatWorld,
   toLocal,
   toWorld,
   WALK,
@@ -251,5 +253,53 @@ describe("furniture", () => {
         f.box.x1 > DOOR.x - DOOR.w / 2 - 0.5 && f.box.x0 < DOOR.x + DOOR.w / 2 + 0.5 && f.box.z1 > HD - 1.5;
       expect(doorway).toBe(false);
     }
+  });
+});
+
+describe("seats", () => {
+  const BODY_R = 0.42;
+  const clear = (x: number, z: number) =>
+    colliders().every((c) =>
+      c.kind === "circle"
+        ? Math.hypot(x - c.x, z - c.z) >= c.r + BODY_R
+        : x <= c.x0 - BODY_R || x >= c.x1 + BODY_R || z <= c.z0 - BODY_R || z >= c.z1 + BODY_R,
+    );
+  test("stand-up points are inside the house, outside every collider", () => {
+    for (const s of SEATS) {
+      expect(isInsideLocal(s.stand.x, s.stand.z)).toBe(true);
+      const w = toWorld(s.stand.x, s.stand.z);
+      expect(clear(w.x, w.z)).toBe(true);
+    }
+  });
+  test("each seat sits on its furniture and in its room", () => {
+    const on = (id: string, x: number, z: number) => {
+      const b = FURNITURE.find((f) => f.id === id)!.box;
+      return x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+    };
+    const sala = SEATS.find((s) => s.room === "sala")!;
+    const desk = SEATS.find((s) => s.room === "estudio")!;
+    expect(on("banca", sala.x, sala.z)).toBe(true);
+    expect(on("desk", desk.x, desk.z)).toBe(true);
+    for (const s of SEATS) {
+      const a = ROOMS.find((r) => r.id === s.room)!.area;
+      expect(s.x > a.x0 && s.x < a.x1 && s.z > a.z0 && s.z < a.z1).toBe(true);
+    }
+  });
+  test("the poyo seat faces the wall khipu side, the desk seat faces the laptop (back wall)", () => {
+    const sala = seatWorld(SEATS.find((s) => s.room === "sala")!, 0);
+    const desk = seatWorld(SEATS.find((s) => s.room === "estudio")!, 0);
+    // World facing → local: the khipu hangs on the left wall (−lx) ahead of the poyo (+lz).
+    const dir = (yaw: number) => {
+      const w = toWorld(0, 0);
+      const p = { x: w.x + Math.sin(yaw), z: w.z + Math.cos(yaw) };
+      return toLocal(p.x, p.z);
+    };
+    const sd = dir(sala.yaw);
+    expect(sd.z).toBeGreaterThan(0.7);
+    expect(sd.x).toBeLessThan(-0.3);
+    const dd = dir(desk.yaw);
+    expect(dd.z).toBeCloseTo(-1);
+    expect(sala.y).toBeCloseTo(0.59);
+    expect(sala.id).toBe("wasi:sala");
   });
 });

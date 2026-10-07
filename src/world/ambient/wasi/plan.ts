@@ -118,6 +118,65 @@ export const FURNITURE: Furniture[] = [
   { id: "qipi", box: box(4.5, -1.2, INNER.x1, -0.6) },
 ];
 
+/**
+ * Seats (../../seat.ts): the left cushion of the sala's poyo, turned a little toward the wall khipu, and the
+ * estudio chair at the laptop. Local hips (x, z), seat surface `h` above the floor (the cushion / chair-pad tops
+ * built in ./interior.ts), local facing `yaw` (0 = +lz, toward the front wall; world yaw = yaw + WASI.yaw), the
+ * camera's `view` and a stand-up point outside every collider (the sala's also clears a flora trunk collider
+ * that flora/index.ts leaves at local (−4.29, 1.9), in front of the poyo, after clear-ground.ts hid its tree). The runtime ignores colliders while seated, so the banca and desk
+ * boxes do not block the placement.
+ */
+export interface SeatSpot {
+  room: "sala" | "estudio";
+  x: number;
+  z: number;
+  h: number;
+  yaw: number;
+  /** Local camera facing: the poyo is seen from the open middle of the house looking at the khipu wall, the
+   * desk over the right shoulder (from behind, the camera would sit beyond the partition). */
+  view: number;
+  pose: "bench" | "desk";
+  stand: { x: number; z: number };
+}
+export const SEATS: SeatSpot[] = [
+  {
+    room: "sala",
+    x: -4.28,
+    z: 0.66,
+    h: 0.59,
+    yaw: -0.5,
+    view: -Math.PI / 2,
+    pose: "bench",
+    stand: { x: -3.3, z: 1.5 },
+  },
+  {
+    room: "estudio",
+    x: -3.1,
+    z: -3.15,
+    h: 0.56,
+    yaw: Math.PI,
+    view: -Math.PI * 0.75,
+    pose: "desk",
+    stand: { x: -3.1, z: -2.4 },
+  },
+];
+
+/** A seat in world space (id "wasi:<room>") on the plinth floor at world y `floor`. */
+export function seatWorld(s: SeatSpot, floor: number) {
+  const p = toWorld(s.x, s.z);
+  return {
+    id: `wasi:${s.room}`,
+    room: s.room,
+    x: p.x,
+    y: floor + s.h,
+    z: p.z,
+    yaw: s.yaw + WASI.yaw,
+    view: s.view + WASI.yaw,
+    pose: s.pose,
+    stand: toWorld(s.stand.x, s.stand.z),
+  };
+}
+
 export interface Room {
   id: RoomId;
   /** Where the interaction is centred (local) and how close the traveler must be. */

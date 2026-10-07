@@ -51,3 +51,21 @@ export function arrivalFrom(search: string): { x: number; z: number; yaw: number
   const from = new URLSearchParams(search).get("from");
   return from && from in ARRIVALS ? ARRIVALS[from as ArrivalFrom] : null;
 }
+
+/**
+ * True near what the trailhead builds (the Wasi with its porch and walk, the Antisuyu branch and the punku).
+ * Flora placement skips these spots so no tree trunk (or its collider) ends up inside the house or on the path.
+ */
+export function nearTrailheadBuilt(x: number, z: number, pad = 0): boolean {
+  if (Math.hypot(x - WASI.x, z - WASI.z) < Math.hypot(WASI.halfW, WASI.halfD) + 2.5 + pad) return true;
+  if (Math.hypot(x - PUNKU.x, z - PUNKU.z) < 4.5 + pad) return true;
+  for (let i = 0; i < SELVA_BRANCH.length - 1; i++) {
+    const [ax, az] = SELVA_BRANCH[i] as readonly [number, number];
+    const [bx, bz] = SELVA_BRANCH[i + 1] as readonly [number, number];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const u = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+    if (Math.hypot(x - ax - dx * u, z - az - dz * u) < SELVA_BRANCH_HALF_WIDTH + 0.6 + pad) return true;
+  }
+  return false;
+}

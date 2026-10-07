@@ -4,23 +4,22 @@
  * plank pier joins the stairs to the station's flat apron. The pier, the stair treads and the jetty are raised
  * decks at their real heights (../../decks.ts via station.ts addDeck), so the traveler walks down to the
  * jetty. "E · Subir a la canoa" on the jetty boards it: a short step into the canoe (`world:mount {riding,
- * vehicle: "canoe"}` + the runtime's ride hook, ../ride.ts), and the canoe paddles itself down the river along
- * `layout.canoe.path` at an easy pace; forward (W / joystick toward the bow) paddles faster, back (S) slower,
- * never reversing. At the far landing the traveler steps out onto that jetty (the ride pose's height is the
- * jetty's, so the runtime lands them on its deck), the mount ends and `selva:ride:canoe` is stamped (once);
- * the stairs lead back up. The trip works both ways. There is no getting off mid-river: E and Esc do nothing.
+ * vehicle: "canoe"}` + the runtime's ride hook, ../ride.ts). The traveler controls thrust and turning
+ * across the whole river with inertia and a gentle downstream current. Forward/back input projected onto
+ * the bow accelerates/brakes/reverses; lateral input turns, including at rest (keyboard, touch, gamepad).
+ * E or Esc near either dock while slow steps out onto its jetty. Only a different landing earns the stamp.
  *
  * One canoe: it stays where it was left, and when the traveler nears the other landing while the canoe is far
  * out of sight (> 70 u), the boatman brings it over, so whichever landing you reach has it waiting.
  * The canoe is a creatures body ("canoe"): solid while moored, not while ridden (it is part of the traveler).
  *
  * Draw calls: the two piers (one vertex-colored mesh each), the hull and the paddle (one each), all on one
- * shared vertex-toon material. Pure logic (route, speed, docks, trip states): ./canoe/logic.ts.
+ * shared vertex-toon material. Pure logic (steering, water clamping, docks, trip states): ./canoe/logic.ts.
  */
 import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
 import type { CreateAmbient, L } from "../../contract";
-import { creatures } from "../../creatures";
+import { type Body, creatures } from "../../creatures";
 import { emit, on } from "../../events";
 import { Kit, rng } from "../../props";
 import { CANOE_STRETCH, type SelvaEnv } from "../contract";
@@ -30,14 +29,17 @@ import {
   angleLerp,
   boardPath,
   buildRoute,
+  clampBoat,
   type DockGeo,
   dockGeo,
+  dockingEnd,
+  earnsRideStamp,
   idleEnd,
   type P3,
-  paddleSpeed,
   pierPlan,
   routeAt,
   standPoint,
+  stepBoat,
   stepTrip,
   type Trip,
   yawOf,
@@ -57,6 +59,7 @@ import {
 } from "./embarcadero/amazon";
 import { addDeck, type Frame } from "./embarcadero/station";
 
+const T_LAND: L = { es: "E · Bajar aquí", en: "E · Get off here" };
 const T_BOARD: L = { es: "E · Subir a la canoa", en: "E · Board the canoe" };
 const STAMP = "selva:ride:canoe";
 /** Prompt radius around the boarding spot on the jetty. */
@@ -165,8 +168,14 @@ export const create: CreateAmbient = (baseEnv) => {
   const tmp = { x: 0, z: 0, tx: 1, tz: 0 };
   const mooredPose = (end: 0 | 1) => {
     const p = routeAt(route, end === 0 ? 0 : route.length, tmp);
-    return { x: p.x, z: p.z, yaw: end === 0 ? yawOf(p.tx, p.tz) : yawOf(-p.tx, -p.tz) };
+    // Coarse heightfields can raise the bank under a hull tip: settle just off the same jetty.
+    const safe = clampBoat(L, p.x, p.z, p);
+    return { ...safe, yaw: end === 0 ? yawOf(p.tx, p.tz) : yawOf(-p.tx, -p.tz) };
   };
+  const nearbyBodies: Body[] = [];
+  let boarded: 0 | 1 = 0;
+  let dock: 0 | 1 | null = null;
+  let paddling = false;
   let at: 0 | 1 = 0;
   let trip: Trip = { kind: "moored", end: 0 };
   let cx = 0;
@@ -212,6 +221,7 @@ export const create: CreateAmbient = (baseEnv) => {
   const feet = new THREE.Vector3();
 
   const board = () => {
+    boarded = at;
     trip = { kind: "boarding", end: at, u: 0 };
     walk = walkFor(at, [feet.x, feet.y, feet.z]);
     const d = docks[at];
@@ -231,7 +241,7 @@ export const create: CreateAmbient = (baseEnv) => {
     ride.pose.yaw = Math.atan2(-d.dir.x, -d.dir.z);
     ride.active = false;
     emit("world:mount", { riding: false, speedMul: 1, seatHeight: 0 });
-    if (!stamped && entry) {
+    if (!stamped && entry && earnsRideStamp(boarded, end)) {
       stamped = true;
       emit("world:stamp", { id: entry.id, kind: entry.kind, label: entry.label });
     }
@@ -255,45 +265,39 @@ export const create: CreateAmbient = (baseEnv) => {
       dt = Math.min(dt, 0.05);
       feet.copy(avatar);
       const prev = trip;
+      paddling = false;
       if (trip.kind === "riding") {
-        const p = routeAt(route, trip.s, tmp);
-        const dirX = p.tx * trip.dir;
-        const dirZ = p.tz * trip.dir;
-        const want = paddleSpeed({
-          intentX: ride.intent.x,
-          intentZ: ride.intent.z,
-          running: ride.intent.running,
-          dirX,
-          dirZ,
-          sinceStart: trip.dir === 1 ? trip.s : route.length - trip.s,
-          toGo: trip.dir === 1 ? route.length - trip.s : trip.s,
-        });
-        trip = stepTrip(trip, dt, route.length, want);
-      } else trip = stepTrip(trip, dt, route.length);
+        const intent = modal > 0 || game ? { x: 0, z: 0, running: false } : ride.intent;
+        creatures.near(cx, cz, 8, nearbyBodies, body);
+        trip = { kind: "riding", boat: stepBoat(L, trip.boat, intent, dt, nearbyBodies) };
+        paddling = Math.hypot(intent.x, intent.z) > 0.08;
+      } else trip = stepTrip(trip, dt, { x: cx, z: cz, yaw: cyaw, vx: 0, vz: 0 });
 
-      if (prev.kind === "riding" && trip.kind === "landing") {
+      if (prev.kind === "landing" && trip.kind === "moored") {
         placeMoored(trip.end);
-        walk = walkFor(trip.end);
+        land(trip.end);
       }
-      if (prev.kind === "landing" && trip.kind === "moored") land(trip.end);
 
       // Canoe and rider poses per state.
       if (trip.kind === "riding") {
-        const p = routeAt(route, trip.s, tmp);
-        cx = p.x;
-        cz = p.z;
-        const head = trip.dir === 1 ? yawOf(p.tx, p.tz) : yawOf(-p.tx, -p.tz);
-        // Turning around at the start of a return trip takes a few seconds, not a frame.
-        cyaw = angleLerp(cyaw, head, Math.min(1, dt * 1.4));
+        cx = trip.boat.x;
+        cz = trip.boat.z;
+        cyaw = trip.boat.yaw;
         const [sx, sz] = seatOf(cx, cz, cyaw);
         ride.pose.x = sx;
         ride.pose.y = level - FEET_BELOW;
         ride.pose.z = sz;
         ride.pose.yaw = cyaw;
-        stroke += dt * (1.4 + trip.speed * 0.45);
+        if (paddling) stroke += dt * (1.4 + Math.hypot(ride.intent.x, ride.intent.z) * 1.4);
       } else if (trip.kind === "boarding") followWalk(trip.u, false);
-      else if (trip.kind === "landing") followWalk(trip.u, true);
-      else {
+      else if (trip.kind === "landing") {
+        followWalk(trip.u, true);
+        const m = mooredPose(trip.end);
+        const k = Math.min(1, dt * 5);
+        cx += (m.x - cx) * k;
+        cz += (m.z - cz) * k;
+        cyaw = angleLerp(cyaw, m.yaw, k);
+      } else {
         // Moored: maybe the boatman brings the canoe to the landing the traveler is heading for.
         const d0 = Math.hypot(avatar.x - docks[0].head.x, avatar.z - docks[0].head.z);
         const d1 = Math.hypot(avatar.x - docks[1].head.x, avatar.z - docks[1].head.z);
@@ -310,7 +314,7 @@ export const create: CreateAmbient = (baseEnv) => {
       canoe.rotation.set(0, cyaw, 0);
       if (!env.reducedMotion) canoe.rotation.z = Math.sin(t * 0.9) * 0.025;
       // Paddle: lies across the thwarts when idle; alternate-side strokes while riding.
-      if (trip.kind === "riding") {
+      if (trip.kind === "riding" && paddling) {
         const side = Math.sin(stroke * 0.5) >= 0 ? 1 : -1;
         const sw = Math.sin(stroke * Math.PI);
         paddle.position.set(side * 0.18, HULL.h + 0.55, -RIDER_AFT + 0.35);
@@ -323,6 +327,7 @@ export const create: CreateAmbient = (baseEnv) => {
       body.z = cz;
       body.solid = trip.kind === "moored";
 
+      dock = trip.kind === "riding" ? dockingEnd(trip.boat, docks) : null;
       near = -1;
       if (trip.kind === "moored") {
         // On the jetty (not on the bank above it).
@@ -337,17 +342,35 @@ export const create: CreateAmbient = (baseEnv) => {
       }
     },
     prompt() {
-      if (modal > 0 || game || near < 0) return null;
-      return T_BOARD[lang];
+      if (modal > 0 || game) return null;
+      if (trip.kind === "riding") return dock !== null ? T_LAND[lang] : null;
+      return near >= 0 ? T_BOARD[lang] : null;
     },
     interact() {
-      if (trip.kind !== "moored" || near < 0 || modal > 0 || game) return false;
+      if (modal > 0 || game) return false;
+      if (trip.kind === "riding") {
+        const end = dockingEnd(trip.boat, docks);
+        if (end === null) return false;
+        // Walk from the actual seat to the jetty; the hull settles alongside it during the hop.
+        const [sx, sz] = seatOf(cx, cz, cyaw);
+        walk = boardPath(stands[end], [sx, level - FEET_BELOW, sz]);
+        trip = { kind: "landing", end, u: 0 };
+        dock = null;
+        return true;
+      }
+      if (trip.kind !== "moored" || near < 0) return false;
       board();
       return true;
     },
     escape() {
-      // No getting off mid-river; Esc stays with whatever panel wants it.
-      return false;
+      if (trip.kind !== "riding" || modal > 0 || game) return false;
+      const end = dockingEnd(trip.boat, docks);
+      if (end === null) return false;
+      const [sx, sz] = seatOf(cx, cz, cyaw);
+      walk = boardPath(stands[end], [sx, level - FEET_BELOW, sz]);
+      trip = { kind: "landing", end, u: 0 };
+      dock = null;
+      return true;
     },
     dispose() {
       for (const off of offs) off();

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Avatar, CreateAvatar, WorldEnv } from "./contract";
-import { on } from "./events";
+import { on, type SitPose } from "./events";
 import { C, canvasTex, DYE, toonMapped } from "./props";
 
 /**
@@ -9,6 +9,7 @@ import { C, canvasTex, DYE, toonMapped } from "./props";
  * Origin at the feet, facing +Z (core sets group.rotation.y = yaw). About 1.6 units tall.
  * All motion is procedural: idle breathing + look-around, walk/run cycles, jump, landing squash, dust.
  * Riding (`world:mount`): legs straddle the saddle, hands on the reins, no walk cycle, a light bob with speed.
+ * Seated (`world:sit`, ./seat.ts): knees bent, hands on the knees ("bench") or typing on a keyboard ("desk").
  */
 
 const SKIN = "#b9764a";
@@ -109,16 +110,25 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
   group.add(rig);
 
   // ---- Legs (pivot at hip)
-  const legGeo = g(new THREE.CapsuleGeometry(0.085, 0.3, 3, 8));
+  // Thigh + shin (knee pivot, straight unless seated): the two capsules overlap into one leg while walking.
+  const thighGeo = g(new THREE.CapsuleGeometry(0.085, 0.12, 3, 8));
+  const shinGeo = g(new THREE.CapsuleGeometry(0.085, 0.07, 3, 8));
   const bootGeo = g(new THREE.BoxGeometry(0.15, 0.11, 0.24));
+  const cuffGeo = g(new THREE.CylinderGeometry(0.09, 0.09, 0.05, 8));
+  const KNEE = 0.25;
+  const knees: THREE.Group[] = [];
   const makeLeg = (side: number) => {
     const pivot = new THREE.Group();
     pivot.position.set(0.105 * side, 0.56, 0);
-    pivot.add(mesh(legGeo, toon(PANTS), 0, -0.24, 0));
-    const boot = mesh(bootGeo, toon(BOOT), 0, -0.5, 0.035);
-    pivot.add(boot);
+    pivot.add(mesh(thighGeo, toon(PANTS), 0, -0.145, 0));
+    const knee = new THREE.Group();
+    knee.position.y = -KNEE;
+    knee.add(mesh(shinGeo, toon(PANTS), 0, -0.12, 0));
+    knee.add(mesh(bootGeo, toon(BOOT), 0, -0.5 + KNEE, 0.035));
     // Sandal strap/sock cuff in cotton.
-    pivot.add(mesh(g(new THREE.CylinderGeometry(0.09, 0.09, 0.05, 8)), toon(C.cotton), 0, -0.42, 0));
+    knee.add(mesh(cuffGeo, toon(C.cotton), 0, -0.42 + KNEE, 0));
+    pivot.add(knee);
+    knees.push(knee);
     rig.add(pivot);
     return pivot;
   };
@@ -300,6 +310,15 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
   const offMount = on("world:mount", (d) => {
     riding = !!d?.riding;
   });
+  // Seated (`world:sit`, ./seat.ts): knees bent over the seat edge; "bench" hands on the knees, "desk" hands
+  // forward on the keyboard with a small typing motion. The runtime pins the feet at the seat (seat.ts SIT_HIP).
+  let seated = false;
+  let sitPose: SitPose = "bench";
+  let sitW = 0;
+  const offSit = on("world:sit", (d) => {
+    seated = !!d?.seated;
+    if (seated) sitPose = d.pose === "desk" ? "desk" : "bench";
+  });
 
   const avatar: Avatar = {
     group,
@@ -386,6 +405,48 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
         legR.rotation.z = 0;
       }
 
+      sitW = damp(sitW, seated ? 1 : 0, 10, dt);
+      if (sitW > 0.001) {
+        const k = sitW;
+        const mix = (a: number, b: number) => a + (b - a) * k;
+        const desk = sitPose === "desk";
+        // Thighs level over the seat, shins hanging (the chunky traveler's boots dangle a little: cute).
+        legL.rotation.x = mix(legL.rotation.x, -1.5);
+        legR.rotation.x = mix(legR.rotation.x, -1.5);
+        legL.rotation.z = mix(legL.rotation.z, 0.06);
+        legR.rotation.z = mix(legR.rotation.z, -0.06);
+        const swing = rm || desk ? 0 : Math.sin(s.t * 1.7) * 0.12;
+        knees[0]!.rotation.x = (1.45 + swing) * k;
+        knees[1]!.rotation.x = (1.45 - swing) * k;
+        rig.position.y = mix(rig.position.y, 0);
+        rig.scale.set(mix(rig.scale.x, 1), mix(rig.scale.y, 1), mix(rig.scale.z, 1));
+        torso.rotation.y *= 1 - k;
+        torso.rotation.z *= 1 - k;
+        if (desk) {
+          // Hands on the keyboard; fingers tap in turn (no tapping with reduced motion).
+          const tap = rm ? 0 : Math.max(0, Math.sin(s.t * 13)) * 0.07;
+          const tap2 = rm ? 0 : Math.max(0, Math.sin(s.t * 13 + 2.2)) * 0.07;
+          torso.rotation.x = mix(torso.rotation.x, 0.16);
+          armL.rotation.x = mix(armL.rotation.x, -1.22 - tap);
+          armR.rotation.x = mix(armR.rotation.x, -1.22 - tap2);
+          armL.rotation.z = mix(armL.rotation.z, -0.3);
+          armR.rotation.z = mix(armR.rotation.z, 0.3);
+          head.rotation.x = mix(head.rotation.x, 0.2);
+          head.rotation.y = mix(head.rotation.y, 0);
+        } else {
+          torso.rotation.x = mix(torso.rotation.x, 0.1);
+          armL.rotation.x = mix(armL.rotation.x, -0.78);
+          armR.rotation.x = mix(armR.rotation.x, -0.78);
+          armL.rotation.z = mix(armL.rotation.z, -0.2);
+          armR.rotation.z = mix(armR.rotation.z, 0.2);
+        }
+      } else {
+        knees[0]!.rotation.x = 0;
+        knees[1]!.rotation.x = 0;
+      }
+      // The pack comes off while seated (it would sink into a backrest).
+      pack.visible = sitW < 0.5;
+
       // Dust: footfalls while running, and a puff on landing.
       if (s.grounded && onFoot && runW > 0.3 && Math.sign(sw) !== Math.sign(lastSin)) puff(2, 0.6);
       if (s.grounded && !wasGrounded && onFoot) {
@@ -408,6 +469,7 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
     },
     dispose() {
       offMount();
+      offSit();
       for (const p of dust) p.m.removeFromParent();
       for (const x of geos) x.dispose();
       ponchoTex.dispose();

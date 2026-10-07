@@ -7,7 +7,8 @@
  * night mist and daytime light shafts) and `env.reducedMotion` (stills water, drift, wind and mist).
  * What it writes to the layout at build time: circle colliders for the trunks near the road, the plazas and
  * the canopy walkway (`layout.addCollider`). It adds no walkables: the walkway deck is already walkable through
- * `layout.groundAt`, and the platforms around the walkway ceibas are visual only.
+ * `layout.groundAt`, and the plank rings around the walkway ceibas are registered as decks (with their rim
+ * colliders) by ambient/canopy-platforms.ts from the same pure geometry (scenery/platforms.ts).
  * Draw-call notes are in the module doc blocks of ./scenery/*.
  */
 import type * as THREE from "three";
@@ -50,7 +51,7 @@ export function createSelvaScenery(layout: SelvaLayout, toon: ToonCache, quality
   const forest = createForest(plan, toon, { quality, phone, reducedMotion: false });
   group.add(...forest.objects);
 
-  const walkway = buildWalkway(layout, toon, plan);
+  const walkway = buildWalkway(layout, toon);
   group.add(...walkway.objects);
 
   const carpet = buildCarpet(layout, toon, quality);

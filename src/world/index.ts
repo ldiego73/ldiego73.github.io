@@ -20,7 +20,7 @@
  * (P is reserved for the passport). Gamepads: see input.ts (B = Esc, Y = map, Start = help, Select = text).
  * Events handled here: `world:modal {open}` (counter; freezes walking while > 0), `world:mount` (speed
  * multiplier + seat height), `world:teleport {to}` (fade + move to a station's plaza), `world:textmode`,
- * `world:map`. The auto quality governor (quality.ts) emits `world:quality {auto: true}`.
+ * `world:map`, `world:sit` (./seat.ts: pin the traveler to a seat; movement, jump, Esc or a spare E stand up). The auto quality governor (quality.ts) emits `world:quality {auto: true}`.
  *
  * Bodies (creatures.ts): the registry is cleared before ambients are built (they register at create time)
  * and after they are disposed. Core registers the traveler (kind "traveler") and, after each move, pushes
@@ -70,6 +70,7 @@ import { setWorldDate } from "./calendar";
 import { createDetailCull } from "./detail-cull";
 import { createClimbTracker, summarize } from "./journey";
 import { createJourneyDialog } from "./journey-card";
+import { createStandLatch, type Seat, SIT_SQUEEZE, seatedFeetY, seatFrom } from "./seat";
 import { createTextMode, focusStep, type TextMode } from "./textmode";
 import { createTrailMeshes } from "./trail";
 import { announceTraveler, loadTraveler, saveTraveler } from "./traveler";
@@ -446,7 +447,9 @@ async function start(
         if (a.prompt && !safe(() => a.prompt?.() ?? null, null)) continue;
         if (safe(() => a.interact?.() ?? false, false)) return;
       }
-      content.interact();
+      // Seated and nothing else wants E: stand up (seat.ts).
+      if (seat) standUp();
+      else content.interact();
     };
 
     // ---------------------------------------------------------------- input + controls
@@ -705,6 +708,7 @@ async function start(
     let tourStall = 0;
     const tourTarget = new THREE.Vector3();
     function setTour(on: boolean) {
+      if (on) standUp();
       touring = on;
       chrome.setTour(on);
       if (!on) return;
@@ -785,7 +789,10 @@ async function start(
       // Esc keeps routing while another agent's panel is open (it closes through its escape()).
       if (e.key === "Escape") {
         if (ambients.some((a) => safe(() => a.escape?.() ?? false, false)) || content.escape()) e.preventDefault();
-        else if (touring) setTour(false);
+        else if (seat) {
+          standUp();
+          e.preventDefault();
+        } else if (touring) setTour(false);
         return;
       }
       // H still closes the help card (itself a world:modal) while it is open.
@@ -866,6 +873,21 @@ async function start(
         riding = !!d?.riding;
         speedMul = riding && Number.isFinite(d.speedMul) && d.speedMul > 0 ? d.speedMul : 1;
         seatHeight = riding && Number.isFinite(d.seatHeight) ? Math.max(0, d.seatHeight) : 0;
+      }),
+    );
+
+    // ---------------------------------------------------------------- sitting (world:sit, seat.ts)
+    /** The seat the traveler sits on (null: on foot). The `world:sit` listener is below, after snapWalkable. */
+    let seat: Seat | null = null;
+    const sitFrom = { x: 0, z: 0 };
+    const standLatch = createStandLatch();
+    /** Stand up (the world:sit listener puts the traveler back on walkable ground). No-op on foot. */
+    const standUp = () => {
+      if (seat) emit("world:sit", { seated: false });
+    };
+    cleanups.push(
+      on("world:mount", (d) => {
+        if (d?.riding) standUp();
       }),
     );
 
@@ -971,6 +993,7 @@ async function start(
         if (phase !== "play" || gameOpen || !d?.to) return;
         const target = travelTarget(d.to);
         if (!target) return;
+        standUp();
         setTour(false);
         const move = () => {
           pos.set(target.x, groundAt(target.x, target.z), target.z);
@@ -994,6 +1017,45 @@ async function start(
           move();
           fadeTimer = window.setTimeout(() => fade.classList.remove("on"), 60);
         }, FADE_MS);
+      }),
+    );
+
+    cleanups.push(
+      on("world:sit", (d) => {
+        if (d?.seated) {
+          const s = seatFrom(d);
+          // Not now (title, tour, llama, a game): refuse, so the seat's owner and the avatar reset.
+          if (!s || phase !== "play" || touring || riding || gameOpen) {
+            emit("world:sit", { seated: false });
+            return;
+          }
+          if (!seat) {
+            sitFrom.x = pos.x;
+            sitFrom.z = pos.z;
+          }
+          seat = s;
+          standLatch.reset();
+          pos.set(s.x, seatedFeetY(s), s.z);
+          vel.set(0, 0);
+          vy = 0;
+          grounded = true;
+          yaw = s.yaw;
+          cam.behind(s.view);
+          return;
+        }
+        if (!seat) return;
+        const st = seat.stand ?? sitFrom;
+        seat = null;
+        let [x, z] = snapWalkable(st.x, st.z);
+        // Out of any furniture or trunk the stand point may touch (when that is still standable).
+        const [rx, rz] = resolve(x, z);
+        if (standable(rx, rz)) [x, z] = [rx, rz];
+        pos.set(x, groundAt(x, z), z);
+        vel.set(0, 0);
+        vy = 0;
+        grounded = true;
+        me.x = x;
+        me.z = z;
       }),
     );
 
@@ -1135,6 +1197,11 @@ async function start(
         mx = m.x;
         my = m.y;
       }
+      // Seated: movement (once released since sitting) or jump stands up; otherwise no walking.
+      if (seat) {
+        if (phase === "play" && standLatch.wantsUp({ x: mx, y: my }, input.takeJump())) standUp();
+        else mx = my = 0;
+      }
       const tx = (-fz * mx + fx * my) * speed;
       const tz = (fx * mx + fz * my) * speed;
       const moving = Math.hypot(mx, my) > 0.05;
@@ -1179,6 +1246,16 @@ async function start(
         }
       }
       if (pos.y < ground) pos.y = ground;
+      if (seat) {
+        // Pinned to the seat: no walking, gravity or push-out (a chair may stand inside its desk's collider).
+        pos.set(seat.x, seatedFeetY(seat), seat.z);
+        vel.set(0, 0);
+        vy = 0;
+        grounded = true;
+        yaw = seat.yaw;
+        me.x = pos.x;
+        me.z = pos.z;
+      }
 
       const spd = vel.length();
       if (spd > 0.3) yaw = angleLerp(yaw, Math.atan2(vel.x, vel.y), Math.min(1, dt * 11));
@@ -1188,7 +1265,10 @@ async function start(
       avatar.group.rotation.y = yaw;
       avatar.update(dt, { speed: spd, running: spd > (WALK + 0.4) * speedMul, grounded, t: time });
 
-      if (!reducedMotion) cam.squeeze += ((inside ? 1 : 0) - cam.squeeze) * (1 - Math.exp(-dt * 3));
+      // Closer inside a house, a little closer while seated.
+      const squeeze = inside ? 1 : seat ? SIT_SQUEEZE : 0;
+      if (!reducedMotion) cam.squeeze += (squeeze - cam.squeeze) * (1 - Math.exp(-dt * 3));
+      else cam.squeeze = squeeze;
       if (phase === "play")
         cam.update(dt, time, camTarget.set(pos.x, pos.y + seatHeight, pos.z), {
           facing: yaw,
@@ -1240,6 +1320,7 @@ async function start(
         layout,
         scene,
         teleport(t: number, side = 0, faceBack = false) {
+          standUp();
           const p = layout.trail.pointAt(t);
           const tg = layout.trail.tangentAt(t);
           pos.set(p.x - tg.z * side, 0, p.z + tg.x * side);
@@ -1257,6 +1338,7 @@ async function start(
         },
         /** Stand at (x, z) facing a world point (screenshots). */
         face(x: number, z: number, tx: number, tz: number) {
+          standUp();
           pos.set(x, groundAt(x, z), z);
           vel.set(0, 0);
           yaw = Math.atan2(tx - x, tz - z);
@@ -1280,6 +1362,7 @@ async function start(
           t: layout.trail.nearestT(pos.x, pos.z),
           time: sky.sky.time(),
           touring,
+          seated: seat?.id ?? null,
         }),
       };
     }

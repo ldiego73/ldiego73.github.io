@@ -6,9 +6,10 @@
  * `layout.canopyDeckAt(t)` (what `groundAt` returns on the road band), so feet meet the planks. Parts:
  * planks across the band, two stringers below, posts on both edges, a top and a mid rope rail with a slight sag
  * between posts, stilts down to the forest floor where the deck is high, suspension cables from the walkway
- * ceibas to the nearby posts, and the trunk platforms (ring of planks, posts and a rope rail). The platforms
- * are visual only: `groundAt` lifts only the road band, so they get no walkable (the traveler can't step off
- * the band anyway).
+ * ceibas to the nearby posts, and the trunk platforms: a plank ring around each walkway ceiba (./platforms.ts
+ * is the pure geometry), tilted with the walkway beside it so the planks meet the bridge without a step, with
+ * posts and a rope rail on its outer rim. The walkway railing on the tree's side opens where the ring meets the
+ * bridge (`railGap`), and ambient/canopy-platforms.ts registers the rings as walkable decks with rim colliders.
  *
  * Draws: everything solid is one vertex-colored merged mesh (casts shadows); the rope netting between the rails
  * is one alpha-tested mesh on the no-outline layer (a net would ink as a solid sheet in the prepass).
@@ -20,7 +21,7 @@ import type { ToonCache } from "../../toon";
 import { noOutline } from "../../toon";
 import { CANOPY_T, type SelvaLayout } from "../contract";
 import { canopyLiftAt } from "./ground";
-import type { SceneryPlan } from "./placement";
+import { canopyPlatforms, platformY, railGap, rimOutside, ringSpan } from "./platforms";
 
 const C = (hex: string) => new THREE.Color(hex);
 const WOOD = [C("#9b7550"), C("#8a6440"), C("#a8835a"), C("#7e5a38")];
@@ -54,7 +55,7 @@ export interface Walkway {
   dispose(): void;
 }
 
-export function buildWalkway(L: SelvaLayout, toon: ToonCache, plan: SceneryPlan): Walkway {
+export function buildWalkway(L: SelvaLayout, toon: ToonCache): Walkway {
   const { trail } = L;
   const len = trail.length;
   const hw = trail.halfWidth;
@@ -123,30 +124,47 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache, plan: SceneryPlan)
   for (const side of [-1, 1]) rope(along(side, hw - 0.35, -0.2, segs), 0.12, BEAM, 5);
 
   // ---------------------------------------------------------------- posts, rails, stilts, netting
+  // The railing on a ceiba's side opens where its platform ring meets the bridge (no posts, rope or net there).
+  const platforms = canopyPlatforms(L);
+  const gaps = platforms.map((pf) => ({ side: pf.side, t: railGap(L, pf) }));
+  const inGap = (t: number, side: number) => gaps.some((g) => g.side === side && t > g.t[0] && t < g.t[1]);
   const postStep = 3.2;
   const posts = Math.max(2, Math.round(span / postStep));
   const netPos: number[] = [];
   const netUv: number[] = [];
   const RAIL = 1.15;
   for (const side of [-1, 1]) {
-    const top: THREE.Vector3[] = [];
-    const mid: THREE.Vector3[] = [];
+    let top: THREE.Vector3[] = [];
+    let mid: THREE.Vector3[] = [];
     let prev: THREE.Vector3 | null = null;
     let dist = 0;
+    const flush = () => {
+      if (top.length > 1) {
+        rope(top, 0.045, ROPE);
+        rope(mid, 0.035, ROPE);
+      }
+      top = [];
+      mid = [];
+      prev = null;
+    };
     for (let k = 0; k <= posts; k++) {
       const t = t0 + ((t1 - t0) * k) / posts;
       const base = edge(t, side, hw + 0.12, -0.1);
-      m.compose(base.clone().setY(base.y + (RAIL + 0.1) / 2), q.identity(), s.set(0.16, RAIL + 0.2, 0.16));
-      add(pole, POST, m);
-      // Stilts where the deck is well above the forest floor.
+      // Stilts where the deck is well above the forest floor (also under the railing openings).
       const ground = L.heightAt(base.x, base.z);
       const h = base.y - ground;
       if (h > 1.2 && k % 2 === 0) {
         m.compose(base.clone().setY(ground + h / 2 - 0.1), q.identity(), s.set(0.22, h + 0.2, 0.22));
         add(pole, POST, m);
       }
+      if (inGap(t, side)) {
+        flush();
+        continue;
+      }
+      m.compose(base.clone().setY(base.y + (RAIL + 0.1) / 2), q.identity(), s.set(0.16, RAIL + 0.2, 0.16));
+      add(pole, POST, m);
       // Rails sag a little between posts.
-      if (k > 0) {
+      if (top.length) {
         const a = top[top.length - 1] as THREE.Vector3;
         const b = base.clone().setY(base.y + RAIL);
         top.push(
@@ -167,10 +185,11 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache, plan: SceneryPlan)
       top.push(base.clone().setY(base.y + RAIL));
       mid.push(base.clone().setY(base.y + RAIL * 0.5));
       // Net panel between this post and the previous one (deck edge → top rope).
-      if (prev) {
-        const seg = prev.distanceTo(base);
+      const before = prev as THREE.Vector3 | null;
+      if (before) {
+        const seg = before.distanceTo(base);
         for (const [a, ua] of [
-          [prev, dist],
+          [before, dist],
           [base, dist + seg],
         ] as const) {
           netPos.push(a.x, a.y + 0.12, a.z, a.x, a.y + RAIL + 0.05, a.z);
@@ -180,52 +199,72 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache, plan: SceneryPlan)
       }
       prev = base;
     }
-    rope(top, 0.045, ROPE);
-    rope(mid, 0.035, ROPE);
+    flush();
   }
 
   // ---------------------------------------------------------------- platforms around the walkway ceibas
-  for (const pf of plan.platforms) {
-    const trunkR = 1.25;
-    const outer = pf.r + 1.4;
-    // A "C" wrapping the back of the trunk: the walkway itself passes on the road side.
-    const tq0 = L.trailQuery(pf.x, pf.z);
-    const rp = trail.pointAt(tq0.t);
-    const toRoad = Math.atan2(rp.z - pf.z, rp.x - pf.x);
-    const a0 = toRoad + 1.15;
-    const arc = Math.PI * 2 - 2.3;
-    const n = 20;
+  // Plank rings tilted with the walkway (platformY): each plank box sits on the deck plane at its centre.
+  const up = new THREE.Vector3(0, 1, 0);
+  const nrm = new THREE.Vector3();
+  const tilt = new THREE.Quaternion();
+  const deckY = (x: number, z: number) => platformY(L, x, z);
+  const lay = (x: number, z: number, yaw: number) => {
+    const d = 0.3;
+    nrm.set(deckY(x - d, z) - deckY(x + d, z), 2 * d, deckY(x, z - d) - deckY(x, z + d)).normalize();
+    tilt.setFromUnitVectors(up, nrm);
+    e.set(0, yaw, 0);
+    return q.setFromEuler(e).premultiply(tilt);
+  };
+  for (const pf of platforms) {
+    const n = 40;
     for (let k = 0; k < n; k++) {
-      const a = a0 + ((k + 0.5) / n) * arc;
-      const rr = (trunkR + outer) / 2;
-      e.set(0, -a, 0);
-      q.setFromEuler(e);
+      const a = ((k + 0.5) / n) * Math.PI * 2;
+      const [r0, r1] = ringSpan(L, pf, a);
+      if (r1 - r0 < 0.25) continue;
+      const rr = (r0 + r1) / 2;
+      const x = pf.x + Math.cos(a) * rr;
+      const z = pf.z + Math.sin(a) * rr;
       m.compose(
-        new THREE.Vector3(pf.x + Math.cos(a) * rr, pf.y - 0.04, pf.z + Math.sin(a) * rr),
-        q,
-        s.set(outer - trunkR, 0.09, ((arc * outer) / n) * 0.92),
+        new THREE.Vector3(x, deckY(x, z) - 0.04, z),
+        lay(x, z, -a),
+        s.set(r1 - r0, 0.09, ((Math.PI * 2 * r1) / n) * 0.94),
       );
       add(box, WOOD[k % WOOD.length] as THREE.Color, m);
     }
-    // Rim posts and rope; cables from high on the trunk to the posts (a hanging-bridge look).
-    const ring: THREE.Vector3[] = [];
-    const posts = 8;
-    for (let k = 0; k <= posts; k++) {
-      const a = a0 + (k / posts) * arc;
-      const b = new THREE.Vector3(pf.x + Math.cos(a) * (outer - 0.1), pf.y, pf.z + Math.sin(a) * (outer - 0.1));
-      ring.push(b.clone().setY(pf.y + RAIL));
-      m.compose(b.clone().setY(pf.y + RAIL / 2), q.identity(), s.set(0.14, RAIL, 0.14));
-      add(pole, POST, m);
-      if (k % 2 === 0) rope([new THREE.Vector3(pf.x, pf.y + 6, pf.z), b.clone().setY(pf.y + RAIL)], 0.035, ROPE, 3);
+    // Rim posts and rope where the rim clears the bridge; cables from high on the trunk to the posts.
+    const rimN = 28;
+    let ring: THREE.Vector3[] = [];
+    const rimFlush = () => {
+      if (ring.length > 1) rope(ring, 0.045, ROPE);
+      ring = [];
+    };
+    for (let k = 0; k <= rimN; k++) {
+      const a = (k / rimN) * Math.PI * 2;
+      if (!rimOutside(L, pf, a)) {
+        rimFlush();
+        continue;
+      }
+      const bx = pf.x + Math.cos(a) * (pf.outer - 0.1);
+      const bz = pf.z + Math.sin(a) * (pf.outer - 0.1);
+      const by = deckY(bx, bz);
+      const b = new THREE.Vector3(bx, by, bz);
+      ring.push(b.clone().setY(by + RAIL));
+      if (k % 2 === 0 || ring.length === 1) {
+        m.compose(b.clone().setY(by + RAIL / 2), q.identity(), s.set(0.14, RAIL, 0.14));
+        add(pole, POST, m);
+      }
+      if (k % 4 === 0) rope([new THREE.Vector3(pf.x, pf.y + 6, pf.z), b.clone().setY(by + RAIL)], 0.035, ROPE, 3);
     }
-    rope(ring, 0.045, ROPE);
+    rimFlush();
     // Knee braces under the platform, into the trunk.
     for (let k = 0; k < 4; k++) {
       const a = (k / 4) * Math.PI * 2 + 0.4;
+      const bx = pf.x + Math.cos(a) * (pf.outer - 0.4);
+      const bz = pf.z + Math.sin(a) * (pf.outer - 0.4);
       rope(
         [
-          new THREE.Vector3(pf.x + Math.cos(a) * trunkR, pf.y - 2.6, pf.z + Math.sin(a) * trunkR),
-          new THREE.Vector3(pf.x + Math.cos(a) * (outer - 0.4), pf.y - 0.1, pf.z + Math.sin(a) * (outer - 0.4)),
+          new THREE.Vector3(pf.x + Math.cos(a) * pf.inner, pf.y - 2.6, pf.z + Math.sin(a) * pf.inner),
+          new THREE.Vector3(bx, deckY(bx, bz) - 0.1, bz),
         ],
         0.1,
         BEAM,
@@ -233,11 +272,11 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache, plan: SceneryPlan)
       );
     }
     // Suspension cables from the trunk to the walkway posts nearby, both directions along the deck.
-    const tq = tq0;
     for (const dt of [-7, -3.5, 3.5, 7]) {
-      const t = tq.t + dt / len;
+      const t = pf.t + dt / len;
       if (t < t0 || t > t1) continue;
       for (const side of [-1, 1]) {
+        if (inGap(t, side)) continue;
         const a = edge(t, side, hw + 0.12, RAIL);
         rope([new THREE.Vector3(pf.x, pf.y + 7.5, pf.z), a], 0.03, ROPE, 3);
       }

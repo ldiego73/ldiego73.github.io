@@ -16,6 +16,7 @@
  */
 import { CANOPY_T } from "../contract";
 import { CLEAR, type Clearance, type ClearLayout, createClearance, distSeg } from "./clearance";
+import { CEIBA_TRUNK, canopyPlatforms } from "./platforms";
 
 export interface Inst {
   x: number;
@@ -77,7 +78,7 @@ export interface SceneryPlan {
 
 /** Trunk radius at scale 1 (colliders, spacing) and nominal height (sight-line rule). */
 export const SPEC: Record<Species, { trunk: number; h: number }> = {
-  ceiba: { trunk: 1.5, h: 26 },
+  ceiba: { trunk: CEIBA_TRUNK, h: 26 },
   broadleaf: { trunk: 0.45, h: 13 },
   tiered: { trunk: 0.55, h: 17 },
   cecropia: { trunk: 0.25, h: 11 },
@@ -282,7 +283,6 @@ function scatter(c: Ctx, sp: Species, o: Opts, onPlace?: (i: Inst, d: number) =>
 function ceibas(c: Ctx, plan: SceneryPlan, phone: boolean) {
   const out: Inst[] = [];
   const R = rng(17);
-  const hw = c.L.trail.halfWidth;
   // Ceiba crowns spread ~10 u: keep them off the dock corridors (boats, piers, stilt houses go there).
   const overDock = (x: number, z: number) =>
     c.C.docks.some(([ax, az, bx, bz]) => distSeg(x, z, ax, az, bx, bz) < CLEAR.dock + 9);
@@ -294,17 +294,10 @@ function ceibas(c: Ctx, plan: SceneryPlan, phone: boolean) {
     return true;
   };
   // Canopy walkway: three ceibas hugging the deck where it is highest (platforms around their trunks).
-  for (const [t, side] of [
-    [0.852, 1],
-    [0.866, -1],
-    [0.879, 1],
-  ] as const) {
-    const s = 0.95;
-    const off = hw + SPEC.ceiba.trunk * s + 0.55;
-    const [x, z] = roadPoint(c.L, t, side, off);
-    add(x, z, s, R() * Math.PI * 2, false);
-    const deck = c.L.canopyDeckAt(t) ?? c.L.heightAt(x, z);
-    plan.platforms.push({ x, z, y: deck, t, r: SPEC.ceiba.trunk * s + 2.2 });
+  // Positions come from ./platforms.ts (one source for trees, planks, decks and the dosel stamp).
+  for (const pf of canopyPlatforms(c.L)) {
+    add(pf.x, pf.z, pf.s, R() * Math.PI * 2, false);
+    plan.platforms.push({ x: pf.x, z: pf.z, y: pf.y, t: pf.t, r: pf.trunk + 2.2 });
   }
   // Landmarks behind the plazas (away from the road), just past the tree clearance.
   for (const pl of c.L.plazas) {

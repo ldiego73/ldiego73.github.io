@@ -3,20 +3,24 @@ import { buildSelvaLayout } from "../../layout";
 import { stairY } from "../embarcadero/amazon";
 import {
   alongPath,
+  type Boat,
   boardPath,
+  boatWater,
   buildRoute,
   CRUISE,
+  clampBoat,
   DRY_TOL,
   dockGeo,
+  dockingEnd,
+  earnsRideStamp,
   idleEnd,
   MAX_SPEED,
-  MIN_SPEED,
-  paddleSpeed,
   pierPlan,
   routeAt,
   standPoint,
+  stepBoat,
   stepTrip,
-  type Trip,
+  TURN_RATE,
 } from "./logic";
 
 const L = buildSelvaLayout({ cells: 280 });
@@ -50,55 +54,115 @@ describe("route", () => {
   });
 });
 
-describe("paddling", () => {
-  const base = { dirX: 1, dirZ: 0, sinceStart: 50, toGo: 50, running: false };
-  test("cruises with no intent, W speeds up, S slows down but never reverses", () => {
-    const idle = paddleSpeed({ ...base, intentX: 0, intentZ: 0 });
-    const fwd = paddleSpeed({ ...base, intentX: 1, intentZ: 0 });
-    const back = paddleSpeed({ ...base, intentX: -1, intentZ: 0 });
-    expect(idle).toBeCloseTo(CRUISE);
-    expect(fwd).toBeGreaterThan(idle);
-    expect(back).toBeLessThan(idle);
-    expect(back).toBeGreaterThanOrEqual(MIN_SPEED);
-    expect(paddleSpeed({ ...base, intentX: 1, intentZ: 0, running: true })).toBeLessThanOrEqual(MAX_SPEED);
+describe("player navigation", () => {
+  const start = (): Boat => ({ x: L.canoe.from.x, z: L.canoe.from.z, yaw: Math.PI / 2, vx: 0, vz: 0 });
+  const simulate = (intent: { x: number; z: number; running: boolean }) => {
+    let boat = start();
+    for (let i = 0; i < 180; i++) boat = stepBoat(L, boat, intent, 1 / 30);
+    return boat;
+  };
+  test("no automatic paddling: idle drifts only with the gentle downstream current", () => {
+    const boat = simulate({ x: 0, z: 0, running: false });
+    expect(Math.hypot(boat.vx, boat.vz)).toBeLessThanOrEqual(0.221);
+    expect(Math.hypot(boat.x - start().x, boat.z - start().z)).toBeLessThan(1.4);
   });
-  test("eases near both docks", () => {
-    const mid = paddleSpeed({ ...base, intentX: 0, intentZ: 0 });
-    const start = paddleSpeed({ ...base, intentX: 0, intentZ: 0, sinceStart: 0 });
-    const end = paddleSpeed({ ...base, intentX: 0, intentZ: 0, toGo: 0.5 });
-    expect(start).toBeLessThan(mid);
-    expect(end).toBeLessThan(mid);
-    expect(end).toBeGreaterThan(0);
+  test("forward and boost reach bounded cruise speeds; back brakes then reverses", () => {
+    const forward = simulate({ x: 1, z: 0, running: false });
+    const boost = simulate({ x: 1, z: 0, running: true });
+    expect(Math.hypot(forward.vx, forward.vz)).toBeGreaterThan(4);
+    expect(Math.hypot(forward.vx, forward.vz)).toBeLessThanOrEqual(CRUISE);
+    expect(Math.hypot(boost.vx, boost.vz)).toBeGreaterThan(6);
+    expect(Math.hypot(boost.vx, boost.vz)).toBeLessThanOrEqual(MAX_SPEED);
+    const braking = stepBoat(L, forward, { x: -1, z: 0, running: false }, 1 / 30);
+    expect(braking.vx).toBeLessThan(forward.vx);
+    let reverse = forward;
+    for (let i = 0; i < 180; i++) reverse = stepBoat(L, reverse, { x: -1, z: 0, running: false }, 1 / 30);
+    expect(reverse.vx).toBeLessThan(-1.5);
+    const coast = stepBoat(L, forward, { x: 0, z: 0, running: false }, 1 / 30);
+    expect(coast.vx).toBeGreaterThan(0);
+    expect(coast.vx).toBeLessThan(forward.vx);
   });
+  test("left/right turns at 1.2 rad/s even at rest, with analog magnitude", () => {
+    const boat = { ...start(), yaw: 0 };
+    expect(stepBoat(L, boat, { x: 1, z: 0, running: false }, 0.05).yaw).toBeCloseTo(TURN_RATE * 0.05);
+    expect(stepBoat(L, boat, { x: -0.5, z: 0, running: false }, 0.05).yaw).toBeCloseTo(-TURN_RATE * 0.025);
+  });
+  test("solid river animals gently push; traveler and submerged animals do not", () => {
+    const boat = start();
+    const animal = { x: boat.x, z: boat.z, r: 1, solid: true, kind: "bufeo" };
+    const idle = { x: 0, z: 0, running: false };
+    const noBody = stepBoat(L, boat, idle, 0.05);
+    const pushed = stepBoat(L, boat, idle, 0.05, [animal]);
+    expect(Math.hypot(pushed.x - noBody.x, pushed.z - noBody.z)).toBeGreaterThan(0.05);
+    expect(stepBoat(L, boat, idle, 0.05, [{ ...animal, solid: false }])).toEqual(noBody);
+    expect(stepBoat(L, boat, idle, 0.05, [{ ...animal, kind: "traveler" }])).toEqual(noBody);
+  });
+  test("a bank bump slides along shore and steering back into the river recovers", () => {
+    const river = buildRoute(L.river.pts);
+    const p = routeAt(river, river.length * 0.5);
+    const nx = -p.tz,
+      nz = p.tx;
+    const edge = clampBoat(L, p.x + nx * 100, p.z + nz * 100, p);
+    let boat: Boat = { ...edge, yaw: Math.atan2(nx, nz), vx: 0, vz: 0 };
+    const start = { ...boat };
+    for (let i = 0; i < 300; i++) boat = stepBoat(L, boat, { x: p.tx, z: p.tz, running: false }, 0.05);
+    expect(Math.hypot(boat.x - start.x, boat.z - start.z)).toBeGreaterThan(10);
+    for (let i = 0; i < 200; i++) {
+      const dx = p.x - boat.x,
+        dz = p.z - boat.z,
+        d = Math.hypot(dx, dz) || 1;
+      boat = stepBoat(L, boat, { x: dx / d, z: dz / d, running: false }, 0.05);
+    }
+    expect(boatWater(L, boat.x, boat.z)).toBe(true);
+    expect(L.riverDist(boat.x, boat.z)).toBeLessThan(-5);
+  });
+  for (const cells of [160, 190, 280]) {
+    test(`${cells} cells: randomized navigation and bank/world projection keep the complete hull on water`, () => {
+      const lay = cells === 280 ? L : buildSelvaLayout({ cells });
+      let seed = 12345;
+      const rand = () => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        return seed / 4294967296;
+      };
+      const river = buildRoute(lay.river.pts);
+      // Start all along the visible river, including beyond both original trip endpoints.
+      for (let s = 10; s < river.length; s += 24) {
+        const p = routeAt(river, s);
+        if (!boatWater(lay, p.x, p.z)) continue;
+        let boat: Boat = { x: p.x, z: p.z, yaw: rand() * Math.PI * 2, vx: 0, vz: 0 };
+        for (let i = 0; i < 160; i++) {
+          const a = rand() * Math.PI * 2,
+            magnitude = rand();
+          boat = stepBoat(
+            lay,
+            boat,
+            { x: Math.sin(a) * magnitude, z: Math.cos(a) * magnitude, running: rand() > 0.5 },
+            0.05,
+          );
+          expect(boatWater(lay, boat.x, boat.z)).toBe(true);
+          expect(lay.isWater(boat.x, boat.z)).toBe(true);
+          const clamped = clampBoat(lay, boat.x + (rand() - 0.5) * 80, boat.z + (rand() - 0.5) * 80, boat);
+          expect(boatWater(lay, clamped.x, clamped.z)).toBe(true);
+        }
+        // Sustained outward input still permits sliding along a bank and recovering into open water.
+        for (let i = 0; i < 300; i++) {
+          boat = stepBoat(lay, boat, { x: 0, z: 1, running: true }, 0.05);
+          expect(boatWater(lay, boat.x, boat.z)).toBe(true);
+        }
+      }
+    });
+  }
 });
 
 describe("trip", () => {
-  test("boarding → riding → landing → moored, both directions", () => {
-    const len = 100;
+  test("boarding waits for player navigation, landing requires explicit state change", () => {
+    const boat: Boat = { x: 10, z: 20, yaw: 0, vx: 0, vz: 0 };
     for (const end of [0, 1] as const) {
-      let trip: Trip = { kind: "boarding", end, u: 0 };
-      let steps = 0;
-      const seen = new Set<string>();
-      while (!(trip.kind === "moored") && steps < 20000) {
-        trip = stepTrip(trip, 1 / 30, len);
-        seen.add(trip.kind);
-        steps++;
-      }
-      expect(seen.has("riding")).toBe(true);
-      expect(seen.has("landing")).toBe(true);
-      expect(trip).toEqual({ kind: "moored", end: end === 0 ? 1 : 0 });
+      const riding = stepTrip({ kind: "boarding", end, u: 0 }, 1, boat);
+      expect(riding).toEqual({ kind: "riding", boat });
+      expect(stepTrip(riding, 100, boat)).toEqual(riding);
+      expect(stepTrip({ kind: "landing", end, u: 0 }, 1, boat)).toEqual({ kind: "moored", end });
     }
-  });
-  test("riding speed approaches the wanted speed and s stays monotonic", () => {
-    let trip: Trip = { kind: "riding", s: 0, dir: 1, speed: 0 };
-    let prev = 0;
-    for (let i = 0; i < 60; i++) {
-      trip = stepTrip(trip, 1 / 30, 1000, 4);
-      if (trip.kind !== "riding") throw new Error("left riding");
-      expect(trip.s).toBeGreaterThanOrEqual(prev);
-      prev = trip.s;
-    }
-    if (trip.kind === "riding") expect(trip.speed).toBeGreaterThan(2);
   });
   test("idle canoe follows the traveler to the other dock only when out of sight", () => {
     expect(idleEnd({ at: 0, d0: 150, d1: 10, dCanoe: 150 })).toBe(1);
@@ -109,6 +173,20 @@ describe("trip", () => {
 });
 
 describe("docks", () => {
+  test("either dock accepts slow boats only; stamp requires a different dock", () => {
+    const docks = [
+      dockGeo(L, "embarcadero", L.canoe.path[0]!, 0),
+      dockGeo(L, "palafitos", L.canoe.path[L.canoe.path.length - 1]!, 1),
+    ];
+    for (const d of docks) {
+      const boat: Boat = { ...d.moor, yaw: 0, vx: 0.22, vz: 0 };
+      expect(dockingEnd(boat, docks)).toBe(d.end);
+      expect(dockingEnd({ ...boat, vx: 1 }, docks)).toBeNull();
+      expect(dockingEnd({ ...boat, x: boat.x + 8 }, docks)).toBeNull();
+      expect(earnsRideStamp(d.end, d.end)).toBe(false);
+      expect(earnsRideStamp(d.end, d.end === 0 ? 1 : 0)).toBe(true);
+    }
+  });
   const ends = [
     ["embarcadero", L.canoe.path[0], 0],
     ["palafitos", L.canoe.path[L.canoe.path.length - 1], 1],
@@ -125,6 +203,8 @@ describe("docks", () => {
       }
       expect(L.walkable(d.root.x, d.root.z)).toBe(true);
       expect(L.isWater(d.moor.x, d.moor.z)).toBe(true);
+      const safe = clampBoat(L, d.moor.x, d.moor.z, d.moor);
+      expect(boatWater(L, safe.x, safe.z)).toBe(true);
       expect(Math.hypot(d.tip.x - d.head.x, d.tip.z - d.head.z)).toBeGreaterThan(2);
     });
     test(`${id}: the pier steps down the bank to a jetty on the water, boarding from it`, () => {
@@ -181,6 +261,9 @@ describe("docks on the coarser phone / low-quality terrain", () => {
         expect(Math.abs(C.heightAt(d.head.x, d.head.z) - d.y)).toBeLessThanOrEqual(DRY_TOL);
         expect(C.walkable(d.root.x, d.root.z)).toBe(true);
         expect(C.isWater(d.moor.x, d.moor.z)).toBe(true);
+        const safe = clampBoat(C, d.moor.x, d.moor.z, d.moor);
+        expect(boatWater(C, safe.x, safe.z)).toBe(true);
+        expect(dockingEnd({ ...safe, yaw: 0, vx: 0, vz: 0 }, [d])).toBe(end);
         checkPier(C, d);
       });
     }

@@ -318,19 +318,24 @@ export function dugout(
   }
 }
 
-/** Balsa raft: logs along local Z lashed by two cross poles; top of the logs at y. */
+/**
+ * Balsa raft: logs along local Z lashed by two cross poles; top of the logs at y. Kit.cyl turns a cylinder
+ * about its own centre (placed at y + h/2), so a lying log's base y is its axis height minus half its length.
+ */
 export function balsaRaft(kit: Kit, rand: Rand, o: { x0: number; x1: number; z0: number; z1: number; y: number }) {
   const r = 0.17;
   const n = Math.max(2, Math.round((o.x1 - o.x0) / (r * 2)));
   const len = o.z1 - o.z0;
+  const cz = (o.z0 + o.z1) / 2;
   for (let i = 0; i < n; i++) {
     const x = o.x0 + ((o.x1 - o.x0) * (i + 0.5)) / n;
     const l = len + (rand() - 0.5) * 0.3;
-    kit.cyl(r, r, l, x, o.y - r, (o.z0 + o.z1) / 2 - l / 2, rand() < 0.35 ? A.balsaDark : A.balsa, 7, Math.PI / 2);
+    kit.cyl(r, r, l, x, o.y - r - l / 2, cz, rand() < 0.35 ? A.balsaDark : A.balsa, 7, Math.PI / 2);
   }
+  const pole = o.x1 - o.x0 + 0.3;
   for (const k of [0.15, 0.85]) {
     const z = o.z0 + len * k;
-    kit.cyl(0.06, 0.06, o.x1 - o.x0 + 0.3, o.x0 - 0.15, o.y + 0.02, z, A.woodDark, 5, 0, -Math.PI / 2);
+    kit.cyl(0.06, 0.06, pole, (o.x0 + o.x1) / 2, o.y + 0.02 - pole / 2, z, A.woodDark, 5, 0, -Math.PI / 2);
   }
 }
 
