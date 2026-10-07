@@ -16,6 +16,7 @@
 import type { AudioOutput } from "../../../audio/contract";
 import { getMusic } from "../../../audio/player";
 import { noiseBuffers, sfx, sfxForStamp } from "../../../audio/sfx";
+import { PHONE_BEDS, smallSpeaker } from "../../../audio/speaker";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures, isParked } from "../../creatures";
 import { on } from "../../events";
@@ -25,6 +26,9 @@ import { rng } from "./wild/logic";
 
 /** Overall level under the music. */
 const LEVEL = 0.45;
+const phone = smallSpeaker();
+/** Phone speakers get quieter beds (see audio/speaker.ts). */
+const bedLevel = phone ? PHONE_BEDS.level : 1;
 const TC = 0.4;
 
 interface Graph {
@@ -116,15 +120,17 @@ export const create: CreateAmbient = (env0): Ambient => {
       return am;
     };
     const nb = noiseBuffers(ctx);
+    // Phone speakers: the white-noise insect bands and the river hiss read as static there (audio/speaker.ts).
+    const bright = phone ? PHONE_BEDS.bright : 1;
     const master = gain(0, out.ambient);
     // Cicadas: two detuned narrow bands of white noise, pulsing at different rates.
     const cicadaG = gain(0, master);
-    loop(nb.white, filter("bandpass", 4300, 9, pulse(13, 0.7, cicadaG)), 0.9);
-    loop(nb.white, filter("bandpass", 5600, 12, pulse(7.5, 0.6, cicadaG)), 0.6);
+    loop(nb.white, filter("bandpass", 4300, 9, pulse(13, 0.7, cicadaG)), 0.9 * bright);
+    loop(nb.white, filter("bandpass", 5600, 12, pulse(7.5, 0.6, cicadaG)), 0.6 * bright);
     // Night chorus: a fast trill band.
     const chorusG = gain(0, master);
-    loop(nb.white, filter("bandpass", 3300, 14, pulse(28, 0.85, chorusG)), 1.1);
-    loop(nb.white, filter("bandpass", 2200, 10, pulse(4.2, 0.5, chorusG)), 0.35);
+    loop(nb.white, filter("bandpass", 3300, 14, pulse(28, 0.85, chorusG)), 1.1 * bright);
+    loop(nb.white, filter("bandpass", 2200, 10, pulse(4.2, 0.5, chorusG)), 0.35 * bright);
     // River: a low murmur with a little hiss, panned.
     const riverG = gain(0, master);
     let riverPan: StereoPannerNode | null = null;
@@ -136,7 +142,7 @@ export const create: CreateAmbient = (env0): Ambient => {
     }
     const lp = filter("lowpass", 650, 0.6, riverOut);
     loop(nb.brown, lp, 1.4);
-    loop(nb.white, filter("bandpass", 1100, 0.8, riverOut), 0.12);
+    loop(nb.white, filter("bandpass", 1100, 0.8, riverOut), 0.12 * bright);
     return { out, ctx, master, cicadaG, chorusG, riverG, riverPan, nodes, srcs };
   };
 
@@ -368,7 +374,7 @@ export const create: CreateAmbient = (env0): Ambient => {
         applyClock = 0;
         const rd = L.riverDist(avatar.x, avatar.z);
         const mix = bedMix(time, rd, hushed);
-        ramp(g.master.gain, LEVEL * mix.master, mix.master ? 0.8 : 0.3);
+        ramp(g.master.gain, LEVEL * bedLevel * mix.master, mix.master ? 0.8 : 0.3);
         ramp(g.cicadaG.gain, mix.cicadas * 0.32);
         ramp(g.chorusG.gain, mix.chorus * 0.4);
         ramp(g.riverG.gain, mix.river * 0.5);

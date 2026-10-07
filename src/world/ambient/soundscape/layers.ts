@@ -10,6 +10,7 @@
  * so they cost nothing then. Everything is stopped and disconnected in dispose().
  */
 import { noiseBuffers } from "../../../audio/sfx";
+import { PHONE_BEDS, smallSpeaker } from "../../../audio/speaker";
 import type { Chirp, MixOut, Surface } from "./mix";
 
 /** Overall soundscape level under the music. */
@@ -30,12 +31,18 @@ export class Layers {
   private waterPan: StereoPannerNode | null = null;
   private rainG: GainNode;
   private disposed = false;
+  /** Bed level factor (phone speakers get quieter beds). */
+  private bedLevel = 1;
 
   constructor(
     readonly ctx: BaseAudioContext,
     dest: AudioNode,
   ) {
     const nb = noiseBuffers(ctx);
+    // Phone speakers: quieter beds, less white-noise hiss, darker rain (../../../audio/speaker.ts).
+    const phone = smallSpeaker();
+    this.bedLevel = phone ? PHONE_BEDS.level : 1;
+    const bright = phone ? PHONE_BEDS.bright : 1;
     this.master = this.keep(ctx.createGain());
     this.master.gain.value = 0;
     this.master.connect(dest);
@@ -59,16 +66,16 @@ export class Layers {
     this.waterG.connect(waterOut);
     const hp = this.biquad("highpass", 160, 0.7, this.waterG);
     this.waterLp = this.biquad("lowpass", 1300, 0.6, hp);
-    this.loop(nb.white, this.waterLp, 1.3);
+    this.loop(nb.white, this.waterLp, 1.3 * bright);
     this.loop(nb.brown, this.waterLp, 0.2); // low rumble body
 
     // rain (garúa: fine drizzle hiss)
     this.rainG = this.keep(ctx.createGain());
     this.rainG.gain.value = 0;
     this.rainG.connect(this.master);
-    const rl = this.biquad("lowpass", 8500, 0.5, this.rainG);
+    const rl = this.biquad("lowpass", phone ? 5200 : 8500, 0.5, this.rainG);
     const rh = this.biquad("highpass", 2600, 0.6, rl);
-    this.loop(nb.white, rh, 0.6);
+    this.loop(nb.white, rh, 0.6 * bright);
   }
 
   private keep<T extends AudioNode>(n: T): T {
@@ -107,7 +114,7 @@ export class Layers {
   /** Moves every continuous layer toward its target (call at a few Hz, not every frame). */
   apply(mix: MixOut, o: { gust: number; windFreq: number; waterBright: number; waterPan: number }) {
     if (this.disposed) return;
-    this.ramp(this.master.gain, AMBIENT_LEVEL * mix.master, mix.master === 0 ? 0.3 : 0.6);
+    this.ramp(this.master.gain, AMBIENT_LEVEL * this.bedLevel * mix.master, mix.master === 0 ? 0.3 : 0.6);
     this.ramp(this.windG.gain, mix.wind * o.gust);
     this.ramp(this.windBp.frequency, o.windFreq, 0.4);
     this.ramp(this.waterG.gain, mix.water * 0.55);
