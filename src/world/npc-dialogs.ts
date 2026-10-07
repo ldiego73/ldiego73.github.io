@@ -414,8 +414,8 @@ export const NPC_DIALOGS: NpcDialog[] = [
           },
           many: {
             text: l(
-              "Varios: Kong omnicanal con plugin Lua en Belcorp, Kong al 99.9% de SLA en Auna, API Platforms sobre AWS API Gateway y APISIX → Kong multi-región en TopSort.",
-              "Several: omnichannel Kong with a Lua plugin at Belcorp, Kong at 99.9% SLA at Auna, API Platforms on AWS API Gateway, and APISIX → Kong multi-region at TopSort.",
+              "Varios: Kong omnicanal con plugin Lua en Belcorp, Kong al 99.9% de SLA y AWS API Gateway (migrado desde IBM) en Auna, y una API Platform interna, externa y pública en Xepelin.",
+              "Several: omnichannel Kong with a Lua plugin at Belcorp, Kong at 99.9% SLA and AWS API Gateway (migrated off IBM) at Auna, and an internal, external and public API Platform at Xepelin.",
             ),
           },
           direct: {

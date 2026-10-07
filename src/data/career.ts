@@ -428,14 +428,6 @@ export const COMPANIES: Company[] = [
             ),
           },
           {
-            id: "kong-migration",
-            n: 1,
-            text: l(
-              "Migración de APISIX a Kong Gateway en clusters multi-región, con Kuma como service mesh.",
-              "APISIX to Kong Gateway migration across multi-region clusters, with Kuma as service mesh.",
-            ),
-          },
-          {
             id: "observability",
             n: 1,
             text: l(
@@ -467,7 +459,6 @@ export const COMPANIES: Company[] = [
           "Karpenter",
           "ArgoCD",
           "Terraform",
-          "Kong",
           "Kafka",
           "SQS",
           "EventBridge",
@@ -569,7 +560,6 @@ export const ARTIFACTS: Artifact[] = [
         stage: "xepelin-em",
         text: l("API Platform interna, externa y pública.", "Internal, external and public API Platform."),
       },
-      { stage: "topsort-infra", text: l("APISIX → Kong multi-región.", "APISIX → Kong multi-region.") },
       {
         stage: "globant-tm",
         text: l("Gobierno de exposición de APIs hacia el clúster.", "API exposure governance into the cluster."),
