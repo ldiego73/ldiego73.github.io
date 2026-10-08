@@ -115,8 +115,8 @@ Radii 4px for controls, 6px for cabinets and the phosphor screen. Round beads (k
 
 ## Arcade and 3D world
 
-- **Neon Cabinet (arcade):** its own fixed-dark world, independent of the site theme. Palette in `src/games/core/neon.ts` (void, floor, grid, ink, dim, cyan, magenta, lime, amber, red, violet), Tektur for marquees, JetBrains Mono for HUD, bloom via `core/stage.ts`, CRT scanlines in `shell.css`. Player = cyan, hazards = magenta/red, pickups = lime, timers = amber, structure = violet.
-- **Khipu Neón (world):** the khipu dyes pushed to neon on a night Andean terrace city; dark bodies with emissive edges, holographic glass panels (Archivo condensed titles, mono data). Direction contract in `.impeccable/surfaces/src-pages-lang-world-astro.md`.
+- **Block Arcade (arcade):** its own fixed-dark room, independent of the site theme. Voxel, Minecraft-like games built from cubes with few colors: palette roles in `src/games/core/neon.ts` (void, floor, grid, ink, dim, cyan, magenta, lime, amber, red, violet; at most ~4 per game), matte flat-shaded materials, no bloom, glow or scanlines. Silkscreen pixel font for marquees and score pop-ups, JetBrains Mono for the HUD. Player = cyan, one hazard (red), one reward (lime or amber). Rules in `src/games/README.md`.
+- **KHIPU worlds (3D):** a warm, handmade Andean diorama: flat toon colors with a 3-step ramp and dark ink outlines (Messenger-like), khipu dyes as accents on cords and textiles, paper/cloth UI cards with ink borders. The mountain (Qhapaq Ñan) and the jungle (Antisuyu) share this language; the jungle swaps andesite and ichu for laterite earth, deep greens and a brown river. Direction contract in `.impeccable/surfaces/src-pages-lang-world-astro.md`.
 
 ## Do's and Don'ts
 

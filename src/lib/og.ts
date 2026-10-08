@@ -4,7 +4,7 @@
  * Same visual language as the site: night background, bone ink, khipu dyes, Archivo / JetBrains Mono / Silkscreen.
  * Screenshots of the 3D world, the arcade hall and each game live in src/assets/og (captured once, committed).
  */
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
 import satori from "satori";
@@ -399,15 +399,9 @@ function shotCard(
 export const worldCard = (lang: Lang) =>
   shotCard(shot("world"), COPY[lang].worldTag, "KHIPU · Qhapaq Ñan", COPY[lang].world, C.turq);
 
-/** The Antisuyu jungle page; uses src/assets/og/selva.jpg once captured, else the mountain shot. */
+/** The Antisuyu jungle page: the project stilt houses seen from the river (src/assets/og/selva.jpg). */
 export const selvaCard = (lang: Lang) =>
-  shotCard(
-    shot(existsSync(join(root, "src", "assets", "og", "selva.jpg")) ? "selva" : "world"),
-    COPY[lang].worldTag,
-    "Antisuyu",
-    COPY[lang].selva,
-    C.turq,
-  );
+  shotCard(shot("selva"), COPY[lang].worldTag, "Antisuyu", COPY[lang].selva, C.turq);
 
 export const arcadeCard = (lang: Lang, lede: string) =>
   shotCard(shot("arcade"), COPY[lang].play, "ARCADE", lede || COPY[lang].arcade, C.ochre, "Pixel", 620);

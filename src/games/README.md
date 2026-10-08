@@ -32,24 +32,26 @@ mount(el, ctx) => { start, pause, resume, destroy, onThemeChange }
 - End a run with exactly one `ctx.emit({ type: "gameover", score })` or `ctx.emit({ type: "win", score })`.
 - `pause()/resume()` stop and restart the loop and timers. `destroy()` frees everything (`stage.dispose()`,
   listeners, intervals).
-- `ctx.palette()` returns the fixed Neon Cabinet palette (`core/neon.ts`). The arcade does not follow the site's
+- `ctx.palette()` returns the fixed Block Arcade palette (`core/neon.ts`; the file keeps its old name). The arcade does not follow the site's
   light/dark theme: a CRT is always dark. `onThemeChange` is optional and usually omitted.
 
 ## Toolkit
 
 - `core/stage.ts`: `createStage(el, { camera: "ortho" | "persp", viewHeight, bloom })` gives renderer (ACES tone
-  mapping, void clear color), scene, camera, resize, neon bloom post-processing (on by default; `stage.bloomPass`
-  to pulse it), `loop((dt, t) => ...)`, `pause/resume`, `dispose`. `addLights(scene)` is the neon light rig.
+  mapping, void clear color), scene, camera, resize, optional bloom (off unless `bloom` is passed; Block Arcade
+  games leave it off), `loop((dt, t) => ...)`, `pause/resume`, `dispose`. `addLights(scene)` is the shared light rig
+  (warm sun + sky fill).
 - `core/input.ts`: `onDirection(el, cb)` for arrows/WASD + swipe; `heldKeys(el)` for continuous input.
   Keyboard listeners go on `el` or its parent `.cab-screen` (the shell focuses `.cab-screen`;
   use `el.closest(".cab-screen")` for key events). Touch: pointer events on the canvas, `touch-action: none`.
-- `core/neon.ts`: `NEON` roles (`void, floor, grid, ink, dim, cyan, magenta, lime, amber, red, violet`), `BLOOM`,
-  `EMISSIVE` intensities, `ARCADE_FONT` / `HUD_FONT` for DOM or CanvasTexture text. Never hard-code other colors.
+- `core/neon.ts` (name kept from the earlier neon kit): `NEON` / `BLOCK` palette roles (`void, floor, grid, ink, dim,
+  cyan, magenta, lime, amber, red, violet`), `ARCADE_FONT` (Silkscreen) / `HUD_FONT` (JetBrains Mono) for DOM or
+  CanvasTexture text. Never hard-code other colors.
 
 ## Visual language: Block Arcade (voxel, Minecraft-like)
 
 The owner wants the arcade simple and calm: a blocky, Minecraft-like look with FEW colors, so the games
-showcase the work (infra concepts) instead of effects. Replaces the earlier neon look completely.
+showcase the work (infra concepts) instead of effects.
 
 - **Geometry:** everything is built from cubes on a grid (voxels): `BoxGeometry` blocks, instanced when many.
   Characters are blocky (bug = a few cubes with cube legs; pod = a crate; packet = a small cube; player = a

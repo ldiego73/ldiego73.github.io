@@ -14,7 +14,7 @@ import { renderTextMode, textModeCopy } from "../../../world/textmode";
 export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
 const lang = Astro.params.lang as Lang;
 const other: Lang = lang === "es" ? "en" : "es";
-// Core-owned copy for the Andean world (the shared i18n keys still describe the old neon world).
+// Page copy for the mountain world (title, description, fallback notes); UI strings live in src/i18n/ui.ts.
 const COPY = {
   es: {
     title: "Khipu · Qhapaq Ñan, mundo explorable",

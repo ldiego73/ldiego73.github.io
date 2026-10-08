@@ -1,11 +1,11 @@
 ---
 version: 1
 slug: "src-pages-lang-world-astro"
-primary_target: "src/pages/[lang]/world.astro"
-related_targets: []
+primary_target: "src/pages/[lang]/world/index.astro"
+related_targets: ["src/pages/[lang]/world/selva.astro"]
 ---
 
-# Surface brief: /[lang]/world/ (Qhapaq Ñan, explorable Andean world)
+# Surface brief: /[lang]/world/ (KHIPU worlds: Qhapaq Ñan, Wasi, Antisuyu)
 
 Mode: Experience. Opt-in from the header ("Mundo 3D"). Audience: same as the site, in a curious, playful moment. Job: walk the career as a climb up an Andean mountain along the Inca trail, discover the arcade, reach contact. The HTML site stays the fast path.
 
@@ -22,3 +22,5 @@ FIRST VIEWPORT: The floating mountain island with the KHIPU title and BEGIN, slo
 SIGNATURE: Day/night cycle: the sun and moon travel, the sky and ink color shift, and at dusk tambo lamps and torches light up along the trail. Approaching a tambo: its khipu knots light one by one and the panel unfolds.
 
 GUARDRAILS: Third-person camera behind the traveler (Messenger-like), smooth follow, no clipping; WASD/arrows, Shift run, Space jump, E interact, M map, T toggle day/night; mobile joystick + buttons; guided tour along the trail. Generic Andean traveler (chullo, poncho with khipu stripes, backpack with a laptop), not a real person. No external assets; procedural geometry + canvas textures. 60 fps target on a mid laptop (instancing, merged static meshes, outline at full res but cheap, DPR cap 1.5, quality toggle). Content only from src/data/career.ts and site.ts. Reduced motion: no camera swoop/shake, time cycle paused at the chosen time. No WebGL: message + link back. Bilingual. URLs /es/world/ and /en/world/.
+
+WORLDS: The direction above is the mountain (Qhapaq Ñan). The same language extends to the Wasi house at the trailhead (adobe, red tile, woven rugs; interior loaded on approach) and to the Antisuyu jungle on its own page /[lang]/world/selva/ (a long road beside a brown river: laterite earth, deep greens, palm-thatch and stilt houses, a paddled canoe, a canopy walkway, Amazon wildlife). Same toon ramp, ink, paper UI and guardrails.
