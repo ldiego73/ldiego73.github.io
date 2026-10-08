@@ -27,6 +27,8 @@ for (const path of pages) {
     await expect(page.locator("h1").first()).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(0);
+    // On phones a too-wide page doesn't scroll sideways: the browser zooms out and widens the layout viewport.
+    expect(await page.evaluate(() => window.innerWidth)).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0);
     expect(errors).toEqual([]);
   });
 }

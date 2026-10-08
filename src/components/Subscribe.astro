@@ -64,9 +64,11 @@ const C = {
 </script>
 
 <style>
+  /* Text and buttons share a row when there is room and wrap below it otherwise (a grid "auto" column let the
+     buttons' max-content width squeeze the text to one word per line in narrow containers like a post footer). */
   .subscribe {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: var(--space-3);
     align-items: center;
     padding: var(--space-3);
@@ -74,6 +76,10 @@ const C = {
     border-left: 4px solid var(--ochre);
     border-radius: var(--radius);
     margin-block: var(--space-4);
+  }
+  .txt {
+    flex: 1 1 20rem;
+    min-width: 0;
   }
   h2 {
     display: flex;
@@ -89,9 +95,9 @@ const C = {
   }
   .actions {
     display: flex;
+    flex: 0 1 auto;
     flex-wrap: wrap;
     gap: 10px;
-    justify-content: flex-end;
   }
   .actions :global(.btn) {
     display: inline-flex;
@@ -100,13 +106,5 @@ const C = {
   }
   .compact {
     margin-block: var(--space-3) var(--space-5);
-  }
-  @media (max-width: 860px) {
-    .subscribe {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .actions {
-      justify-content: flex-start;
-    }
   }
 </style>

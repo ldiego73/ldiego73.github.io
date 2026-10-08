@@ -477,7 +477,8 @@ const L = {
   }
   @media (max-width: 1000px) {
     .layout {
-      grid-template-columns: 1fr;
+      /* minmax(0, …): a bare 1fr would grow to the prose's min-content (long code lines, URLs) and widen the page. */
+      grid-template-columns: minmax(0, 1fr);
     }
     .toc {
       display: none;
