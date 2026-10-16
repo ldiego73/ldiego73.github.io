@@ -10,8 +10,10 @@
  * stilt houses from career.ts ARTIFACTS + the page's repos (ambient/palafitos/logic.ts), the raft's cabinets
  * from games/registry.ts (ambient/arcade/logic.ts), stamp names from lib/passport.ts CATALOG. It describes
  * only what the jungle world does: the canoe between the embarcadero and the palafitos, the canopy walkway
- * between ceibas, the clay lick at the end of the road and the punku back to the mountain.
+ * between ceibas, the clay lick near the end of the road, the kené totem where it ends (its celebration, reward
+ * panel and stamp, ambient/kene.ts) and the punku back to the mountain.
  */
+import { SITE } from "../../data/site";
 import { GAMES } from "../../games/registry";
 import { CATALOG } from "../../lib/passport";
 import type { Lang } from "../contract";
@@ -27,7 +29,7 @@ import { SELVA_WILDLIFE } from "./wildlife";
 const COPY = {
   es: {
     title: "Antisuyu · el camino de la selva",
-    lede: "Un camino llano por la selva baja, de oeste a este, junto a un río ancho y marrón. Llegas por un punku de piedra desde el Qhapaq Ñan; las paradas del camino se levantan a ambos lados, y al final el camino sube a los puentes del dosel y termina frente a una collpa de guacamayos.",
+    lede: "Un camino llano por la selva baja, de oeste a este, junto a un río ancho y marrón. Llegas por un punku de piedra desde el Qhapaq Ñan; las paradas del camino se levantan a ambos lados, y al final el camino sube a los puentes del dosel, pasa frente a una collpa de guacamayos y termina en un tótem kené.",
     toc: "Paradas del camino",
     stations: "Paradas del camino",
     back: "Volver al Qhapaq Ñan",
@@ -62,15 +64,24 @@ const COPY = {
       "Pasado el arcade, el camino deja el suelo y sube a una pasarela de puentes colgantes entre ceibas, a la altura del dosel. Junto a tres ceibas, la baranda se abre a una plataforma de tablas que rodea el tronco y puedes recorrer. Cruzarla entera, de un extremo al otro sin bajarte, da un sello; pasar por las plataformas no lo interrumpe.",
     doselTitle: "Puentes del dosel",
     collpa:
-      "El fin del camino: un mirador de madera con una banca, frente a una collpa al otro lado del río, un barranco de arcilla rojiza donde los guacamayos vienen a comer la tierra. Puedes sentarte en la banca (tecla E) a mirar la collpa; al moverte, saltar o pulsar E o Esc te levantas.",
-    collpaSign: "Fin del camino — vuelve por el punku o en canoa.",
+      "Casi al final del camino: un mirador de madera con una banca, frente a una collpa al otro lado del río, un barranco de arcilla rojiza donde los guacamayos vienen a comer la tierra. Puedes sentarte en la banca (tecla E) a mirar la collpa; al moverte, saltar o pulsar E o Esc te levantas.",
+    collpaSign: "Mirador de la collpa — el camino termina en el tótem kené.",
+    keneTitle: "Tótem kené · fin del Antisuyu",
+    kene: "Donde termina el camino, unos pasos más allá de la collpa, se abre un claro de tierra apisonada con un tótem kené: un poste alto de madera tallada, pintado con kené, los diseños de líneas del pueblo shipibo-konibo, que según su tradición nacen de la piel de Ronin, la gran anaconda. Ronin, roja de achiote con kené negro, sube enroscada por el poste hasta una corona de plumas de guacamayo. Alrededor hay vasijas pintadas y seis postes con plumas y cintas kené, y un letrero: «Fin del Antisuyu». De noche, las líneas kené brillan tenues. Es un homenaje al arte shipibo-konibo, hecho solo con geometría y dibujo procedural.",
+    keneArrive:
+      "La primera vez que llegas al tótem en una visita, suena un breve tema (con el sonido activo), de la corona brotan pétalos de flores y mariposas morpho azules (no si tu sistema pide reducir el movimiento) y las líneas kené brillan un momento. Luego se abre el panel «¡Lo lograste!», con tu nombre de viajero si lo pusiste: hasta tres cifras del camino (herramientas del bote del regatón, relatos de la maloca, proyectos de los palafitos o juegos del arcade, las que tengan datos) y tus sellos del Antisuyu, y botones para crear tu postal, agendar 60 minutos, descargar el CV, volver al Qhapaq Ñan o volver al sitio. Junto al tótem, la tecla E lo vuelve a abrir.",
+    keneBook: "Agendar 60 min",
+    keneCv: "Descargar CV",
+    peopleTitle: "La comunidad del río",
+    people:
+      "En el camino vive una comunidad ribereña inspirada en los pueblos shipibo-konibo y asháninka. De día, los niños juegan a la pelota y a la chapada en la plaza de los palafitos y se escabullen entre risas si te acercas. Otros saltan al río desde un tronco varado en la playa frente al embarcadero y vuelven nadando a la arena. Junto a la maloca, una mujer teje en telar de cintura y otra pinta kené en sus vasijas, acompañadas por un anciano con corona de plumas. Por el camino pasan parejas con racimos de plátano y canastas, que se hacen a un lado para dejarte pasar. Frente al bote del regatón, un pescador lanza su tarrafa desde una canoa, y río abajo pasa de vez en cuando un peque-peque. Al anochecer casi todos vuelven a casa; solo el anciano se queda junto a un pequeño fuego. Cerca de ellos, «E · Saludar» muestra un breve saludo.",
     wildlife: "Fauna de la selva",
     backTitle: "De vuelta a la montaña",
-    map: "El mapa de papel se abre con M (o el botón Y del mando). El viaje rápido entre paradas se desbloquea al llegar a la collpa, al final del camino.",
+    map: "El mapa de papel se abre con M (o el botón Y del mando). El viaje rápido entre paradas se desbloquea al llegar a la collpa, cerca del final del camino.",
   },
   en: {
     title: "Antisuyu · the jungle road",
-    lede: "A flat road through the lowland forest, west to east, beside a wide brown river. You arrive through a stone punku from the Qhapaq Ñan; the stops of the road stand on either side, and at the end the road climbs onto the canopy bridges and ends facing a macaw clay lick.",
+    lede: "A flat road through the lowland forest, west to east, beside a wide brown river. You arrive through a stone punku from the Qhapaq Ñan; the stops of the road stand on either side, and at the end the road climbs onto the canopy bridges, passes a macaw clay lick and ends at a kené totem.",
     toc: "Stops along the road",
     stations: "Stops along the road",
     back: "Back to the Qhapaq Ñan",
@@ -105,11 +116,20 @@ const COPY = {
       "Past the arcade, the road leaves the ground and climbs onto a walkway of hanging bridges between ceiba trees, at canopy height. Beside three ceibas the railing opens onto a plank platform that rings the trunk and that you can walk around. Crossing it end to end without getting off gives a stamp; stepping onto the platforms does not break it.",
     doselTitle: "Canopy bridges",
     collpa:
-      "The end of the road: a wooden viewpoint with a bench, facing a collpa across the river, a reddish clay cliff where macaws come to eat the earth. You can sit on the bench (E key) to watch the collpa; moving, jumping or pressing E or Esc stands you up.",
-    collpaSign: "End of the road — head back through the punku or by canoe.",
+      "Near the end of the road: a wooden viewpoint with a bench, facing a collpa across the river, a reddish clay cliff where macaws come to eat the earth. You can sit on the bench (E key) to watch the collpa; moving, jumping or pressing E or Esc stands you up.",
+    collpaSign: "Clay lick viewpoint — the road ends at the kené totem.",
+    keneTitle: "Kené totem · end of the Antisuyu",
+    kene: "Where the road ends, a few steps past the collpa, a clearing of packed earth holds a kené totem: a tall carved wooden pole painted with kené, the line designs of the Shipibo-Konibo people, which in their tradition come from the skin of Ronin, the great anaconda. Ronin, achiote red with black kené, coils up the pole to a crown of macaw feathers. Around it stand painted jars and six poles with feathers and kené streamers, and a sign: “End of the Antisuyu”. At night the kené lines glow faintly. It is a tribute to Shipibo-Konibo art, made only of geometry and procedural drawing.",
+    keneArrive:
+      "The first time you reach the totem in a visit, a short tune plays (with sound on), flower petals and blue morpho butterflies burst from the crown (not if your system asks for reduced motion) and the kené lines glow for a moment. Then the “You made it!” panel opens, with your traveler name if you set one: up to three numbers from the road (tools on the trader's boat, stories in the maloca, projects in the stilt houses or games in the arcade, whichever have data) and your Antisuyu stamps, and buttons to make your postcard, book 60 minutes, download the resume, go back to the Qhapaq Ñan or back to the site. Next to the totem, the E key opens it again.",
+    keneBook: "Book 60 min",
+    keneCv: "Download resume",
+    peopleTitle: "The river community",
+    people:
+      "A riverside community, inspired by the Shipibo-Konibo and Asháninka peoples, lives along the road. By day, children play ball and tag on the stilt-house plaza and scamper off giggling if you come close. Others jump into the river from a stranded log on the sandbar across from the canoe landing and swim back to the sand. By the maloca, one woman weaves on a backstrap loom and another paints kené on her pots, with an elder in a feather crown sitting beside them. Couples carrying banana bunches and baskets walk the road and step aside to let you pass. Off the trader's boat, a fisherman throws his cast net from a dugout, and now and then a peque-peque motor canoe passes downriver. At nightfall most go home; only the elder stays by a small fire. Near them, “E · Greet” shows a short greeting.",
     wildlife: "Jungle wildlife",
     backTitle: "Back to the mountain",
-    map: "The paper map opens with M (or the gamepad's Y button). Fast travel between stops unlocks once you reach the collpa, at the end of the road.",
+    map: "The paper map opens with M (or the gamepad's Y button). Fast travel between stops unlocks once you reach the collpa, near the end of the road.",
   },
 } as const;
 
@@ -227,9 +247,17 @@ export function renderSelvaTextMode(
       section(s.id, label, arcadeHtml(lang));
       // The canopy walkway lies between the arcade and the collpa (CANOPY_T 0.83–0.9).
       section("dosel", c.doselTitle, `<p>${esc(c.dosel)}</p>${stamp("selva:field:dosel")}`);
-    } else if (s.kind === "collpa")
+    } else if (s.kind === "collpa") {
       section(s.id, label, `<p>${esc(c.collpa)}</p><p><strong>${esc(c.collpaSign)}</strong></p>`);
+      // The road ends just past the collpa at the kené totem (ambient/kene.ts).
+      section(
+        "kene",
+        c.keneTitle,
+        `<p>${esc(c.kene)}</p><p>${esc(c.keneArrive)}</p><p>${link(SITE.calendly, c.keneBook, true)} · ${link(SITE.resume[lang], c.keneCv)}</p>${stamp("selva:summit")}`,
+      );
+    }
   }
+  section("comunidad", c.peopleTitle, `<p>${esc(c.people)}</p>`);
   section("fauna", c.wildlife, renderWildlife(lang, h3, SELVA_WILDLIFE));
   section(
     "volver",

@@ -7,6 +7,7 @@
  */
 import type { SelvaLayout } from "../../contract";
 import { collpaCliff } from "../collpa/spot";
+import { keneSpot } from "../kene/spot";
 
 export interface Footprint {
   station: string;
@@ -45,7 +46,9 @@ function rectCircles(x0: number, z0: number, x1: number, z1: number, r: number):
   return out;
 }
 
-export function stationFootprints(L: Pick<SelvaLayout, "stationPose" | "riverDist" | "river">): Footprint[] {
+export function stationFootprints(
+  L: Pick<SelvaLayout, "stationPose" | "riverDist" | "river"> & Partial<Pick<SelvaLayout, "trail">>,
+): Footprint[] {
   const out: Footprint[] = [];
   for (const [station, list] of Object.entries(LOCAL)) {
     const p = L.stationPose(station);
@@ -61,6 +64,8 @@ export function stationFootprints(L: Pick<SelvaLayout, "stationPose" | "riverDis
     const p = cliff.point(u, 0);
     out.push({ station: "collpa", x: p.x, z: p.z, r: 2.6 });
   }
+  // The kené totem's clearing just past the road end (../kene/spot.ts).
+  if (L.trail) for (const f of keneSpot({ trail: L.trail }).footprint) out.push({ station: "kene", ...f });
   return out;
 }
 

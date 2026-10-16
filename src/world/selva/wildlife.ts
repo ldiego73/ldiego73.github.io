@@ -2,7 +2,8 @@
  * Field guide of the animals a traveler can meet on the Antisuyu jungle road, for the jungle text mode
  * (selva/textmode.ts). Same shape as the mountain's guide (../wildlife.ts Species). Every line restates what
  * the fauna ambients actually do (selva/ambient/guacamayos.ts, monos.ts, perezoso.ts, bufeo.ts, caiman.ts,
- * ronsoco.ts, tucan.ts, jaguar.ts, insects.ts): where they live, when they are out and how they behave, and
+ * ronsoco.ts, tucan.ts, jaguar.ts, sajinos.ts, anuje.ts, taricaya.ts, sachavaca.ts, shansho.ts, insects.ts):
+ * where they live, when they are out and how they behave, and
  * which passport stamp a good look earns (`selva:fauna:*`, CATALOG in src/lib/passport.ts). Keep it in sync
  * when a module changes. Pure data (no DOM): also rendered at build time.
  */
@@ -182,6 +183,93 @@ export const SELVA_WILDLIFE: readonly Species[] = [
       en: "It steps out of the forest and crosses the road; in the middle it stops to look at you —eyes shining green-gold— for a couple of seconds, then trots on and is gone into the forest. On a sandbar it walks the length of it, stops to look at you and slips into the river at the end. Come within about 10 m and it turns away at once. It never attacks or approaches.",
     },
     stamp: "selva:fauna:jaguar",
+  },
+  {
+    id: "sajino",
+    name: { es: "Sajino", en: "Collared peccary" },
+    latin: "Pecari tajacu",
+    where: {
+      es: "Cruzando el camino por delante de ti, en tramos tranquilos lejos de las estaciones y de los puentes del dosel.",
+      en: "Crossing the road ahead of you, on quiet stretches away from the stations and the canopy bridges.",
+    },
+    when: {
+      es: "De día y en la penumbra del amanecer y del atardecer, no en plena noche. La primera manada suele cruzar tras unos 20 segundos de caminar por el camino; después, cada minuto o así, y más de tarde en tarde cuando ya tienes su sello.",
+      en: "By day and in the half-light of dawn and dusk, not in deep night. The first herd usually crosses after about 20 seconds of walking the road; after that, every minute or so, and less often once you have its stamp.",
+    },
+    does: {
+      es: "Una pequeña manada (siete con dos crías con calidad alta; cuatro si no) sale del monte unos 25 a 35 m por delante y cruza en fila india: el primero elige el camino y los demás pisan sus huellas. Van al trote, olfateando con la cabeza baja, y a veces el primero se detiene a hozar en el borde y la fila se amontona detrás; al otro lado se pierden en el bosque. Si corres hacia ellos (a unos 16 m) o te acercas caminando a unos 6 m, la fila se deshace y cada uno huye al galope hacia el lado del camino que tiene más cerca.",
+      en: "A small herd (seven, two of them young, on high quality; four otherwise) steps out of the forest some 25 to 35 m ahead and crosses in single file: the leader picks the way and the rest tread in its tracks. They trot along snuffling, heads low, and now and then the leader stops to root at the verge and the file bunches up behind it; on the far side they melt into the forest. Run at them (within about 16 m) or walk up to about 6 m and the file breaks: each one bolts at a gallop for whichever side of the road is nearer.",
+    },
+    stamp: "selva:fauna:sajino",
+  },
+  {
+    id: "anuje",
+    name: { es: "Añuje", en: "Agouti" },
+    latin: "Dasyprocta sp.",
+    where: {
+      es: "Cruzando el camino a pocos metros por delante de ti (con calidad alta, a veces dos a la vez), en tramos tranquilos lejos de las estaciones.",
+      en: "Darting across the road a few metres ahead of you (on high quality, sometimes two at once), on quiet stretches away from the stations.",
+    },
+    when: { es: "De día.", en: "By day." },
+    does: {
+      es: "Sale del monte en un sprint, frena en seco en el camino o en su borde y se sienta sobre las patas traseras para mirarte; luego sale disparado, casi siempre hacia el otro lado y a veces de vuelta por donde vino, con un quiebre en la carrera. Algunos llevan una semilla en la boca y se quedan un momento royéndola. Si te acercas a unos 5 m (8 si corres) huye enseguida, lejos de ti.",
+      en: "It bursts out of the forest in a sprint, stops dead on the road or at its verge and sits up on its haunches to look at you; then it is off like a shot, usually on across the road and sometimes back the way it came, with a swerve in its run. Some carry a seed in the mouth and stay a moment to gnaw it. Come within about 5 m (8 if you run) and it flees at once, away from you.",
+    },
+    stamp: "selva:fauna:anuje",
+  },
+  {
+    id: "taricaya",
+    name: { es: "Taricaya", en: "Yellow-spotted river turtle" },
+    latin: "Podocnemis unifilis",
+    where: {
+      es: "En troncos caídos al pie de la orilla, del lado del camino: uno un poco río abajo del embarcadero (se ve desde su muelle) y otro en la ruta en canoa; con calidad alta, otro más en la ruta, uno pasando los palafitos y uno junto al regatón.",
+      en: "On fallen logs at the foot of the road-side bank: one a little downstream of the canoe landing (in view from its pier) and one on the canoe route; on high quality, another on the route, one past the stilt houses and one by the trader's boat.",
+    },
+    when: {
+      es: "De día toman sol en el tronco; al atardecer se meten al río una a una y de noche solo asoman de vez en cuando.",
+      en: "By day they bask on the log; at dusk they slip into the river one by one, and at night they only come up now and then.",
+    },
+    does: {
+      es: "Una fila de tortugas (cinco con calidad alta; tres si no) tendidas al sol con las patas estiradas hacia atrás y la cabeza en alto, con sus manchas amarillas. Si te acercas (unos 10 m; 14 si corres o vas en canoa) se deslizan al agua una a una, la más cercana primero, cada una con un chapuzón y un anillo. Cuando te alejas, al rato asoman la cabeza y el caparazón junto al tronco, flotan un momento y vuelven a subir, de una en una.",
+      en: "A row of turtles (five on high quality; three otherwise) sprawled in the sun, legs stretched back and heads up, showing their yellow spots. Come close (about 10 m; 14 if you run or paddle) and they slide into the water one by one, nearest first, each with a plop and a ring. A while after you have gone, heads and shells come up beside the log, drift a moment and climb back on, one at a time.",
+    },
+    stamp: "selva:fauna:taricaya",
+  },
+  {
+    id: "sachavaca",
+    name: { es: "Sachavaca (tapir)", en: "Sachavaca (lowland tapir)" },
+    latin: "Tapirus terrestris",
+    where: {
+      es: "En la playa de arena de la orilla del lado del camino en la ruta en canoa, entre el embarcadero y los palafitos; con calidad alta, también en la playa de la otra orilla un poco río arriba del regatón.",
+      en: "On the sandbar along the road-side bank on the canoe route, between the canoe landing and the stilt houses; on high quality, also on the sandbar across the river a little upstream of the trader's boat.",
+    },
+    when: {
+      es: "Del atardecer (hacia las 5 de la tarde) hasta poco después del amanecer; de día descansa en el bosque.",
+      en: "From dusk (around 5 pm) until a little after sunrise; by day it rests in the forest.",
+    },
+    does: {
+      es: "Sale de la vegetación de la orilla a la playa y la recorre despacio, husmeando la arena con su trompa corta; bebe en la orilla y a veces entra al agua hasta el vientre y se queda remojándose. Si te acercas (unos 9 m; 13 si corres o remas) trota al río y se aleja nadando con solo el lomo y la cabeza fuera, y vuelve cuando llevas un rato lejos. Al amanecer regresa al bosque.",
+      en: "It steps out of the bank vegetation onto the sand and ambles over it, nosing the ground with its short trunk; it drinks at the water's edge and now and then wades in belly-deep and stands soaking. Come close (about 9 m; 13 if you run or paddle) and it trots into the river and swims off with only its back and head showing, coming back once you have been away a while. At dawn it walks back into the forest.",
+    },
+    stamp: "selva:fauna:sachavaca",
+  },
+  {
+    id: "shansho",
+    name: { es: "Shansho (hoatzín)", en: "Shansho (hoatzin)" },
+    latin: "Opisthocomus hoazin",
+    where: {
+      es: "En los matorrales que se inclinan sobre el agua en la orilla del lado del camino: uno junto al muelle del embarcadero, río abajo, y otro en la ruta en canoa; con calidad alta, otro más en la ruta y uno río arriba del regatón.",
+      en: "In the thickets leaning out over the water on the road-side bank: one by the canoe landing's pier, downstream, and one on the canoe route; on high quality, another on the route and one upstream of the trader's boat.",
+    },
+    when: {
+      es: "De día; de noche duermen quietos en las ramas, con la cabeza hundida entre los hombros.",
+      en: "By day; at night they roost still in the branches, heads sunk into their shoulders.",
+    },
+    does: {
+      es: "Un grupo (cinco con calidad alta; tres si no) de aves grandes y pesadas, de cara azul, ojo rojo y cresta despeinada. Giran la cabeza, se acicalan y se asolean con las alas medio abiertas; cada tanto alguna cambia de rama con un aleteo corto y torpe (vuelan mal). Si te acercas (unos 10 m; 14 si corres o vas en canoa) se agitan, estiran el cuello y suben aleteando a las ramas más alejadas de ti hasta que te vas.",
+      en: "A group (five on high quality; three otherwise) of big, heavy birds with blue faces, red eyes and a ragged crest. They turn their heads, preen and sun themselves with wings held half open; every so often one changes branch in a short, clumsy flutter (they fly poorly). Come close (about 10 m; 14 if you run or paddle) and they get agitated, stretch their necks and flap up to the branches farthest from you until you leave.",
+    },
+    stamp: "selva:fauna:shansho",
   },
   {
     id: "morpho",

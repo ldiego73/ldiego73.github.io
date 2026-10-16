@@ -92,6 +92,7 @@ export const CATALOG: readonly PassportStamp[] = [
   })),
   { id: "selva:ride:canoe", kind: "ride", world: "selva", label: { es: "Viaje en canoa", en: "Canoe trip" } },
   { id: "selva:field:dosel", kind: "field", world: "selva", label: { es: "Puentes del dosel", en: "Canopy walkway" } },
+  { id: "selva:summit", kind: "summit", world: "selva", label: { es: "Fin del Antisuyu", en: "End of the Antisuyu" } },
   ...(
     [
       ["guacamayo", "Guacamayo escarlata", "Scarlet macaw"],
@@ -102,6 +103,11 @@ export const CATALOG: readonly PassportStamp[] = [
       ["ronsoco", "Ronsoco", "Capybara"],
       ["tucan", "Tucán", "Toucan"],
       ["jaguar", "Otorongo · jaguar", "Otorongo · jaguar"],
+      ["sajino", "Sajino", "Collared peccary"],
+      ["taricaya", "Taricaya", "River turtle"],
+      ["anuje", "Añuje", "Agouti"],
+      ["sachavaca", "Sachavaca · tapir", "Sachavaca · tapir"],
+      ["shansho", "Shansho · hoatzín", "Shansho · hoatzin"],
     ] as const
   ).map(([id, es, en]) => ({
     id: `selva:fauna:${id}`,

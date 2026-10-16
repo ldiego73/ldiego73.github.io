@@ -24,6 +24,7 @@ import { emit, on } from "../events";
 import { selvaStationDye } from "../journey-card";
 import { fonts } from "../palette";
 import { createOverlay, esc } from "../textmode";
+import { keneSpot } from "./ambient/kene/spot";
 import { CANOPY_T, SELVA_STATIONS, type SelvaLayout } from "./contract";
 
 /** The stamp that earns fast travel: the collpa at the east end of the road. */
@@ -125,7 +126,7 @@ const COPY = {
     close: "Cerrar mapa",
     list: "Estaciones",
     hint: "Elige una estación para viajar por el camino.",
-    hintLocked: "Llega a la collpa de guacamayos, al final del camino, para viajar entre estaciones.",
+    hintLocked: "Llega a la collpa de guacamayos, cerca del final del camino, para viajar entre estaciones.",
     legend: "Punteado: ruta en canoa. Discontinuo: puentes del dosel.",
     travel: "Viajar",
     seen: "Visitada",
@@ -141,7 +142,7 @@ const COPY = {
     close: "Close map",
     list: "Stations",
     hint: "Pick a station to travel there along the road.",
-    hintLocked: "Reach the macaw clay lick at the end of the road to travel between stations.",
+    hintLocked: "Reach the macaw clay lick near the end of the road to travel between stations.",
     legend: "Dotted: canoe route. Dashed: canopy walkway.",
     travel: "Travel",
     seen: "Visited",
@@ -205,6 +206,7 @@ export function createSelvaMap(
       z: pos.z,
     };
   });
+  const totem = keneSpot(L).totem;
   const road: Array<{ x: number; z: number; t: number }> = [];
   for (let i = 0; i <= 240; i++) {
     const p = L.trail.pointAt(i / 240);
@@ -489,6 +491,27 @@ export function createSelvaMap(
       ctx.strokeStyle = INK;
       ctx.strokeRect(-len * 0.2, -len * 0.18, len, len * 0.36);
       ctx.restore();
+    }
+
+    // The kené totem where the road ends (ambient/kene.ts): a small pole with a red feather crown.
+    projectRect(bounds, cssW, cssH, totem.x, totem.z, P);
+    {
+      const h = Math.max(10, side / 55);
+      ctx.lineWidth = Math.max(2.5, h / 4);
+      ctx.strokeStyle = INK;
+      ctx.beginPath();
+      ctx.moveTo(P.x, P.y);
+      ctx.lineTo(P.x, P.y - h);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(P.x - h * 0.45, P.y - h * 1.35);
+      ctx.lineTo(P.x + h * 0.45, P.y - h * 1.35);
+      ctx.lineTo(P.x, P.y - h * 0.8);
+      ctx.closePath();
+      ctx.fillStyle = "#b3382a";
+      ctx.fill();
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
     }
 
     // Stations: numbered discs, coloured once visited; labels above (river side) or below the road.

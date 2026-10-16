@@ -1,7 +1,7 @@
 /**
- * Collpa de guacamayos (station "collpa", kind collpa): the end of the Antisuyu road. A wooden viewpoint deck
- * on stilts at the bank edge, a bench facing the river, a carved sign ("Fin del camino — vuelve por el punku o
- * en canoa"), and across the river the collpa itself: a reddish clay-lick cliff rising from the far bank, in
+ * Collpa de guacamayos (station "collpa", kind collpa): the last stop before the end of the Antisuyu road (it
+ * ends a few steps on, at the kené totem, ./kene.ts). A wooden viewpoint deck on stilts at the bank edge, a
+ * bench facing the river, a carved sign ("Mirador de la collpa — el camino termina en el tótem kené →"), and across the river the collpa itself: a reddish clay-lick cliff rising from the far bank, in
  * banded strata of clay under a cap of dark soil, roots and overhanging green, with a talus of fallen clay at
  * the waterline. The macaws that come to eat the clay belong to the fauna agent: the face is placed by
  * collpa/spot.ts (pure, exported), so they can cling to `collpaCliff(layout).point(u, v)` in the clay band.
@@ -38,8 +38,9 @@ import { addDeck, at, groundOf, segmentCircles, stationFrame, stationGroup } fro
 
 const STATION = "collpa";
 const SIGN: { title: L; sub: L } = {
-  title: { es: "FIN DEL CAMINO", en: "END OF THE ROAD" },
-  sub: { es: "Vuelve por el punku o en canoa", en: "Head back through the punku or by canoe" },
+  title: { es: "MIRADOR DE LA COLLPA", en: "CLAY LICK VIEWPOINT" },
+  // The totem lies east, to the reader's right (the sign faces the road, local +Z; local +X runs east).
+  sub: { es: "El camino termina en el tótem kené →", en: "The road ends at the kené totem →" },
 };
 /** Viewpoint deck (local): level, from the apron out over the bank on stilts; its top above the origin. */
 const DECK = { x0: -3.4, x1: 3.4, z0: -9.8, z1: -5.0 };
