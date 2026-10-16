@@ -6,14 +6,14 @@ import { renderCuscoTextMode } from "./textmode";
 describe("Cusco text mode", () => {
   for (const lang of ["es", "en"] as const) {
     const doc = renderCuscoTextMode(lang);
-    test(`every gate, its state and a link only for open worlds (${lang})`, () => {
+    test(`every gate, its state and a link to every world (${lang})`, () => {
       for (const g of GATES) expect(doc).toContain(g.name[lang]);
-      expect(doc).toContain(lang === "es" ? "Próximamente" : "Coming soon");
+      for (const g of GATES) expect(g.available).toBe(true);
+      expect(doc).not.toContain(lang === "es" ? "Próximamente" : "Coming soon");
       expect(doc).toContain(`href="/${lang}/world/selva/"`);
       expect(doc).toContain(`href="/${lang}/world/?from=cusco"`);
-      expect(doc).not.toContain("/world/colca");
       expect(doc).toContain(`href="/${lang}/world/titicaca/"`);
-      expect(doc).not.toContain("/world/colca");
+      expect(doc).toContain(`href="/${lang}/world/colca/"`);
     });
     test(`khipu, finale, chasqui contact and stamps (${lang})`, () => {
       expect(doc).toContain(SITE.email);

@@ -89,6 +89,22 @@ test("Cusco hub world loads on its own page", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("Kuntisuyu world loads on its own page", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/es/world/colca/");
+  await expect(page.locator("#world canvas").first()).toBeAttached({ timeout: 15000 });
+  await page.waitForTimeout(2500);
+  expect(errors).toEqual([]);
+});
+
+test("arriving at the Cusco hub through the Kuntisuyu punku", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/en/world/cusco/?from=colca");
+  await expect(page.locator("#world canvas").first()).toBeAttached({ timeout: 15000 });
+  await page.waitForTimeout(2500);
+  expect(errors).toEqual([]);
+});
+
 test("arriving at the Cusco hub through the Antisuyu punku", async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto("/en/world/cusco/?from=selva");

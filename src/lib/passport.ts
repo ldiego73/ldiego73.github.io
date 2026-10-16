@@ -1,5 +1,6 @@
 import { type ArcadeState, load as loadArcade } from "../games/core/store";
 import { ACHIEVEMENTS } from "../games/registry";
+import { FAUNA as COLCA_FAUNA, COLCA_STATIONS } from "../world/colca/plan";
 import { type L, STATIONS } from "../world/contract";
 import { COSTA_STATIONS } from "../world/costa/plan";
 import { CUSCO_STATIONS } from "../world/cusco/plan";
@@ -27,6 +28,7 @@ export const WORLD_PAGES: ReadonlyArray<{ id: WorldId; label: L }> = [
   { id: "cusco", label: { es: "Qusqu · Haukaypata", en: "Qusqu · Haukaypata" } },
   { id: "costa", label: { es: "Chinchaysuyu · la costa", en: "Chinchaysuyu · the coast" } },
   { id: "titicaca", label: { es: "Collasuyu · el lago", en: "Collasuyu · the lake" } },
+  { id: "colca", label: { es: "Kuntisuyu · Colca y Nasca", en: "Kuntisuyu · Colca and Nazca" } },
 ];
 export const worldOf = (stamp: Pick<PassportStamp, "world">): WorldId => stamp.world ?? "qhapaq";
 
@@ -218,6 +220,32 @@ export const CATALOG: readonly PassportStamp[] = [
     kind: "fauna" as const,
     world: "titicaca" as const,
     label: { es, en },
+  })),
+  // Kuntisuyu: the Colca canyon road. The village, the colcas, the Nazca lookout and the Cruz del Cóndor plus the
+  // finale complete the page; Cahuachi and the wildlife are bonus finds. The punku stamps nothing.
+  ...COLCA_STATIONS.flatMap((station) =>
+    station.stamp === false
+      ? []
+      : [
+          {
+            id: `colca:station:${station.id}`,
+            kind: station.stamp ?? ("station" as const),
+            world: "colca" as const,
+            label: station.label,
+          },
+        ],
+  ),
+  {
+    id: "colca:summit",
+    kind: "summit",
+    world: "colca",
+    label: { es: "Fin del Kuntisuyu", en: "End of the Kuntisuyu" },
+  },
+  ...COLCA_FAUNA.map((f) => ({
+    id: `colca:fauna:${f.id}`,
+    kind: "fauna" as const,
+    world: "colca" as const,
+    label: f.label,
   })),
 ];
 

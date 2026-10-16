@@ -113,6 +113,13 @@ describe("Qhapaq Ñan passport", () => {
       ...["zambullidor", "flamenco", "gaviota", "rana", "alpaca", "llama", "vizcacha"].map(
         (id) => `titicaca:fauna:${id}`,
       ),
+      "colca:station:pueblo",
+      "colca:station:colcas",
+      "colca:station:nazca",
+      "colca:station:cahuachi",
+      "colca:station:cruz",
+      "colca:summit",
+      ...["condor", "vicuna", "vizcacha", "picaflor", "zorro"].map((id) => `colca:fauna:${id}`),
     ];
     expect(CATALOG.map((stamp) => stamp.id).sort()).toEqual(expected.sort());
     expect(new Set(expected).size).toBe(CATALOG.length);
@@ -220,7 +227,7 @@ describe("Qhapaq Ñan passport", () => {
     expect(passportComplete(state)).toBe(true);
     const costaRequired = COSTA_STATIONS.filter((station) => station.stamp !== false).length + 2;
     expect(mergedPassport(state, emptyState()).worldCollected).toBe(
-      21 + 4 + SELVA_STATIONS.length + 3 + 2 + costaRequired + requiredStamps("titicaca").length,
+      21 + 4 + SELVA_STATIONS.length + 3 + 2 + costaRequired + requiredStamps("titicaca").length + 5,
     );
     delete state.stamps["weather:fog"];
     expect(passportComplete(state)).toBe(false);
@@ -243,6 +250,8 @@ describe("Qhapaq Ñan passport", () => {
     expect(passportComplete(state)).toBe(false);
     for (const stamp of requiredStamps("costa")) state.stamps[stamp.id] = 1234;
     for (const stamp of requiredStamps("titicaca")) state.stamps[stamp.id] = 1234;
+    expect(passportComplete(state)).toBe(false);
+    for (const stamp of requiredStamps("colca")) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
     expect(requiredStamps("selva").some((stamp) => stamp.id.startsWith("selva:fauna:"))).toBe(false);
   });
@@ -254,6 +263,19 @@ describe("Qhapaq Ñan passport", () => {
     ]);
     expect(CATALOG.some((stamp) => stamp.id === "cusco:station:antisuyu")).toBe(false);
     expect(CATALOG.find((stamp) => stamp.id === "cusco:station:hatun-rumiyoc")?.kind).toBe("egg");
+  });
+
+  test("the Kuntisuyu page needs its four stations and the finale; Cahuachi and the wildlife are bonus", () => {
+    expect(requiredStamps("colca").map((stamp) => stamp.id)).toEqual([
+      "colca:station:pueblo",
+      "colca:station:colcas",
+      "colca:station:nazca",
+      "colca:station:cruz",
+      "colca:summit",
+    ]);
+    expect(CATALOG.some((stamp) => stamp.id === "colca:station:punku")).toBe(false);
+    expect(CATALOG.find((stamp) => stamp.id === "colca:station:cahuachi")?.kind).toBe("egg");
+    expect(CATALOG.filter((stamp) => stamp.id.startsWith("colca:fauna:")).every((s) => s.kind === "fauna")).toBe(true);
   });
 
   test("the Collasuyu page needs its islands, Taquile, the boat ride and the finale; the rest is bonus", () => {

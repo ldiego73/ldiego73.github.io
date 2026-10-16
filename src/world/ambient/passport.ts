@@ -108,6 +108,11 @@ const SECTIONS: Record<WorldId, Section[]> = {
     { label: COPY.mar, kinds: ["ride"] },
     { label: COPY.fauna, kinds: ["fauna"] },
   ],
+  colca: [
+    { label: COPY.camino, kinds: ["station", "summit"] },
+    { label: COPY.secretos, kinds: ["egg"] },
+    { label: COPY.fauna, kinds: ["fauna"] },
+  ],
   titicaca: [
     { label: COPY.camino, kinds: ["station", "summit", "ride"] },
     { label: COPY.secretos, kinds: ["egg"] },

@@ -39,14 +39,19 @@ describe("hub punkus", () => {
     expect(gatePrompt(by("qhapaq"), "en")).toBe("E · Back to the Qhapaq Ñan");
     expect(gatePrompt(by("collasuyu"), "es")).toBe("E · Viajar al Collasuyu");
     expect(gatePrompt(by("chinchaysuyu"), "es")).toBe("E · Viajar al Chinchaysuyu");
-    expect(gatePrompt(by("kuntisuyu"), "en")).toBe("Kuntisuyu · Coming soon");
+    expect(gateAction(by("kuntisuyu"))).toEqual({ kind: "travel", to: "colca" });
+    expect(gatePrompt(by("kuntisuyu"), "en")).toBe("E · Travel to the Kuntisuyu");
+    // A closed gate (none today) only says coming soon.
+    const shut = { ...by("kuntisuyu"), available: false };
+    expect(gateAction(shut)).toEqual({ kind: "soon" });
+    expect(gatePrompt(shut, "en")).toBe("Kuntisuyu · Coming soon");
   });
 
-  test("only open worlds are prefetched, near their gate", () => {
+  test("open worlds are prefetched, near their gate only", () => {
     const [ax, az] = gatePoint(by("antisuyu"));
     expect(gatesToPrefetch(ax - 5, az + 5).map((g) => g.id)).toEqual(["antisuyu"]);
-    const [cx, cz] = gatePoint(by("kuntisuyu"));
-    expect(gatesToPrefetch(cx, cz)).toEqual([]);
+    const [kx, kz] = gatePoint(by("kuntisuyu"));
+    expect(gatesToPrefetch(kx, kz).map((g) => g.id)).toEqual(["kuntisuyu"]);
     expect(gatesToPrefetch(0, 0)).toEqual([]);
   });
 });

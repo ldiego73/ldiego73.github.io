@@ -1,0 +1,166 @@
+---
+/**
+ * The Kuntisuyu (/{lang}/world/colca/): the road along the Colca canyon and across the Nazca pampa, on the
+ * generic suyu runtime (src/world/suyu/). Its own page and bundle.
+ * Build time: the khipu loader (Kuntisuyu copy) and the accessible text mode as the no-WebGL / failed-load
+ * fallback. The world shows no repos or posts, so there is no #world-data block. The client lazy-imports the
+ * runtime.
+ */
+import { Font } from "astro:assets";
+import Analytics from "../../../components/Analytics.astro";
+import "../../../styles/global.css";
+import "../../../world/world.css";
+import "../../../world/textmode.css";
+import { SITE } from "../../../data/site";
+import { LANGS, type Lang } from "../../../i18n/ui";
+import { colcaLoaderHtml } from "../../../world/colca/copy";
+import { colcaTextCopy, renderColcaTextMode } from "../../../world/colca/textmode";
+
+export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
+const lang = Astro.params.lang as Lang;
+const other: Lang = lang === "es" ? "en" : "es";
+const COPY = {
+  es: {
+    title: "Kuntisuyu · el cañón del Colca y Nasca, mundo explorable",
+    description:
+      "Un camino por el borde del cañón del Colca y la pampa de Nasca: los logros de cada etapa de mi carrera guardados en colcas, mis artefactos de arquitectura trazados como geoglifos, cóndores y el mirador de la Cruz del Cóndor. Experiencia 3D opcional; todo su contenido también está en el sitio.",
+    sr: "Mundo 3D opcional: el camino del cañón del Colca y la pampa de Nasca, con la trayectoria y los artefactos de arquitectura de Luis Diego. Todo su contenido también está en el sitio.",
+    noWebgl:
+      "Tu navegador no puede mostrar el mundo 3D (WebGL no disponible). Aquí tienes el mismo camino en texto; todo el contenido también está en el sitio.",
+    site: "Volver al sitio",
+  },
+  en: {
+    title: "Kuntisuyu · the Colca canyon and Nazca, an explorable world",
+    description:
+      "A road along the rim of the Colca canyon and across the Nazca pampa: the achievements of each stage of my career stored in colcas, my architecture artifacts drawn as geoglyphs, condors and the Cruz del Cóndor lookout. Optional 3D experience; all of its content is also on the site.",
+    sr: "Optional 3D world: the road of the Colca canyon and the Nazca pampa, with Luis Diego's career and architecture artifacts. All of its content is also on the site.",
+    noWebgl:
+      "Your browser can't show the 3D world (WebGL unavailable). Here is the same road in text; all of the content is also on the site.",
+    site: "Back to the site",
+  },
+}[lang];
+const title = `${COPY.title} · ${SITE.name}`;
+const description = COPY.description;
+const tm = colcaTextCopy(lang);
+const textDoc = renderColcaTextMode(lang, { headingLevel: 1, titleId: "kw-tm-title" });
+const canonical = new URL(`/${lang}/world/colca/`, Astro.site);
+const altUrl = new URL(`/${other}/world/colca/`, Astro.site);
+const esUrl = lang === "es" ? canonical : altUrl;
+const enUrl = lang === "en" ? canonical : altUrl;
+const ogImage = new URL(`/og/${lang}/world/colca.png`, Astro.site);
+---
+<!doctype html>
+<html lang={lang} data-theme="light" data-world="colca">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="es" href={esUrl} />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="x-default" href={esUrl} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#ecdcc0" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={title} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta property="og:locale" content={lang === "es" ? "es_PE" : "en_US"} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <Analytics />
+    <Font cssVariable="--font-archivo" preload />
+    <Font cssVariable="--font-hanken" />
+    <Font cssVariable="--font-jetbrains" preload />
+    <Font cssVariable="--font-pixel" />
+    <noscript><style is:inline>.kw-textpage[hidden] { display: block; } [data-loading] { display: none; }</style></noscript>
+  </head>
+  <body class="kw-body">
+    <a class="kw-skip" href="#kw-text" data-skip>{tm.skip}</a>
+    <main id="world" class="kw-root" data-lang={lang} aria-label={COPY.title}>
+      <p class="sr-only">{COPY.sr} <a href={`/${lang}/`}>{COPY.site}</a></p>
+      <div class="kw-loader" data-loading set:html={colcaLoaderHtml(lang)} />
+      <section id="kw-text" class="kw-textpage" data-fallback hidden aria-labelledby="kw-tm-title">
+        <div class="kw-textpage-note">
+          <p data-nowebgl hidden>{COPY.noWebgl}</p>
+          <a class="kw-btn" href={`/${lang}/world/cusco/?from=colca`}>{tm.back}</a>
+          <a class="kw-btn" href={`/${lang}/`}>{COPY.site}</a>
+        </div>
+        <article class="kw-textdoc" set:html={textDoc} />
+      </section>
+    </main>
+  </body>
+</html>
+
+<script>
+  const host = document.getElementById("world");
+  const webgl = () => {
+    try {
+      const c = document.createElement("canvas");
+      return !!(c.getContext("webgl2") || c.getContext("webgl"));
+    } catch {
+      return false;
+    }
+  };
+  if (host) {
+    const loading = host.querySelector<HTMLElement>("[data-loading]");
+    const fallback = host.querySelector<HTMLElement>("[data-fallback]");
+    const skip = document.querySelector<HTMLAnchorElement>("[data-skip]");
+    let mounted = false;
+    // The static text page is the no-WebGL / failed-load fallback and the skip link's target.
+    const showText = (noWebgl: boolean) => {
+      loading?.remove();
+      if (!fallback) return;
+      fallback.hidden = false;
+      if (noWebgl) fallback.querySelector<HTMLElement>("[data-nowebgl]")?.removeAttribute("hidden");
+    };
+    skip?.addEventListener("click", (e) => {
+      if (mounted) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("world:textmode"));
+        return;
+      }
+      showText(false);
+    });
+    if (!webgl()) {
+      showText(true);
+    } else {
+      import("../../../world/colca/index")
+        .then(({ mountColca }) => {
+          const lang = host.dataset.lang === "en" ? "en" : "es";
+          const dispose = mountColca(host, { lang });
+          mounted = true;
+          window.addEventListener("pagehide", (e) => {
+            if (!e.persisted) dispose();
+          });
+        })
+        .catch((err) => {
+          console.error(err);
+          showText(true);
+        });
+    }
+  }
+</script>
+
+<style is:global>
+  .kw-body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #ecdcc0;
+    overscroll-behavior: none;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+</style>

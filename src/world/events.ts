@@ -10,9 +10,9 @@ import type { L } from "./contract";
  * "cusco" the hub at Haukaypata, the great plaza of Qusqu where the suyu roads start (/world/cusco/, on the
  * generic suyu runtime in ./suyu/), "costa" the Chinchaysuyu coast road (/world/costa/, on the suyu runtime),
  * "titicaca" the Collasuyu lake road (/world/titicaca/, suyu runtime). New suyu worlds add their id here when
- * their page exists.
+ * their page exists. "colca" is the Kuntisuyu road along the Colca canyon and the Nazca pampa (/world/colca/).
  */
-export type WorldId = "qhapaq" | "wasi" | "selva" | "cusco" | "costa" | "titicaca";
+export type WorldId = "qhapaq" | "wasi" | "selva" | "cusco" | "costa" | "titicaca" | "colca";
 
 export type StampKind =
   | "station"

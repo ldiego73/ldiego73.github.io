@@ -1,0 +1,143 @@
+/* Kuntisuyu panels (colcas, geoglyphs, Cahuachi, the finale) on the shared paper panel (ambient/fields/fields.css
+   qnf-). Prefix qnk-. The selvage is the Kuntisuyu's own: indigo, ochre and canyon red. */
+
+.qnk .qnf-panel::before {
+  background: repeating-linear-gradient(
+    90deg,
+    #3446a6 0 16px,
+    #1f1a17 16px 20px,
+    #dda63c 20px 32px,
+    #1f1a17 32px 36px,
+    #a8643c 36px 48px,
+    #1f1a17 48px 52px
+  );
+}
+.qnk .qnf-title {
+  color: #3446a6;
+}
+
+.qnk-knots {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.qnk-knots li {
+  position: relative;
+  padding: 6px 10px 6px 26px;
+  border: 2px solid var(--qnf-ink);
+  border-radius: 8px;
+  background: var(--qnf-paper-2);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+/* A knot on a cord, in the stage's dye. */
+.qnk-knots li::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--qnf-dot, #dda63c);
+}
+.qnk-knots li::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 12px;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--qnf-ink);
+  border-radius: 50%;
+  background: var(--qnf-dot, #dda63c);
+}
+.qnk-metric {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border: 2px solid var(--qnf-ink);
+  border-radius: 4px;
+  background: #fff7e6;
+  font: 800 0.86rem / 1.35 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 80%;
+}
+
+.qnk-picks {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.qnk-tech {
+  margin: 0 0 10px;
+  font: 600 0.8rem / 1.4 var(--font-mono, "JetBrains Mono", monospace);
+  color: var(--qnf-muted);
+}
+
+.qnk-uses {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.qnk-uses li {
+  padding: 6px 10px;
+  border: 2px solid var(--qnf-ink);
+  border-left: 6px solid var(--qnf-dot, #3446a6);
+  border-radius: 8px;
+  background: var(--qnf-paper-2);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.qnk-uses strong {
+  display: block;
+  font: 800 0.92rem / 1.25 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 80%;
+}
+.qnk-uses small {
+  display: block;
+  margin-bottom: 2px;
+  font: 500 0.74rem / 1.3 var(--font-mono, "JetBrains Mono", monospace);
+  color: var(--qnf-muted);
+}
+
+/* Finale: the "¡Lo lograste!" card (like the summit and the jungle's kené card). */
+.qnk-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.qnk-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 8px 10px;
+  border: 2px solid var(--qnf-ink);
+  border-left: 6px solid #3446a6;
+  border-radius: 8px;
+  background: var(--qnf-paper-2);
+}
+.qnk-stat dt {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--qnf-muted);
+}
+.qnk-stat dd {
+  margin: 0;
+  font: 800 1.9rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 70%;
+  font-variant-numeric: tabular-nums;
+  color: var(--qnf-ink);
+}
+.qnk-postcard {
+  width: 100%;
+  justify-content: center;
+  margin: 0 0 10px;
+}
+
+@media (max-width: 640px) {
+  .qnk-picks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
