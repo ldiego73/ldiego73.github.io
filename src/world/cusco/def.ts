@@ -24,6 +24,8 @@ for (const g of GATES) if (g.available && g.world !== "cusco") from[g.world as "
 
 export const CUSCO_DEF: SuyuDef<CuscoLayout> = {
   world: "cusco",
+  // The passport's "My postcard" and the finale's "Make my postcard" open this world's own card (journey-card.ts).
+  postcard: "cusco",
   name: CUSCO_NAME,
   stations: CUSCO_STATIONS,
   buildLayout: buildCuscoLayout,

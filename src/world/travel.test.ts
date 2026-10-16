@@ -15,7 +15,10 @@ describe("world urls", () => {
     expect(worldUrl("es", "costa")).toBe("/es/world/costa/");
     expect(worldUrl("es", "costa", "cusco")).toBe("/es/world/costa/?from=cusco");
     expect(worldUrl("en", "cusco", "costa")).toBe("/en/world/cusco/?from=costa");
-    expect(worldUrl("es", "titicaca", "cusco")).toBe("/es/world/titicaca/");
+    expect(worldUrl("es", "titicaca", "cusco")).toBe("/es/world/titicaca/?from=cusco");
+    expect(worldUrl("en", "colca", "cusco")).toBe("/en/world/colca/?from=cusco");
+    expect(worldUrl("en", "colca")).toBe("/en/world/colca/");
+    expect(worldUrl("en", "cusco", "colca")).toBe("/en/world/cusco/?from=colca");
     expect(worldUrl("en", "cusco", "titicaca")).toBe("/en/world/cusco/?from=titicaca");
   });
 });

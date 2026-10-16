@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { COMPANIES } from "../data/career";
+import { CATALOG, requiredStamps, WORLD_PAGES, worldOf } from "../lib/passport";
 import {
   type ClimbNotice,
   createClimbTracker,
@@ -119,6 +121,68 @@ describe("journey", () => {
     expect(s.stamps.total).toBeGreaterThan(s.stamps.got);
     // Reaching the mountain summit says nothing about the jungle road.
     expect(summarize({ stamps: { summit: 1 } }, emptyJourney(), "selva").reached).toBe(false);
+  });
+
+  test("each suyu road's summary reads only its own passport page", () => {
+    const stamps: Record<string, number> = {
+      "costa:station:huanchaco": 1,
+      "costa:ride:caballito": 2,
+      "costa:fauna:pelicano": 3,
+      "titicaca:station:taquile": 4,
+      "colca:station:pueblo": 5,
+      "colca:summit": 6,
+      "colca:station:cahuachi": 7,
+      "fauna:puma": 8,
+      summit: 9,
+    };
+    const costa = summarize({ stamps }, emptyJourney(), "costa");
+    expect(costa.world).toBe("costa");
+    expect(costa.reached).toBe(false);
+    expect(costa.rode).toBe(true);
+    // The route: one cord per working company in career order, then the Huanchaco market.
+    expect(costa.route.at(-1)?.id).toBe("huanchaco");
+    expect(costa.route.every((r) => COMPANIES.some((c) => c.id === r.id) || r.id === "huanchaco")).toBe(true);
+    expect(costa.route.filter((r) => r.stamped).map((r) => r.id)).toEqual(["huanchaco"]);
+    expect(costa.wildlife.map((l) => l.en)).toEqual(["Peruvian pelican"]);
+    expect(costa.stamps).toEqual({ got: 3, total: CATALOG.filter((c) => worldOf(c) === "costa").length });
+    expect(costa.pages).toBeNull();
+
+    const lake = summarize({ stamps }, emptyJourney(), "titicaca");
+    expect(lake.route.at(-1)?.id).toBe("taquile");
+    expect(lake.route.filter((r) => r.stamped).map((r) => r.id)).toEqual(["taquile"]);
+    expect(lake.rode).toBe(false);
+    expect(lake.finds).toEqual({ got: 0, total: 1 });
+    expect(lake.stamps.got).toBe(1);
+
+    const canyon = summarize({ stamps }, emptyJourney(), "colca");
+    expect(canyon.reached).toBe(true);
+    expect(canyon.route.map((r) => r.id)).toEqual(["pueblo", "colcas", "nazca", "cruz"]);
+    expect(canyon.route.filter((r) => r.stamped).map((r) => r.id)).toEqual(["pueblo"]);
+    // Cahuachi is a bonus find, not a road station.
+    expect(canyon.finds).toEqual({ got: 1, total: 1 });
+    expect(canyon.stamps.got).toBe(3);
+    expect(canyon.wildlife).toEqual([]);
+  });
+
+  test("the hub's summary is the whole Tawantinsuyu: one cord per passport page", () => {
+    const stamps: Record<string, number> = { "fauna:puma": 1, "costa:fauna:pelicano": 2 };
+    for (const s of requiredStamps("selva")) stamps[s.id] = 3;
+    for (const s of requiredStamps("wasi")) stamps[s.id] = 4;
+    stamps["colca:station:pueblo"] = 5;
+    const hub = summarize({ stamps }, emptyJourney(), "cusco");
+    expect(hub.world).toBe("cusco");
+    expect(hub.route.map((r) => r.id)).toEqual(WORLD_PAGES.map((p) => p.id));
+    expect(hub.route.filter((r) => r.stamped).map((r) => r.id)).toEqual(["wasi", "selva"]);
+    expect(hub.pages).toEqual({ done: 2, visited: 5, total: WORLD_PAGES.length });
+    expect(hub.reached).toBe(false);
+    expect(hub.stamps).toEqual({ got: Object.keys(stamps).length, total: CATALOG.length });
+    expect(hub.wildlife.map((l) => l.en)).toEqual(["Puma", "Peruvian pelican"]);
+
+    const all: Record<string, number> = {};
+    for (const s of requiredStamps()) all[s.id] = 1;
+    const done = summarize({ stamps: all }, emptyJourney(), "cusco");
+    expect(done.reached).toBe(true);
+    expect(done.pages?.done).toBe(WORLD_PAGES.length);
   });
 
   test("announces start, void and done transitions once each", () => {

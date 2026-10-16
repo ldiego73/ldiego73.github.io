@@ -2,12 +2,21 @@
  * The traveler's journey record for the summit postcard: climb timing (gate → summit, walking only; fast
  * travel voids the attempt), best / last time, number of climbs and the first summit date. Stored in
  * localStorage next to the passport; everything else on the postcard (stamps, wildlife, weather, llama)
- * comes from the passport itself. `summarize(…, "selva")` builds the jungle page's postcard instead (route of
- * SELVA_STATIONS, canoe trip and canopy walkway, jungle wildlife; no climb clock there).
+ * comes from the passport itself. `summarize(…, world)` builds another page's postcard instead: the jungle
+ * (route of SELVA_STATIONS, canoe trip and canopy walkway, jungle wildlife; no climb clock there), a suyu road
+ * (costa, titicaca, colca: its own passport page) or the Qusqu hub (the whole Tawantinsuyu, pages completed).
  */
-import { CATALOG, loadPassport, type PassportState, worldOf } from "../lib/passport";
+import {
+  CATALOG,
+  loadPassport,
+  type PassportStamp,
+  type PassportState,
+  passportComplete,
+  WORLD_PAGES,
+  worldOf,
+} from "../lib/passport";
 import { type L, STATIONS } from "./contract";
-import { emit, type WorldEvents } from "./events";
+import { emit, type WorldEvents, type WorldId } from "./events";
 import { SELVA_STATIONS } from "./selva/contract";
 
 export const JOURNEY_KEY = "ldiego73-world-journey-v1";
@@ -332,16 +341,29 @@ export function samplePath(p: GhostPath, time: number, out: { x: number; z: numb
 
 // ---------------------------------------------------------------- postcard summary (journey + passport)
 
-/** Which page the postcard is made on: the mountain (default) or the Antisuyu jungle. */
-export type PostcardWorld = "qhapaq" | "selva";
+/**
+ * Which page the postcard is made on: the mountain (default), the Antisuyu jungle, the three suyu roads
+ * (Chinchaysuyu coast, Collasuyu lake, Kuntisuyu canyon) or the Qusqu hub, whose card sums up the whole
+ * Tawantinsuyu (every passport page).
+ */
+export type PostcardWorld = "qhapaq" | "selva" | "cusco" | "costa" | "titicaca" | "colca";
+export const POSTCARD_WORLDS: ReadonlyArray<PostcardWorld> = ["qhapaq", "selva", "cusco", "costa", "titicaca", "colca"];
 /** Jungle "reached": the traveler got to the collpa at the end of the road (also what opens its fast travel). */
 export const SELVA_END_STAMP = "selva:station:collpa";
+/** The suyu roads' ride stamps (the page's boat), shown on their postcards. */
+const SUYU_RIDE: Partial<Record<PostcardWorld, string>> = {
+  costa: "costa:ride:caballito",
+  titicaca: "titicaca:ride:balsa",
+};
 
 export interface JourneySummary {
   world: PostcardWorld;
   reached: boolean;
   journey: JourneyState;
-  /** Trail stations in order with whether the traveler stamped them. */
+  /**
+   * The route khipu: trail stations in order with whether the traveler stamped them. On the hub (cusco) one
+   * cord per passport page (WORLD_PAGES), "stamped" when that page is complete.
+   */
   route: Array<{ id: string; label: L; stamped: boolean }>;
   stamps: { got: number; total: number };
   wildlife: L[];
@@ -350,12 +372,19 @@ export interface JourneySummary {
   /** Jungle only (false on the mountain): canoe trip and canopy walkway stamps. */
   rodeCanoe: boolean;
   canopy: boolean;
+  /** The page's own ride: llama (mountain), canoe (jungle), caballito (coast), balsa (lake); else false. */
+  rode: boolean;
+  /** Bonus finds of the page (egg and npc stamps: hidden places, errands). */
+  finds: { got: number; total: number };
+  /** Hub only (null elsewhere): passport pages complete, pages with at least one stamp, and all pages. */
+  pages: { done: number; visited: number; total: number } | null;
 }
 
 /**
  * Postcard data from the passport (+ the climb record on the mountain). The mountain summary is unchanged from
- * before the jungle existed: it counts every catalog stamp and wildlife of every page. The jungle summary is
- * scoped to the jungle's passport page (route = SELVA_STATIONS, its stamps, its wildlife).
+ * before the other worlds existed: it counts every catalog stamp and wildlife of every page. The jungle and
+ * suyu summaries are scoped to their own passport page (route = the page's required stations in road order,
+ * its stamps, its wildlife). The hub's summary is the whole Tawantinsuyu: one route cord per page, every stamp.
  */
 export function summarize(
   passport: PassportState = loadPassport(),
@@ -364,8 +393,11 @@ export function summarize(
 ): JourneySummary {
   const has = (id: string) => typeof passport.stamps[id] === "number";
   const flags = { rodeCanoe: has("selva:ride:canoe"), canopy: has("selva:field:dosel") };
+  const pageOf = (w: WorldId) => CATALOG.filter((c) => worldOf(c) === w);
+  const count = (list: readonly PassportStamp[]) => ({ got: list.filter((c) => has(c.id)).length, total: list.length });
+  const findsOf = (list: readonly PassportStamp[]) => count(list.filter((c) => c.kind === "egg" || c.kind === "npc"));
   if (world === "selva") {
-    const page = CATALOG.filter((c) => worldOf(c) === "selva");
+    const page = pageOf("selva");
     const of = (kind: string) => page.filter((c) => c.kind === kind && has(c.id)).map((c) => c.label);
     return {
       world,
@@ -374,11 +406,60 @@ export function summarize(
       route: [...SELVA_STATIONS]
         .sort((a, b) => a.t - b.t)
         .map((s) => ({ id: s.id, label: s.label, stamped: has(`selva:station:${s.id}`) })),
-      stamps: { got: page.filter((c) => has(c.id)).length, total: page.length },
+      stamps: count(page),
       wildlife: of("fauna"),
       weather: of("weather"),
       rodeLlama: false,
       ...flags,
+      rode: flags.rodeCanoe,
+      finds: findsOf(page),
+      pages: null,
+    };
+  }
+  if (world === "cusco") {
+    const of = (kind: string) => CATALOG.filter((c) => c.kind === kind && has(c.id)).map((c) => c.label);
+    const route = WORLD_PAGES.map((p) => ({ id: p.id, label: p.label, stamped: passportComplete(passport, p.id) }));
+    const done = route.filter((r) => r.stamped).length;
+    return {
+      world,
+      reached: done === route.length,
+      journey,
+      route,
+      stamps: count(CATALOG),
+      wildlife: of("fauna"),
+      weather: of("weather"),
+      rodeLlama: has("ride:llama"),
+      ...flags,
+      rode: false,
+      finds: findsOf(CATALOG),
+      pages: {
+        done,
+        visited: WORLD_PAGES.filter((p) => pageOf(p.id).some((c) => has(c.id))).length,
+        total: WORLD_PAGES.length,
+      },
+    };
+  }
+  if (world !== "qhapaq") {
+    // A suyu road: its required stations in catalog order (the plans list them along the road), its summit.
+    const page = pageOf(world);
+    const prefix = `${world}:station:`;
+    const of = (kind: string) => page.filter((c) => c.kind === kind && has(c.id)).map((c) => c.label);
+    const ride = SUYU_RIDE[world];
+    return {
+      world,
+      reached: has(`${world}:summit`),
+      journey,
+      route: page
+        .filter((c) => c.kind === "station" && c.id.startsWith(prefix))
+        .map((c) => ({ id: c.id.slice(prefix.length), label: c.label, stamped: has(c.id) })),
+      stamps: count(page),
+      wildlife: of("fauna"),
+      weather: of("weather"),
+      rodeLlama: false,
+      ...flags,
+      rode: ride ? has(ride) : false,
+      finds: findsOf(page),
+      pages: null,
     };
   }
   const route = STATIONS.filter((s) => s.kind !== "build")
@@ -390,10 +471,13 @@ export function summarize(
     reached: has("summit") || journey.firstSummitAt !== null,
     journey,
     route,
-    stamps: { got: CATALOG.filter((c) => has(c.id)).length, total: CATALOG.length },
+    stamps: count(CATALOG),
     wildlife: of("fauna"),
     weather: of("weather"),
     rodeLlama: has("ride:llama"),
     ...flags,
+    rode: has("ride:llama"),
+    finds: findsOf(pageOf("qhapaq")),
+    pages: null,
   };
 }

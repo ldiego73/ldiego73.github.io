@@ -134,7 +134,8 @@
   background: var(--passport-dye);
 }
 
-/* Page tabs: one per world + arcade. They scroll sideways on phones instead of widening the book. */
+/* Page tabs: one per world + arcade. They scroll sideways on phones instead of widening the book; wider
+   screens wrap them onto a second row so every page (seven worlds and the arcade) stays in sight. */
 .qn-passport-tabs {
   position: sticky;
   top: -24px;
@@ -266,6 +267,12 @@
 }
 .qn-passport.is-reduced .qn-passport-toast {
   animation: none;
+}
+@media (min-width: 641px) {
+  .qn-passport-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
 }
 @media (max-width: 640px) {
   .qn-passport-book {

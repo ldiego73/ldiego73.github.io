@@ -20,6 +20,8 @@ export const START_T = 0.016;
 
 export const COSTA_DEF: SuyuDef<CostaLayout> = {
   world: "costa",
+  // The passport's "My postcard" and the finale's "Make my postcard" open this world's own card (journey-card.ts).
+  postcard: "costa",
   name: COSTA_NAME,
   stations: COSTA_STATIONS,
   buildLayout: buildCostaLayout,

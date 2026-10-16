@@ -12,8 +12,11 @@ describe("Cusco text mode", () => {
       expect(doc).not.toContain(lang === "es" ? "Próximamente" : "Coming soon");
       expect(doc).toContain(`href="/${lang}/world/selva/"`);
       expect(doc).toContain(`href="/${lang}/world/?from=cusco"`);
-      expect(doc).toContain(`href="/${lang}/world/titicaca/"`);
-      expect(doc).toContain(`href="/${lang}/world/colca/"`);
+      expect(doc).toContain(`href="/${lang}/world/costa/?from=cusco"`);
+      expect(doc).toContain(`href="/${lang}/world/titicaca/?from=cusco"`);
+      expect(doc).toContain(`href="/${lang}/world/colca/?from=cusco"`);
+      // The jungle's punku returns to the mountain's tinkuy, not to the hub: the text says so.
+      expect(doc).toContain("tinkuy");
     });
     test(`khipu, finale, chasqui contact and stamps (${lang})`, () => {
       expect(doc).toContain(SITE.email);

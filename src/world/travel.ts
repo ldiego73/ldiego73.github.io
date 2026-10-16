@@ -1,27 +1,28 @@
 /**
- * Travel between worlds that live on different pages (mountain /world/ ↔ jungle /world/selva/ ↔ the Cusco hub
- * /world/cusco/ ↔ the Collasuyu lake /world/titicaca/ ↔ the Kuntisuyu /world/colca/). `prefetchWorld` warms the target page and its JavaScript
- * chunks when the traveler nears a portal; `travelTo` emits `world:travel`, fades the screen to the loader colour
- * and navigates.
+ * Travel between worlds that live on different pages (the mountain /world/, the jungle /world/selva/, the Cusco
+ * hub /world/cusco/ and the suyu roads /world/costa/, /world/titicaca/ and /world/colca/). `prefetchWorld` warms
+ * the target page and its JavaScript chunks when the traveler nears a portal; `travelTo` emits `world:travel`,
+ * fades the screen to the loader colour and navigates.
  *
  * `?from=<world>` tells the target page where the traveler came from, so it starts at the matching portal:
- * the mountain reads it with trailhead.ts `arrivalFrom` (ARRIVALS), the suyu worlds with suyu/arrival.ts. The
- * jungle and the lake have a single entrance and ignore it.
+ * the mountain reads it with trailhead.ts `arrivalFrom` (ARRIVALS), every suyu-runtime world (the hub and the
+ * three suyu roads) with suyu/arrival.ts. The jungle has a single entrance and its own runtime, so its URL never
+ * carries it.
  */
 
 import type { Lang } from "./contract";
 import { emit, type WorldId } from "./events";
 
 /** Worlds whose page reads `?from=` (the jungle starts at its only punku whatever the origin). */
-const FROM_AWARE = new Set<WorldId>(["qhapaq", "cusco", "costa"]);
+const FROM_AWARE = new Set<WorldId>(["qhapaq", "cusco", "costa", "titicaca", "colca"]);
 
 export function worldUrl(lang: Lang, to: WorldId, from?: WorldId): string {
   const q = from && from !== to && from !== "wasi" && FROM_AWARE.has(to) ? `?from=${from}` : "";
   if (to === "selva") return `/${lang}/world/selva/`;
   if (to === "cusco") return `/${lang}/world/cusco/${q}`;
   if (to === "costa") return `/${lang}/world/costa/${q}`;
-  if (to === "titicaca") return `/${lang}/world/titicaca/`;
-  if (to === "colca") return `/${lang}/world/colca/`;
+  if (to === "titicaca") return `/${lang}/world/titicaca/${q}`;
+  if (to === "colca") return `/${lang}/world/colca/${q}`;
   // The mountain (and the Wasi inside it): coming from its own house is not an arrival.
   return `/${lang}/world/${from === "qhapaq" ? "" : q}`;
 }
