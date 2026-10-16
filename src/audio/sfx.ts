@@ -100,7 +100,7 @@ export function chimeNotes(seed: number): [number, number, number] {
  */
 export function sfxForStamp(d: { id: string; kind: string }): SfxName | null {
   if (d.kind === "summit") return null;
-  if (d.kind === "egg" || d.id.startsWith("egg:")) return d.id.includes("golden") ? "sparkle" : "squeak";
+  if (d.kind === "egg" || d.id.startsWith("egg:")) return d.id.includes("vizcacha") ? "squeak" : "sparkle";
   return "stamp";
 }
 

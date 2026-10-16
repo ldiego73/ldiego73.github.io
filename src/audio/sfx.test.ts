@@ -20,6 +20,7 @@ describe("sfx pure parts", () => {
     expect(sfxForStamp({ id: "summit", kind: "summit" })).toBeNull();
     expect(sfxForStamp({ id: "egg:vizcacha-3", kind: "egg" })).toBe("squeak");
     expect(sfxForStamp({ id: "egg:golden-khipu", kind: "egg" })).toBe("sparkle");
+    expect(sfxForStamp({ id: "costa:egg:ekeko", kind: "egg" })).toBe("sparkle");
   });
 
   test("rate gate blocks bursts per key only", () => {

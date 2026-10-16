@@ -1,0 +1,44 @@
+/* Sunken city caption: a paper strip above the prompt pill, ink border like the HUD (the lake's legend). */
+.kx-sumergida-layer,
+.kx-sumergida-layer > * {
+  pointer-events: none;
+}
+.kx-sumergida-caption {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--qn-bottom) + 132px);
+  width: max-content;
+  max-width: min(460px, calc(100% - 28px));
+  margin: 0;
+  padding: 12px 18px;
+  border: 2px solid var(--qn-ink);
+  border-radius: 6px;
+  background: var(--qn-paper);
+  box-shadow: var(--qn-shadow);
+  color: var(--qn-ink);
+  font-size: 0.95rem;
+  font-style: italic;
+  line-height: 1.45;
+  text-align: center;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
+.kx-sumergida-caption.is-on {
+  visibility: visible;
+  animation: kx-sumergida-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes kx-sumergida-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kx-sumergida-caption.is-on {
+    animation: none;
+  }
+}

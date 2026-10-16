@@ -72,6 +72,9 @@ describe("jungle text mode", () => {
       expect(html).toContain(lang === "es" ? "Puentes del dosel" : "Canopy walkway");
       expect(html).toContain(lang === "es" ? "Fin del Antisuyu" : "End of the Antisuyu");
       expect(html).toContain("kené");
+      // A vague hint at the Chullachaqui egg: the odd prints, never the secret's name.
+      expect(html).toContain(lang === "es" ? "una pezuña" : "a hoof");
+      expect(html).not.toContain("Chullachaqui");
     });
     test(`${lang}: escapes data and links external sites safely`, () => {
       expect(html).not.toContain("<repo>");

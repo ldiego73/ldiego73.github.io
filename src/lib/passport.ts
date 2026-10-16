@@ -247,6 +247,17 @@ export const CATALOG: readonly PassportStamp[] = [
     world: "colca" as const,
     label: f.label,
   })),
+  // Secrets of the suyu worlds: bonus finds, shown as "???" until found.
+  ...(
+    [
+      ["selva:egg:chullachaqui", "selva", "Chullachaqui", "Chullachaqui"],
+      ["costa:egg:ekeko", "costa", "El Ekeko", "The Ekeko"],
+      ["titicaca:egg:sunken-city", "titicaca", "La ciudad sumergida", "The sunken city"],
+      ["colca:egg:white-condor", "colca", "Cóndor blanco", "White condor"],
+      ["colca:egg:ufo", "colca", "OVNI en la pampa", "UFO over the pampa"],
+      ["cusco:egg:ukuku", "cusco", "El ukuku de medianoche", "The midnight ukuku"],
+    ] as const
+  ).map(([id, world, es, en]) => ({ id, kind: "egg" as const, world, label: { es, en } })),
 ];
 
 const ids = new Set(CATALOG.map((stamp) => stamp.id));

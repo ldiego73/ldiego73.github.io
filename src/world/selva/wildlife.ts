@@ -17,19 +17,20 @@ const ALWAYS: L = { es: "De día y de noche.", en: "Day and night." };
 export const SELVA_WILDLIFE: readonly Species[] = [
   {
     id: "guacamayo",
-    name: { es: "Guacamayos", en: "Macaws" },
-    latin: "Ara macao · Ara ararauna",
+    name: { es: "Guacamayos y loros", en: "Macaws and parrots" },
+    latin:
+      "Ara macao · Ara ararauna · Ara chloropterus · Ara severus · Amazona farinosa · Pionus menstruus · Aratinga weddellii · Psittacara leucophthalmus",
     where: {
       es: "En lo alto, cruzando el río y el camino; en parejas sobre dos árboles muertos que sobresalen del bosque (entre el embarcadero y los palafitos, y pasando los puentes del dosel); y en la collpa, la pared de arcilla al otro lado del río frente al mirador del final del camino.",
       en: "High overhead, crossing the river and the road; in pairs on two dead emergent trees above the forest (between the canoe landing and the stilt houses, and past the canopy bridges); and at the collpa, the clay wall across the river from the lookout at the end of the road.",
     },
     when: {
-      es: "De día. En la collpa, solo temprano por la mañana (más o menos de 6 a 10).",
-      en: "By day. At the collpa, only early in the morning (roughly 6 to 10 am).",
+      es: "De día. La collpa está llena toda la mañana (más o menos de 6 a 11) y sigue concurrida por la tarde; de noche queda vacía.",
+      en: "By day. The collpa is full all morning (roughly 6 to 11 am) and still busy through the afternoon; at night it is empty.",
     },
     does: {
-      es: "Guacamayos escarlata y azul-amarillos. Parejas y pequeñas bandadas, cada pareja ala con ala, cruzan altas cada medio minuto o así. En los árboles muertos se acicalan entre ellos y giran la cabeza para mirarte, y levantan vuelo si pasas junto al tronco. En la collpa una bandada grande se cuelga de la arcilla para comerla y se mueve por la pared aleteando; cada minuto o dos toda la bandada se espanta, da una vuelta sobre el río y vuelve a la pared. A media mañana se van de a uno y de a dos. De noche duermen en los árboles muertos.",
-      en: "Scarlet and blue-and-yellow macaws. Pairs and small flocks, partners wingtip to wingtip, cross high overhead every half minute or so. On the dead trees they preen each other and turn their heads to watch you, and take off if you pass right by the trunk. At the collpa a big flock clings to the clay to eat it and shuffles along the wall with a flutter; every minute or two the whole flock panics, wheels out over the river and comes back to the wall. By mid-morning they leave in ones and twos. At night they sleep on the dead trees.",
+      es: "Guacamayos escarlata y azul-amarillos: parejas y pequeñas bandadas, cada pareja ala con ala, cruzan altas cada medio minuto o así. En los árboles muertos se acicalan entre ellos y giran la cabeza para mirarte, y levantan vuelo si pasas junto al tronco. La collpa se llena de una bandada mixta: guacamayos escarlata, azul-amarillos, rojo-verdes y de frente castaña en parejas, loros harinosos en parejas, y bandaditas apretadas de loros de cabeza azul y de pericos de cabeza oscura y de ojo blanco. Llegan sin parar por encima del barranco o a lo largo del río, bajan sobre el agua y se posan en la arcilla; muerden la tierra, miran alrededor, saltan por la pared aleteando, se pelean con el vecino y, al rato, se van con su pareja o su bandada. Algunos se posan en el borde verde de arriba o en la arcilla caída junto al agua, y siempre hay parejas dando vueltas sobre el río. Cada minuto o dos toda la bandada se espanta, da una vuelta sobre el río y vuelve a la pared. De noche duermen en los árboles muertos.",
+      en: "Scarlet and blue-and-yellow macaws: pairs and small flocks, partners wingtip to wingtip, cross high overhead every half minute or so. On the dead trees they preen each other and turn their heads to watch you, and take off if you pass right by the trunk. The collpa fills with a mixed flock: scarlet, blue-and-yellow, red-and-green and chestnut-fronted macaws in pairs, mealy amazons in pairs, and tight little flocks of blue-headed parrots and of dusky-headed and white-eyed parakeets. They keep arriving over the cliff top or along the river, swoop down over the water and land on the clay; they bite the earth, look around, hop along the wall with a flutter, squabble with a neighbour and, after a while, leave with their partner or flock. Some perch on the green lip at the top or on the fallen clay by the water, and there are always pairs circling over the river. Every minute or two the whole flock panics, wheels out over the river and comes back to the wall. At night they sleep on the dead trees.",
     },
     stamp: "selva:fauna:guacamayo",
   },

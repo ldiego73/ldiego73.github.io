@@ -1,0 +1,53 @@
+/* Caption of the hidden Ekeko (../ekeko.ts): a small paper card at the top of the view, inked like the hud
+   panels (hud.css tokens, with fallbacks). Prefix ek-. */
+.qn-hud.ek-layer {
+  z-index: 6;
+}
+.ek-caption {
+  position: absolute;
+  left: 50%;
+  /* Under the station toast, so neither the statuette (mid-screen) nor the prompt (bottom) is covered. */
+  top: calc(var(--qn-top, 14px) + 58px);
+  width: min(420px, calc(100vw - 2 * var(--qn-side, 14px)));
+  padding: 12px 16px 13px;
+  border: 2.5px solid var(--qn-ink, #1f1a17);
+  border-top: 7px solid var(--qn-ochre, #dda63c);
+  border-radius: 8px;
+  background: var(--qn-paper, #f3ead8);
+  color: var(--qn-ink, #1f1a17);
+  box-shadow: var(--qn-shadow, 3px 3px 0 #1f1a17);
+  font: 400 14px / 1.5 var(--font-body, "Hanken Grotesk", system-ui, sans-serif);
+  opacity: 0;
+  transform: translate(-50%, -10px);
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+.ek-caption.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.ek-caption strong {
+  display: block;
+  margin-bottom: 3px;
+  font: 800 1.05rem / 1.1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 72%;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.ek-caption p {
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .ek-caption {
+    /* Below the stacked corner tools of the phone chrome. */
+    top: calc(var(--qn-top, 14px) + 200px);
+    font-size: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ek-caption {
+    transition: none;
+    transform: translate(-50%, 0);
+  }
+}

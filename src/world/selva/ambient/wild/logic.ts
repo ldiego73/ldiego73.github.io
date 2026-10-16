@@ -53,10 +53,82 @@ export const nightAmount = (time: number) => smooth(0.05, -0.2, sunElevation(tim
 export const dayAmount = (time: number) => 1 - nightAmount(time);
 
 /**
- * Macaws at the clay lick: they gather on the wall in the early morning (≈ 6–9 h, time 0.25–0.38) and are
- * gone by mid-morning. 0..1, used both for "are they there" and how many cling to the wall.
+ * Macaws and parrots at the clay lick: 0..1, how full the collpa is (guacamayos.ts scales its flock by it).
+ * The wall fills from first light (time 0.235–0.27), is at its busiest through the morning (≈ 6–11 h), eases
+ * to a still busy 70 % for the rest of the day (0.43–0.5), and empties at dusk with the roosting (0.72–0.77,
+ * like `diurnal`). Empty only at night.
  */
-export const collpaPresence = (time: number) => smooth(0.235, 0.27, time) * (1 - smooth(0.38, 0.43, time));
+export const collpaPresence = (time: number) =>
+  smooth(0.235, 0.27, time) * (1 - 0.3 * smooth(0.43, 0.5, time)) * (1 - smooth(0.72, 0.77, time));
+
+/** Collpa visitors (models in birds.ts): four macaws, two amazon parrots, two parakeets. */
+export type CollpaSpecies = "scarlet" | "blue" | "redgreen" | "chestnut" | "mealy" | "bluehead" | "dusky" | "whiteeye";
+
+/**
+ * The collpa flock as groups that come and go together: macaws and amazons in mated pairs, blue-headed
+ * parrots and parakeets in tight little flocks. 48 birds on high quality, 30 on low; every species on both.
+ */
+export function collpaRoster(high: boolean): Array<{ sp: CollpaSpecies; size: number }> {
+  const plan: Array<[CollpaSpecies, number, number]> = high
+    ? [
+        ["scarlet", 5, 2],
+        ["blue", 3, 2],
+        ["redgreen", 3, 2],
+        ["chestnut", 2, 2],
+        ["mealy", 3, 2],
+        ["bluehead", 1, 4],
+        ["dusky", 1, 6],
+        ["whiteeye", 1, 6],
+      ]
+    : [
+        ["scarlet", 3, 2],
+        ["blue", 1, 2],
+        ["redgreen", 2, 2],
+        ["chestnut", 1, 2],
+        ["mealy", 1, 2],
+        ["bluehead", 1, 4],
+        ["dusky", 1, 6],
+        ["whiteeye", 1, 4],
+      ];
+  // Interleaved (one group of each species per round) so any prefix of the list is a mixed flock.
+  const out: Array<{ sp: CollpaSpecies; size: number }> = [];
+  for (let round = 0; out.length < plan.reduce((n, [, g]) => n + g, 0); round++)
+    for (const [sp, groups, size] of plan) if (round < groups) out.push({ sp, size });
+  return out;
+}
+
+/** A bird holding (or flying to) a spot on the collpa face, in the cliff's (u, v) coordinates. */
+export interface WallSpot {
+  cu: number;
+  cv: number;
+  /** Clearance radius in world units (about half the bird's span). */
+  rad: number;
+  /** True while the spot is held (on the wall, or flying in to it). */
+  held: boolean;
+}
+
+/**
+ * Whether (u, v) is clear of every held spot: world distance (u scaled by `su`, v by `sv`, the face's half
+ * width and height) at least the two clearance radii. `self` is skipped (a bird shuffling along the wall).
+ */
+export function wallSpotClear(
+  u: number,
+  v: number,
+  rad: number,
+  spots: readonly WallSpot[],
+  su: number,
+  sv: number,
+  self?: WallSpot,
+): boolean {
+  for (const s of spots) {
+    if (!s.held || s === self) continue;
+    const r = rad + s.rad;
+    const du = (s.cu - u) * su;
+    const dv = (s.cv - v) * sv;
+    if (du * du + dv * dv < r * r) return false;
+  }
+  return true;
+}
 
 /** Diurnal birds and monkeys: active from a little after dawn to a little before dusk. */
 export const diurnal = (time: number) => smooth(0.23, 0.28, time) * (1 - smooth(0.74, 0.79, time));

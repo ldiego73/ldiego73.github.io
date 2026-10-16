@@ -58,6 +58,8 @@ const COPY = {
     stars: "estrellas",
     noDesc: "Sin descripción.",
     projectsLink: "Ver proyectos",
+    chulla:
+      "Pasados los palafitos, camino al arcade, alguien dejó huellas raras en el barro: un pie descalzo y, al lado, una pezuña. Cruzan el camino y se meten al monte. Dicen que no conviene seguir huellas de desconocidos… pero quien las sigue encuentra a alguien bajito que charla un momento y desaparece.",
     arcade:
       "Una casa flotante sobre troncos de balsa, en una cocha junto al camino, con techo de palma y gabinetes de arcade. Una pasarela con barandas lleva de la plaza a la balsa. En cada gabinete, «E · Jugar» abre el juego real ahí mismo, igual que en el tambo arcade de la montaña. De día y hasta entrada la noche, jóvenes de la comunidad juegan en los gabinetes de los extremos, con un niño que mira por encima del hombro y salta cuando alguien gana; de día, una muchacha mira apoyada en la baranda (no en la calidad baja ni en el móvil). Ya tarde, uno o dos siguen jugando. Los tres gabinetes del medio quedan siempre libres, y si vas hacia uno ocupado, quien juega se hace a un lado hasta que te vas.",
     arcadeLink: "Abrir el arcade",
@@ -110,6 +112,8 @@ const COPY = {
     stars: "stars",
     noDesc: "No description.",
     projectsLink: "See projects",
+    chulla:
+      "Past the stilt houses, on the way to the arcade, someone left odd prints in the mud: a bare foot and, beside it, a hoof. They cross the road and slip into the forest. They say you shouldn't follow strangers' footprints… but whoever does finds someone small who chats for a moment and vanishes.",
     arcade:
       "A floating house on balsa logs, in an oxbow pond beside the road, with a palm roof and arcade cabinets. A railed boardwalk leads from the plaza onto the raft. At each cabinet, “E · Play” opens the real game right there, as in the mountain's arcade tambo. By day and into the evening, young people from the community play at the end cabinets, with a child watching over a shoulder who jumps when someone wins; by day, a girl watches leaning on the rail (not on low quality or on phones). Late at night one or two play on. The three middle cabinets are always free, and if you head for an occupied one, the player steps aside until you leave.",
     arcadeLink: "Open the arcade",
@@ -243,7 +247,9 @@ export function renderSelvaTextMode(
     else if (s.kind === "uses") section(s.id, label, regatonHtml(lang, h3));
     else if (s.kind === "blog") section(s.id, label, malocaHtml(lang, data));
     else if (s.kind === "landing") section(s.id, label, `<p>${esc(c.embarcadero)}</p>${stamp("selva:ride:canoe")}`);
-    else if (s.kind === "projects") section(s.id, label, palafitosHtml(lang, data, h3));
+    else if (s.kind === "projects")
+      // The Chullachaqui's prints leave the road between the palafitos and the arcade (ambient/chullachaqui.ts).
+      section(s.id, label, `${palafitosHtml(lang, data, h3)}<p>${esc(c.chulla)}</p>`);
     else if (s.kind === "arcade") {
       section(s.id, label, arcadeHtml(lang));
       // The canopy walkway lies between the arcade and the collpa (CANOPY_T 0.83–0.9).

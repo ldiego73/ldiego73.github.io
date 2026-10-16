@@ -25,13 +25,17 @@ describe("coast text mode", () => {
       expect(doc).toContain(SITE.calendly);
       expect(doc).toContain(SITE.resume[lang]);
       expect(doc).toContain(`/${lang}/world/cusco/?from=costa`);
-      for (const s of CATALOG.filter((x) => x.world === "costa" && x.kind !== "fauna"))
+      // Secrets (kind "egg") stay unnamed: the text mode only hints at them.
+      for (const s of CATALOG.filter((x) => x.world === "costa" && x.kind !== "fauna" && x.kind !== "egg"))
         expect(doc).toContain(esc(s.label[lang]));
       for (const w of COSTA_WILDLIFE) {
         expect(doc).toContain(w.latin);
         // Stampless entries (the riding horse, the land animals) give no passport stamp.
         if (w.stamp) expect(CATALOG.some((s) => s.id === w.stamp)).toBe(true);
       }
+      // A vague hint at the hidden Ekeko (./ambient/ekeko.ts), without naming it.
+      expect(doc).toContain(lang === "es" ? "amuleto de la abundancia" : "charm of abundance");
+      expect(doc).not.toContain("Ekeko");
       expect(doc).toMatch(/<h1 id="kw-costa-tm-title"/);
       expect(doc).not.toContain("undefined");
     });

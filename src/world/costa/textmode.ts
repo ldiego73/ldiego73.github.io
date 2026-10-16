@@ -10,7 +10,8 @@
  * summit's computation), contact links from data/site.ts, stamps from lib/passport.ts CATALOG, the animals from
  * ./wildlife.ts. The cultures name only what each monument shows (./plan.ts CULTURES). It describes only what
  * the coast does: the punku back to Qusqu, the road and its beaches, the seven monuments, the Huanchaco
- * market, the Paso horse, the caballito ride, the people and animals, the finale with its gathering and the map.
+ * market (with a vague hint at the hidden Ekeko among its stalls, ./ambient/ekeko.ts), the Paso horse, the
+ * caballito ride, the people and animals, the finale with its gathering and the map.
  */
 import { ARTIFACTS, COMPANIES } from "../../data/career";
 import { SITE } from "../../data/site";
@@ -50,7 +51,7 @@ const COPY = {
     edu: "Formación",
     marketTitle: "Mercado de Huanchaco · artefactos",
     market:
-      "En la terraza sobre la playa de Huanchaco, cinco puestos de caña y estera rodean una plaza, uno por artefacto: las piezas que construí más de una vez, en distintas empresas. Cada puesto tiene un toldo del color de su artefacto y un mostrador con cosas de la costa (canastas de pescado, mates, ollas, telas dobladas, fruta); al acercarte se abre su panel con lo que es, sus tecnologías y dónde lo usé. Una vendedora atiende el puesto del medio y tres pelícanos esperan junto al de pescado.",
+      "En la terraza sobre la playa de Huanchaco, cinco puestos de caña y estera rodean una plaza, uno por artefacto: las piezas que construí más de una vez, en distintas empresas. Cada puesto tiene un toldo del color de su artefacto y un mostrador con cosas de la costa (canastas de pescado, mates, ollas, telas dobladas, fruta); al acercarte se abre su panel con lo que es, sus tecnologías y dónde lo usé. Una vendedora atiende el puesto del medio y tres pelícanos esperan junto al de pescado. Dicen que alguien venido del altiplano dejó entre los puestos un pequeño amuleto de la abundancia: quien mira con calma, junto a la fruta, a veces ve un destello dorado; de cerca, «E · Mirar».",
     uses: "Dónde lo usé",
     rideTitle: "El caballito de totora",
     ride: "En la playa bajo el mercado espera un caballito de totora, la balsa de juncos de los pescadores de Huanchaco, y otros secan de pie apoyados en una baranda de caña. «E · Subir al caballito» lo empuja al agua contigo de pie sobre él. Lo diriges con WASD, flechas o joystick (correr rema más fuerte), con inercia; sube y baja con las olas, y una ola que revienta lo empuja hacia la playa. Puedes ir por la bahía, rodear el promontorio con sus lobos marinos y llegar a la playa del norte. Cerca de cualquiera de las dos playas, despacio, «E · Bajar en la playa» o Esc lo varan en la arena y te bajas. Llegar a la otra playa da un sello. Si caminas a la otra playa, el caballito te espera allí.",
@@ -98,7 +99,7 @@ const COPY = {
     edu: "Education",
     marketTitle: "Huanchaco market · artifacts",
     market:
-      "On the terrace above the Huanchaco beach, five cane-and-mat stalls ring a plaza, one per artifact: the pieces I built more than once, at different companies. Each stall has an awning in its artifact's colour and a counter with things of the coast (fish baskets, gourds, pots, folded cloth, fruit); walk up to it and its panel opens with what it is, its technologies and where I used it. A woman keeps the middle stall and three pelicans wait by the fish stall.",
+      "On the terrace above the Huanchaco beach, five cane-and-mat stalls ring a plaza, one per artifact: the pieces I built more than once, at different companies. Each stall has an awning in its artifact's colour and a counter with things of the coast (fish baskets, gourds, pots, folded cloth, fruit); walk up to it and its panel opens with what it is, its technologies and where I used it. A woman keeps the middle stall and three pelicans wait by the fish stall. They say someone from the highlands left a small charm of abundance among the stalls: whoever looks calmly, by the fruit, sometimes sees a golden glint; up close, “E · Look”.",
     uses: "Where I used it",
     rideTitle: "The totora reed boat",
     ride: "On the beach below the market waits a caballito de totora, the reed boat of the Huanchaco fishermen, and others dry standing against a cane rail. “E · Board the reed boat” pushes it into the water with you standing on it. Steer with WASD, arrows or the joystick (running paddles harder), with inertia; it rises and falls with the waves, and a breaking wave pushes it toward the beach. You can go about the bay, round the headland with its sea lions and reach the north beach. Near either beach, slowly, “E · Land on the beach” or Esc runs it up the sand and you step off. Reaching the other beach earns a stamp. If you walk to the other beach, the boat waits for you there.",

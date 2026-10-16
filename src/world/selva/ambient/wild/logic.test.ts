@@ -6,6 +6,7 @@ import {
   awayFrom,
   bankSpot,
   collpaPresence,
+  collpaRoster,
   diurnal,
   jaguarHours,
   LookTimer,
@@ -20,6 +21,8 @@ import {
   surfaceArc,
   treeSites,
   turnToward,
+  type WallSpot,
+  wallSpotClear,
   waterSpot,
   wrapAngle,
 } from "./logic";
@@ -28,12 +31,16 @@ const layout = buildSelvaLayout({ cells: 280 });
 const STATION_T = SELVA_STATIONS.map((s) => s.t);
 
 describe("time-of-day windows", () => {
-  test("the collpa flock is there in the early morning only", () => {
+  test("the collpa is full in the morning, still busy all day, empty at night", () => {
+    expect(collpaPresence(0.2)).toBe(0);
     expect(collpaPresence(0.3)).toBe(1);
     expect(collpaPresence(0.36)).toBe(1);
-    expect(collpaPresence(0.2)).toBe(0);
-    expect(collpaPresence(0.5)).toBe(0);
+    expect(collpaPresence(0.42)).toBe(1);
+    expect(collpaPresence(0.55)).toBeCloseTo(0.7, 5);
+    expect(collpaPresence(0.65)).toBeCloseTo(0.7, 5);
+    expect(collpaPresence(0.8)).toBe(0);
     expect(collpaPresence(0.9)).toBe(0);
+    expect(collpaPresence(0.02)).toBe(0);
   });
 
   test("diurnal animals sleep at night, morphos fly at midday, the jaguar only in true night", () => {
@@ -176,5 +183,31 @@ describe("places on the jungle layout", () => {
     expect(quietT((CANOPY_T[0] + CANOPY_T[1]) / 2, STATION_T, CANOPY_T)).toBe(false);
     expect(quietT(0.5, STATION_T, CANOPY_T)).toBe(true);
     expect(quietT(0.01, STATION_T, CANOPY_T)).toBe(false);
+  });
+});
+
+describe("collpa flock", () => {
+  test("roster: 48 birds on high, 30 on low, every species on both, macaws in pairs", () => {
+    for (const [high, n] of [
+      [true, 48],
+      [false, 30],
+    ] as const) {
+      const r = collpaRoster(high);
+      expect(r.reduce((s, g) => s + g.size, 0)).toBe(n);
+      expect(new Set(r.map((g) => g.sp)).size).toBe(8);
+      for (const g of r)
+        if (["scarlet", "blue", "redgreen", "chestnut", "mealy"].includes(g.sp)) expect(g.size).toBe(2);
+      // Interleaved: the first eight groups are one of each species.
+      expect(new Set(r.slice(0, 8).map((g) => g.sp)).size).toBe(8);
+    }
+  });
+
+  test("wall spots: clear of held spots only, by world distance, skipping self", () => {
+    const a: WallSpot = { cu: 0, cv: 0.5, rad: 0.5, held: true };
+    const b: WallSpot = { cu: 0.5, cv: 0.5, rad: 0.5, held: false };
+    expect(wallSpotClear(0.05, 0.5, 0.5, [a, b], 14, 9)).toBe(false); // 0.7 u apart < 1
+    expect(wallSpotClear(0.1, 0.5, 0.5, [a, b], 14, 9)).toBe(true); // 1.4 u apart
+    expect(wallSpotClear(0.5, 0.5, 0.5, [a, b], 14, 9)).toBe(true); // b is not held
+    expect(wallSpotClear(0, 0.5, 0.5, [a], 14, 9, a)).toBe(true);
   });
 });

@@ -51,7 +51,7 @@ const COPY = {
     edu: "Formación",
     nazcaTitle: "Mirador de Nasca · los artefactos",
     nazca:
-      "En la pampa, cada artefacto que construí en varias empresas está trazado como un geoglifo gigante, con líneas claras sobre la grava rojiza, siguiendo las siluetas de figuras reales de Nasca. Junto al camino hay una torre mirador de acero con cuatro tramos de escaleras de madera y una plataforma con baranda; puedes subir. Arriba, la figura hacia la que miras se nombra en pantalla y «E · Leer el geoglifo» abre su panel; junto al camino, el letrero más cercano a cada figura también lo abre. Un letrero en la plaza pide no pisar las líneas. Las figuras miran hacia la torre para leerse derechas desde arriba.",
+      "En la pampa, cada artefacto que construí en varias empresas está trazado como un geoglifo gigante, con líneas claras sobre la grava rojiza, siguiendo las siluetas de figuras reales de Nasca. Junto al camino hay una torre mirador de acero con cuatro tramos de escaleras de madera y una plataforma con baranda; puedes subir. Arriba, la figura hacia la que miras se nombra en pantalla y «E · Leer el geoglifo» abre su panel; junto al camino, el letrero más cercano a cada figura también lo abre. Un letrero en la plaza pide no pisar las líneas. Las figuras miran hacia la torre para leerse derechas desde arriba. Al norte de la torre, lejos del camino, una alpaca pasta sola en la pampa; dicen que algunas noches algo zumba en el cielo sobre ella: un turista de muy lejos que viene a admirar las líneas que trazaron los nasca.",
     figure: "La figura real",
     built: "Dónde lo construí",
     companies: (n: number) => (n === 1 ? "1 empresa" : `${n} empresas`),
@@ -59,7 +59,7 @@ const COPY = {
     cahuachi:
       "Al oeste de la pampa, junto al camino, una pequeña pirámide escalonada de adobe en homenaje a Cahuachi, el gran centro ceremonial de la cultura Nasca (el real es un campo de montículos de adobe junto al río Nasca), con muros de adobe derruidos al pie y un letrero tallado. Llegar a su plaza da un sello extra.",
     cruzTitle: "Cruz del Cóndor",
-    cruz: "Donde termina el camino, en el borde del cañón, una plataforma de piedra con un parapeto sobre el precipicio, bancas de piedra y una cruz de piedra sobre un pedestal escalonado, como el mirador real del Colca.",
+    cruz: "Donde termina el camino, en el borde del cañón, una plataforma de piedra con un parapeto sobre el precipicio, bancas de piedra y una cruz de piedra sobre un pedestal escalonado, como el mirador real del Colca. Por las mañanas, entre los cóndores que planean frente al mirador, a veces aparece uno blanco.",
     finale:
       "La primera vez que llegas junto a la cruz, el lugar lo celebra: los cóndores suben del cañón en espiral y dan vueltas sobre ti, salen plumas de cóndor y papel picado de colores desde la cruz (no si tu sistema pide reducir el movimiento), suena un breve tema (con el sonido activo), recibes un sello y se abre el panel «¡Lo lograste!» con tu nombre de viajero si lo pusiste, subtitulado «Fin del Kuntisuyu». Muestra lo que viste en el camino:",
     finaleButtons:
@@ -109,7 +109,7 @@ const COPY = {
     edu: "Education",
     nazcaTitle: "Nazca lookout · the artifacts",
     nazca:
-      "On the pampa, each artifact I built across companies is drawn as a giant geoglyph, pale lines on the reddish gravel, after the silhouettes of real Nazca figures. By the road stands a steel lookout tower with four flights of wooden stairs and a railed deck; you can climb it. Up there, the figure you face is named on screen and “E · Read the geoglyph” opens its panel; by the road, the board closest to each figure opens it too. A board at the plaza asks you to keep off the lines. The figures face the tower so they read upright from above.",
+      "On the pampa, each artifact I built across companies is drawn as a giant geoglyph, pale lines on the reddish gravel, after the silhouettes of real Nazca figures. By the road stands a steel lookout tower with four flights of wooden stairs and a railed deck; you can climb it. Up there, the figure you face is named on screen and “E · Read the geoglyph” opens its panel; by the road, the board closest to each figure opens it too. A board at the plaza asks you to keep off the lines. The figures face the tower so they read upright from above. North of the tower, away from the road, a lone alpaca grazes the pampa; they say that on some nights something hums in the sky above it: a tourist from very far away who comes to admire the lines the Nazca drew.",
     figure: "The real figure",
     built: "Where I built it",
     companies: (n: number) => (n === 1 ? "1 company" : `${n} companies`),
@@ -117,7 +117,7 @@ const COPY = {
     cahuachi:
       "West of the pampa, by the road, a small stepped adobe pyramid in tribute to Cahuachi, the great ceremonial centre of the Nazca culture (the real one is a field of adobe mounds by the Nazca river), with broken adobe walls at its foot and a carved sign. Reaching its plaza gives a bonus stamp.",
     cruzTitle: "Cruz del Cóndor",
-    cruz: "Where the road ends, on the canyon's rim, a stone platform with a parapet over the drop, stone benches and a stone cross on a stepped pedestal, like the real lookout over the Colca.",
+    cruz: "Where the road ends, on the canyon's rim, a stone platform with a parapet over the drop, stone benches and a stone cross on a stepped pedestal, like the real lookout over the Colca. In the mornings, among the condors gliding in front of the lookout, a white one sometimes appears.",
     finale:
       "The first time you reach the cross, the place celebrates: the condors rise out of the canyon in a spiral and circle over you, condor feathers and coloured confetti burst from the cross (not if your system asks for reduced motion), a short tune plays (with sound on), you get a stamp and the panel “You made it!” opens with your traveler name if you set one, subtitled “End of the Kuntisuyu”. It shows what you saw on the road:",
     finaleButtons:

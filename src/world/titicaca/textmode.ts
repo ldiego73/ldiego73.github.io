@@ -50,6 +50,8 @@ const COPY = {
       "Más adelante, una colina con andenes entra al lago: Taquile. Desde el camino, un sendero sube y pasa bajo un arco de piedra con un pequeño techo de lajas y un letrero hasta la plaza del pueblo: casas de piedra con techo de paja y puertas azules, y al norte el taller de los tejedores, con un telar de pedales frente a la puerta y un cordel con chullos y fajas colgados. En la plaza, hombres sentados tejen chullos a palitos y mujeres hilan con la pushka. Junto al telar, «E · Ver formación» abre un panel tejido como una faja de Taquile:",
     education: "Formación",
     certs: "Certificaciones",
+    sunken:
+      "Los pescadores dicen que, en las noches quietas, algo brilla bajo el agua no lejos del muelle de Taquile. Cuentan que el lago guarda una ciudad antigua. Quien se acerca de noche y mira con calma recibe un sello extra.",
     muelleTitle: "El muelle de Taquile",
     muelle:
       "Antes de Taquile, un ramal corto baja del camino a un muelle de madera sobre pilotes, el otro extremo del viaje en balsa.",
@@ -101,6 +103,8 @@ const COPY = {
       "Further on, a terraced hill runs out into the lake: Taquile. From the road a path climbs and passes under a stone arch with a little slab roof and a sign, up to the village plaza: stone houses with thatched roofs and blue doors, and on the north side the weavers' workshop, with a pedal loom in front of the door and a line of chullos and belts hung out. On the plaza, seated men knit chullos on needles and women spin with the pushka. By the loom, “E · See education” opens a panel woven like a Taquile belt:",
     education: "Education",
     certs: "Certifications",
+    sunken:
+      "Fishermen say that on still nights something glows under the water not far from the Taquile pier. Legend says the lake keeps an ancient city. Whoever comes close at night and takes a calm look earns a bonus stamp.",
     muelleTitle: "The Taquile pier",
     muelle:
       "Before Taquile, a short branch leads down from the road to a wooden pier on posts, the other end of the boat trip.",
@@ -163,7 +167,11 @@ export function renderTiticacaTextMode(lang: Lang, opts: { headingLevel?: number
   }).join("");
   section("uros", c.urosTitle, `<p>${esc(c.uros(ISLANDS.length))}</p><ol>${islands}</ol>`);
   section("balsa", c.balsaTitle, `<p>${esc(c.balsa)}</p>${stampLine("titicaca:ride:balsa")}`);
-  section("muelle", c.muelleTitle, `<p>${esc(c.muelle)}</p>`);
+  section(
+    "muelle",
+    c.muelleTitle,
+    `<p>${esc(c.muelle)}</p><p>${esc(c.sunken)}</p>${stampLine("titicaca:egg:sunken-city")}`,
+  );
   const t = taquilePanel(lang);
   const rows = (list: typeof t.education) =>
     `<ul>${list.map((r) => `<li><strong>${esc(r.title)}</strong>${r.detail ? ` · ${esc(r.detail)}` : ""} · ${esc(r.years)}</li>`).join("")}</ul>`;

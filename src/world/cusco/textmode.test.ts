@@ -27,6 +27,9 @@ describe("Cusco text mode", () => {
       expect(doc).toContain(lang === "es" ? "Sello del pasaporte" : "Passport stamp");
       expect(doc).toContain(lang === "es" ? "Sello extra del pasaporte" : "Bonus passport stamp");
       expect(doc).toMatch(/<h1 id="kw-cusco-tm-title"/);
+      // A vague hint of the midnight ukuku (ambient/ukuku.ts), never its name or its spot.
+      expect(doc).toContain(lang === "es" ? "pasada la medianoche" : "past midnight");
+      expect(doc).not.toContain("ukuku");
     });
   }
 });

@@ -98,6 +98,7 @@ const SECTIONS: Record<WorldId, Section[]> = {
   selva: [
     { label: COPY.camino, kinds: ["station"] },
     { label: COPY.rio, kinds: ["ride", "field"] },
+    { label: COPY.secretos, kinds: ["egg"] },
     { label: COPY.fauna, kinds: ["fauna"] },
   ],
   cusco: [
@@ -107,6 +108,7 @@ const SECTIONS: Record<WorldId, Section[]> = {
   costa: [
     { label: COPY.camino, kinds: ["station", "summit"] },
     { label: COPY.mar, kinds: ["ride"] },
+    { label: COPY.secretos, kinds: ["egg"] },
     { label: COPY.fauna, kinds: ["fauna"] },
   ],
   colca: [

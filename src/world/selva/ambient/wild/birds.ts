@@ -1,10 +1,13 @@
 /**
  * Winged models for the jungle (one merged vertex-colored geometry per species, wings and head animated in
  * the vertex shader by the shared bird rig of flora/material.ts — one draw call per species, ink-correct):
- * scarlet macaw, blue-and-yellow macaw, white-throated toucan, great egret and the morpho butterfly.
+ * four macaws (scarlet, blue-and-yellow, red-and-green, chestnut-fronted), two amazon parrots (mealy,
+ * blue-headed) and two parakeets (dusky-headed, white-eyed) for the collpa, the white-throated toucan, the
+ * great egret and the morpho butterfly.
  * Models face +Z with the origin at the feet; wings are modeled spread (flight pose) along ±X from the
  * shoulder and fold back along the flanks with pose.w = 1 (see flora/material.ts rigMaterial).
- * Real sizes against the 1.7 u traveler: macaw ≈ 0.85 beak to tail, toucan ≈ 0.55, egret ≈ 0.95 tall,
+ * Real sizes against the 1.7 u traveler: macaw ≈ 0.85 beak to tail (parrots are modelled at the same build
+ * scale and shrunk per instance), toucan ≈ 0.55, egret ≈ 0.95 tall,
  * morpho ≈ 0.15 span (instances are scaled up a little so they read from the follow camera).
  */
 import * as THREE from "three";
@@ -46,20 +49,109 @@ const MACAW_WING: Array<[number, number]> = [
   [0, 0.18],
 ];
 
-/** Macaw: `kind` scarlet (Ara macao) or blue-and-yellow (Ara ararauna). */
-export function macawModel(kind: "scarlet" | "blue"): WingModel {
+export type MacawKind = "scarlet" | "blue" | "redgreen" | "chestnut";
+
+/**
+ * Macaw palettes. Wing zones by distance from the shoulder: `inner` (< w0), coverts `mid` (< w1, leading half),
+ * flight feathers `outer`. Head: bare `face` patch on the sides, optional `crown` (forehead) and `throat` band.
+ */
+const MACAW: Record<
+  MacawKind,
+  {
+    body: string;
+    belly?: string;
+    head: string;
+    face: string;
+    crown?: string;
+    throat?: string;
+    bill: string;
+    tail: string;
+    tailTip: string;
+    inner: string;
+    mid: string;
+    outer: string;
+    w0: number;
+    w1: number;
+    under: string;
+  }
+> = {
+  // Scarlet (Ara macao): all red, yellow coverts, blue flight feathers, pale upper bill.
+  scarlet: {
+    body: "#d8261c",
+    head: "#d8261c",
+    face: "#f4ece4",
+    bill: "#efe3cf",
+    tail: "#d8261c",
+    tailTip: "#2462c9",
+    inner: "#d8261c",
+    mid: "#f6c21c",
+    outer: "#2462c9",
+    w0: 0.17,
+    w1: 0.27,
+    under: "#c4241c",
+  },
+  // Blue-and-yellow (Ara ararauna): blue back, golden breast, green forehead, black throat band, black bill.
+  blue: {
+    body: "#2462c9",
+    belly: "#f3b51a",
+    head: "#2462c9",
+    face: "#f2f2ee",
+    crown: "#3fae4a",
+    throat: "#141414",
+    bill: "#202020",
+    tail: "#2462c9",
+    tailTip: "#2462c9",
+    inner: "#2462c9",
+    mid: "#2462c9",
+    outer: "#1d3f8a",
+    w0: 0.3,
+    w1: 0.3,
+    under: "#f0b71c",
+  },
+  // Red-and-green (Ara chloropterus): deeper crimson, a broad green wing band, blue flight feathers.
+  redgreen: {
+    body: "#b3191d",
+    head: "#b3191d",
+    face: "#f3e6e0",
+    bill: "#e9dcc6",
+    tail: "#b3191d",
+    tailTip: "#2a58c2",
+    inner: "#b3191d",
+    mid: "#2f9a4a",
+    outer: "#2350b4",
+    w0: 0.12,
+    w1: 0.3,
+    under: "#a8181c",
+  },
+  // Chestnut-fronted (Ara severus): small and green, chestnut forehead, blue flight feathers, red underwing.
+  chestnut: {
+    body: "#3f9a3a",
+    belly: "#4fa944",
+    head: "#3f9a3a",
+    face: "#f1ede6",
+    crown: "#6b2c18",
+    bill: "#1d1d1d",
+    tail: "#3d8f3a",
+    tailTip: "#2f62b8",
+    inner: "#3f9a3a",
+    mid: "#3f9a3a",
+    outer: "#2a5fb8",
+    w0: 0.2,
+    w1: 0.2,
+    under: "#c23a2a",
+  },
+};
+
+/** Macaw: `kind` scarlet, blue-and-yellow, red-and-green or chestnut-fronted (same build, own palette). */
+export function macawModel(kind: MacawKind): WingModel {
   const b = new GeoBuilder();
   const shoulder = V3(0.075, 0.27, 0.03);
   const neck = V3(0, 0.33, 0.07);
-  const red = "#d8261c";
-  const blue = "#2462c9";
-  const yellow = "#f6c21c";
-  const scarlet = kind === "scarlet";
-  // Body: scarlet all red; blue-and-yellow: blue back, golden-yellow breast and belly.
+  const P = MACAW[kind];
   b.add(egg(0.11, 0.9, 0.95, 1.55, 0, 0.2, 0, -0.55, 10), {
-    color: scarlet ? red : twoTone(blue, "#f3b51a", 0.15),
+    color: P.belly ? twoTone(P.body, P.belly, 0.15) : P.body,
   });
-  // Long graduated tail: red with a blue tip (scarlet) or all blue.
+  // Long graduated tail with a coloured tip.
   b.add(
     planform(
       [
@@ -74,34 +166,189 @@ export function macawModel(kind: "scarlet" | "blue"): WingModel {
     )
       .rotateX(-0.6)
       .translate(0, 0.14, -0.12),
-    { color: (p) => (scarlet ? (p.z < -0.38 ? col(blue) : col(red)) : col(blue)) },
+    { color: (p) => col(p.z < -0.38 ? P.tailTip : P.tail) },
   );
-  // Head (rigged): white bare face patch on the sides, big hooked bill.
+  // Head (rigged): bare face patch on the sides, big hooked bill.
   b.add(egg(0.075, 0.95, 1, 1.05, 0, 0.36, 0.1), {
     color: (p) => {
-      if (Math.abs(p.x) > 0.045 && p.z > 0.1 && p.y < 0.38) return col(scarlet ? "#f4ece4" : "#f2f2ee");
-      if (!scarlet && p.y < 0.31) return col("#141414"); // black throat band
-      return col(scarlet ? red : p.y > 0.4 && p.z > 0.12 ? "#3fae4a" : blue);
+      if (Math.abs(p.x) > 0.045 && p.z > 0.1 && p.y < 0.38) return col(P.face);
+      if (P.throat && p.y < 0.31) return col(P.throat);
+      if (P.crown && p.y > 0.4 && p.z > 0.12) return col(P.crown);
+      return col(P.head);
     },
     rig: [0, 1],
   });
-  b.add(egg(0.045, 0.85, 1.1, 1, 0, 0.345, 0.165, 0.3), { color: scarlet ? "#efe3cf" : "#202020", rig: [0, 1] });
-  b.add(cone(0.026, 0.06, 6, V3(0, 0.33, 0.19), V3(0, -1, 0.35)), {
-    color: scarlet ? "#efe3cf" : "#202020",
-    rig: [0, 1],
-  });
+  b.add(egg(0.045, 0.85, 1.1, 1, 0, 0.345, 0.165, 0.3), { color: P.bill, rig: [0, 1] });
+  b.add(cone(0.026, 0.06, 6, V3(0, 0.33, 0.19), V3(0, -1, 0.35)), { color: P.bill, rig: [0, 1] });
   b.add(egg(0.03, 0.9, 0.8, 1, 0, 0.305, 0.15), { color: "#1a1a1a", rig: [0, 1] });
   for (const side of [1, -1] as const)
     b.add(planform(MACAW_WING, side, 0.018).translate(shoulder.x * side, shoulder.y, shoulder.z), {
       color: (p, n) => {
         const s = Math.abs(p.x);
-        if (n.y < -0.5) return col(scarlet ? "#c4241c" : "#f0b71c"); // underwing
-        if (scarlet) return s < 0.17 ? col(red) : s < 0.27 && p.z > -0.12 ? col(yellow) : col(blue);
-        return s < 0.3 ? col(blue) : col("#1d3f8a");
+        if (n.y < -0.5) return col(P.under);
+        return col(s < P.w0 ? P.inner : s < P.w1 && p.z > -0.12 ? P.mid : P.outer);
       },
       rig: [side, 0],
     });
   legs(b, 0.07, 0.035, 0.012, "#5a5a5e", 0.02);
+  return { geo: b.build({ rig: true }), shoulder, neck };
+}
+
+export type ParrotKind = "mealy" | "bluehead" | "dusky" | "whiteeye";
+
+/** Parrot palettes: body / belly, head, optional eye ring, vent (undertail), wing inner / outer, speculum. */
+const PARROT: Record<
+  ParrotKind,
+  {
+    body: string;
+    belly: string;
+    head: string;
+    ring?: string;
+    vent?: string;
+    flecks?: string;
+    bill: string;
+    tail: string;
+    tailTip: string;
+    inner: string;
+    outer: string;
+    spec?: string;
+    under: string;
+  }
+> = {
+  // Mealy amazon (Amazona farinosa): big, powdery green, white eye ring, red wing speculum, pale bill.
+  mealy: {
+    body: "#5f9f4c",
+    belly: "#77b15e",
+    head: "#6aa955",
+    ring: "#f1f1ea",
+    bill: "#d9c9a6",
+    tail: "#5f9f4c",
+    tailTip: "#a9c84a",
+    inner: "#5a9a48",
+    outer: "#1f3f6a",
+    spec: "#c8282a",
+    under: "#4f8f44",
+  },
+  // Blue-headed parrot (Pionus menstruus): green body, cobalt head and neck, red undertail.
+  bluehead: {
+    body: "#3e9a46",
+    belly: "#4aa650",
+    head: "#2650c4",
+    vent: "#d4262a",
+    bill: "#2a2422",
+    tail: "#3e9a46",
+    tailTip: "#2f62b8",
+    inner: "#3e9a46",
+    outer: "#2b5d8e",
+    under: "#3a8c42",
+  },
+  // Dusky-headed parakeet (Aratinga weddellii): green, grey-brown head, white eye ring, blue flight feathers.
+  dusky: {
+    body: "#58ad3e",
+    belly: "#86c25a",
+    head: "#7d7869",
+    ring: "#f2f0ea",
+    bill: "#1c1c1c",
+    tail: "#4f9f3a",
+    tailTip: "#2f6ab8",
+    inner: "#58ad3e",
+    outer: "#2f6ab8",
+    under: "#6aa84a",
+  },
+  // White-eyed parakeet (Psittacara leucophthalmus): green with red flecks on the head and neck, red-and-yellow
+  // underwing, white eye ring, pale bill.
+  whiteeye: {
+    body: "#3fa043",
+    belly: "#5cb251",
+    head: "#3fa043",
+    ring: "#f4f4ee",
+    flecks: "#d42a22",
+    bill: "#e6dac2",
+    tail: "#3a9640",
+    tailTip: "#4a9e3c",
+    inner: "#3fa043",
+    outer: "#2f7c3c",
+    under: "#d8372a",
+  },
+};
+
+const PARROT_WING: Array<[number, number]> = [
+  [0, 0],
+  [0.12, -0.02],
+  [0.24, 0.01],
+  [0.31, 0.06],
+  [0.28, 0.13],
+  [0.18, 0.17],
+  [0.06, 0.17],
+  [0, 0.14],
+];
+
+/**
+ * Parrots and parakeets (modelled at macaw scale, sized per instance): amazons (`mealy`, `bluehead`) are
+ * bulky with a big round head and a short square tail; parakeets (`dusky`, `whiteeye`) are slim with a
+ * long pointed tail. Same rig layout as the macaw (wings along ±X, head on the neck pivot).
+ */
+export function parrotModel(kind: ParrotKind): WingModel {
+  const b = new GeoBuilder();
+  const amazon = kind === "mealy" || kind === "bluehead";
+  const P = PARROT[kind];
+  const shoulder = V3(0.075, 0.25, 0.03);
+  const neck = V3(0, 0.31, 0.06);
+  const vent = P.vent ? col(P.vent) : null;
+  b.add(egg(amazon ? 0.12 : 0.095, 0.95, 1, amazon ? 1.3 : 1.5, 0, 0.19, 0, -0.5, 10), {
+    color: (p, n) => {
+      if (vent && p.y < 0.13 && p.z < -0.03 && n.y < 0.3) return vent;
+      return col(n.y < 0.1 ? P.belly : P.body);
+    },
+  });
+  // Tail: short and square (amazons) or long and pointed (parakeets).
+  const tail: Array<[number, number]> = amazon
+    ? [
+        [-0.06, 0],
+        [0.06, 0],
+        [0.065, 0.2],
+        [-0.065, 0.2],
+      ]
+    : [
+        [-0.045, 0],
+        [0.045, 0],
+        [0.02, 0.36],
+        [0, 0.42],
+        [-0.02, 0.36],
+      ];
+  b.add(planform(tail, 1, 0.014).rotateX(-0.6).translate(0, 0.13, -0.11), {
+    color: (p, n) => {
+      if (vent && n.y < -0.5) return vent;
+      return col(p.z < (amazon ? -0.22 : -0.33) ? P.tailTip : P.tail);
+    },
+  });
+  // Head (rigged): round, with an eye ring and (white-eyed) red flecks; short deep hooked bill.
+  const hr = amazon ? 0.085 : 0.07;
+  b.add(egg(hr, 0.95, 1, 1.05, 0, 0.34, 0.09), {
+    color: (p) => {
+      const side = Math.abs(p.x);
+      if (P.ring && side > hr * 0.6 && p.z > 0.1 && p.y > 0.335 && p.y < 0.37) return col(P.ring);
+      if (P.flecks && side > hr * 0.5 && Math.sin(p.x * 160 + p.y * 230) > 0.55) return col(P.flecks);
+      return col(P.head);
+    },
+    rig: [0, 1],
+  });
+  b.add(egg(0.04, 0.85, 1.05, 1, 0, 0.33, 0.155 + (amazon ? 0.01 : 0), 0.3), { color: P.bill, rig: [0, 1] });
+  b.add(cone(0.022, 0.045, 6, V3(0, 0.315, 0.175 + (amazon ? 0.01 : 0)), V3(0, -1, 0.35)), {
+    color: P.bill,
+    rig: [0, 1],
+  });
+  for (const side of [1, -1] as const)
+    b.add(planform(PARROT_WING, side, 0.016).translate(shoulder.x * side, shoulder.y, shoulder.z), {
+      color: (p, n) => {
+        const s = Math.abs(p.x);
+        if (n.y < -0.5) return col(P.under);
+        if (P.spec && s > 0.08 && s < 0.17 && p.z < -0.09) return col(P.spec);
+        return col(s < 0.2 ? P.inner : P.outer);
+      },
+      rig: [side, 0],
+    });
+  legs(b, 0.07, 0.035, 0.012, "#6a6a6e", 0.02);
   return { geo: b.build({ rig: true }), shoulder, neck };
 }
 

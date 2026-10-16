@@ -151,15 +151,15 @@ describe("journey", () => {
     expect(lake.route.at(-1)?.id).toBe("taquile");
     expect(lake.route.filter((r) => r.stamped).map((r) => r.id)).toEqual(["taquile"]);
     expect(lake.rode).toBe(false);
-    expect(lake.finds).toEqual({ got: 0, total: 1 });
+    expect(lake.finds).toEqual({ got: 0, total: 2 }); // Sillustani + the sunken city.
     expect(lake.stamps.got).toBe(1);
 
     const canyon = summarize({ stamps }, emptyJourney(), "colca");
     expect(canyon.reached).toBe(true);
     expect(canyon.route.map((r) => r.id)).toEqual(["pueblo", "colcas", "nazca", "cruz"]);
     expect(canyon.route.filter((r) => r.stamped).map((r) => r.id)).toEqual(["pueblo"]);
-    // Cahuachi is a bonus find, not a road station.
-    expect(canyon.finds).toEqual({ got: 1, total: 1 });
+    // Cahuachi is a bonus find, not a road station (with the white condor and the UFO secrets).
+    expect(canyon.finds).toEqual({ got: 1, total: 3 });
     expect(canyon.stamps.got).toBe(3);
     expect(canyon.wildlife).toEqual([]);
   });

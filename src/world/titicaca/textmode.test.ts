@@ -31,6 +31,10 @@ describe("Collasuyu text mode", () => {
       expect(doc).toContain(lang === "es" ? "Sello del pasaporte" : "Passport stamp");
       expect(doc).toContain(lang === "es" ? "Sello extra del pasaporte" : "Bonus passport stamp");
       expect(doc).toContain("Titikala");
+      // A vague hint of the lake's night secret (the sunken city), told as a legend.
+      expect(doc).toContain(
+        lang === "es" ? "Cuentan que el lago guarda una ciudad antigua" : "Legend says the lake keeps",
+      );
       expect(doc).toMatch(/<h1 id="kw-titicaca-tm-title"/);
     });
   }

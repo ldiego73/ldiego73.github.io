@@ -120,6 +120,12 @@ describe("Qhapaq Ñan passport", () => {
       "colca:station:cruz",
       "colca:summit",
       ...["condor", "vicuna", "vizcacha", "picaflor", "zorro"].map((id) => `colca:fauna:${id}`),
+      "selva:egg:chullachaqui",
+      "costa:egg:ekeko",
+      "titicaca:egg:sunken-city",
+      "colca:egg:white-condor",
+      "colca:egg:ufo",
+      "cusco:egg:ukuku",
     ];
     expect(CATALOG.map((stamp) => stamp.id).sort()).toEqual(expected.sort());
     expect(new Set(expected).size).toBe(CATALOG.length);
