@@ -1,0 +1,46 @@
+/* Coast finale panel (../finale.ts): the coast's "¡Lo lograste!" card, matching the mountain's summit card
+   (hud.css .qn-summit: lede, 2 × 2 stat tiles, a primary postcard button, then the actions) on the shared paper
+   panel (ambient/fields/fields.css qnf-). Prefix qnc-. */
+
+.qnc-finale .qnf-panel::before {
+  /* A selvage of the Pacific at sunset: gold, sea blue and the red of the coast's huacas. */
+  background: repeating-linear-gradient(90deg, #e8b631 0 18px, #1f5f8f 18px 24px, #efe2c4 24px 34px, #b5533c 34px 40px);
+}
+.qnc-finale .qnf-title {
+  color: #b5533c;
+}
+.qnc-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.qnc-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 8px 10px;
+  border: 2px solid var(--qnf-ink);
+  border-left: 6px solid #e8b631;
+  border-radius: 8px;
+  background: var(--qnf-paper-2);
+}
+.qnc-stat dt {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--qnf-muted);
+}
+.qnc-stat dd {
+  margin: 0;
+  font: 800 1.9rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 70%;
+  font-variant-numeric: tabular-nums;
+  color: var(--qnf-ink);
+}
+.qnc-postcard {
+  width: 100%;
+  justify-content: center;
+  margin: 0 0 10px;
+}
+.qnc-finale .qnf-actions {
+  flex-wrap: wrap;
+}

@@ -73,6 +73,8 @@ const COPY = {
     worldTag: "Mundo 3D",
     selva: "El camino de la selva del Antisuyu, junto a un gran río: lo que uso, lo que escribo y lo que construyo.",
     cusco: "Haukaypata, la plaza de Qusqu: el usnu con el khipu de tu avance y los punkus hacia cada mundo.",
+    costa:
+      "Mi carrera por la costa del Pacífico: una huaca por empresa, un caballito de totora y el sol hundiéndose en el mar.",
     arcade: "9 juegos en bloques sobre bugs, incidentes y despliegues.",
     play: "Juega en el navegador",
     repos: "en GitHub",
@@ -89,6 +91,8 @@ const COPY = {
     worldTag: "3D world",
     selva: "The Antisuyu jungle road beside a great river: what I use, what I write and what I build.",
     cusco: "Haukaypata, the plaza of Qusqu: the usnu with the khipu of your progress and the punkus to every world.",
+    costa:
+      "My career along the Pacific coast: one huaca per company, a totora reed boat and the sun sinking into the sea.",
     arcade: "9 blocky games about bugs, incidents and deploys.",
     play: "Play in the browser",
     repos: "on GitHub",
@@ -408,6 +412,10 @@ export const selvaCard = (lang: Lang) =>
 /** The Cusco hub page: the usnu and the Qorikancha on Haukaypata (src/assets/og/cusco.jpg). */
 export const cuscoCard = (lang: Lang) =>
   shotCard(shot("cusco"), COPY[lang].worldTag, "Qusqu", COPY[lang].cusco, C.ochre);
+
+/** The Chinchaysuyu coast page: a Moche huaca by the Pacific at sunset (src/assets/og/costa.jpg). */
+export const costaCard = (lang: Lang) =>
+  shotCard(shot("costa"), COPY[lang].worldTag, "Chinchaysuyu", COPY[lang].costa, C.ochre);
 
 export const arcadeCard = (lang: Lang, lede: string) =>
   shotCard(shot("arcade"), COPY[lang].play, "ARCADE", lede || COPY[lang].arcade, C.ochre, "Pixel", 620);

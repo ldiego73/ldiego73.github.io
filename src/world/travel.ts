@@ -12,12 +12,13 @@ import type { Lang } from "./contract";
 import { emit, type WorldId } from "./events";
 
 /** Worlds whose page reads `?from=` (the jungle starts at its only punku whatever the origin). */
-const FROM_AWARE = new Set<WorldId>(["qhapaq", "cusco"]);
+const FROM_AWARE = new Set<WorldId>(["qhapaq", "cusco", "costa"]);
 
 export function worldUrl(lang: Lang, to: WorldId, from?: WorldId): string {
   const q = from && from !== to && from !== "wasi" && FROM_AWARE.has(to) ? `?from=${from}` : "";
   if (to === "selva") return `/${lang}/world/selva/`;
   if (to === "cusco") return `/${lang}/world/cusco/${q}`;
+  if (to === "costa") return `/${lang}/world/costa/${q}`;
   // The mountain (and the Wasi inside it): coming from its own house is not an arrival.
   return `/${lang}/world/${from === "qhapaq" ? "" : q}`;
 }
@@ -34,6 +35,7 @@ export function prefetchWorld(lang: Lang, to: WorldId): void {
   // The page is small; the real cost is its JavaScript. Warm those chunks too (they share hashes with the page).
   if (to === "selva") void import("./selva/warm").then((m) => m.warmSelva()).catch(() => {});
   else if (to === "cusco") void import("./cusco/warm").then((m) => m.warmCusco()).catch(() => {});
+  else if (to === "costa") void import("./costa/warm").then((m) => m.warmCosta()).catch(() => {});
 }
 
 export function travelTo(lang: Lang, from: WorldId, to: WorldId, fadeMs = 450): void {

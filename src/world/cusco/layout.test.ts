@@ -17,7 +17,7 @@ import {
 const MAX_STEP = 0.9;
 
 describe("Cusco hub plan", () => {
-  test("five roads with the Inca bearings; only the mountain and the jungle are open for now", () => {
+  test("five roads with the Inca bearings; the mountain, the coast and the jungle are open", () => {
     const by = Object.fromEntries(GATES.map((g) => [g.id, g]));
     expect(GATES.map((g) => g.id).sort()).toEqual(["antisuyu", "chinchaysuyu", "collasuyu", "kuntisuyu", "qhapaq"]);
     // −z is north, +x east.
@@ -29,7 +29,7 @@ describe("Cusco hub plan", () => {
     expect(by.collasuyu?.dir[1]).toBeGreaterThan(0);
     expect(by.kuntisuyu?.dir[0]).toBeLessThan(0);
     expect(by.kuntisuyu?.dir[1]).toBeGreaterThan(0);
-    expect(GATES.filter((g) => g.available).map((g) => g.world)).toEqual(["qhapaq", "selva"]);
+    expect(GATES.filter((g) => g.available).map((g) => g.world)).toEqual(["qhapaq", "costa", "selva"]);
     for (const g of GATES) expect(Math.hypot(g.dir[0], g.dir[1])).toBeCloseTo(1, 6);
   });
 

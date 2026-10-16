@@ -4,7 +4,7 @@ Guide for coding agents working on this repository. Read [ARCHITECTURE.md](ARCHI
 
 ## Project in one paragraph
 
-This is the personal site of Luis Diego, a static Astro site deployed to GitHub Pages. It has bilingual routes (`/es/…`, `/en/…`). The career is told as an Andean khipu. The site also has a blog, projects, a CV, a `/uses` page, an arcade of nine Three.js games, and "KHIPU", a set of explorable 3D worlds: the Qhapaq Ñan mountain (the traveler climbs past one tambo per company), the Wasi house at its trailhead, the Antisuyu jungle road on its own page, and Qusqu, the hub plaza whose punkus lead to every world (on the generic suyu runtime in `src/world/suyu/`). Everything visual and audible in the games and the world is procedural: geometry, canvas textures and Web Audio.
+This is the personal site of Luis Diego, a static Astro site deployed to GitHub Pages. It has bilingual routes (`/es/…`, `/en/…`). The career is told as an Andean khipu. The site also has a blog, projects, a CV, a `/uses` page, an arcade of nine Three.js games, and "KHIPU", a set of explorable 3D worlds: the Qhapaq Ñan mountain (the traveler climbs past one tambo per company), the Wasi house at its trailhead, the Antisuyu jungle road and the Chinchaysuyu coastal road on their own pages, and Qusqu, the hub plaza whose punkus lead to every world (on the generic suyu runtime in `src/world/suyu/`). Everything visual and audible in the games and the world is procedural: geometry, canvas textures and Web Audio.
 
 ## Toolchain
 
@@ -29,6 +29,7 @@ This is the personal site of Luis Diego, a static Astro site deployed to GitHub 
 | `bunx vite --config src/world/content-dev/vite.config.ts --port 5192` | World content with a mock `WorldEnv` |
 | `bunx vite --config src/world/selva/dev/vite.config.ts --port 5203` | Jungle (Antisuyu) harness: `/?lang=es&skip=1` |
 | `bunx vite --config src/world/cusco/dev/vite.config.ts --port 5221` | Qusqu hub harness (generic suyu runtime): `/?lang=es` (`&from=selva` arrives through that punku) |
+| `bunx vite --config src/world/costa/dev/vite.config.ts --port 5231` | Coast (Chinchaysuyu) harness: `/?lang=es&skip=1` |
 
 ### Definition of done
 

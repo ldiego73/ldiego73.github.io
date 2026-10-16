@@ -1,6 +1,7 @@
 import { type ArcadeState, load as loadArcade } from "../games/core/store";
 import { ACHIEVEMENTS } from "../games/registry";
 import { type L, STATIONS } from "../world/contract";
+import { COSTA_STATIONS } from "../world/costa/plan";
 import { CUSCO_STATIONS } from "../world/cusco/plan";
 import type { StampKind, WorldId } from "../world/events";
 import { SELVA_STATIONS } from "../world/selva/contract";
@@ -23,6 +24,7 @@ export const WORLD_PAGES: ReadonlyArray<{ id: WorldId; label: L }> = [
   { id: "wasi", label: { es: "Wasi · la casa", en: "Wasi · the house" } },
   { id: "selva", label: { es: "Antisuyu · la selva", en: "Antisuyu · the jungle" } },
   { id: "cusco", label: { es: "Qusqu · Haukaypata", en: "Qusqu · Haukaypata" } },
+  { id: "costa", label: { es: "Chinchaysuyu · la costa", en: "Chinchaysuyu · the coast" } },
 ];
 export const worldOf = (stamp: Pick<PassportStamp, "world">): WorldId => stamp.world ?? "qhapaq";
 
@@ -131,6 +133,47 @@ export const CATALOG: readonly PassportStamp[] = [
           },
         ],
   ),
+  // Chinchaysuyu: the coast road. One stamp per company station and the Huanchaco market (required), the
+  // caballito ride and the finale (required); the coast's wildlife is bonus (costa/wildlife.ts field guide).
+  ...COSTA_STATIONS.flatMap((station) =>
+    station.stamp === false
+      ? []
+      : [
+          {
+            id: `costa:station:${station.id}`,
+            kind: station.stamp ?? ("station" as const),
+            world: "costa" as const,
+            label: station.label,
+          },
+        ],
+  ),
+  {
+    id: "costa:ride:caballito",
+    kind: "ride",
+    world: "costa",
+    label: { es: "Paseo en caballito de totora", en: "Totora reed-boat ride" },
+  },
+  {
+    id: "costa:summit",
+    kind: "summit",
+    world: "costa",
+    label: { es: "Fin del Chinchaysuyu", en: "End of the Chinchaysuyu" },
+  },
+  ...(
+    [
+      ["lobo-marino", "Lobo marino", "South American sea lion"],
+      ["pinguino", "Pingüino de Humboldt", "Humboldt penguin"],
+      ["pelicano", "Pelícano peruano", "Peruvian pelican"],
+      ["guanay", "Guanay", "Guanay cormorant"],
+      ["gaviota", "Gaviota peruana", "Belcher's gull"],
+      ["cangrejo", "Cangrejo carretero", "Ghost crab"],
+    ] as const
+  ).map(([id, es, en]) => ({
+    id: `costa:fauna:${id}`,
+    kind: "fauna" as const,
+    world: "costa" as const,
+    label: { es, en },
+  })),
 ];
 
 const ids = new Set(CATALOG.map((stamp) => stamp.id));

@@ -1,6 +1,6 @@
 /**
  * Passport ambient: records `world:stamp` discoveries (src/lib/passport.ts is the store) and shows the
- * passport as a paper booklet with one page per world (WORLD_PAGES: Qhapaq Ñan, Wasi, Antisuyu, Qusqu) plus an
+ * passport as a paper booklet with one page per world (WORLD_PAGES: Qhapaq Ñan, Wasi, Antisuyu, Qusqu, Chinchaysuyu) plus an
  * Arcade page. Each page shows its own progress and a "page complete" seal; the header shows the totals.
  * Pages are an ARIA tabs widget (roving tabindex, ←/→/Home/End); the booklet traps focus and Esc closes it.
  *
@@ -57,6 +57,7 @@ const COPY = {
   rooms: { es: "Habitaciones", en: "Rooms" },
   rio: { es: "Río y dosel", en: "River and canopy" },
   plaza: { es: "Plaza", en: "Plaza" },
+  mar: { es: "Mar", en: "Sea" },
   arcade: { es: "Arcade", en: "Arcade" },
   stamps: { es: "sellos", en: "stamps" },
   achievements: { es: "logros", en: "achievements" },
@@ -101,6 +102,11 @@ const SECTIONS: Record<WorldId, Section[]> = {
   cusco: [
     { label: COPY.plaza, kinds: ["station"] },
     { label: COPY.secretos, kinds: ["egg", "npc"] },
+  ],
+  costa: [
+    { label: COPY.camino, kinds: ["station", "summit"] },
+    { label: COPY.mar, kinds: ["ride"] },
+    { label: COPY.fauna, kinds: ["fauna"] },
   ],
 };
 
