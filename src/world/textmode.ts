@@ -103,7 +103,7 @@ const COPY = {
     selvaStops: "Paradas del camino de la selva",
     selvaLink: "Cruzar el punku: ir al camino del Antisuyu",
     qusquLede:
-      "Desde el inicio del sendero, el camino sigue hacia el sur hasta otro punku con un letrero tallado, «Qusqu · Haukaypata»: al cruzarlo viajas a la gran plaza de Qusqu, de donde salen los caminos a los demás mundos.",
+      "Desde el inicio del sendero, el camino sigue hacia el sur hasta otro punku con un letrero tallado, «Qusqu · Haukaypata»: al cruzarlo viajas a la gran plaza de Qusqu, de donde salen los caminos a los demás mundos: el Chinchaysuyu por la costa del Pacífico, el Antisuyu por la selva, el Collasuyu por el lago Titicaca y el Kuntisuyu por el cañón del Colca y la pampa de Nasca; y otro punku te trae de vuelta aquí.",
     qusquLink: "Cruzar el punku: ir a Qusqu",
   },
   en: {
@@ -180,7 +180,7 @@ const COPY = {
     selvaStops: "Stops on the jungle road",
     selvaLink: "Cross the punku: go to the Antisuyu road",
     qusquLede:
-      "From the start of the path, the road runs on south to another punku with a carved board, “Qusqu · Haukaypata”: crossing it takes you to the great plaza of Qusqu, where the roads to the other worlds begin.",
+      "From the start of the path, the road runs on south to another punku with a carved board, “Qusqu · Haukaypata”: crossing it takes you to the great plaza of Qusqu, where the roads to the other worlds begin: the Chinchaysuyu along the Pacific coast, the Antisuyu through the jungle, the Collasuyu by Lake Titicaca and the Kuntisuyu along the Colca canyon and across the Nazca pampa; another punku brings you back here.",
     qusquLink: "Cross the punku: go to Qusqu",
   },
 } as const;

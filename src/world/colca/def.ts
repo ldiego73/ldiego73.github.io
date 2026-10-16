@@ -32,6 +32,8 @@ const GLYPH_DYES = ["#c4383f", "#2a9d8f", "#3446a6", "#dda63c", "#8a5a9e"];
 
 export const COLCA_DEF: SuyuDef<ColcaLayout> = {
   world: "colca",
+  // The passport's "My postcard" and the finale's "Make my postcard" open this world's own card (journey-card.ts).
+  postcard: "colca",
   name: COLCA_NAME,
   stations: COLCA_STATIONS,
   buildLayout: buildColcaLayout,

@@ -27,13 +27,13 @@ const COPY = {
     bonus: "Sello extra del pasaporte",
     arriveTitle: "Llegar",
     arrive:
-      "Si llegas por un punku, apareces en su calle, unos pasos antes de la plaza y mirando hacia ella; si entras directo, en el lado sur de la plaza mirando al usnu. Llevas la ropa andina de la montaña.",
+      "Si llegas por un punku (desde la montaña, la costa, el lago o el Kuntisuyu), apareces en su calle, unos pasos antes de la plaza y mirando hacia ella; si entras directo, en el lado sur de la plaza mirando al usnu. Llevas la ropa andina de la montaña.",
     usnuTitle: "El usnu y el khipu de los suyus",
     usnu: "En el centro de la plaza, un usnu: una plataforma ceremonial de tres gradas de piedra labrada, con escalinata al sur. Cada grada es un escalón, así que puedes subir caminando. Arriba, un marco de madera sostiene un gran khipu: una cuerda colgante por cada suyu y una por Qusqu, cada una con su color. Cada nudo es un sello de esa página del pasaporte; los suyus que aún no se abren cuelgan sin nudos.",
     khipu:
       "Junto al khipu, «E · Leer el khipu» abre un panel con tu avance por cada página del pasaporte (sellos que cuentan / sellos de la página) y lo que guarda cada suyu.",
     finale: (pages: string) =>
-      `Cuando completas todas las páginas del pasaporte que ya existen (${pages}), la primera vez que llegas al usnu la plaza lo celebra una sola vez: suena un breve tema (con el sonido activo), salta confeti de colores del khipu sobre el usnu (no si tu sistema pide reducir el movimiento) y se abre el panel «¡Lo lograste! Recorriste el Tawantinsuyu», con tu nombre de viajero si lo pusiste: los mundos completados y tus sellos (reunidos / total del pasaporte), y botones para crear tu postal, agendar 60 minutos, descargar el CV o volver al sitio. Después, el panel del khipu tiene un botón para volver a verlo.`,
+      `Cuando completas todas las páginas del pasaporte (${pages}), la primera vez que llegas al usnu la plaza lo celebra una sola vez: suena un breve tema (con el sonido activo), salta confeti de colores del khipu sobre el usnu (no si tu sistema pide reducir el movimiento) y se abre el panel «¡Lo lograste! Recorriste el Tawantinsuyu», con tu nombre de viajero si lo pusiste: los mundos completados y tus sellos (reunidos / total del pasaporte), y botones para crear tu postal, agendar 60 minutos, descargar el CV o volver al sitio. Después, el panel del khipu tiene un botón para volver a verlo.`,
     book: "Agendar 60 min",
     cv: "Descargar CV",
     qoriTitle: "Qorikancha",
@@ -49,6 +49,9 @@ const COPY = {
     gates:
       "De cada esquina de la plaza sale una calle entre muros de piedra, y otra sale al sur. Cada una termina en un punku, una portada trapezoidal de piedra con un letrero tallado y, en el vano, un vistazo de su mundo. Cerca de un punku abierto, «E · Viajar» te lleva a ese mundo.",
     gatesClosed: "Un punku cerrado tiene una tranca de troncos y un letrero «Próximamente», y no viaja.",
+    selvaReturn:
+      "Para volver: el punku de la selva te lleva al cruce de caminos (tinkuy) al pie del Qhapaq Ñan, no a esta plaza; desde ahí, el camino que sigue al sur te trae de nuevo a Qusqu por el punku del Qhapaq Ñan.",
+    suyuReturn: "Para volver: el punku al inicio de su camino te trae de vuelta a esta calle.",
     open: "Abierto",
     closed: "Próximamente",
     go: "Ir",
@@ -69,13 +72,13 @@ const COPY = {
     bonus: "Bonus passport stamp",
     arriveTitle: "Arriving",
     arrive:
-      "Coming through a punku, you appear on its street a few steps before the plaza, facing it; coming straight in, on the south side of the plaza facing the usnu. You wear the mountain's Andean clothes.",
+      "Coming through a punku (from the mountain, the coast, the lake or the Kuntisuyu), you appear on its street a few steps before the plaza, facing it; coming straight in, on the south side of the plaza facing the usnu. You wear the mountain's Andean clothes.",
     usnuTitle: "The usnu and the khipu of the suyus",
     usnu: "In the middle of the plaza, an usnu: a ceremonial platform of three dressed-stone tiers with a stair on the south. Each tier is one step, so you can walk up. On top, a wooden frame holds a big khipu: one hanging cord per suyu and one for Qusqu, each in its colour. Every knot is a stamp of that passport page; suyus that are not open yet hang without knots.",
     khipu:
       "Next to the khipu, “E · Read the khipu” opens a panel with your progress on each passport page (stamps that count / stamps on the page) and what each suyu holds.",
     finale: (pages: string) =>
-      `Once you complete every passport page that exists so far (${pages}), the first time you reach the usnu the plaza celebrates, once: a short tune plays (with sound on), confetti in khipu colours bursts over the usnu (not if your system asks for reduced motion) and the panel “You made it! You walked the Tawantinsuyu” opens, with your traveler name if you set one: the worlds completed and your stamps (collected / passport total), and buttons to make your postcard, book 60 minutes, download the resume or go back to the site. Afterwards the khipu panel has a button to see it again.`,
+      `Once you complete every passport page (${pages}), the first time you reach the usnu the plaza celebrates, once: a short tune plays (with sound on), confetti in khipu colours bursts over the usnu (not if your system asks for reduced motion) and the panel “You made it! You walked the Tawantinsuyu” opens, with your traveler name if you set one: the worlds completed and your stamps (collected / passport total), and buttons to make your postcard, book 60 minutes, download the resume or go back to the site. Afterwards the khipu panel has a button to see it again.`,
     book: "Book 60 min",
     cv: "Download resume",
     qoriTitle: "Qorikancha",
@@ -91,6 +94,9 @@ const COPY = {
     gates:
       "A street between stone walls leaves each corner of the plaza, and another leaves to the south. Each ends at a punku, a trapezoidal stone doorway with a carved sign and, in the opening, a glimpse of its world. Near an open punku, “E · Travel” takes you to that world.",
     gatesClosed: "A closed punku has a bar of logs and a “Coming soon” sign, and does not travel.",
+    selvaReturn:
+      "Coming back: the jungle's punku takes you to the crossroads (tinkuy) at the foot of the Qhapaq Ñan, not to this plaza; from there, the road running on south brings you back to Qusqu through the Qhapaq Ñan punku.",
+    suyuReturn: "Coming back: the punku at the start of its road brings you back to this street.",
     open: "Open",
     closed: "Coming soon",
     go: "Go",
@@ -138,9 +144,11 @@ export function renderCuscoTextMode(lang: Lang, opts: { headingLevel?: number; t
   );
   const gates = GATES.map((g) => {
     const state = g.available ? c.open : c.closed;
-    const go =
-      g.available && g.world !== "cusco" ? ` · ${link(worldUrl(lang, g.world as "qhapaq", "cusco"), c.go)}` : "";
-    return `<li><h${h3}>${esc(g.name[lang])} · ${esc(g.bearing[lang])}</h${h3}><p><strong>${esc(state)}</strong>${go}</p><p>${esc(g.holds[lang])}</p></li>`;
+    const go = g.available && g.world !== "cusco" ? ` · ${link(worldUrl(lang, g.world, "cusco"), c.go)}` : "";
+    // Every road comes back through its own punku except the jungle's, which returns to the mountain's tinkuy
+    // (selva/ambient/punku.ts); the mountain's own way back is its Qusqu branch, described on its page.
+    const back = !g.available || g.world === "qhapaq" ? "" : g.world === "selva" ? c.selvaReturn : c.suyuReturn;
+    return `<li><h${h3}>${esc(g.name[lang])} · ${esc(g.bearing[lang])}</h${h3}><p><strong>${esc(state)}</strong>${go}</p><p>${esc(g.holds[lang])}</p>${back ? `<p>${esc(back)}</p>` : ""}</li>`;
   }).join("");
   // The closed-gate sentence only while some suyu is still closed (plan.ts GATES `available`).
   const closedNote = GATES.some((g) => !g.available) ? ` ${c.gatesClosed}` : "";
@@ -156,7 +164,7 @@ export function renderCuscoTextMode(lang: Lang, opts: { headingLevel?: number; t
     `<p>${esc(c.chasqui)}</p><p>${esc(c.email)}: ${link(`mailto:${SITE.email}`, SITE.email)}</p><ul>${socials}</ul><p>${link(SITE.calendly, c.book, true)} · ${link(SITE.resume[lang], c.cv)}</p>${stampLine("cusco:station:chasqui")}`,
   );
   section("vida", c.lifeTitle, `<p>${esc(c.life)}</p>`);
-  section("mapa", c.mapTitle, `<p>${esc(c.map)}</p><p><a href="/${lang}/world/?from=cusco">${esc(c.back)}</a></p>`);
+  section("mapa", c.mapTitle, `<p>${esc(c.map)}</p><p>${link(worldUrl(lang, "qhapaq", "cusco"), c.back)}</p>`);
 
   return `<header class="kw-tm-head"><h${h1} id="${esc(tid)}" class="kw-tm-title">${esc(c.title)}</h${h1}>
 <p class="kw-tm-lede">${esc(c.lede)}</p>

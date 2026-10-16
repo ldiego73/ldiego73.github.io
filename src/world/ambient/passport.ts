@@ -1,6 +1,7 @@
 /**
  * Passport ambient: records `world:stamp` discoveries (src/lib/passport.ts is the store) and shows the
- * passport as a paper booklet with one page per world (WORLD_PAGES: Qhapaq Ñan, Wasi, Antisuyu, Qusqu, Chinchaysuyu) plus an
+ * passport as a paper booklet with one page per world (WORLD_PAGES: Qhapaq Ñan, Wasi, Antisuyu, Qusqu,
+ * Chinchaysuyu, Collasuyu, Kuntisuyu) plus an
  * Arcade page. Each page shows its own progress and a "page complete" seal; the header shows the totals.
  * Pages are an ARIA tabs widget (roving tabindex, ←/→/Home/End); the booklet traps focus and Esc closes it.
  *
@@ -253,6 +254,18 @@ export const create: CreateAmbient = (env, hudRoot) => {
     emit("world:passport-complete", { total: CATALOG.length });
   }
 
+  /**
+   * On phones the tab strip scrolls sideways (eight pages do not fit): centre the open page's tab in it, so
+   * the book opened on the jungle or a suyu shows which page that is. Horizontal only: the book stays at its top.
+   */
+  function revealTab() {
+    const tab = pages.find((page) => page.id === current)?.tab;
+    if (!tab || tablist.scrollWidth <= tablist.clientWidth) return;
+    const strip = tablist.getBoundingClientRect();
+    const box = tab.getBoundingClientRect();
+    tablist.scrollLeft += box.left - strip.left - (strip.width - box.width) / 2;
+  }
+
   function select(id: TabId, focus = false) {
     current = id;
     for (const page of pages) {
@@ -419,6 +432,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
     opened = true;
     overlay.hidden = false;
     panel.scrollTop = 0;
+    revealTab();
     button.setAttribute("aria-expanded", "true");
     emit("world:modal", { open: true });
     panel.focus();

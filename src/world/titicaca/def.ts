@@ -22,6 +22,8 @@ const circle = (x: number, z: number, r: number) =>
 
 export const TITICACA_DEF: SuyuDef<TiticacaLayout> = {
   world: "titicaca",
+  // The passport's "My postcard" and the finale's "Make my postcard" open this world's own card (journey-card.ts).
+  postcard: "titicaca",
   name: TITICACA_NAME,
   stations: TITICACA_STATIONS,
   buildLayout: buildTiticacaLayout,
