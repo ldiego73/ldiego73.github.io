@@ -79,9 +79,22 @@ describe("Qhapaq Ñan passport", () => {
       ...SELVA_STATIONS.map((station) => `selva:station:${station.id}`),
       "selva:ride:canoe",
       "selva:field:dosel",
-      ...["guacamayo", "mono", "perezoso", "bufeo", "caiman", "ronsoco", "tucan", "jaguar"].map(
-        (id) => `selva:fauna:${id}`,
-      ),
+      "selva:summit",
+      ...[
+        "guacamayo",
+        "mono",
+        "perezoso",
+        "bufeo",
+        "caiman",
+        "ronsoco",
+        "tucan",
+        "jaguar",
+        "sajino",
+        "taricaya",
+        "anuje",
+        "sachavaca",
+        "shansho",
+      ].map((id) => `selva:fauna:${id}`),
     ];
     expect(CATALOG.map((stamp) => stamp.id).sort()).toEqual(expected.sort());
     expect(new Set(expected).size).toBe(CATALOG.length);
@@ -187,7 +200,7 @@ describe("Qhapaq Ñan passport", () => {
     const bonus = new Set(["egg", "fauna", "npc", "record", "festival"]);
     for (const stamp of CATALOG) if (!bonus.has(stamp.kind)) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
-    expect(mergedPassport(state, emptyState()).worldCollected).toBe(21 + 4 + SELVA_STATIONS.length + 2);
+    expect(mergedPassport(state, emptyState()).worldCollected).toBe(21 + 4 + SELVA_STATIONS.length + 3);
     delete state.stamps["weather:fog"];
     expect(passportComplete(state)).toBe(false);
     for (const stamp of CATALOG) state.stamps[stamp.id] = 1234;

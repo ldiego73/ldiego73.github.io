@@ -13,7 +13,20 @@ import type { SelvaEnv, SelvaLayout } from "../../contract";
 import { planScenery } from "../../scenery/placement";
 import { LookTimer } from "./logic";
 
-export type FaunaId = "guacamayo" | "mono" | "perezoso" | "bufeo" | "caiman" | "ronsoco" | "tucan" | "jaguar";
+export type FaunaId =
+  | "guacamayo"
+  | "mono"
+  | "perezoso"
+  | "bufeo"
+  | "caiman"
+  | "ronsoco"
+  | "tucan"
+  | "jaguar"
+  | "sajino"
+  | "taricaya"
+  | "anuje"
+  | "sachavaca"
+  | "shansho";
 
 /** The jungle env, or null when an ambient is loaded outside the selva page (then it does nothing). */
 export function selvaOf(env: WorldEnv): (SelvaEnv & { selva: { layout: SelvaLayout } }) | null {
@@ -475,4 +488,15 @@ export class SiteProps {
     for (const s of this.sites) disposeMesh(s.mesh);
     this.group.removeFromParent();
   }
+}
+
+/**
+ * Frame step for a fauna ambient: dt clamped to 50 ms, times the dev-only `window.__selvaFaunaSpeed`
+ * (screenshot scripts on a slow software renderer fast-forward the animals with it). Always 1× in builds.
+ */
+export function faunaDt(dt: number): number {
+  const d = Math.min(dt, 0.05);
+  if (!import.meta.env?.DEV) return d;
+  const k = (window as unknown as { __selvaFaunaSpeed?: number }).__selvaFaunaSpeed;
+  return typeof k === "number" && k > 0 ? d * k : d;
 }

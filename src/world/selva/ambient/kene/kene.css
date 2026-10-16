@@ -1,0 +1,48 @@
+/* Antisuyu finale panel (../kene.ts): the jungle's "¡Lo lograste!" card, matching the mountain's summit card
+   (hud.css .qn-summit: lede, 2 × 2 stat tiles, a primary postcard button, then the actions) on the jungle
+   paper panel (fields.css qnf- + embarcadero/panels.css qns-). Prefix qns-kene / qns-stat. */
+
+.qns-kene .qnf-panel::before {
+  /* Kené selvage: achiote, cream and huito black, like the totem's paint. */
+  background: repeating-linear-gradient(90deg, #b3382a 0 18px, #1b1411 18px 22px, #efe2c4 22px 34px, #1b1411 34px 38px);
+}
+.qns-kene .qnf-title {
+  color: #b3382a;
+}
+
+.qns-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.qns-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 8px 10px;
+  border: 2px solid var(--qnf-ink);
+  border-left: 6px solid #b3382a;
+  border-radius: 8px;
+  background: var(--qnf-paper-2);
+}
+.qns-stat dt {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--qnf-muted);
+}
+.qns-stat dd {
+  margin: 0;
+  font: 800 1.9rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 70%;
+  font-variant-numeric: tabular-nums;
+  color: var(--qnf-ink);
+}
+
+.qns-kene-postcard {
+  width: 100%;
+  justify-content: center;
+  margin: 0 0 10px;
+}
+.qns-kene .qnf-actions {
+  flex-wrap: wrap;
+}

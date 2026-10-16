@@ -52,7 +52,8 @@ describe("jungle text mode", () => {
       const ids = [...html.matchAll(/<section class="kw-tm-station" id="([^"]+)"/g)].map((m) => m[1]);
       const want = [...SELVA_STATIONS].sort((a, b) => a.t - b.t).map((s) => selvaTextId(s.id));
       want.splice(want.indexOf(selvaTextId("arcade")) + 1, 0, selvaTextId("dosel"));
-      want.push(selvaTextId("fauna"), selvaTextId("volver"));
+      want.splice(want.indexOf(selvaTextId("collpa")) + 1, 0, selvaTextId("kene"));
+      want.push(selvaTextId("comunidad"), selvaTextId("fauna"), selvaTextId("volver"));
       expect(ids).toEqual(want);
       expect(html).toContain("Otorongo");
       for (const s of SELVA_STATIONS) expect(html).toContain(esc(s.label[lang]));
@@ -69,6 +70,8 @@ describe("jungle text mode", () => {
       expect(html).toContain(`href="/${lang}/world/"`);
       expect(html).toContain(lang === "es" ? "Viaje en canoa" : "Canoe trip");
       expect(html).toContain(lang === "es" ? "Puentes del dosel" : "Canopy walkway");
+      expect(html).toContain(lang === "es" ? "Fin del Antisuyu" : "End of the Antisuyu");
+      expect(html).toContain("kené");
     });
     test(`${lang}: escapes data and links external sites safely`, () => {
       expect(html).not.toContain("<repo>");
