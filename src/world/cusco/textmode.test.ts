@@ -11,8 +11,8 @@ describe("Cusco text mode", () => {
       expect(doc).toContain(lang === "es" ? "Próximamente" : "Coming soon");
       expect(doc).toContain(`href="/${lang}/world/selva/"`);
       expect(doc).toContain(`href="/${lang}/world/?from=cusco"`);
-      expect(doc).toContain(`href="/${lang}/world/costa/?from=cusco"`);
-      expect(doc).not.toContain("/world/titicaca");
+      expect(doc).not.toContain("/world/colca");
+      expect(doc).toContain(`href="/${lang}/world/titicaca/"`);
       expect(doc).not.toContain("/world/colca");
     });
     test(`khipu, finale, chasqui contact and stamps (${lang})`, () => {

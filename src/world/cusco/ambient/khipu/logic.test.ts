@@ -49,8 +49,11 @@ describe("khipu of the suyus", () => {
     const r = roadProgress(view, antisuyu);
     expect(r.done).toBe(true);
     expect(r.knots).toBe(requiredStamps("selva").length);
-    const closed = roadProgress(view, GATES.find((g) => g.id === "collasuyu")!);
-    expect(closed).toMatchObject({ knots: 0, done: false, pages: [] });
+    const lake = roadProgress(view, GATES.find((g) => g.id === "collasuyu")!);
+    expect(lake).toMatchObject({ knots: 0, done: false });
+    expect(lake.pages.map((p) => p.world)).toEqual(["titicaca"]);
+    const closed = GATES.find((g) => !g.available);
+    if (closed) expect(roadProgress(view, closed)).toMatchObject({ knots: 0, done: false, pages: [] });
     const mountain = roadProgress(view, GATES.find((g) => g.id === "qhapaq")!);
     expect(mountain.pages.map((p) => p.world)).toEqual(["qhapaq", "wasi"]);
     expect(mountain.done).toBe(false);

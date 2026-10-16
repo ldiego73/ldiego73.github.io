@@ -1,11 +1,12 @@
 /**
  * Travel between worlds that live on different pages (mountain /world/ ↔ jungle /world/selva/ ↔ the Cusco hub
- * /world/cusco/). `prefetchWorld` warms the target page and its JavaScript chunks when the traveler nears a
- * portal; `travelTo` emits `world:travel`, fades the screen to the loader colour and navigates.
+ * /world/cusco/ ↔ the Collasuyu lake /world/titicaca/). `prefetchWorld` warms the target page and its JavaScript
+ * chunks when the traveler nears a portal; `travelTo` emits `world:travel`, fades the screen to the loader colour
+ * and navigates.
  *
  * `?from=<world>` tells the target page where the traveler came from, so it starts at the matching portal:
  * the mountain reads it with trailhead.ts `arrivalFrom` (ARRIVALS), the suyu worlds with suyu/arrival.ts. The
- * jungle has a single entrance and ignores it.
+ * jungle and the lake have a single entrance and ignore it.
  */
 
 import type { Lang } from "./contract";
@@ -19,6 +20,7 @@ export function worldUrl(lang: Lang, to: WorldId, from?: WorldId): string {
   if (to === "selva") return `/${lang}/world/selva/`;
   if (to === "cusco") return `/${lang}/world/cusco/${q}`;
   if (to === "costa") return `/${lang}/world/costa/${q}`;
+  if (to === "titicaca") return `/${lang}/world/titicaca/`;
   // The mountain (and the Wasi inside it): coming from its own house is not an arrival.
   return `/${lang}/world/${from === "qhapaq" ? "" : q}`;
 }
@@ -36,6 +38,7 @@ export function prefetchWorld(lang: Lang, to: WorldId): void {
   if (to === "selva") void import("./selva/warm").then((m) => m.warmSelva()).catch(() => {});
   else if (to === "cusco") void import("./cusco/warm").then((m) => m.warmCusco()).catch(() => {});
   else if (to === "costa") void import("./costa/warm").then((m) => m.warmCosta()).catch(() => {});
+  else if (to === "titicaca") void import("./titicaca/warm").then((m) => m.warmTiticaca()).catch(() => {});
 }
 
 export function travelTo(lang: Lang, from: WorldId, to: WorldId, fadeMs = 450): void {

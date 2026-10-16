@@ -1,0 +1,44 @@
+/* Collasuyu finale panel (../titikala.ts): the lake's "¡Lo lograste!" card, matching the mountain's summit card
+   (lede, 2 × 2 stat tiles, a primary postcard button, then the actions) on the shared paper panel
+   (ambient/fields/fields.css, prefix qnf-). Sunrise gold over the lake's blue. Prefix tq-. */
+.tq-finale .qnf-panel::before {
+  background: repeating-linear-gradient(90deg, #e8b631 0 22px, #1a48a6 22px 28px, #efe6d6 28px 34px, #1a48a6 34px 40px);
+}
+.tq-finale .qnf-title {
+  color: #9a5a12;
+}
+.tq-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.tq-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 8px 10px;
+  border: 2px solid var(--qnf-ink);
+  border-left: 6px solid #e8b631;
+  border-radius: 8px;
+  background: var(--qnf-paper-2);
+}
+.tq-stat dt {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--qnf-muted);
+}
+.tq-stat dd {
+  margin: 0;
+  font: 800 1.9rem / 1 var(--font-display, "Archivo", sans-serif);
+  font-stretch: 70%;
+  font-variant-numeric: tabular-nums;
+  color: var(--qnf-ink);
+}
+.tq-finale-postcard {
+  width: 100%;
+  justify-content: center;
+  margin: 0 0 10px;
+}
+.tq-finale .qnf-actions {
+  flex-wrap: wrap;
+}

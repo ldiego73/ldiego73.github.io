@@ -5,6 +5,7 @@ import { COSTA_STATIONS } from "../world/costa/plan";
 import { CUSCO_STATIONS } from "../world/cusco/plan";
 import type { StampKind, WorldId } from "../world/events";
 import { SELVA_STATIONS } from "../world/selva/contract";
+import { TITICACA_STATIONS } from "../world/titicaca/plan";
 
 export const PASSPORT_KEY = "ldiego73-passport-v1";
 export interface PassportState {
@@ -25,6 +26,7 @@ export const WORLD_PAGES: ReadonlyArray<{ id: WorldId; label: L }> = [
   { id: "selva", label: { es: "Antisuyu · la selva", en: "Antisuyu · the jungle" } },
   { id: "cusco", label: { es: "Qusqu · Haukaypata", en: "Qusqu · Haukaypata" } },
   { id: "costa", label: { es: "Chinchaysuyu · la costa", en: "Chinchaysuyu · the coast" } },
+  { id: "titicaca", label: { es: "Collasuyu · el lago", en: "Collasuyu · the lake" } },
 ];
 export const worldOf = (stamp: Pick<PassportStamp, "world">): WorldId => stamp.world ?? "qhapaq";
 
@@ -172,6 +174,49 @@ export const CATALOG: readonly PassportStamp[] = [
     id: `costa:fauna:${id}`,
     kind: "fauna" as const,
     world: "costa" as const,
+    label: { es, en },
+  })),
+  // Collasuyu: Lake Titicaca. The Uros islands (one per skill group), Taquile, the balsa ride and the sacred rock
+  // complete the page; Sillustani's chullpas and the lake's wildlife are bonus finds. Gates and landings stamp
+  // nothing (titicaca/plan.ts `stamp: false`).
+  ...TITICACA_STATIONS.flatMap((station) =>
+    station.stamp === false
+      ? []
+      : [
+          {
+            id: `titicaca:station:${station.id}`,
+            kind: station.stamp ?? ("station" as const),
+            world: "titicaca" as const,
+            label: station.label,
+          },
+        ],
+  ),
+  {
+    id: "titicaca:ride:balsa",
+    kind: "ride",
+    world: "titicaca",
+    label: { es: "Balsa de totora", en: "Totora reed boat" },
+  },
+  {
+    id: "titicaca:summit",
+    kind: "summit",
+    world: "titicaca",
+    label: { es: "Fin del Collasuyu", en: "End of the Collasuyu" },
+  },
+  ...(
+    [
+      ["zambullidor", "Zambullidor del Titicaca", "Titicaca grebe"],
+      ["flamenco", "Parihuana · flamenco andino", "Parihuana · Andean flamingo"],
+      ["gaviota", "Gaviota andina", "Andean gull"],
+      ["rana", "Rana gigante del Titicaca", "Titicaca water frog"],
+      ["alpaca", "Alpaca", "Alpaca"],
+      ["llama", "Llama", "Llama"],
+      ["vizcacha", "Vizcacha", "Vizcacha"],
+    ] as const
+  ).map(([id, es, en]) => ({
+    id: `titicaca:fauna:${id}`,
+    kind: "fauna" as const,
+    world: "titicaca" as const,
     label: { es, en },
   })),
 ];

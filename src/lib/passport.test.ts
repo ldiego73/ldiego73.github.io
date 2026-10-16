@@ -4,6 +4,7 @@ import { ACHIEVEMENTS } from "../games/registry";
 import { STATIONS } from "../world/contract";
 import { COSTA_STATIONS } from "../world/costa/plan";
 import { SELVA_STATIONS } from "../world/selva/contract";
+import { TITICACA_STATIONS } from "../world/titicaca/plan";
 import {
   CATALOG,
   emptyPassport,
@@ -104,6 +105,14 @@ describe("Qhapaq Ñan passport", () => {
       "costa:ride:caballito",
       "costa:summit",
       ...["lobo-marino", "pinguino", "pelicano", "guanay", "gaviota", "cangrejo"].map((id) => `costa:fauna:${id}`),
+      ...TITICACA_STATIONS.filter((station) => station.stamp !== false).map(
+        (station) => `titicaca:station:${station.id}`,
+      ),
+      "titicaca:ride:balsa",
+      "titicaca:summit",
+      ...["zambullidor", "flamenco", "gaviota", "rana", "alpaca", "llama", "vizcacha"].map(
+        (id) => `titicaca:fauna:${id}`,
+      ),
     ];
     expect(CATALOG.map((stamp) => stamp.id).sort()).toEqual(expected.sort());
     expect(new Set(expected).size).toBe(CATALOG.length);
@@ -211,7 +220,7 @@ describe("Qhapaq Ñan passport", () => {
     expect(passportComplete(state)).toBe(true);
     const costaRequired = COSTA_STATIONS.filter((station) => station.stamp !== false).length + 2;
     expect(mergedPassport(state, emptyState()).worldCollected).toBe(
-      21 + 4 + SELVA_STATIONS.length + 3 + 2 + costaRequired,
+      21 + 4 + SELVA_STATIONS.length + 3 + 2 + costaRequired + requiredStamps("titicaca").length,
     );
     delete state.stamps["weather:fog"];
     expect(passportComplete(state)).toBe(false);
@@ -233,6 +242,7 @@ describe("Qhapaq Ñan passport", () => {
     for (const stamp of requiredStamps("cusco")) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(false);
     for (const stamp of requiredStamps("costa")) state.stamps[stamp.id] = 1234;
+    for (const stamp of requiredStamps("titicaca")) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
     expect(requiredStamps("selva").some((stamp) => stamp.id.startsWith("selva:fauna:"))).toBe(false);
   });
@@ -244,6 +254,17 @@ describe("Qhapaq Ñan passport", () => {
     ]);
     expect(CATALOG.some((stamp) => stamp.id === "cusco:station:antisuyu")).toBe(false);
     expect(CATALOG.find((stamp) => stamp.id === "cusco:station:hatun-rumiyoc")?.kind).toBe("egg");
+  });
+
+  test("the Collasuyu page needs its islands, Taquile, the boat ride and the finale; the rest is bonus", () => {
+    const ids = requiredStamps("titicaca").map((stamp) => stamp.id);
+    expect(ids).toContain("titicaca:station:taquile");
+    expect(ids).toContain("titicaca:ride:balsa");
+    expect(ids).toContain("titicaca:summit");
+    expect(ids.filter((id) => id.startsWith("titicaca:station:isla-")).length).toBeGreaterThan(0);
+    expect(ids.some((id) => id.startsWith("titicaca:fauna:"))).toBe(false);
+    expect(CATALOG.find((stamp) => stamp.id === "titicaca:station:sillustani")?.kind).toBe("egg");
+    expect(CATALOG.some((stamp) => stamp.id === "titicaca:station:punku")).toBe(false);
   });
 
   test("the coast page needs every company station, the market, the caballito ride and the finale", () => {
