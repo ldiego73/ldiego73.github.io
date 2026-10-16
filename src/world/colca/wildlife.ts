@@ -13,16 +13,16 @@ export const COLCA_WILDLIFE: readonly Species[] = [
     name: { es: "Cóndor andino", en: "Andean condor" },
     latin: "Vultur gryphus",
     where: {
-      es: "Sobre el cañón, junto al borde: cerca del pueblo, de las colcas, a lo largo del cañón y frente a la Cruz del Cóndor; uno vuela en lo hondo, muy por debajo del borde.",
-      en: "Over the canyon, near the rim: by the village, by the colcas, along the canyon and in front of the Cruz del Cóndor; one flies deep down, far below the rim.",
+      es: "Sobre el cañón, cerca del borde y del camino: frente al pueblo, frente a las colcas, donde el camino deja el borde y antes de la Cruz del Cóndor; otro gira a lo ancho del cañón y uno vuela en lo hondo, muy por debajo del borde. Dos se posan en una roca del borde junto a las colcas y otros dos en una roca junto a la Cruz del Cóndor.",
+      en: "Over the canyon, close to the rim and the road: in front of the village, in front of the colcas, where the road leaves the rim and before the Cruz del Cóndor; another circles mid-canyon and one flies deep down, far below the rim. Two sit on a rock on the rim by the colcas and two more on a rock by the Cruz del Cóndor.",
     },
     when: {
-      es: "De día. Temprano por la mañana (más o menos de 6:30 a 10:30) dos de ellos suben frente a la Cruz del Cóndor y pasan muy cerca del mirador. Al atardecer bajan a dormir y de noche no vuelan.",
-      en: "By day. Early in the morning (roughly 6:30 to 10:30) two of them rise in front of the Cruz del Cóndor and pass very close to the lookout. At dusk they go down to roost and they do not fly at night.",
+      es: "Vuelan de día. Temprano por la mañana (más o menos de 6:30 a 10:30) dos de ellos suben frente a la Cruz del Cóndor y pasan muy cerca del mirador. Al atardecer bajan a dormir y de noche no vuelan; los de las rocas se quedan allí día y noche.",
+      en: "They fly by day. Early in the morning (roughly 6:30 to 10:30) two of them rise in front of the Cruz del Cóndor and pass very close to the lookout. At dusk they go down to roost and they do not fly at night; the ones on the rocks stay there day and night.",
     },
     does: {
-      es: "Planean en círculos grandes y lentos sobre las corrientes de aire caliente, con las alas abiertas y quietas y las puntas como dedos, ladeados hacia el centro del giro; suben y bajan despacio, de muy por debajo del borde hasta por encima, y de vez en cuando dan unos aletazos hondos.",
-      en: "They glide in big, slow circles on the rising warm air, wings spread and still with finger-like tips, banked into the turn; they drift slowly up and down, from far below the rim to above it, and now and then give a few deep wingbeats.",
+      es: "Planean en círculos grandes y lentos sobre las corrientes de aire caliente, con las alas abiertas y quietas y las puntas como dedos, ladeados hacia el centro del giro; suben y bajan despacio, de muy por debajo del borde hasta por encima, y de vez en cuando dan unos aletazos hondos. Mientras caminas por el borde, más o menos cada minuto uno deja su círculo, baja planeando y pasa por encima de tu cabeza antes de volver a él (no si tu sistema pide reducir el movimiento). Los posados están erguidos con las alas plegadas y giran la cabeza; temprano por la mañana uno de cada pareja abre las alas al sol.",
+      en: "They glide in big, slow circles on the rising warm air, wings spread and still with finger-like tips, banked into the turn; they drift slowly up and down, from far below the rim to above it, and now and then give a few deep wingbeats. While you walk along the rim, about once a minute one leaves its circle, glides down and passes over your head before going back to it (not if your system asks for reduced motion). The perched ones sit upright with folded wings and turn their heads; early in the morning one of each pair opens its wings to the sun.",
     },
     stamp: "colca:fauna:condor",
   },

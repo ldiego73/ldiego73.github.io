@@ -1,7 +1,8 @@
 /**
  * Pure helpers for the Antisuyu community (no DOM, no three.js): who is out at what hour, how many people a
  * device gets, the boats' far-half river lane, the jump arc and swim loop of the children at the river, the
- * cast net's timeline, when a walker on the road gives way to the traveler, and the greetings. Unit-tested.
+ * cast net's timeline, the stretches of road the travellers use and where a traveller out of sight comes back
+ * into play, when a walker on the road gives way to the traveler, and the greetings. Unit-tested.
  */
 import type { L } from "../../../contract";
 
@@ -25,11 +26,49 @@ export const HOURS = {
 export type Activity = keyof typeof HOURS;
 export const isOut = (a: Activity, time: number) => within(time, HOURS[a][0], HOURS[a][1]);
 
-/** People per group: phones and the low tier get fewer (the crowd is one instanced mesh per part either way). */
+/**
+ * People per group: phones and the low tier get fewer (the crowd is one instanced mesh per part either way).
+ *  - walkers: travellers on the road (parties of one to three, ./road.ts ROAD_PARTIES);
+ *  - raftPlayers / raftKids / raftWatcher: on the floating arcade (./raft.ts);
+ *  - finale: the gathering in the kené totem's clearing at the end of the road (./finale.ts).
+ */
 export function headcount(quality: "low" | "high", phone: boolean) {
-  if (phone) return { plazaKids: 3, swimmers: 2, walkers: 2, crafts: 2, boat: true, fisher: true };
-  if (quality === "low") return { plazaKids: 4, swimmers: 2, walkers: 2, crafts: 3, boat: true, fisher: true };
-  return { plazaKids: 5, swimmers: 3, walkers: 4, crafts: 3, boat: true, fisher: true };
+  const base = { boat: true, fisher: true };
+  if (phone)
+    return {
+      ...base,
+      plazaKids: 3,
+      swimmers: 2,
+      walkers: 5,
+      crafts: 2,
+      raftPlayers: 1,
+      raftKids: 1,
+      raftWatcher: false,
+      finale: 4,
+    };
+  if (quality === "low")
+    return {
+      ...base,
+      plazaKids: 4,
+      swimmers: 2,
+      walkers: 5,
+      crafts: 3,
+      raftPlayers: 1,
+      raftKids: 1,
+      raftWatcher: false,
+      finale: 4,
+    };
+  return {
+    ...base,
+    plazaKids: 5,
+    swimmers: 3,
+    walkers: 9,
+    crafts: 3,
+    raftPlayers: 2,
+    raftKids: 1,
+    raftWatcher: true,
+    finale: 7,
+  };
 }
 
 // ---------------------------------------------------------------- river lane
@@ -219,13 +258,79 @@ export function shouldGiveWay(
   return along > 0 && along < ahead && across < wide;
 }
 
-/** Road t legs the walkers stroll between (west → east, station to station), kept off the canopy walkway. */
-export const ROAD_LEGS: ReadonlyArray<readonly [number, number]> = [
-  [0.16, 0.29],
-  [0.43, 0.59],
-  [0.31, 0.41],
-  [0.61, 0.75],
+/**
+ * Stretches of road (t) the travellers walk: the whole road except the first steps by the punku, the canopy
+ * walkway (CANOPY_T 0.83–0.9: hanging bridges, no room to pass) and the last steps before the totem's
+ * clearing. A traveller reaching the end of a stretch stops a moment and turns back.
+ */
+export const ROAD_SPANS: ReadonlyArray<readonly [number, number]> = [
+  [0.04, 0.82],
+  [0.905, 0.99],
 ];
+
+/**
+ * The road's parties, in order of appearance (each a few people walking together):
+ *  couple (bananas + basket) · mother with a basket and her child · a man alone with a bunch ·
+ *  couple · two young men (one with a bunch). A device's walkers take the first parties that fit.
+ */
+export const PARTIES: ReadonlyArray<ReadonlyArray<"man" | "woman" | "child" | "youth">> = [
+  ["man", "woman"],
+  ["woman", "child"],
+  ["man"],
+  ["woman", "man"],
+  ["youth", "youth"],
+];
+/** The parties for `n` walkers (whole parties only, in order). */
+export function partiesFor(n: number) {
+  const out: Array<ReadonlyArray<"man" | "woman" | "child" | "youth">> = [];
+  let left = n;
+  for (const p of PARTIES) {
+    if (p.length > left) break;
+    out.push(p);
+    left -= p.length;
+  }
+  return out;
+}
+
+/** Index of the stretch holding t, or −1 (on the canopy walkway or past an end). */
+export function spanAt(t: number): number {
+  return ROAD_SPANS.findIndex(([a, b]) => t >= a && t <= b);
+}
+
+/**
+ * Has a traveller walking `dir` at `t` reached the end of its stretch? `span` is the stretch it walks
+ * (spanAt when it was placed).
+ */
+export function atSpanEnd(t: number, dir: 1 | -1, span: number): boolean {
+  const s = ROAD_SPANS[span] ?? ROAD_SPANS[0];
+  if (!s) return false;
+  return dir === 1 ? t >= s[1] : t <= s[0];
+}
+
+/**
+ * Where a traveller who has drifted far out of sight comes back into play: a road t `gap` (in t units, just
+ * past the people's view distance) ahead (`side` +1, toward the totem) or behind (−1) the traveler. When that
+ * falls on the canopy walkway it moves on to the far end of the walkway (still further from the traveler);
+ * past either end of the road it tries the other side. null when neither side has room (it then stays put).
+ * The traveller then walks toward the traveler (`dir` = −side), so the road ahead fills with people coming
+ * the other way and, behind, the ones overtaken stay out of sight.
+ */
+export function respawnT(avatarT: number, gap: number, side: 1 | -1): { t: number; span: number; dir: 1 | -1 } | null {
+  for (const s of [side, -side as 1 | -1]) {
+    let t = avatarT + s * gap;
+    if (spanAt(t) < 0) {
+      // Inside a gap between stretches: jump to the far edge of that gap (away from the traveler).
+      for (let i = 0; i + 1 < ROAD_SPANS.length; i++) {
+        const a = (ROAD_SPANS[i] as readonly [number, number])[1];
+        const b = (ROAD_SPANS[i + 1] as readonly [number, number])[0];
+        if (t > a && t < b) t = s === 1 ? b : a;
+      }
+    }
+    const span = spanAt(t);
+    if (span >= 0) return { t, span, dir: s === 1 ? -1 : 1 };
+  }
+  return null;
+}
 
 /**
  * Lateral offset of a walker going `dir` (+1 east / −1 west), measured along the road's side +1 normal
@@ -237,7 +342,7 @@ export const asideOf = (dir: 1 | -1) => dir * 2.15;
 
 // ---------------------------------------------------------------- greetings (generic, about the place)
 
-export type Role = "weaver" | "potter" | "elder" | "walker" | "fire";
+export type Role = "weaver" | "potter" | "elder" | "walker" | "fire" | "painter" | "traveller" | "camp";
 export const GREET: Record<Role, L[]> = {
   weaver: [
     {
@@ -283,6 +388,32 @@ export const GREET: Record<Role, L[]> = {
     {
       es: "Ya es de noche y los niños duermen. Escucha: la selva no se calla nunca.",
       en: "It's night and the children are asleep. Listen: the forest is never quiet.",
+    },
+  ],
+  painter: [
+    {
+      es: "Pintamos el kené en la tela con tinte de huito y barro. Se pinta de memoria, sin borrador.",
+      en: "We paint the kené on the cloth with huito dye and mud. It is painted from memory, with no sketch.",
+    },
+    {
+      es: "Cada línea del kené se une con otra: es un camino que no se corta.",
+      en: "Every kené line joins another: it is a path that never breaks.",
+    },
+  ],
+  traveller: [
+    {
+      es: "Vamos al pueblo de río arriba; descansamos aquí antes de seguir.",
+      en: "We're headed to the village upriver; we're resting here before going on.",
+    },
+    {
+      es: "¡Llegaste al final del camino! Siéntate, que el sol pica.",
+      en: "You made it to the end of the road! Sit down, the sun is fierce.",
+    },
+  ],
+  camp: [
+    {
+      es: "De noche no se camina por la selva. Mañana temprano seguimos.",
+      en: "Nobody walks the forest at night. We'll go on early tomorrow.",
     },
   ],
 };

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { GAMES } from "../../../../games/registry";
-import { cabColor, gameHref, RAFT_CABINETS, raftGames } from "./logic";
+import { CAB_Z, cabColor, cabPose, gameHref, RAFT, RAFT_CABINETS, raftGames } from "./logic";
 
 describe("floating arcade", () => {
   test("picks distinct real games spread over the catalog", () => {
@@ -16,5 +16,24 @@ describe("floating arcade", () => {
   test("colors and links", () => {
     expect(cabColor("nope")).toMatch(/^#/);
     expect(gameHref("en", "snake")).toBe("/en/arcade/snake/");
+  });
+  test("cabinet arc: symmetric, on the raft, outer ones turned inward", () => {
+    const n = RAFT_CABINETS;
+    const mid = cabPose(2, n);
+    expect(mid.x).toBeCloseTo(0);
+    expect(mid.z).toBeCloseTo(CAB_Z);
+    expect(mid.yaw).toBeCloseTo(0);
+    const a = cabPose(0, n);
+    const b = cabPose(n - 1, n);
+    expect(a.x).toBeCloseTo(-b.x);
+    expect(a.yaw).toBeGreaterThan(0);
+    expect(b.yaw).toBeCloseTo(-a.yaw);
+    for (let i = 0; i < n; i++) {
+      const c = cabPose(i, n);
+      expect(c.x).toBeGreaterThan(RAFT.x0);
+      expect(c.x).toBeLessThan(RAFT.x1);
+      expect(c.z).toBeGreaterThan(RAFT.z0);
+    }
+    expect(cabPose(0, 1).x).toBe(0);
   });
 });

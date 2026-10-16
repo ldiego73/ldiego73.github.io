@@ -16,7 +16,8 @@
  * Prompts: an ambient's prompt?() text shows in core's own pill (bottom center, above content's prompt
  * row). Since E goes to ambients first, whatever the pill says is what E will do.
  *
- * Keys: M map + fast travel (map.ts), H help, K text mode (textmode.ts), T day/night, N music, F photo
+ * Keys: M map + fast travel (map.ts), H help, K text mode (textmode.ts), T day/night, N music, F photo,
+ * V (also gamepad LT and the chrome's Travel button) the «Viajar» panel to any other world (travel-panel.ts)
  * (P is reserved for the passport). Gamepads: see input.ts (B = Esc, Y = map, Start = help, Select = text).
  * Events handled here: `world:modal {open}` (counter; freezes walking while > 0), `world:mount` (speed
  * multiplier + seat height), `world:teleport {to}` (fade + move to a station's plaza), `world:textmode`,
@@ -56,6 +57,7 @@ import { emit, on } from "./events";
 import { createInput, type PadAction } from "./input";
 import { createTitle } from "./intro";
 import { buildLayout, type Layout } from "./layout";
+import { guardLeaving, leaveOpen } from "./leave";
 import { createLoader, type LoadStep } from "./loader";
 import { createBigMap, type MapStop } from "./map";
 import { createWorldMusic } from "./music";
@@ -73,6 +75,7 @@ import { createJourneyDialog } from "./journey-card";
 import { createStandLatch, type Seat, SIT_SQUEEZE, seatedFeetY, seatFrom } from "./seat";
 import { createTextMode, focusStep, type TextMode } from "./textmode";
 import { createTrailMeshes } from "./trail";
+import { createTravelPanel } from "./travel-panel";
 import { announceTraveler, loadTraveler, saveTraveler } from "./traveler";
 
 export interface WorldOptions {
@@ -254,6 +257,8 @@ export function mountWorld(host: HTMLElement, opts: WorldOptions): () => void {
   // Text mode works from the first moment (skip link, loading failures), before the 3D world exists.
   const textMode = createTextMode(host, lang, worldData());
   const offText = on("world:textmode", () => textMode.open());
+  // Every same-tab link out of the world page asks «¿Salir del mundo?» first (leave.ts).
+  const offLeave = guardLeaving(lang);
   const fail = (err: unknown) => {
     if (err === CANCELLED) return;
     console.error(err);
@@ -288,6 +293,7 @@ export function mountWorld(host: HTMLElement, opts: WorldOptions): () => void {
     teardown?.();
     loader.remove();
     offText();
+    offLeave();
     textMode.dispose();
     host.classList.remove("kw-root");
   };
@@ -486,6 +492,7 @@ async function start(
       onEditName: () => nameEditor.open(),
       onDayNight: () => sky.toggle(),
       onText: () => ui.textMode.open(),
+      onTravel: () => openTrip(),
       onQuality: () => {
         const q: Quality = engine.quality() === "high" ? "low" : "high";
         engine.setQuality(q);
@@ -529,6 +536,12 @@ async function start(
         syncInput();
       }),
     );
+    // «Viajar»: fast travel to any other world (chrome button, V, gamepad LT); only in play, never over a dialog.
+    const trip = createTravelPanel(host, lang, "qhapaq");
+    cleanups.push(() => trip.dispose());
+    const openTrip = () => {
+      if (phase === "play" && !gameOpen && !dialogOpen && modals === 0) trip.open();
+    };
 
     // ---------------------------------------------------------------- auto quality governor
     const manualQuality = (() => {
@@ -811,6 +824,7 @@ async function start(
       else if (e.code === "KeyK") ui.textMode.open();
       else if (e.code === "KeyN") music.toggleMute();
       else if (e.code === "KeyF") void photo.shoot();
+      else if (e.code === "KeyV") openTrip();
       else return;
       e.preventDefault();
     };
@@ -824,11 +838,12 @@ async function start(
       return all[all.length - 1] ?? null;
     };
     const onPad = (a: PadAction) => {
-      if (phase === "title") {
+      // The title's back link can open «¿Salir del mundo?»: then the pad drives that dialog, not the title.
+      if (phase === "title" && !leaveOpen()) {
         if (a === "confirm" || a === "help") begin();
         return;
       }
-      if (phase !== "play") return;
+      if (phase !== "play" && !leaveOpen()) return;
       const busy = modals > 0 || dialogOpen;
       if (a === "back") {
         // Same path as the keyboard: overlays and dialogs catch Esc in the capture phase, then ambients/content.
@@ -842,6 +857,9 @@ async function start(
         else if (!busy) ui.textMode.open();
       } else if (a === "photo") {
         if (!busy) void photo.shoot();
+      } else if (a === "travel") {
+        if (trip.isOpen()) trip.close();
+        else if (!busy) openTrip();
       } else if (a === "confirm") {
         const el = document.activeElement as HTMLElement | null;
         if (el && el !== document.body && activeDialog()?.contains(el)) el.click();

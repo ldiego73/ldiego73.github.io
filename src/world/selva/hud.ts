@@ -34,9 +34,10 @@ const LINES: Record<Lang, string[]> = {
     "Canoa: adelante acelera, atrás frena/retrocede, lados giran; correr da impulso. E sube; E/Esc baja junto a un muelle al ir despacio",
     "M: mapa · el viaje rápido se abre al llegar a la collpa",
     "P: pasaporte y tu postal · F: foto · K: modo texto",
+    "V o el botón «Viajar»: ir directo a otro mundo",
     "T: día o noche · N: música · Esc: cerrar",
     "En móvil: joystick a la izquierda, botones a la derecha, arrastra para girar la cámara.",
-    "Con mando: stick izquierdo camina, stick derecho gira la cámara, A salta, X interactúa, B vuelve, Y abre el mapa, RB o RT corre, LB toma una foto, Start muestra esta ayuda.",
+    "Con mando: stick izquierdo camina, stick derecho gira la cámara, A salta, X interactúa, B vuelve, Y abre el mapa, RB o RT corre, LB toma una foto, LT abre «Viajar», Start muestra esta ayuda.",
   ],
   en: [
     "WASD or arrows: walk",
@@ -45,9 +46,10 @@ const LINES: Record<Lang, string[]> = {
     "Canoe: forward accelerates, back brakes/reverses, sideways turns; run boosts. E boards; E/Esc lands near a dock at low speed",
     "M: map · fast travel opens once you reach the collpa",
     "P: passport and your postcard · F: photo · K: text mode",
+    "V or the “Travel” button: go straight to another world",
     "T: day or night · N: music · Esc: close",
     "On mobile: joystick on the left, buttons on the right, drag to turn the camera.",
-    "With a gamepad: left stick walks, right stick turns the camera, A jumps, X interacts, B goes back, Y opens the map, RB or RT runs, LB takes a photo, Start shows this help.",
+    "With a gamepad: left stick walks, right stick turns the camera, A jumps, X interacts, B goes back, Y opens the map, RB or RT runs, LB takes a photo, LT opens Travel, Start shows this help.",
   ],
 };
 

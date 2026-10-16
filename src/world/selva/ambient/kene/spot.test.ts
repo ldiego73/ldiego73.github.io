@@ -2,7 +2,18 @@ import { describe, expect, test } from "bun:test";
 import { CANOPY_T } from "../../contract";
 import { buildSelvaLayout } from "../../layout";
 import { collpaCliff } from "../collpa/spot";
-import { AHEAD, aroundTotem, DAIS_R, keneSpot, PLAZA_R, POLE_ANGLES, POLE_R, POTS, TOTEM_LOCAL } from "./spot";
+import {
+  AHEAD,
+  aroundTotem,
+  DAIS_R,
+  keneFloorY,
+  keneSpot,
+  PLAZA_R,
+  POLE_ANGLES,
+  POLE_R,
+  POTS,
+  TOTEM_LOCAL,
+} from "./spot";
 
 const L = buildSelvaLayout({ cells: 200 });
 const s = keneSpot(L);
@@ -51,5 +62,11 @@ describe("kené totem spot", () => {
 
   test("footprint covers the clearing", () => {
     expect(s.footprint.some((f) => Math.hypot(f.x - s.x, f.z - s.z) + PLAZA_R <= f.r + 1e-6)).toBe(true);
+  });
+  test("the floor sits just above the clearing's highest ground", () => {
+    const y = keneFloorY(s, (x, z) => L.heightAt(x, z));
+    expect(y).toBeGreaterThan(s.roadY);
+    expect(y).toBeGreaterThan(L.heightAt(s.x, s.z));
+    expect(y - s.roadY).toBeLessThan(1.5);
   });
 });

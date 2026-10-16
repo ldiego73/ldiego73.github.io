@@ -37,6 +37,21 @@ export function arrived(inside: boolean, d: number, r: number): boolean {
 /** Sky time of the sunset over the sea (sky.ts: 0.75 is the sun on the horizon; this is ~2° above it). */
 export const SUNSET = 0.744;
 
+/**
+ * The finale's local frame: origin at the road's end, +Z toward where the sun sets into the sea (`sun`: the sky
+ * arc's direction at SUNSET, x/z), so from the platform the sun goes down through the ring. Shared by
+ * ../finale.ts and the gathering round it (../reunion.ts).
+ */
+export function finaleFrame(
+  end: { x: number; z: number; y: number },
+  sun: { x: number; z: number },
+): { x: number; z: number; y: number; yaw: number } {
+  return { x: end.x, z: end.z, y: end.y, yaw: Math.atan2(sun.x, sun.z) };
+}
+
+/** Centre of the platform in the finale frame, its lower tier's half size and the reward prompt's reach. */
+export const PLATFORM = { z: 4.2, half: 4.6, prompt: 3.6 } as const;
+
 /** The sky time `k` (0..1) of the way from `from` to the sunset, along the shorter way round the clock. */
 export function towardSunset(from: number, k: number): number {
   let d = SUNSET - from;

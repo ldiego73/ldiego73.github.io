@@ -45,8 +45,10 @@ import {
   BURST,
   burstScale,
   careerStats,
+  finaleFrame,
   finaleTitle,
   glowAt,
+  PLATFORM,
   prng,
   SUNSET,
   spawnBurst,
@@ -79,13 +81,13 @@ const S = {
 } satisfies Record<string, L>;
 
 /** Platform tiers (local, centred at PLAT): half size and top. Each tier is one walkable step. */
-const PLAT = { z: 4.2 } as const;
+const PLAT = { z: PLATFORM.z } as const;
 const TIERS = [
-  { half: 4.6, top: 0.6 },
+  { half: PLATFORM.half, top: 0.6 },
   { half: 3.4, top: 1.2 },
 ] as const;
 const ARRIVE_R = 3.4;
-const PROMPT_R = 3.6;
+const PROMPT_R = PLATFORM.prompt;
 const PANEL_DELAY = 1.7;
 const SKY_SECS = 4.5;
 /** The golden ring: on the platform's sea edge. */
@@ -101,8 +103,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   // so from the platform the sun goes down through the ring.
   const end = Lay.trail.pointAt(FINALE_T);
   const sunAt = arcDir(SUNSET, 0, { x: 0, y: 0, z: 0 });
-  const dir = new THREE.Vector2(sunAt.x, sunAt.z).normalize();
-  const f: Frame = { x: end.x, z: end.z, y: Lay.groundAt(end.x, end.z), yaw: Math.atan2(dir.x, dir.y) };
+  const f: Frame = finaleFrame({ x: end.x, z: end.z, y: Lay.groundAt(end.x, end.z) }, sunAt);
   const group = new THREE.Group();
   group.name = "costa-finale";
   group.position.set(f.x, f.y, f.z);

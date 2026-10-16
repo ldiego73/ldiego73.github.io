@@ -243,8 +243,11 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     prompt: () => (near ? PUNKU_COPY.prompt[lang] : null),
     interact() {
       if (!near) return false;
+      // Cleared again when the traveler chooses to stay (../../travel.ts asks first).
       busy = true;
-      travelTo(lang, "titicaca", "cusco");
+      void travelTo(lang, "titicaca", "cusco").then((ok) => {
+        busy = ok;
+      });
       return true;
     },
     dispose() {

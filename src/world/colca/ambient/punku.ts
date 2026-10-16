@@ -106,7 +106,10 @@ export const create: CreateAmbient = (env) => {
     interact() {
       if (!near) return false;
       busy = true;
-      travelTo(lang, "colca", "cusco");
+      // Cleared again when the traveler chooses to stay (../../travel.ts asks first).
+      void travelTo(lang, "colca", "cusco").then((ok) => {
+        busy = ok;
+      });
       return true;
     },
     dispose() {

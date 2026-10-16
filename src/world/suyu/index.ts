@@ -22,7 +22,8 @@
  *   hooks      def.hooks (camera occluder proxies, per-frame extras).
  *
  * Input priority: E → ambients (in load order; one with prompt() only while its prompt shows), Esc → ambients.
- * Keys: K text mode, T day/night, N music, F photo, M / H emit `world:map` / `world:help` (also the ./hud.ts
+ * Keys: K text mode, T day/night, N music, F photo, V (also gamepad LT and the chrome's Travel button) the
+ * «Viajar» panel to any other world (../travel-panel.ts), M / H emit `world:map` / `world:help` (also the ./hud.ts
  * corner buttons). `world:map` (also gamepad Y) toggles the paper map (./map.ts; fast travel after
  * def.map.unlockStamp). Events handled: `world:modal {open}` (counter; freezes walking while > 0),
  * `world:mount` (speed multiplier, seat height), `world:teleport {to}` (a station id: fade + move in front of
@@ -49,6 +50,7 @@ import { emit, on } from "../events";
 import { createInput, type PadAction } from "../input";
 import { summarize } from "../journey";
 import { createJourneyDialog } from "../journey-card";
+import { guardLeaving } from "../leave";
 import { createLoader, type LoadStep } from "../loader";
 import { createGovernor, detectDevice, LEVELS } from "../quality";
 import { createStandLatch, type Seat, SIT_SQUEEZE, seatedFeetY, seatFrom } from "../seat";
@@ -57,6 +59,8 @@ import { disposeTextures, redrawAll } from "../tex";
 import { focusStep, type TextMode } from "../textmode";
 import "../textmode.css";
 import { createToonCache } from "../toon";
+import { createTravelPanel } from "../travel-panel";
+import type { TripWorld } from "../travel-panel-logic";
 import { announceTraveler, loadTraveler } from "../traveler";
 import { resolveSpawn } from "./arrival";
 import type { SuyuDef, SuyuHooks, SuyuLayout, SuyuScenery } from "./contract";
@@ -168,6 +172,8 @@ export function mountSuyu<Lay extends SuyuLayout>(host: HTMLElement, opts: SuyuO
   };
   const textMode = def.textMode(host, lang, worldData());
   const offText = on("world:textmode", () => textMode.open());
+  // Every same-tab link out of the world page asks «¿Salir del mundo?» first (leave.ts).
+  const offLeave = guardLeaving(lang);
   const fail = (err: unknown) => {
     if (err === CANCELLED) return;
     console.error(err);
@@ -201,6 +207,7 @@ export function mountSuyu<Lay extends SuyuLayout>(host: HTMLElement, opts: SuyuO
     teardown?.();
     loader.remove();
     offText();
+    offLeave();
     textMode.dispose();
     resetRide();
     host.classList.remove("kw-root");
@@ -379,6 +386,7 @@ async function start<Lay extends SuyuLayout>(
       onEditName: () => nameEditor.open(),
       onDayNight: () => sky.toggle(),
       onText: () => ui.textMode.open(),
+      onTravel: () => openTrip(),
       onQuality: () => {
         const q: Quality = engine.quality() === "high" ? "low" : "high";
         engine.setQuality(q);
@@ -420,6 +428,12 @@ async function start<Lay extends SuyuLayout>(
         syncInput();
       }),
     );
+    // «Viajar»: fast travel to any other world (chrome button, V, gamepad LT); never over another dialog.
+    const trip = createTravelPanel(host, lang, def.world as TripWorld);
+    cleanups.push(() => trip.dispose());
+    const openTrip = () => {
+      if (!gameOpen && !dialogOpen && modals === 0) trip.open();
+    };
 
     // ---------------------------------------------------------------- auto quality governor
     const manualQuality = (() => {
@@ -630,6 +644,7 @@ async function start<Lay extends SuyuLayout>(
       else if (e.code === "KeyK") ui.textMode.open();
       else if (e.code === "KeyN") music.toggleMute();
       else if (e.code === "KeyF") void photo.shoot();
+      else if (e.code === "KeyV") openTrip();
       else return;
       e.preventDefault();
     };
@@ -653,6 +668,9 @@ async function start<Lay extends SuyuLayout>(
         else if (!busy) ui.textMode.open();
       } else if (a === "photo") {
         if (!busy) void photo.shoot();
+      } else if (a === "travel") {
+        if (trip.isOpen()) trip.close();
+        else if (!busy && !gameOpen) openTrip();
       } else if (a === "confirm") {
         const el = document.activeElement as HTMLElement | null;
         if (el && el !== document.body && activeDialog()?.contains(el)) el.click();

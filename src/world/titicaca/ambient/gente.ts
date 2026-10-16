@@ -7,11 +7,20 @@
  *  - Taquile: men knitting chullos, seated at the edge of the plaza, and women spinning wool with the pushka by
  *    the loom (Taquile's dress: black vests and red chullos, red skirts and black shawls).
  *  - Fishermen standing in small reed boats that go round their loops on open water.
- *  - A herder sitting by her alpacas, and two walkers going up and down the road between the Uros landing and
- *    Taquile.
- * By day only, except the woman at the hearth and the herder, who stay at night (the boats rest on the water
- * then, their fishermen home). People are solid bodies in the creatures registry, so the traveler walks round them.
- * Placement and timing: ./gente/logic.ts. Draw calls: one per worn part (about 14) plus the boats (one).
+ *  - A herder sitting by her alpacas, a shepherdess spinning by her sheep, and two walkers going up and down
+ *    the road between the Uros landing and Taquile.
+ *  - Travellers coming and going along the whole road, both ways (8, 5 on low quality): women in polleras and
+ *    bowler hats carrying their q'ipi in an aguayo on their backs, men in chullos or felt hats, some loaded too.
+ *    At either end of the road they turn back; when out of sight there they reappear elsewhere on the road,
+ *    also out of sight (./gente/logic.ts stepTraveller), so nobody pops in or out on screen.
+ *  - At Titikala, the end of the road, an offering to the Pachamama (8 people, 5 on low): a paqo kneeling at
+ *    the cloth laying out coca leaves and lifting a k'intu to his lips, pilgrims seated round it, a woman with
+ *    raised hands toward the rock, and a mother with her bundle watching her children play (two, one on low). The cloth and its
+ *    brazier are part of ../titikala.ts.
+ * By day only, except the woman at the hearth, the herder, and the paqo with one pilgrim by the brazier, who stay
+ * at night (the boats rest on the water then, their fishermen home). People are solid bodies in the creatures
+ * registry, so the traveler walks round them.
+ * Placement and timing: ./gente/logic.ts. Draw calls: one per worn part (about 17) plus the boats (one).
  */
 import * as THREE from "three";
 import {
@@ -32,7 +41,21 @@ import type { Ambient, CreateAmbient } from "../../contract";
 import { vertexToon } from "../../merge-colors";
 import type { SuyuEnv } from "../../suyu/contract";
 import { LEVEL } from "../plan";
-import { isDay, LOOPS, loopPose, loopRate, type Role, type Spot, spots, WALK_T } from "./gente/logic";
+import {
+  gathering,
+  isDay,
+  LOOPS,
+  loopPose,
+  loopRate,
+  type Role,
+  type Spot,
+  spots,
+  stepTraveller,
+  TRAVEL_HIDE,
+  type Traveller,
+  travellers,
+  WALK_T,
+} from "./gente/logic";
 import { lakePartSpecs } from "./gente/parts";
 import { Build } from "./kit/build";
 import { balsaBoat } from "./kit/totora";
@@ -56,17 +79,27 @@ interface Actor {
   u: number;
   dir: number;
   loop: number;
+  /** Travellers: their road state and pace (u/s). */
+  trip?: Traveller;
+  pace?: number;
 }
 
 export const create: CreateAmbient = (baseEnv): Ambient => {
   const env = baseEnv as SuyuEnv;
   const R = rng(0x6e7e);
   const ground = env.suyu.groundAt;
-  const list = spots();
-  const n = list.length + LOOPS.length + 2;
+  const high = env.quality === "high";
+  const list = [...spots(), ...gathering(high)];
+  const trips = travellers(high ? 8 : 5);
+  const n = list.length + LOOPS.length + 2 + trips.length;
   const ramp = env.toon("#ffffff").gradientMap;
   const mat = paletteMaterial(ramp);
-  const crowd = new Crowd([...partSpecs([...MAN, ...WOMAN, "chullo"]), ...lakePartSpecs()], n, mat, SHADOW_PARTS);
+  const crowd = new Crowd(
+    [...partSpecs([...MAN, ...WOMAN, "chullo", "sombrero", "bundle", "pouch"]), ...lakePartSpecs()],
+    n,
+    mat,
+    SHADOW_PARTS,
+  );
   env.scene.add(crowd.group);
 
   const make = (role: Role, seed: number): Person => {
@@ -75,12 +108,18 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       role === "knit" ||
       role === "work" ||
       role === "fisher" ||
-      (role === "walk" && seed % 2 === 0) ||
+      role === "paqo" ||
+      ((role === "walk" || role === "travel" || role === "pilgrim") && seed % 2 === 0) ||
       (kid && seed % 2 === 1);
-    const taquile = role === "knit" || role === "spin";
+    // Only Taquile's own weavers wear Taquile's dress (the shepherdess spins too, in a pollera).
+    const taquile = role === "knit" || (role === "spin" && seed < 100);
     const wear: string[] = man ? [...MAN] : [...WOMAN];
     if (role === "knit") wear.push("chullo", "knitting");
-    else if (role === "spin") wear.push("pushka");
+    else if (role === "spin") wear.push("pushka", ...(taquile ? [] : ["bombin"]));
+    else if (role === "paqo") wear.push("chullo", "pouch");
+    else if (role === "travel" && man)
+      wear.push(seed % 3 === 0 ? "sombrero" : "chullo", ...(seed % 4 === 0 ? ["bundle"] : []));
+    else if (role === "travel" || role === "mother") wear.push("bombin", "bundle");
     else if (man) wear.push("chullo");
     else if (!kid) wear.push("bombin");
     let palette: Palette;
@@ -103,7 +142,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   };
 
   const actors: Actor[] = list.map((s, i) => {
-    const p = make(s.role, 3 + i * 7);
+    // Seeds below 100 for the fixed spots, except the ones after Taquile's (the shepherdess and the offering).
+    const p = make(s.role, i < 14 ? 3 + i * 7 : 300 + i * 7);
     p.place(s.x, s.z, s.yaw);
     return { p, role: s.role, home: s, u: (i * 1.7) % (Math.PI * 2), dir: i % 2 ? 1 : -1, loop: -1 };
   });
@@ -113,8 +153,22 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   });
   for (let k = 0; k < 2; k++) {
     const p = make("walk", 200 + k);
-    actors.push({ p, role: "walk", home: null, u: WALK_T[0] + (k + 0.3) * 0.08, dir: k ? -1 : 1, loop: -1 });
+    const u = WALK_T[0] + (k + 0.3) * 0.08;
+    const w0 = env.trail.pointAt(u);
+    p.place(w0.x, w0.z);
+    actors.push({ p, role: "walk", home: null, u, dir: k ? -1 : 1, loop: -1 });
   }
+  trips.forEach((trip, k) => {
+    const p = make("travel", 500 + k * 3);
+    const tp0 = env.trail.pointAt(trip.u);
+    const tg0 = env.trail.tangentAt(trip.u);
+    p.place(
+      tp0.x - tg0.z * 1.1 * trip.dir,
+      tp0.z + tg0.x * 1.1 * trip.dir,
+      Math.atan2(tg0.x * trip.dir, tg0.z * trip.dir),
+    );
+    actors.push({ p, role: "travel", home: null, u: 0, dir: 1, loop: -1, trip, pace: 0.95 + R() * 0.3 });
+  });
 
   // Fishermen's boats: one instanced small balsa.
   const bb = new Build();
@@ -139,6 +193,12 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   });
 
   const camPos = new THREE.Vector3();
+  const hp = new THREE.Vector3();
+  /** A road point is out of sight: beyond the people's draw distance from the camera. */
+  const hidden = (t: number) => {
+    env.trail.pointAt(t, hp);
+    return Math.hypot(hp.x - camPos.x, hp.z - camPos.z) > TRAVEL_HIDE;
+  };
   const tp = new THREE.Vector3();
   const tg = new THREE.Vector3();
   let clock = 0;
@@ -177,6 +237,28 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           const pull = rm ? 0 : Math.max(0, Math.sin(clock * 0.7 + a.loop * 2)) * 0.9;
           p.bones.armR.rotation.x = -0.6 - pull;
           p.bones.armL.rotation.x = -0.4 - pull * 0.6;
+          p.commit();
+          continue;
+        }
+        if (a.role === "travel" && a.trip) {
+          // The whole road, on its right-hand side; turning or reappearing at the ends (./gente/logic.ts).
+          const tr = a.trip;
+          const prevU = tr.u;
+          stepTraveller(tr, dt, a.pace ?? 1, env.trail.length, hidden, Math.random);
+          env.trail.pointAt(tr.u + tr.dir * 0.004, tp);
+          env.trail.tangentAt(tr.u, tg);
+          const ox = tp.x - tg.z * 1.1 * tr.dir;
+          const oz = tp.z + tg.x * 1.1 * tr.dir;
+          // Reappeared elsewhere (out of sight): jump there instead of walking.
+          if (Math.abs(tr.u - prevU) > 0.01) p.place(ox, oz, Math.atan2(tg.x * tr.dir, tg.z * tr.dir));
+          p.seek(ox, oz, a.pace ?? 1, dt, 3);
+          p.y = ground(p.x, p.z);
+          if (far) {
+            p.hide();
+            continue;
+          }
+          p.rest(clock, rm);
+          p.gait(dt, rm);
           p.commit();
           continue;
         }
@@ -258,6 +340,62 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
             const k = rm ? 0 : Math.sin(clock * 3 + p.seed);
             b.armL.rotation.set(-0.9 + k * 0.25, 0, 0.2);
             b.armR.rotation.set(-0.9 - k * 0.25, 0, -0.2);
+            p.resolve(0.2);
+            break;
+          }
+          case "paqo": {
+            // Kneeling at the cloth: lays out coca leaves, then lifts a k'intu to his lips and blows on it.
+            p.place(h.x, h.z, h.yaw);
+            p.y = ground(h.x, h.z) - 0.3;
+            b.legL.rotation.x = -1.25;
+            b.legR.rotation.x = -1.25;
+            const cyc = rm ? 0 : (clock * 0.25 + p.seed * 0.1) % 1;
+            if (cyc < 0.6) {
+              // Bent over the cloth, placing leaves one by one.
+              const k = rm ? 0 : Math.sin(clock * 2.2);
+              b.torso.rotation.x = 0.45;
+              b.armR.rotation.set(-1.1 + k * 0.2, 0, -0.15);
+              b.armL.rotation.set(-0.8, 0, 0.25);
+              b.head.rotation.x = 0.3;
+            } else {
+              // Upright, the k'intu held before his mouth.
+              b.torso.rotation.x = 0.05;
+              b.armR.rotation.set(-2.1, 0, 0.35);
+              b.armL.rotation.set(-0.6, 0, 0.2);
+              b.head.rotation.x = -0.1;
+            }
+            p.resolve(0.2);
+            break;
+          }
+          case "pilgrim": {
+            // Seated round the cloth, hands in the lap, head a little bowed.
+            p.place(h.x, h.z, h.yaw);
+            p.y = ground(h.x, h.z) + 0.02;
+            p.sit(clock, rm, -0.05);
+            b.armL.rotation.set(-0.7, 0, 0.35);
+            b.armR.rotation.set(-0.7, 0, -0.35);
+            b.head.rotation.x = 0.25;
+            p.resolve(0.2);
+            break;
+          }
+          case "pray": {
+            // Standing toward the rock; now and then both hands rise, palms up.
+            p.place(h.x, h.z, h.yaw);
+            p.y = ground(h.x, h.z);
+            const up = rm ? 0.5 : Math.max(0, Math.sin(clock * 0.5 + p.seed));
+            b.armL.rotation.set(-0.4 - up * 1.9, 0, 0.3);
+            b.armR.rotation.set(-0.4 - up * 1.9, 0, -0.3);
+            b.head.rotation.x = -0.2 * up;
+            p.resolve(0.2);
+            break;
+          }
+          case "mother": {
+            // Standing with her bundle, keeping an eye on the children.
+            p.place(h.x, h.z);
+            p.y = ground(h.x, h.z);
+            p.face(h.x + 0.2, h.z + 2.7, dt, 1.5);
+            b.armL.rotation.set(-0.5, 0, 0.1);
+            b.armR.rotation.set(-0.5, 0, -0.1);
             p.resolve(0.2);
             break;
           }

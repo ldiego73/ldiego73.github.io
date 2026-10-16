@@ -32,7 +32,7 @@ import { on } from "../../events";
 import { Ease01, FONT, fadeable, Kit, rng } from "../../props";
 import { gradientMap } from "../../toon";
 import type { SelvaEnv } from "../contract";
-import { cabColor, raftGames } from "./arcade/logic";
+import { CAB_Z, cabColor, cabPose, POND, RAFT, RAFT_TOP, raftGames, WALK, WATER } from "./arcade/logic";
 import { createGameOverlay } from "./arcade/overlay";
 import {
   A,
@@ -65,14 +65,6 @@ const STATION = "arcade";
 const T_PLAY: L = { es: "E · Jugar", en: "E · Play" };
 const BOARD: L = { es: "ARCADE FLOTANTE", en: "FLOATING ARCADE" };
 
-/** Pond centre/radius (local), raft rectangle, cabinet row. */
-const POND = { x: 0, z: -11.6, r: 6.4 };
-const RAFT = { x0: -4.3, x1: 4.3, z0: -12.6, z1: -6.9 };
-const RAFT_TOP = 0.12;
-const WATER = 0.06;
-const CAB_Z = -11.5;
-/** Boardwalk from the plaza (overlapping its rim) to the raft: half width, plaza end, where its rails start. */
-const WALK = { hw: 1.2, z1: -4.5, rail0: -5.3 };
 /** Roof posts: back row across the raft, front row clear of the boardwalk's landing. */
 const ROOF_POSTS: Array<[number, number]> = [
   ...[RAFT.x0 + 0.2, 0, RAFT.x1 - 0.2].map((x): [number, number] => [x, RAFT.z0 + 0.25]),
@@ -225,12 +217,12 @@ export const create: CreateAmbient = (baseEnv) => {
   const merged: MergedCabinet[] = [];
   const attracts = games.map((meta) => createAttract(meta.slug, meta.title[lang], cabColor(meta.neon)));
   const cabs: Cabinet[] = games.map((meta, i) => {
-    const u = games.length > 1 ? i / (games.length - 1) - 0.5 : 0;
+    const pose = cabPose(i, games.length);
     const cab = createCabinet({ color: cabColor(meta.neon), marquee: meta.marquee, lang });
     const mc = mergeCabinet(cab);
     if (mc) merged.push(mc);
-    cab.group.position.set(u * 6.6, RAFT_TOP, CAB_Z + u * u * 1.6);
-    cab.group.rotation.y = -u * 0.55;
+    cab.group.position.set(pose.x, RAFT_TOP, pose.z);
+    cab.group.rotation.y = pose.yaw;
     const at0 = attracts[i];
     if (at0) {
       at0.draw(0);

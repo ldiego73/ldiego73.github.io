@@ -2,8 +2,10 @@
  * Field guide of the animals a traveler meets on the Chinchaysuyu coast, for the coast's text mode
  * (./textmode.ts). Same shape as the mountain's guide (../wildlife.ts Species). Every line restates what the
  * fauna ambients actually do (./ambient/orilla.ts: sea lions, penguins, crabs; ./ambient/aves.ts: pelicans,
- * gulls, guanays): where they are, when, how they behave and which bonus passport stamp a good look earns
- * (`costa:fauna:*`, CATALOG in src/lib/passport.ts). Keep it in sync when a module changes. Pure data.
+ * gulls, guanays; ./ambient/tierra.ts: viringo dogs, burros, goats, cañanes, sanderlings, boobies; the riding
+ * horse of ./ambient/caballo.ts, listed like the mountain's riding llama): where they are, when, how they behave
+ * and which bonus passport stamp a good look earns, if any (`costa:fauna:*`, CATALOG in src/lib/passport.ts).
+ * Keep it in sync when a module changes. Pure data.
  */
 import type { L } from "../contract";
 import type { Species } from "../wildlife";
@@ -11,6 +13,20 @@ import type { Species } from "../wildlife";
 const ALWAYS: L = { es: "De día y de noche.", en: "Day and night." };
 
 export const COSTA_WILDLIFE: readonly Species[] = [
+  {
+    id: "caballo-de-paso",
+    name: { es: "Caballo de paso peruano", en: "Peruvian Paso horse" },
+    latin: "Equus caballus",
+    where: {
+      es: "Ensillado junto al camino, del lado del mar, a pocos pasos del punku de la llegada.",
+      en: "Saddled beside the road, on the sea side, a few steps from the punku where you arrive.",
+    },
+    when: ALWAYS,
+    does: {
+      es: "Pulsa E a su lado para montarlo: avanza más rápido que a pie en el paso llano, su andar lateral. E o Esc para bajar; en la plaza de cada parada te bajas y te espera al borde del camino, y si viajas por el mapa vuelve a su sitio.",
+      en: "Press E next to it to ride: it is faster than walking, in the paso llano, its lateral gait. E or Esc to get off; at each stop's plaza you get off and it waits by the roadside, and after fast travel it is back at its spot.",
+    },
+  },
   {
     id: "lobo-marino",
     name: { es: "Lobo marino", en: "South American sea lion" },
@@ -103,5 +119,89 @@ export const COSTA_WILDLIFE: readonly Species[] = [
       en: "They wait still by their burrows. Come close and they scuttle sideways toward the water and vanish into the sand; they come back out a while later, once you have moved off. For the stamp you have to get close to one before it hides.",
     },
     stamp: "costa:fauna:cangrejo",
+  },
+  {
+    id: "viringo",
+    name: { es: "Perro sin pelo del Perú (viringo)", en: "Peruvian hairless dog (viringo)" },
+    latin: "Canis lupus familiaris",
+    where: {
+      es: "Dos en la plaza del mercado de Huanchaco y uno en la plaza de la primera huaca.",
+      en: "Two on the Huanchaco market plaza and one on the plaza of the first huaca.",
+    },
+    when: ALWAYS,
+    does: {
+      es: "Perros esbeltos de piel gris pizarra sin pelo, con manchas rosadas, orejas paradas y un mechón claro en la cabeza. Trotan por la plaza, se detienen a olfatear el suelo y giran la cabeza hacia ti cuando estás cerca.",
+      en: "Slender dogs with bare slate-grey skin, pink blotches, upright ears and a pale tuft on the head. They trot about the plaza, stop to sniff the ground and turn their heads to you when you are near.",
+    },
+  },
+  {
+    id: "burro",
+    name: { es: "Burro", en: "Donkey" },
+    latin: "Equus asinus",
+    where: {
+      es: "En los valles verdes de los dos ríos, tierra adentro del camino: dos en el segundo valle y uno en el primero.",
+      en: "In the green valleys of the two rivers, inland of the road: two in the second valley and one in the first.",
+    },
+    when: ALWAYS,
+    does: {
+      es: "Burros grises de hocico claro, orejas largas y la cruz oscura en el lomo. Pastan con la cabeza gacha y caminan despacio de una mata a otra; si te acercas levantan la cabeza y te miran.",
+      en: "Grey donkeys with pale muzzles, long ears and the dark cross on the back. They graze with their heads down and amble from one patch to the next; come close and they lift their heads to look at you.",
+    },
+  },
+  {
+    id: "cabra",
+    name: { es: "Cabra", en: "Goat" },
+    latin: "Capra hircus",
+    where: {
+      es: "En las lomas tierra adentro del camino, poco antes de la pirámide de Caral.",
+      en: "On the hills inland of the road, a little before the Caral pyramid.",
+    },
+    when: ALWAYS,
+    does: {
+      es: "Un pequeño rebaño de cabras blancas, pardas y oscuras ramonea por el desierto: caminan un trecho, bajan la cabeza a comer y vuelven a moverse, sin alejarse unas de otras.",
+      en: "A small herd of white, brown and dark goats browses the desert: they walk a stretch, lower their heads to feed and move on again, keeping close together.",
+    },
+  },
+  {
+    id: "canan",
+    name: { es: "Cañán", en: "Cañán (desert lizard)" },
+    latin: "Dicrodon guttulatum",
+    where: {
+      es: "En la arena del desierto junto al camino, tierra adentro, en tres tramos del sur, del centro y del norte.",
+      en: "On the desert sand beside the road, inland, along three stretches in the south, the middle and the north.",
+    },
+    when: ALWAYS,
+    does: {
+      es: "Lagartijas arenosas de manchas claras y cola larga que toman sol y a ratos hacen flexiones. Si te acercas corren a su madriguera y desaparecen en la arena; vuelven a salir cuando ya te alejaste.",
+      en: "Sandy lizards with pale spots and long tails that bask and now and then do push-ups. Come close and they dash to their burrow and vanish into the sand; they come back out once you have moved off.",
+    },
+  },
+  {
+    id: "playero",
+    name: { es: "Playero blanco", en: "Sanderling" },
+    latin: "Calidris alba",
+    where: {
+      es: "En el borde del agua de las dos playas de caballitos: la de Huanchaco y la del norte.",
+      en: "At the water's edge of both reed-boat beaches: Huanchaco and the north beach.",
+    },
+    when: ALWAYS,
+    does: {
+      es: "Pequeñas aves blancas y grises que siguen el borde del agua: bajan por la arena cuando la ola se retira y suben corriendo cuando vuelve, y se detienen a picotear.",
+      en: "Small white and grey birds that follow the edge of the water: they run down the sand as the wave draws back and scurry up when it comes in, stopping to peck.",
+    },
+  },
+  {
+    id: "piquero",
+    name: { es: "Piquero peruano", en: "Peruvian booby" },
+    latin: "Sula variegata",
+    where: {
+      es: "Sobre el mar junto a la orilla, entre Pachacamac y el recinto Chancay.",
+      en: "Over the sea near the shore, between Pachacamac and the Chancay compound.",
+    },
+    when: ALWAYS,
+    does: {
+      es: "Aves de cabeza y pecho blancos y alas pardas que vuelan en círculos sobre el agua; una tras otra pliegan las alas, se lanzan en picada al mar con una salpicadura, flotan un momento y vuelven a levantar vuelo. Si tu sistema pide reducir el movimiento, planean quietas.",
+      en: "Birds with white heads and breasts and brown wings that wheel over the water; one after another they fold their wings and plunge into the sea with a splash, float a moment and take off again. If your system asks for reduced motion, they glide still.",
+    },
   },
 ];

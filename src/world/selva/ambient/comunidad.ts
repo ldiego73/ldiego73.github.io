@@ -7,7 +7,14 @@
  *    (comunidad/swim.ts);
  *  - women weaving on a backstrap loom and painting kené on pottery by the maloca, with an elder on a stool,
  *    who stays on by a small fire at night (comunidad/crafts.ts);
- *  - couples walking the road with bananas and baskets, stepping aside for the traveler (comunidad/road.ts);
+ *  - travellers walking the road both ways over long stretches (couples with bananas and baskets, a mother and
+ *    her child, two young men), stepping aside for the traveler; parties that drift far out of sight come back
+ *    just past the view distance, so the road never empties (comunidad/road.ts);
+ *  - young people playing at the floating arcade's outer cabinets, a child watching over a shoulder and a
+ *    teenager leaning on the rail; they step aside when the traveler wants their cabinet (comunidad/raft.ts);
+ *  - at the end of the road, in the kené totem's clearing, women painting kené on a cloth, travellers resting
+ *    on a log by a hearth (they stay on at night), and children at a clapping game watched by an elder
+ *    (comunidad/finale.ts);
  *  - a fisherman casting his net from a dugout and a peque-peque running the river, both on the far half
  *    (comunidad/river.ts), clear of the canoe ride's route and landings.
  * By day; at night most go home. "E · Saludar" near a villager (only within ~2 u, away from the stations'
@@ -24,6 +31,7 @@
  */
 import "../../ambient/people/people.css";
 import * as THREE from "three";
+import { GAMES } from "../../../games/registry";
 import { jumped } from "../../ambient/people/logic";
 import { Crowd, paletteMaterial } from "../../ambient/people/rig";
 import type { Ambient, CreateAmbient } from "../../contract";
@@ -31,10 +39,13 @@ import { on } from "../../events";
 import { detectDevice } from "../../quality";
 import type { SelvaEnv } from "../contract";
 import { ride } from "../ride";
+import { raftGames } from "./arcade/logic";
 import { type CraftSpot, createCrafts } from "./comunidad/crafts";
+import { createFinale } from "./comunidad/finale";
 import { headcount } from "./comunidad/logic";
 import { ALL_PARTS, amazonSpecs, SHADOW_PARTS } from "./comunidad/models";
 import { createPlazaKids } from "./comunidad/plaza";
+import { createRaftPlayers } from "./comunidad/raft";
 import { boatLane, createRiver } from "./comunidad/river";
 import { createWalkers } from "./comunidad/road";
 import { createSwimmers, findSwimSpot } from "./comunidad/swim";
@@ -98,7 +109,18 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   };
 
   // ------------------------------------------------------------ crowd + groups
-  const total = n.plazaKids + n.swimmers + n.walkers + n.crafts + (n.fisher ? 2 : 0) + (n.boat ? 2 : 0);
+  const raft = { players: n.raftPlayers, kids: n.raftKids, watcher: n.raftWatcher };
+  const total =
+    n.plazaKids +
+    n.swimmers +
+    n.walkers +
+    n.crafts +
+    (n.fisher ? 2 : 0) +
+    (n.boat ? 2 : 0) +
+    raft.players +
+    raft.kids +
+    (raft.watcher ? 1 : 0) +
+    n.finale;
   const crowd = new Crowd(amazonSpecs(ALL_PARTS), total, mat, SHADOW_PARTS);
   crowd.group.name = "comunidad:crowd";
   env.scene.add(crowd.group);
@@ -149,6 +171,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     return createSwimmers(env, crowd, staticMat, s, n.swimmers, ripples);
   });
   tryAdd("road", () => createWalkers(env, crowd, n.walkers));
+  tryAdd("raft", () => createRaftPlayers(env, crowd, stationFrame(env, "arcade"), raftGames(GAMES).length, raft));
+  tryAdd("finale", () => createFinale(env, crowd, staticMat, n.finale));
   tryAdd("river", () => {
     // The peque-peque runs from just below the embarcadero to short of the collpa: upstream of 0.45 the river
     // narrows past the embarcadero's moored canoe and the swimmers' sandbar (no room on the far half).

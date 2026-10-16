@@ -29,7 +29,8 @@ describe("coast text mode", () => {
         expect(doc).toContain(esc(s.label[lang]));
       for (const w of COSTA_WILDLIFE) {
         expect(doc).toContain(w.latin);
-        expect(CATALOG.some((s) => s.id === w.stamp)).toBe(true);
+        // Stampless entries (the riding horse, the land animals) give no passport stamp.
+        if (w.stamp) expect(CATALOG.some((s) => s.id === w.stamp)).toBe(true);
       }
       expect(doc).toMatch(/<h1 id="kw-costa-tm-title"/);
       expect(doc).not.toContain("undefined");

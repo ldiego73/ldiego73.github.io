@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   asideOf,
+  atSpanEnd,
   CAST,
   CAST_CYCLE,
   castAt,
@@ -13,10 +14,13 @@ import {
   laneOf,
   netShape,
   nextStage,
-  ROAD_LEGS,
+  partiesFor,
+  ROAD_SPANS,
+  respawnT,
   riverLane,
   type SwimStage,
   shouldGiveWay,
+  spanAt,
   within,
 } from "./logic";
 
@@ -49,8 +53,14 @@ describe("headcount", () => {
     const phone = headcount("high", true);
     expect(sum(low)).toBeLessThan(sum(high));
     expect(sum(phone)).toBeLessThanOrEqual(sum(low));
-    // Walkers come in couples.
-    for (const o of [high, low, phone]) expect(o.walkers % 2).toBe(0);
+    // Walkers come in whole parties; the arcade and the totem get fewer people too.
+    for (const o of [high, low, phone]) {
+      expect(partiesFor(o.walkers).reduce((s, p) => s + p.length, 0)).toBe(o.walkers);
+      expect(o.raftPlayers).toBeGreaterThanOrEqual(1);
+      expect(o.finale).toBeGreaterThanOrEqual(4);
+    }
+    expect(low.finale).toBeLessThan(high.finale);
+    expect(low.raftPlayers + low.raftKids).toBeLessThan(high.raftPlayers + high.raftKids + (high.raftWatcher ? 1 : 0));
   });
 });
 
@@ -143,12 +153,41 @@ describe("road", () => {
     expect(Math.abs(asideOf(1))).toBeLessThan(2.6);
     expect(Math.abs(asideOf(-1))).toBeGreaterThan(Math.abs(laneOf(-1, 1)));
   });
-  test("the walking legs stay off the canopy walkway and inside the road", () => {
-    for (const [a, b] of ROAD_LEGS) {
+  test("the walking stretches stay off the canopy walkway and inside the road", () => {
+    let prev = 0;
+    for (const [a, b] of ROAD_SPANS) {
       expect(a).toBeLessThan(b);
-      expect(a).toBeGreaterThan(0.05);
-      expect(b).toBeLessThan(0.83);
+      expect(a).toBeGreaterThan(prev);
+      expect(a).toBeGreaterThan(0.03);
+      expect(b).toBeLessThan(1);
+      // No stretch overlaps the canopy walkway (CANOPY_T 0.83–0.9).
+      expect(b <= 0.83 || a >= 0.9).toBe(true);
+      prev = b;
     }
+    expect(spanAt(0.5)).toBe(0);
+    expect(spanAt(0.86)).toBe(-1);
+    expect(spanAt(0.95)).toBe(1);
+    expect(spanAt(0.01)).toBe(-1);
+    expect(atSpanEnd(0.82, 1, 0)).toBe(true);
+    expect(atSpanEnd(0.82, -1, 0)).toBe(false);
+    expect(atSpanEnd(0.04, -1, 0)).toBe(true);
+  });
+  test("travellers out of sight come back just past the view, walking toward the traveler", () => {
+    const ahead = respawnT(0.4, 0.15, 1);
+    expect(ahead).toEqual({ t: 0.55, span: 0, dir: -1 });
+    const behind = respawnT(0.4, 0.15, -1);
+    expect(behind?.dir).toBe(1);
+    expect(behind?.t).toBeCloseTo(0.25);
+    // Ahead falls on the canopy walkway: on to its far end.
+    expect(respawnT(0.75, 0.1, 1)).toEqual({ t: 0.905, span: 1, dir: -1 });
+    expect(respawnT(0.98, 0.1, -1)?.t).toBe(0.82);
+    // Past the end of the road: the other side.
+    const end = respawnT(0.97, 0.15, 1);
+    expect(end?.t).toBeCloseTo(0.82);
+    expect(end?.dir).toBe(1);
+    expect(respawnT(0.05, 0.1, -1)?.dir).toBe(-1);
+    // Nowhere to go.
+    expect(respawnT(0.5, 2, 1)).toBeNull();
   });
 });
 

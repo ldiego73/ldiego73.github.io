@@ -25,6 +25,7 @@ import { emit, on, type StampKind, type WorldId } from "./events";
 import { formatDuration, loadJourney } from "./journey";
 import { SELVA_STATIONS } from "./selva/contract";
 import { worldUrl } from "./travel";
+import { TRIP_TEXT } from "./travel-panel-logic";
 import { type Species, WILDLIFE } from "./wildlife";
 
 const COPY = {
@@ -330,7 +331,10 @@ function wasiHtml(lang: Lang, h3: number): string {
 <${h}>${esc(roomLabel(lang, "mesa"))}</${h}><p>${esc(cp.mesaLede)}</p>`;
 }
 
-/** The tinkuy signpost, the Antisuyu branch and the Qusqu punku, with plain links to the jungle and the hub. */
+/**
+ * The tinkuy signpost, the Antisuyu branch and the Qusqu punku, with plain links to the jungle and the hub, and
+ * the «Viajar» panel that jumps to any world.
+ */
 function tinkuyHtml(lang: Lang, h3: number): string {
   const cp = COPY[lang];
   const stops = SELVA_STATIONS.map((s) => `<li>${esc(s.label[lang])}</li>`).join("");
@@ -338,7 +342,8 @@ function tinkuyHtml(lang: Lang, h3: number): string {
 <p><a class="kw-tm-travel" href="${esc(worldUrl(lang, "selva"))}">${esc(cp.selvaLink)}</a></p>
 <h${h3}>${esc(cp.selvaStops)}</h${h3}><ol>${stops}</ol>
 <p>${esc(cp.qusquLede)}</p>
-<p><a class="kw-tm-travel" href="${esc(worldUrl(lang, "cusco", "qhapaq"))}">${esc(cp.qusquLink)}</a></p>`;
+<p><a class="kw-tm-travel" href="${esc(worldUrl(lang, "cusco", "qhapaq"))}">${esc(cp.qusquLink)}</a></p>
+<p>${esc(TRIP_TEXT[lang])}</p>`;
 }
 
 /** The full narration as an HTML string (escaped). `headingLevel` is the level of the document title. */

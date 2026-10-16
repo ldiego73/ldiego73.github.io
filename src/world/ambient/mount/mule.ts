@@ -1,15 +1,17 @@
 /**
  * Saddled mule for the jungle ride: a brown pack mule (long ears, short upright mane, tufted tail, pale muzzle)
  * with a striped saddle blanket, a leather saddle with pommel and stirrups, and canvas saddlebags (alforjas).
- * Faces +Z, origin at the feet. Pivots are exposed for the walk/trot, same shape as the mountain llama's.
+ * Faces +Z, origin at the feet. Ridden in the jungle and up the Colca canyon (./ride.ts); trots via ./gait.ts.
  *
  * Draw calls: each rigid node (body, every leg, neck, head, tail) is flattened into one vertex-colored mesh on
- * one shared vertex-toon material (../../../merge-colors.ts); the eyes stay apart (no ink outline).
+ * one shared vertex-toon material (../../merge-colors.ts); the eyes stay apart (no ink outline).
  */
 import * as THREE from "three";
-import type { WorldEnv } from "../../../contract";
-import { flattenToonGroup, vertexToon } from "../../../merge-colors";
-import { DYE } from "../../../props";
+import type { WorldEnv } from "../../contract";
+import { flattenToonGroup, vertexToon } from "../../merge-colors";
+import { DYE } from "../../props";
+import { quadrupedGait } from "./gait";
+import type { MountModel } from "./ride";
 
 const COAT = "#6e4a33";
 const COAT_DARK = "#3f2a1e";
@@ -27,23 +29,9 @@ const BODY_Y = 1.0;
 const BODY_R = 0.3;
 
 /** Saddle seat above the feet: the rider's feet sit this high (avatar hip pivot 0.56 → hips on the seat). */
-export const SEAT_HEIGHT = 0.88;
+const SEAT_HEIGHT = 0.88;
 
-export interface MuleModel {
-  group: THREE.Group;
-  /** Bob/sway node (everything but the root). */
-  body: THREE.Group;
-  /** Front-left, front-right, back-left, back-right hip pivots. */
-  legs: THREE.Group[];
-  neck: THREE.Group;
-  head: THREE.Group;
-  tail: THREE.Group;
-  /** Hanging stirrups and saddlebags (swing with the gait). */
-  danglers: THREE.Group[];
-  dispose(): void;
-}
-
-export function buildSaddledMule(env: WorldEnv): MuleModel {
+export function buildSaddledMule(env: WorldEnv): MountModel {
   const geos: THREE.BufferGeometry[] = [];
   const g = <T extends THREE.BufferGeometry>(x: T) => {
     geos.push(x);
@@ -209,12 +197,10 @@ export function buildSaddledMule(env: WorldEnv): MuleModel {
 
   return {
     group,
-    body,
-    legs,
-    neck,
-    head,
-    tail,
-    danglers,
+    seatHeight: SEAT_HEIGHT,
+    bodyR: 0.65,
+    // Neck base lean 0.6 (above); an occasional ear flick when idle (flies).
+    animate: quadrupedGait({ body, legs, neck, head, tail, danglers }, { neckLean: 0.6, flick: true }),
     dispose() {
       group.removeFromParent();
       group.traverse((o) => {

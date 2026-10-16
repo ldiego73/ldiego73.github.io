@@ -43,7 +43,7 @@ export const TITICACA_DEF: SuyuDef<TiticacaLayout> = {
     inkFade: [240, 800],
   },
   spawn: { default: { t: DEFAULT_T }, from: { cusco: { t: DEFAULT_T } } },
-  outfit: "andean",
+  outfit: "altiplano",
   place: { id: "titicaca", label: TITICACA_PLACE },
   visit: { radius: 8 },
   map: {

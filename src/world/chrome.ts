@@ -1,6 +1,7 @@
 /**
  * Core controls layered over the world (the content HUD lives in its own root):
- * back link, guided tour, day/night, quality, and the touch joystick + run/jump/E (map + help live in the content HUD).
+ * back link, «Viajar» (travel-panel.ts, the runtime opens it), guided tour, day/night, quality, and the touch
+ * joystick + run/jump/E (map + help live in the content HUD).
  */
 import type { Lang } from "./contract";
 
@@ -8,6 +9,8 @@ const COPY = {
   es: {
     back: "Sitio",
     backLong: "Volver al sitio",
+    travel: "Viajar",
+    travelLong: "Viajar a otro mundo (V)",
     tour: "Recorrido",
     photo: "Foto",
     photoLong: "Tomar foto (F)",
@@ -29,6 +32,8 @@ const COPY = {
   en: {
     back: "Site",
     backLong: "Back to site",
+    travel: "Travel",
+    travelLong: "Travel to another world (V)",
     tour: "Guided tour",
     photo: "Photo",
     photoLong: "Take a photo (F)",
@@ -53,6 +58,7 @@ const svg = (d: string) =>
   `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON = {
   back: svg('<path d="M15 5l-7 7 7 7"/>'),
+  travel: svg('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>'),
   tour: svg('<path d="M5 20V5"/><path d="M5 5h11l-2.5 3.5L16 12H5"/>'),
   stop: svg('<rect x="6" y="6" width="12" height="12" rx="1.5"/>'),
   sun: svg(
@@ -91,6 +97,8 @@ export function createChrome(
     onQuality(): void;
     /** Open the accessible text mode. */
     onText(): void;
+    /** Open the «Viajar» panel (fast travel between worlds). */
+    onTravel(): void;
     /** Music control element to place in the tools bar (optional). */
     musicControl?: HTMLElement;
     onInteract(): void;
@@ -103,7 +111,10 @@ export function createChrome(
   const root = document.createElement("div");
   root.className = "kw-chrome";
   root.innerHTML = `
-    <a class="kw-btn kw-back" href="/${lang}/" aria-label="${c.backLong}">${ICON.back}<span>${c.back}</span></a>
+    <div class="kw-nav">
+      <a class="kw-btn kw-back" href="/${lang}/" aria-label="${c.backLong}">${ICON.back}<span>${c.back}</span></a>
+      <button type="button" class="kw-btn kw-travel" data-k="travel" aria-label="${c.travelLong}" title="${c.travelLong}" aria-haspopup="dialog">${ICON.travel}<span>${c.travel}</span></button>
+    </div>
     <div class="kw-chips">
       <button type="button" class="kw-namechip" data-k="name" aria-label="${c.nameEdit}" title="${c.nameEdit}">${ICON.pencil}<span class="kw-namechip-v"></span></button>
       <button type="button" class="kw-namechip kw-textchip" data-k="text" aria-label="${c.textLong}" title="${c.textLong}" aria-haspopup="dialog">${ICON.text}<span>${c.text}</span></button>
@@ -141,6 +152,7 @@ export function createChrome(
     else if (k === "daynight") h.onDayNight();
     else if (k === "quality") h.onQuality();
     else if (k === "text") h.onText();
+    else if (k === "travel") h.onTravel();
   };
   root.addEventListener("click", onClick);
   // Touch pads act on press, not click, so they feel immediate.

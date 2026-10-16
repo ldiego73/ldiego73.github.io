@@ -161,6 +161,47 @@ test("coming back from the jungle starts on the mountain without the title", asy
   expect(errors).toEqual([]);
 });
 
+test("leaving a world asks first: Stay keeps the page, Leave goes to the site", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/es/world/cusco/");
+  const back = page.locator(".kw-back");
+  await expect(back).toBeVisible({ timeout: 20000 });
+  await back.click();
+  const dialog = page.getByRole("dialog", { name: "¿Salir del mundo?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Quedarme" })).toBeFocused();
+  await dialog.getByRole("button", { name: "Quedarme" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/es\/world\/cusco\/$/);
+  await back.click();
+  await dialog.getByRole("button", { name: "Salir", exact: true }).click();
+  await expect(page).toHaveURL(/\/es\/$/);
+  expect(errors).toEqual([]);
+});
+
+test("Travel lists every world and asks before jumping: Stay keeps the page", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/es/world/cusco/");
+  const travel = page.getByRole("button", { name: "Viajar a otro mundo (V)" });
+  await expect(travel).toBeVisible({ timeout: 20000 });
+  await travel.click();
+  const panel = page.getByRole("dialog", { name: "Viajar por el Tawantinsuyu" });
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".kw-trip-card")).toHaveCount(6);
+  const here = panel.locator('[data-world="cusco"]');
+  await expect(here).toHaveAttribute("aria-current", "location");
+  await expect(here).toContainText("Estás aquí");
+  await panel.locator('[data-world="costa"]').click();
+  await expect(panel).toBeHidden();
+  const confirm = page.getByRole("dialog", { name: "¿Salir del mundo?" });
+  await expect(confirm).toContainText("al Chinchaysuyu");
+  await confirm.getByRole("button", { name: "Quedarme" }).click();
+  await expect(confirm).toBeHidden();
+  await expect(page).toHaveURL(/\/es\/world\/cusco\/$/);
+  await expect(travel).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
 test("3D world intro loads and enters", async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto("/es/world/");

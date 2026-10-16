@@ -53,7 +53,7 @@ export const COLCA_DEF: SuyuDef<ColcaLayout> = {
     inkFade: [150, 430],
   },
   spawn: { default: { t: ARRIVE_T }, from: { cusco: { t: ARRIVE_T } } },
-  outfit: "andean",
+  outfit: "trek",
   place: { id: "colca", label: COLCA_PLACE },
   visit: { radius: 9 },
   map: {

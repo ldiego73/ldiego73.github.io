@@ -284,3 +284,27 @@ export const HERDS = {
 export const FLAMINGO_BAY = { x: 196, z: -4, r: 14 } as const;
 /** Where the giant water frog surfaces now and then (the reeds by the Taquile pier). */
 export const FROG_SPOT = { x: 40, z: -2 } as const;
+
+/**
+ * More altiplano life (./ambient/puna.ts): a flock of sheep with its dog on the puna south of the road, Andean
+ * geese grazing the shore meadow and puna ibises probing the wet grass by the water, crested ducks in the reeds
+ * either side of the Uros boardwalk, trout leaping in open water, and guinea pigs in a stone pen on Taquile's
+ * plaza. Centre and radius (the animals stay inside; shore and water rules are checked at runtime).
+ */
+export const SHEEP = { x: -150, z: 54, r: 11 } as const;
+export const GEESE = { x: -252, z: 15, r: 7 } as const;
+export const IBIS = { x: -20, z: 12, r: 8 } as const;
+export const DUCKS: ReadonlyArray<{ x: number; z: number; r: number }> = [
+  { x: -110, z: 4, r: 5 },
+  { x: -134, z: 4, r: 5 },
+];
+export const TROUT: ReadonlyArray<{ x: number; z: number; r: number }> = [
+  { x: -108, z: -14, r: 8 },
+  { x: -140, z: -48, r: 6 },
+  { x: -75, z: -40, r: 8 },
+  { x: 62, z: -26, r: 7 },
+];
+/** The guinea-pig pen on Taquile's plaza (south-east of the centre, clear of the knitters and the path up). */
+export const CUY_PEN = { x: TAQUILE.x + 5, z: TAQUILE.z + 3.8, r: 1.15 } as const;
+/** The offering (pago a la Pachamama) at Titikala: the cloth on the plaza's east side, off the walk to the rock. */
+export const OFFERING = { x: TITIKALA.x + 5.5, z: TITIKALA.z + 1.5 } as const;

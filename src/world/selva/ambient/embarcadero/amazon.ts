@@ -154,6 +154,15 @@ export function stiltGrid(
 }
 
 /**
+ * Normal gap (u) between overlapping thatch courses / cone layers. The camera's near plane is 0.3, so the
+ * 24-bit depth buffer resolves ~1 cm at 200 u: a few cm keeps neighbouring courses apart at any distance the
+ * stations are drawn, and is too small to read as anything but layered thatch.
+ */
+const LAP = 0.035;
+/** Radial gap of the cone roof's odd layers (~3.5 cm along the facet normal on a maloca's ~45° cone). */
+const CONE_LAP = 0.05;
+
+/**
  * Steep gable roof of irapay (palm-leaf shingles): ridge along local X at height y + h, eaves at y on both
  * sides (overhang `over`), built from overlapping courses of thatch slabs with ragged leaf tips at the eaves
  * and a dark ridge cap. Width w (along the ridge) and depth d (eave to eave), centred at (ox, oz).
@@ -175,15 +184,23 @@ export function irapayRoof(
   const cs = Math.cos(ry);
   const sn = Math.sin(ry);
   const place = (lx: number, lz: number): [number, number] => [ox + lx * cs + lz * sn, oz - lx * sn + lz * cs];
+  // Outward normal of a side's slab (in the roof frame before ry): (0, cos pitch, side * sin pitch).
+  const nY = Math.cos(pitch);
+  const nZ = Math.sin(pitch);
   for (const side of [-1, 1]) {
     for (let c = 0; c < courses; c++) {
-      // Course c from the eave (0) up to the ridge; each overlaps the one below.
+      // Course c from the eave (0) up to the ridge; each overlaps its neighbours by 35% of a step. Odd courses
+      // ride LAP proud of the even ones (along the slab normal) and are a little shorter, so no two courses
+      // share a face plane: coplanar overlapping faces in different thatch colors z-fought into a crawling
+      // stripe pattern as the camera moved. The overlap is only ever between neighbours, so two levels suffice
+      // (no thickness build-up), and it reads as bundles of leaves laid over each other.
       const u = (c + 0.5) / courses;
-      const lz = side * half * (1 - u);
-      const yy = o.y + o.h * u;
+      const lap = c % 2 ? LAP : 0;
+      const lz = side * (half * (1 - u) + nZ * lap);
+      const yy = o.y + o.h * u + nY * lap;
       const color = c === 0 ? A.thatchDark : rand() < 0.3 ? A.thatchLight : rand() < 0.15 ? A.thatchGreen : A.thatch;
       const [px, pz] = place(0, lz);
-      kit.box(len, 0.16, (slope / courses) * 1.35, px, yy - 0.08, pz, color, ry, side * pitch);
+      kit.box(len - (c % 2) * 0.06, 0.16, (slope / courses) * 1.35, px, yy - 0.08, pz, color, ry, side * pitch);
     }
     // Ragged leaf tips hanging under the eave.
     for (let x = -len / 2 + 0.1; x < len / 2; x += 0.16 + rand() * 0.12) {
@@ -222,10 +239,13 @@ export function coneRoof(kit: Kit, rand: Rand, o: { r: number; y: number; h: num
   const oz = o.oz ?? 0;
   const layers = 6;
   for (let i = 0; i < layers; i++) {
+    // Each layer overlaps the next by a quarter; odd layers sit CONE_LAP further out so the overlapping
+    // facets (same 18 segments, alternating colors) are parallel instead of coplanar (no z-fighting).
     const a = i / layers;
     const b = (i + 1.25) / layers;
-    const rb = o.r * (1 - a);
-    const rt = Math.max(0.05, o.r * (1 - b));
+    const lap = i % 2 ? CONE_LAP : 0;
+    const rb = o.r * (1 - a) + lap;
+    const rt = Math.max(0.05, o.r * (1 - b)) + lap;
     const color = i === 0 ? A.thatchDark : i % 2 ? A.thatchLight : A.thatch;
     kit.cyl(rt, rb, o.h * (b - a), ox, o.y + o.h * a, oz, color, 18);
   }

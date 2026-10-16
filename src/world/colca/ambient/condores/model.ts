@@ -21,6 +21,8 @@ export interface CondorPose {
   pitch: number;
   /** Wing angle at the shoulder: 0 flat (soaring), + up. */
   wing: number;
+  /** 0 spread … 1 folded back along the body (a perched bird); default 0. */
+  fold?: number;
 }
 
 const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -35,6 +37,7 @@ export class CondorFlock {
   private shoulder: THREE.Vector3;
   private root = new THREE.Matrix4();
   private m = new THREE.Matrix4();
+  private fm = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler(0, 0, 0, "YXZ");
   private v = new THREE.Vector3();
@@ -85,9 +88,19 @@ export class CondorFlock {
     this.q.setFromEuler(this.e.set(p.pitch, p.yaw, -p.bank));
     this.root.compose(this.v.set(p.x, p.y, p.z), this.q, this.s);
     this.body.setMatrixAt(i, this.root);
+    const fold = p.fold ?? 0;
     for (const side of [1, -1] as const) {
       const sh = this.shoulder;
-      this.m.makeRotationZ(side * p.wing).setPosition(side * sh.x, sh.y, sh.z);
+      this.m.makeRotationZ(side * p.wing);
+      if (fold > 0) {
+        // Folded: the wing sweeps back along the flank (about the shoulder's vertical axis) and shortens, so a
+        // perched bird reads as a closed silhouette instead of a plank.
+        this.fm.makeScale(1 - 0.45 * fold, 1, 1);
+        this.m.multiply(this.fm);
+        this.fm.makeRotationY(side * fold * 1.45);
+        this.m.premultiply(this.fm);
+      }
+      this.m.setPosition(side * sh.x, sh.y, sh.z);
       this.m.premultiply(this.root);
       (side === 1 ? this.wingR : this.wingL).setMatrixAt(i, this.m);
     }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { arrivalFrom, travelledFrom } from "./trailhead";
 import { worldUrl } from "./travel";
 
 describe("world urls", () => {
@@ -20,5 +21,20 @@ describe("world urls", () => {
     expect(worldUrl("en", "colca")).toBe("/en/world/colca/");
     expect(worldUrl("en", "cusco", "colca")).toBe("/en/world/cusco/?from=colca");
     expect(worldUrl("en", "cusco", "titicaca")).toBe("/en/world/cusco/?from=titicaca");
+  });
+
+  test("direct jumps from the «Viajar» panel land somewhere sensible", () => {
+    // Every world page links to every other; only the jungle drops ?from= (one entrance).
+    expect(worldUrl("es", "selva", "colca")).toBe("/es/world/selva/");
+    expect(worldUrl("es", "costa", "titicaca")).toBe("/es/world/costa/?from=titicaca");
+    expect(worldUrl("en", "qhapaq", "colca")).toBe("/en/world/?from=colca");
+    // The mountain: known punkus land on their branch, other worlds at the gate; any world origin skips the title.
+    expect(arrivalFrom("?from=selva")).not.toBeNull();
+    expect(arrivalFrom("?from=cusco")).not.toBeNull();
+    expect(arrivalFrom("?from=costa")).toBeNull();
+    for (const w of ["selva", "cusco", "costa", "titicaca", "colca"]) expect(travelledFrom(`?from=${w}`)).toBe(true);
+    expect(travelledFrom("")).toBe(false);
+    expect(travelledFrom("?from=qhapaq")).toBe(false);
+    expect(travelledFrom("?from=nowhere")).toBe(false);
   });
 });

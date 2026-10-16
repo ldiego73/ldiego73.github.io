@@ -19,8 +19,11 @@
  * buttons: the postcard (`world:postcard`), book 60 min (SITE.calendly), download the CV (SITE.resume), back to
  * Qusqu (../../travel.ts) and back to the site.
  *
- * Draw calls: one vertex-coloured mesh (rock, table, stela, ring, stairway), the disc, the board; the sparks and
- * the halo only during the burst. The rock, the table, the stela and the ring stones are colliders; animals
+ * The offering to the Pachamama on the plaza's east side (an unkuña cloth with the despacho, a clay brazier whose
+ * embers glow at night) is part of the stone mesh; the people gathered round it live in ./gente.ts.
+ *
+ * Draw calls: one vertex-coloured mesh (rock, table, stela, ring, stairway, offering), the disc, the board, the
+ * brazier's glow at night; the sparks and the halo only during the burst. The rock, the table, the stela and the ring stones are colliders; animals
  * keep out of the plaza.
  */
 import * as THREE from "three";
@@ -36,7 +39,7 @@ import { FONT, glowSprite } from "../../props";
 import type { SuyuEnv } from "../../suyu/contract";
 import { travelTo } from "../../travel";
 import { loadTraveler } from "../../traveler";
-import { TITIKALA } from "../plan";
+import { OFFERING, TITIKALA } from "../plan";
 import { Build } from "./kit/build";
 import { buildBoards, paperBoard } from "./kit/signs";
 import {
@@ -145,6 +148,36 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     );
     env.addCollider({ kind: "circle", x, z, r: 0.5 });
   }
+  // The offering to the Pachamama (its people are ./gente.ts): a woven unkuña on the ground with the despacho
+  // laid out on it (coca leaves, carnations, a shell, the folded paper packet) and a clay brazier beside it.
+  const of = OFFERING;
+  // On the plaza's paving (its floor height), not the raw terrain under it.
+  const oy = Math.max(floorY, env.heightAt(of.x, of.z)) + 0.09;
+  b.box(1.3, 0.025, 1.3, of.x, oy + 0.01, of.z, "#b8282f");
+  for (const [dz, c] of [
+    [-0.42, "#2a2f6b"],
+    [-0.14, "#e8b631"],
+    [0.14, "#2a9d8f"],
+    [0.42, "#2a2f6b"],
+  ] as const)
+    b.box(1.3, 0.03, 0.12, of.x, oy + 0.01, of.z + dz, c);
+  b.box(0.42, 0.06, 0.32, of.x - 0.1, oy + 0.03, of.z, "#efe6d6");
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.4;
+    const r = 0.3 + (i % 3) * 0.1;
+    b.sph(0.06, 0.012, 0.035, of.x + Math.cos(a) * r, oy + 0.05, of.z + Math.sin(a) * r, "#3f7f3a", 0);
+  }
+  for (let i = 0; i < 4; i++)
+    b.sph(0.05, 0.04, 0.05, of.x + 0.35, oy + 0.06, of.z - 0.3 + i * 0.2, i % 2 ? "#e8e2d6" : "#c4383f", 0);
+  b.sph(0.09, 0.06, 0.12, of.x - 0.45, oy + 0.05, of.z + 0.4, "#f1e4d0", 1);
+  const brazier = { x: of.x - 0.9, z: of.z - 1.2 };
+  const by = Math.max(floorY, env.heightAt(brazier.x, brazier.z));
+  b.cyl(0.24, 0.18, 0.3, brazier.x, by - 0.02, brazier.z, "#8a4f3b", 8);
+  b.sph(0.19, 0.06, 0.19, brazier.x, by + 0.28, brazier.z, "#3a2a22", 1);
+  for (let i = 0; i < 3; i++)
+    b.sph(0.06, 0.04, 0.06, brazier.x + (i - 1) * 0.08, by + 0.32, brazier.z + (i % 2) * 0.05, "#e2672e", 0);
+  env.addCollider({ kind: "circle", x: brazier.x, z: brazier.z, r: 0.35 });
+
   // The Inca stairway down the headland's north flank toward the water.
   for (let k = 0; k < 22; k++) {
     const z = TITIKALA.z - TITIKALA.r - 1 - k * 1.4;
@@ -173,6 +206,11 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   disc.name = "titicaca-titikala:inti";
   disc.position.set(stela.x, floorY + 2.4, stela.z + 0.55);
   group.add(disc);
+  // The brazier's embers glow at night (the paqo and a pilgrim keep vigil by it).
+  const ember = glowSprite(env, "#ff8a3d", 1.6);
+  ember.position.set(brazier.x, by + 0.45, brazier.z);
+  ember.visible = false;
+  group.add(ember);
   const halo = glowSprite(env, "#ffd36b", 9);
   halo.position.set(rock.x, floorY + 3.2, rock.z);
   halo.visible = false;
@@ -336,6 +374,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
 
   let inside = false;
   let near = false;
+  let clock = 0;
   return {
     update(dt, avatar) {
       const d = Math.hypot(avatar.x - rock.x, avatar.z - rock.z);
@@ -354,6 +393,12 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       discMat.emissiveIntensity = Math.max(night, g * 1.4);
       halo.visible = g > 0.01;
       (halo.material as THREE.SpriteMaterial).opacity = g * 0.8;
+      ember.visible = night > 0;
+      if (ember.visible) {
+        clock += dt;
+        const f = env.reducedMotion ? 0.7 : 0.6 + Math.sin(clock * 7.3) * 0.12 + Math.sin(clock * 12.1) * 0.08;
+        (ember.material as THREE.SpriteMaterial).opacity = f;
+      }
       stepBurst(dt);
       if (age >= 0 && !env.reducedMotion) drawBurst();
     },
@@ -388,6 +433,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       disc.geometry.dispose();
       discMat.dispose();
       (halo.material as THREE.SpriteMaterial).dispose();
+      (ember.material as THREE.SpriteMaterial).dispose();
       sparks.dispose();
       sparkGeo.dispose();
       sparkMat.dispose();

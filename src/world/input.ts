@@ -1,7 +1,8 @@
 /** Keyboard, mouse-drag orbit, wheel zoom, a virtual joystick and gamepads, merged into one polled state. */
 
 /** Gamepad buttons the core routes itself (they work while a modal is open, unlike movement). */
-export type PadAction = "back" | "map" | "help" | "photo" | "text" | "confirm" | "nav-prev" | "nav-next";
+/** "travel" (LT) opens the «Viajar» panel between worlds (travel-panel.ts). */
+export type PadAction = "back" | "map" | "help" | "photo" | "text" | "travel" | "confirm" | "nav-prev" | "nav-next";
 
 /** Standard-mapping button indices (https://w3c.github.io/gamepad/#remapping). */
 export const PAD = {
@@ -194,6 +195,7 @@ export function createInput(surface: HTMLElement, opts: { onPad?(action: PadActi
       if (edge(PAD.Y)) opts.onPad?.("map");
       if (edge(PAD.START)) opts.onPad?.("help");
       if (edge(PAD.SELECT)) opts.onPad?.("text");
+      if (edge(PAD.LT)) opts.onPad?.("travel");
       const lb = edge(PAD.LB);
       if (state.enabled) {
         if (padMove.x || padMove.y) manual = true;

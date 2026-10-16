@@ -133,6 +133,8 @@ export const MARKET = { t: 0.785, side: -1 as const, offset: 15 };
 export const BEACHES = { south: 0.8, north: 0.905 } as const;
 /** Where the road starts (the punku back to Qusqu) and ends (the finale headland). */
 export const PUNKU_T = 0.004;
+/** Reach of the punku's "Volver a Qusqu" prompt round the doorway (the horse keeps its own prompt clear of it). */
+export const PUNKU_PROMPT_R = 3.6;
 export const FINALE_T = 1;
 
 /** Ids of the special stations. */

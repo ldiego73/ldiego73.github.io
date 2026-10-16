@@ -1,5 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { daylight, diveDepth, frogSurface, LookTimer, rng, soarPose, stepDive, wanderTarget } from "./logic";
+import {
+  daylight,
+  diveDepth,
+  frogSurface,
+  LookTimer,
+  orbitPoint,
+  rng,
+  soarPose,
+  stepDive,
+  troutArc,
+  wanderTarget,
+} from "./logic";
 
 describe("lake fauna rules", () => {
   test("a good look fires once", () => {
@@ -44,5 +55,24 @@ describe("lake fauna rules", () => {
     expect(frogSurface(30, true)).toBe(0);
     expect(daylight(0.5)).toBe(1);
     expect(daylight(0)).toBe(0);
+  });
+});
+
+describe("trout leap and the dog's round", () => {
+  test("the leap starts and ends under water, peaks halfway, nose up then down", () => {
+    expect(troutArc(0).y).toBeLessThan(0);
+    expect(troutArc(1).y).toBeLessThan(0);
+    expect(troutArc(0.5).y).toBeCloseTo(0.7, 5);
+    expect(troutArc(0.1).pitch).toBeGreaterThan(0);
+    expect(troutArc(0.9).pitch).toBeLessThan(0);
+    expect(troutArc(1).along).toBeCloseTo(1.3, 5);
+  });
+  test("the dog keeps its distance round the flock and runs along the circle", () => {
+    for (let a = 0; a < 6; a += 0.7) {
+      const p = orbitPoint(10, -4, 5, a, 1);
+      expect(Math.hypot(p.x - 10, p.z + 4)).toBeCloseTo(5, 6);
+      const q = orbitPoint(10, -4, 5, a + 0.001, 1);
+      expect(Math.atan2(q.x - p.x, q.z - p.z)).toBeCloseTo(p.yaw, 2);
+    }
   });
 });

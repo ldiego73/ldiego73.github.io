@@ -131,3 +131,28 @@ export function frogSurface(t: number, near: boolean): number {
   if (u > up) return 0;
   return clamp01(Math.min(u / 0.8, (up - u) / 0.8));
 }
+
+/**
+ * A trout's leap (../puna.ts): progress u 0 → 1 over the jump. It rises out of the water, arcs `h` high and
+ * `len` forward and dives back in nose first. Returns the height above the surface (negative: under it), the
+ * distance along its heading and its pitch (radians, nose up positive).
+ */
+export function troutArc(u: number, h = 0.7, len = 1.3): { y: number; along: number; pitch: number } {
+  const k = clamp01(u);
+  // Parabola from −0.25 (just under the surface) up to h and back to −0.25.
+  const y = -0.25 + (h + 0.25) * 4 * k * (1 - k);
+  const dy = (h + 0.25) * 4 * (1 - 2 * k);
+  return { y, along: len * k, pitch: Math.atan2(dy, len) };
+}
+
+/**
+ * Where the shepherd's dog runs: round its flock at `r` from the flock's centre, `a` the angle (radians). Its
+ * heading is along the circle (counter-clockwise for dir 1).
+ */
+export function orbitPoint(cx: number, cz: number, r: number, a: number, dir: 1 | -1) {
+  return {
+    x: cx + Math.cos(a) * r,
+    z: cz + Math.sin(a) * r,
+    yaw: Math.atan2(-Math.sin(a) * dir, Math.cos(a) * dir),
+  };
+}

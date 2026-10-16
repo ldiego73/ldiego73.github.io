@@ -2,8 +2,9 @@
  * Field guide of the animals a traveler can meet on the Collasuyu shore road, for the lake's text mode
  * (./textmode.ts). Same shape as the mountain's guide (../wildlife.ts Species). Every line restates what the
  * fauna ambients actually do (./ambient/aves.ts: grebes, flamingos, gulls; ./ambient/orilla.ts: alpacas, llamas,
- * vizcachas, the frog): where they live, when they are out, how they behave, and which bonus passport stamp a
- * good look earns (`titicaca:fauna:*`, CATALOG in src/lib/passport.ts). Keep it in sync when a module changes.
+ * vizcachas, the frog; ./ambient/puna.ts: geese, ibises, teals, sheep and their dog, cuyes, trout): where they
+ * live, when they are out, how they behave, and which bonus passport stamp a good look earns (`titicaca:fauna:*`,
+ * CATALOG in src/lib/passport.ts; the puna.ts animals earn none). Keep it in sync when a module changes.
  * Pure data (no DOM): also rendered at build time.
  */
 import type { Species } from "../wildlife";
@@ -133,5 +134,107 @@ export const TITICACA_WILDLIFE: readonly Species[] = [
       en: "A grey rodent with long ears and a curled tail. Sitting on its rock it looks about; if you come near it hops off behind the rock and only comes back some seconds later.",
     },
     stamp: "titicaca:fauna:vizcacha",
+  },
+  {
+    id: "huallata",
+    name: { es: "Huallata · ganso andino", en: "Huallata · Andean goose" },
+    latin: "Oressochen melanopterus",
+    where: {
+      es: "En el pasto de la orilla, entre el camino y el agua, pasado el punku y antes de Sillustani.",
+      en: "On the shore grass between the road and the water, past the punku and before Sillustani.",
+    },
+    when: {
+      es: "De día pastan; de noche se echan sobre el pasto.",
+      en: "They graze by day; at night they sit down on the grass.",
+    },
+    does: {
+      es: "Un ganso blanco de alas y cola negras, pico y patas rosados. Camina despacio en un grupo suelto y baja el cuello a pastar.",
+      en: "A white goose with black wings and tail and a pink bill and legs. It walks slowly in a loose group and lowers its neck to graze.",
+    },
+  },
+  {
+    id: "ibis",
+    name: { es: "Yanavico · ibis de la puna", en: "Puna ibis" },
+    latin: "Plegadis ridgwayi",
+    where: {
+      es: "En el pasto húmedo junto al agua, entre el embarcadero de los uros y el muelle de Taquile.",
+      en: "On the wet grass by the water, between the Uros landing and the Taquile pier.",
+    },
+    when: {
+      es: "De día buscan comida; de noche se quedan quietos.",
+      en: "They feed by day; at night they stand still.",
+    },
+    does: {
+      es: "Un ave oscura, de reflejos verdes en las alas y un pico largo y curvo. Camina despacio hundiendo el pico en el suelo una y otra vez.",
+      en: "A dark bird with a green sheen on its wings and a long curved bill. It walks slowly, probing the ground with its bill again and again.",
+    },
+  },
+  {
+    id: "pato",
+    name: { es: "Pato puna", en: "Puna teal" },
+    latin: "Spatula puna",
+    where: {
+      es: "En los totorales a ambos lados de la pasarela de los uros, cerca de la orilla.",
+      en: "In the reeds either side of the Uros boardwalk, near the shore.",
+    },
+    when: {
+      es: "De día nadan y comen; de noche flotan quietos.",
+      en: "They swim and feed by day; at night they float still.",
+    },
+    does: {
+      es: "Un pato pardo de flancos barrados, gorro negro, mejillas blancas y pico celeste. Nada despacio en grupitos y de vez en cuando mete la cabeza bajo el agua con la cola hacia arriba.",
+      en: "A brown duck with barred flanks, a black cap, white cheeks and a pale blue bill. It paddles slowly in small groups and now and then tips its head under water, tail up.",
+    },
+  },
+  {
+    id: "trucha",
+    name: { es: "Trucha", en: "Trout" },
+    latin: "Oncorhynchus mykiss",
+    where: {
+      es: "En aguas abiertas, frente a las islas de los uros y al muelle de Taquile.",
+      en: "In open water off the Uros islands and the Taquile pier.",
+    },
+    when: {
+      es: "De día, cuando estás cerca, salta cada cierto tiempo; de noche no.",
+      en: "By day, when you are nearby, it leaps every so often; not at night.",
+    },
+    does: {
+      es: "Un pez plateado con una franja rosada. Salta fuera del agua en un arco corto y cae dejando un anillo de salpicadura.",
+      en: "A silvery fish with a pink stripe. It leaps out of the water in a short arc and falls back, leaving a splash ring.",
+    },
+  },
+  {
+    id: "oveja",
+    name: { es: "Ovejas y su perro pastor", en: "Sheep and their sheepdog" },
+    latin: "Ovis aries · Canis familiaris",
+    where: {
+      es: "En la puna al sur del camino, entre Sillustani y el embarcadero de los uros, cuidadas por una pastora que hila de pie a su lado.",
+      en: "On the puna south of the road, between Sillustani and the Uros landing, watched by a shepherdess spinning on her feet beside them.",
+    },
+    when: {
+      es: "De día pastan; de noche el rebaño y el perro se echan donde están.",
+      en: "They graze by day; at night the flock and the dog lie down where they are.",
+    },
+    does: {
+      es: "Un rebaño de ovejas lanudas, blancas y algunas pardas o negras, que camina unos pasos y baja la cabeza a pastar. El perro corre alrededor del rebaño, a veces para un lado y a veces para el otro, y de rato en rato se sienta a mirarlo.",
+      en: "A flock of woolly sheep, white with a few brown or black, that walks a few steps and puts its heads down to graze. The dog runs round the flock, now one way, now the other, and every so often sits down to watch it.",
+    },
+  },
+  {
+    id: "cuy",
+    name: { es: "Cuy", en: "Guinea pig (cuy)" },
+    latin: "Cavia porcellus",
+    where: {
+      es: "En un corral bajo de piedra en la plaza de Taquile.",
+      en: "In a low stone pen on Taquile's plaza.",
+    },
+    when: {
+      es: "De día corretean; de noche se juntan en el centro del corral.",
+      en: "They scurry about by day; at night they huddle in the middle of the pen.",
+    },
+    does: {
+      es: "Pequeños y redondos, blancos con manchas pardas. Corren de un lado a otro del corral, se paran y mordisquean la alfalfa.",
+      en: "Small and round, white with brown patches. They dart from one side of the pen to the other, stop and nibble the alfalfa.",
+    },
   },
 ];

@@ -13,6 +13,7 @@ import { CATALOG, requiredStamps, WORLD_PAGES } from "../../lib/passport";
 import type { Lang } from "../contract";
 import { esc } from "../textmode";
 import { worldUrl } from "../travel";
+import { TRIP_TEXT } from "../travel-panel-logic";
 import { GATES } from "./plan";
 
 const COPY = {
@@ -164,7 +165,11 @@ export function renderCuscoTextMode(lang: Lang, opts: { headingLevel?: number; t
     `<p>${esc(c.chasqui)}</p><p>${esc(c.email)}: ${link(`mailto:${SITE.email}`, SITE.email)}</p><ul>${socials}</ul><p>${link(SITE.calendly, c.book, true)} · ${link(SITE.resume[lang], c.cv)}</p>${stampLine("cusco:station:chasqui")}`,
   );
   section("vida", c.lifeTitle, `<p>${esc(c.life)}</p>`);
-  section("mapa", c.mapTitle, `<p>${esc(c.map)}</p><p>${link(worldUrl(lang, "qhapaq", "cusco"), c.back)}</p>`);
+  section(
+    "mapa",
+    c.mapTitle,
+    `<p>${esc(c.map)}</p><p>${esc(TRIP_TEXT[lang])}</p><p>${link(worldUrl(lang, "qhapaq", "cusco"), c.back)}</p>`,
+  );
 
   return `<header class="kw-tm-head"><h${h1} id="${esc(tid)}" class="kw-tm-title">${esc(c.title)}</h${h1}>
 <p class="kw-tm-lede">${esc(c.lede)}</p>

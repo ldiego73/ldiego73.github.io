@@ -4,7 +4,9 @@
  *  - "c:shirt": a light cotton shirt with a collar, tucked into the rig's trousers (no poncho on the warm coast);
  *  - "c:arm": short sleeves and bare forearms;
  *  - "c:blouse": a blouse with a bib apron for the women (worn over the rig's skirt);
- *  - "c:hat": the wide straw hat of the northern coast, with a dark band.
+ *  - "c:hat": the wide straw hat of the northern coast, with a dark band;
+ *  - "c:board": a surfboard (Huanchaco's surfers), held by the "tool" bone: under the arm or flat to sit on;
+ *  - "c:cooler": a beach vendor's cool box on a strap at the hip (ice creams, drinks).
  * Proportions follow ../../../ambient/people/models.ts (shoulders at 1.02, head top ≈ 1.6 before scale);
  * colours come from the palette slots (S_MAIN shirt / blouse, S_ACC band / apron, S_ALT trousers).
  */
@@ -55,7 +57,27 @@ function hat(P: ReturnType<typeof protos>): THREE.BufferGeometry {
   return p.build();
 }
 
-export type CoastPart = "c:shirt" | "c:arm" | "c:blouse" | "c:hat";
+/** Surfboard along +Z, deck up (y 0 at its bottom), centred on the tool bone. */
+function board(P: ReturnType<typeof protos>): THREE.BufferGeometry {
+  const p = new Part();
+  p.add(P.sph, "#f2efe6", 0, 0.03, 0, 0, 0, 0, 0.25, 0.035, 0.95);
+  p.add(P.sph, S_ACC, 0, 0.036, 0, 0, 0, 0, 0.06, 0.034, 0.9);
+  p.add(P.sph, S_ACC, 0, 0.032, 0.62, 0, 0, 0, 0.13, 0.033, 0.2);
+  p.add(P.box, "#2a2420", 0, -0.04, -0.8, 0, 0, 0, 0.012, 0.1, 0.12);
+  return p.build();
+}
+
+function cooler(P: ReturnType<typeof protos>): THREE.BufferGeometry {
+  const p = new Part();
+  p.add(P.box, "#e8eef2", 0.23, 0.02, 0.06, 0, 0, 0, 0.16, 0.2, 0.28);
+  p.add(P.box, S_ACC, 0.23, 0.13, 0.06, 0, 0, 0, 0.17, 0.035, 0.29);
+  // Strap from the box over the right shoulder.
+  p.add(P.box, "#3b3330", 0.02, 0.3, 0.14, 0, 0, 0.75, 0.03, 0.62, 0.02);
+  p.add(P.box, "#3b3330", 0.02, 0.3, -0.14, 0, 0, 0.75, 0.03, 0.62, 0.02);
+  return p.build();
+}
+
+export type CoastPart = "c:shirt" | "c:arm" | "c:blouse" | "c:hat" | "c:board" | "c:cooler";
 
 /** Part specs for the coast's crowd (fresh geometries: each crowd owns its own). */
 export function coastSpecs(): PartSpec[] {
@@ -65,6 +87,8 @@ export function coastSpecs(): PartSpec[] {
     { name: "c:arm", bone: "arm", geo: arm(P) },
     { name: "c:blouse", bone: "torso", geo: blouse(P) },
     { name: "c:hat", bone: "head", geo: hat(P) },
+    { name: "c:board", bone: "tool", geo: board(P) },
+    { name: "c:cooler", bone: "torso", geo: cooler(P) },
   ];
   for (const g of Object.values(P)) g.dispose();
   return out;

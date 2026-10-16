@@ -1,8 +1,9 @@
 /**
  * Travel between worlds that live on different pages (the mountain /world/, the jungle /world/selva/, the Cusco
  * hub /world/cusco/ and the suyu roads /world/costa/, /world/titicaca/ and /world/colca/). `prefetchWorld` warms
- * the target page and its JavaScript chunks when the traveler nears a portal; `travelTo` emits `world:travel`,
- * fades the screen to the loader colour and navigates.
+ * the target page and its JavaScript chunks when the traveler nears a portal; `travelTo` first asks «¿Salir del
+ * mundo?» (leave.ts), then emits `world:travel`, fades the screen to the loader colour and navigates. It resolves
+ * false when the traveler stays: nothing was emitted or drawn, so they are exactly where they were.
  *
  * `?from=<world>` tells the target page where the traveler came from, so it starts at the matching portal:
  * the mountain reads it with trailhead.ts `arrivalFrom` (ARRIVALS), every suyu-runtime world (the hub and the
@@ -12,6 +13,7 @@
 
 import type { Lang } from "./contract";
 import { emit, type WorldId } from "./events";
+import { confirmLeave } from "./leave";
 
 /** Worlds whose page reads `?from=` (the jungle starts at its only punku whatever the origin). */
 const FROM_AWARE = new Set<WorldId>(["qhapaq", "cusco", "costa", "titicaca", "colca"]);
@@ -44,7 +46,11 @@ export function prefetchWorld(lang: Lang, to: WorldId): void {
   else if (to === "colca") void import("./colca/warm").then((m) => m.warmColca()).catch(() => {});
 }
 
-export function travelTo(lang: Lang, from: WorldId, to: WorldId, fadeMs = 450): void {
+let leaving = false;
+export async function travelTo(lang: Lang, from: WorldId, to: WorldId, fadeMs = 450): Promise<boolean> {
+  // A punku pressed again while the dialog is up (or during the fade) is not a second trip.
+  if (leaving || !(await confirmLeave(lang, to))) return false;
+  leaving = true;
   emit("world:travel", { from, to });
   const veil = document.createElement("div");
   veil.className = "kw-travel-veil";
@@ -54,4 +60,14 @@ export function travelTo(lang: Lang, from: WorldId, to: WorldId, fadeMs = 450): 
     veil.style.opacity = "1";
   });
   window.setTimeout(() => location.assign(worldUrl(lang, to, from)), fadeMs);
+  // Back from the next page through the bfcache: lift the veil and allow another trip.
+  window.addEventListener(
+    "pageshow",
+    () => {
+      leaving = false;
+      veil.remove();
+    },
+    { once: true },
+  );
+  return true;
 }

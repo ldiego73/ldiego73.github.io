@@ -25,6 +25,7 @@ import { CATALOG } from "../../../lib/passport";
 import { createFieldPanel, el, linkButton } from "../../ambient/fields/panel";
 import type { CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
+import { decks } from "../../decks";
 import { emit, on } from "../../events";
 import { vertexToon } from "../../merge-colors";
 import { glowSprite } from "../../props";
@@ -146,6 +147,13 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   env.addCollider({ kind: "circle", ...cross, r: 1.45 });
   for (const sx of [-1, 1]) env.addCollider({ kind: "circle", ...W(sx * 4.4, 2.6), r: 0.6 });
   const keep = creatures.keepOut(C.x, C.z, plaza.r + 1);
+  // The paved floor is flat at the centre's height, but the terrain under its canyon half rounds down toward
+  // the rim (layout.ts finalHeight fades the plaza blend near the lip): a deck keeps the traveler on the floor.
+  const removeFloor = decks.add({
+    shape: { kind: "circle", x: C.x, z: C.z, r: plaza.r },
+    y: floorY,
+    id: "colca-cruz-floor",
+  });
 
   // ------------------------------------------------------------------ celebration
   const bitGeo = new THREE.PlaneGeometry(0.16, 0.42);
@@ -197,7 +205,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   back.type = "button";
   back.addEventListener("click", () => {
     panel.close();
-    travelTo(lang, "colca", "cusco");
+    void travelTo(lang, "colca", "cusco");
   });
   const actions = el("div", "qnf-actions");
   actions.append(linkButton(SITE.calendly, T(S.book), true), cv, back, linkButton(`/${lang}/`, T(S.site), false));
@@ -357,6 +365,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
       for (const off of offs) off();
       panel.dispose();
       creatures.removeKeepOut(keep);
+      removeFloor();
       mesh.removeFromParent();
       geo.dispose();
       mat.dispose();

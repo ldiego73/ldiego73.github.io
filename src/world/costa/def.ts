@@ -41,7 +41,7 @@ export const COSTA_DEF: SuyuDef<CostaLayout> = {
     inkFade: [170, 600],
   },
   spawn: { default: { t: START_T }, from: { cusco: { t: START_T } } },
-  outfit: "explorer",
+  outfit: "beach",
   place: { id: "chinchaysuyu", label: COSTA_PLACE },
   visit: { radius: 7 },
   map: {

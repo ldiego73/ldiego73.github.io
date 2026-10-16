@@ -78,6 +78,7 @@ import {
   ARRIVE_R,
   aroundTotem,
   DAIS_R,
+  keneFloorY,
   keneSpot,
   PLAZA_R,
   POLE_ANGLES,
@@ -126,14 +127,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   const lang = env.lang;
   const T = (l: L) => l[lang];
   const spot = keneSpot(env.selva.layout);
-  // Flat floor: just above the highest terrain sample of the clearing (it rises a few cm off the road end).
-  let top = spot.roadY;
-  for (let r = 0; r <= PLAZA_R; r += 1.2)
-    for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) {
-      const p = spot.world(Math.sin(a) * r, Math.cos(a) * r);
-      top = Math.max(top, env.heightAt(p.x, p.z));
-    }
-  const floorY = top + 0.05;
+  // Flat floor: just above the highest terrain sample of the clearing.
+  const floorY = keneFloorY(spot, env.heightAt);
   const rand = rng(0x6e4e);
 
   const group = new THREE.Group();

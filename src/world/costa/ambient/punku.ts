@@ -16,7 +16,7 @@ import type { SuyuEnv } from "../../suyu/contract";
 import { inkMask } from "../../toon";
 import { prefetchWorld, travelTo } from "../../travel";
 import { Geo, rng } from "../kit";
-import { PUNKU_T } from "../plan";
+import { PUNKU_PROMPT_R, PUNKU_T } from "../plan";
 import { type Frame, toLocal, toWorld } from "./huacas/logic";
 
 const COPY = {
@@ -25,7 +25,7 @@ const COPY = {
   sub: { es: "Haukaypata · el centro del Tawantinsuyu", en: "Haukaypata · the centre of the Tawantinsuyu" },
 } satisfies Record<string, L>;
 
-const PROMPT_R = 3.6;
+const PROMPT_R = PUNKU_PROMPT_R;
 const PREFETCH_R = 40;
 /** Doorway: bottom width, top width, height, wall depth. */
 const DOOR = { bottom: 3.2, top: 2.4, height: 4.1, depth: 1.8 } as const;
@@ -220,7 +220,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     interact() {
       if (!near) return false;
       busy = true;
-      travelTo(lang, "costa", "cusco");
+      // Cleared again when the traveler chooses to stay (../../travel.ts asks first).
+      void travelTo(lang, "costa", "cusco").then((ok) => {
+        busy = ok;
+      });
       return true;
     },
     dispose() {

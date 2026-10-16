@@ -416,10 +416,12 @@
 .kw-title.gone > * {
   pointer-events: none;
 }
-.kw-back {
+.kw-nav {
   position: absolute;
   top: var(--kw-top);
   left: var(--kw-gutter);
+  display: flex;
+  gap: 8px;
 }
 .kw-namechip {
   position: absolute;
@@ -485,7 +487,13 @@
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
-  max-width: calc(100% - 120px);
+  /* Clear of the back + travel buttons on the left (icon-only on touch screens). */
+  max-width: calc(100% - 250px);
+}
+@media (pointer: coarse) {
+  .kw-tools {
+    max-width: calc(100% - 130px);
+  }
 }
 .kw-hud {
   position: absolute;
@@ -550,7 +558,8 @@
     width: 42px;
     padding: 0;
   }
-  .kw-back span {
+  .kw-back span,
+  .kw-travel span {
     display: none;
   }
 }
@@ -661,6 +670,201 @@
   object-fit: contain;
   border-radius: 4px;
   background: #e6d8bd;
+}
+/* «¿Salir del mundo?» (leave.ts): on <body>, above every world layer (the jungle arcade sits at z 1000),
+   so it brings its own paper/ink tokens instead of inheriting them from .kw-root. */
+.kw-modal.kw-leave {
+  --kw-ink: #1f1a17;
+  --kw-paper: #f3ead8;
+  --kw-ochre: #dda63c;
+  position: fixed;
+  z-index: 1100;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  font-family: var(--font-body);
+  color: var(--kw-ink);
+}
+.kw-leave .kw-modal-panel {
+  width: min(100%, 26rem);
+}
+.kw-leave-body {
+  margin: 0;
+  font: 500 1rem / 1.45 var(--font-body);
+}
+.kw-leave .kw-modal-actions {
+  justify-content: flex-end;
+}
+.kw-leave .kw-btn {
+  min-width: 7.5rem;
+}
+.kw-leave :focus-visible {
+  outline: 3px solid var(--kw-ochre);
+  outline-offset: 3px;
+}
+/* «Viajar» (travel-panel.ts): the Tawantinsuyu map, Qusqu in the middle, one card per world by its road. */
+.kw-trip .kw-modal-panel {
+  width: min(100%, 40rem);
+}
+.kw-trip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.kw-trip-lede {
+  margin: 0;
+  font: 500 0.95rem / 1.4 var(--font-body);
+}
+.kw-trip-map {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 10px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--kw-paper-2, #e6d8bd);
+  color: var(--kw-ink);
+}
+.kw-trip-roads {
+  position: absolute;
+  inset: 6px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  pointer-events: none;
+}
+.kw-trip-road-case {
+  stroke-width: 9px;
+  stroke-linecap: round;
+}
+.kw-trip-road {
+  stroke-width: 5px;
+  stroke-linecap: round;
+  stroke-dasharray: 10 6;
+}
+.kw-trip-north {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  justify-self: center;
+  font: 800 0.95rem / 1 var(--font-display);
+  border: 2px solid var(--kw-ink);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: var(--kw-paper);
+}
+.kw-trip-card {
+  position: relative;
+  align-self: center;
+  display: grid;
+  gap: 4px;
+  min-height: 84px;
+  min-width: 0;
+  padding: 9px 10px 10px;
+  text-align: left;
+  color: var(--kw-ink);
+  background: var(--kw-paper);
+  border: 2px solid var(--kw-ink);
+  border-top: 6px solid var(--kw-trip-dye, var(--kw-ochre));
+  border-radius: 8px;
+  box-shadow: 2px 3px 0 var(--kw-ink);
+  cursor: pointer;
+  font: inherit;
+}
+.kw-trip-card:hover:not([aria-disabled="true"]) {
+  background: #fbf4e6;
+}
+.kw-trip-card:active:not([aria-disabled="true"]) {
+  transform: translate(1px, 2px);
+  box-shadow: 1px 1px 0 var(--kw-ink);
+}
+.kw-trip-card[aria-disabled="true"] {
+  cursor: default;
+  background: var(--kw-paper-2, #e6d8bd);
+  box-shadow: none;
+  border-style: dashed;
+  border-top-style: solid;
+}
+.kw-trip-name {
+  font: 800 1rem / 1.1 var(--font-display);
+  font-stretch: 108%;
+  overflow-wrap: anywhere;
+}
+.kw-trip-line {
+  font: 500 0.8rem / 1.3 var(--font-body);
+}
+.kw-trip-state {
+  justify-self: start;
+  font: 700 0.72rem / 1 var(--font-mono);
+  letter-spacing: 0.02em;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--kw-ink);
+  background: var(--kw-paper);
+}
+.kw-trip-state[hidden] {
+  display: none;
+}
+.kw-trip-card[aria-disabled="true"] .kw-trip-state {
+  background: var(--kw-ink);
+  color: var(--kw-paper);
+}
+.kw-trip-hint {
+  margin: 0;
+  font: 500 0.78rem / 1.2 var(--font-mono);
+  opacity: 0.8;
+}
+.kw-trip :focus-visible {
+  outline: 3px solid var(--kw-ochre);
+  outline-offset: 3px;
+}
+@media (pointer: coarse) {
+  .kw-trip-hint {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .kw-trip .kw-modal-panel {
+    padding: 14px;
+    gap: 10px;
+  }
+  .kw-trip-lede {
+    font-size: 0.86rem;
+  }
+  .kw-trip-map {
+    gap: 6px;
+    padding: 4px;
+  }
+  .kw-trip-roads {
+    inset: 4px;
+    width: calc(100% - 8px);
+    height: calc(100% - 8px);
+  }
+  .kw-trip-card {
+    min-height: 0;
+    padding: 6px 6px 7px;
+    gap: 3px;
+  }
+  .kw-trip-name {
+    font-size: 0.8rem;
+    font-stretch: 100%;
+  }
+  .kw-trip-line {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+  .kw-trip-state {
+    font-size: 0.62rem;
+    padding: 2px 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kw-trip-card:active:not([aria-disabled="true"]) {
+    transform: none;
+  }
 }
 .kw-name-form {
   display: grid;

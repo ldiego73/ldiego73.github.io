@@ -22,7 +22,8 @@
  *              applied after `sky.update` each frame, and the ink fade pulled in to match the denser fog.
  *
  * Input priority: E → ambients (in load order; one with prompt() only while its prompt shows), Esc → ambients.
- * Keys: K text mode, T day/night, N music, F photo, M / H emit `world:map` / `world:help` (also the ./hud.ts corner
+ * Keys: K text mode, T day/night, N music, F photo, V (also gamepad LT and the chrome's Travel button) the
+ * «Viajar» panel to any other world (../travel-panel.ts), M / H emit `world:map` / `world:help` (also the ./hud.ts corner
  * buttons, which own the help overlay). `world:map` (also gamepad Y)
  * toggles the jungle's paper map (./map.ts), whose fast travel opens after the `selva:station:collpa` stamp.
  * Events handled: `world:modal {open}` (counter; freezes walking while > 0), `world:mount` (speed multiplier,
@@ -54,6 +55,7 @@ import { emit, on } from "../events";
 import { createInput, type PadAction } from "../input";
 import { summarize } from "../journey";
 import { createJourneyDialog } from "../journey-card";
+import { guardLeaving } from "../leave";
 import { createLoader, type LoadStep } from "../loader";
 import { createGovernor, detectDevice, LEVELS } from "../quality";
 import { createStandLatch, type Seat, SIT_SQUEEZE, seatedFeetY, seatFrom } from "../seat";
@@ -63,6 +65,7 @@ import { focusStep } from "../textmode";
 import { canopyPlatforms } from "./scenery/platforms";
 import "../textmode.css";
 import { createToonCache } from "../toon";
+import { createTravelPanel } from "../travel-panel";
 import { announceTraveler, loadTraveler } from "../traveler";
 import { SPAWN_T } from "./arrival";
 import { SELVA_STATIONS, type SelvaLayout } from "./contract";
@@ -208,6 +211,8 @@ export function mountSelva(host: HTMLElement, opts: SelvaOptions): () => void {
   };
   const textMode = createSelvaTextMode(host, lang, worldData());
   const offText = on("world:textmode", () => textMode.open());
+  // Every same-tab link out of the world page asks «¿Salir del mundo?» first (leave.ts).
+  const offLeave = guardLeaving(lang);
   const fail = (err: unknown) => {
     if (err === CANCELLED) return;
     console.error(err);
@@ -241,6 +246,7 @@ export function mountSelva(host: HTMLElement, opts: SelvaOptions): () => void {
     teardown?.();
     loader.remove();
     offText();
+    offLeave();
     textMode.dispose();
     resetRide();
     host.classList.remove("kw-root");
@@ -408,6 +414,7 @@ async function start(
       onEditName: () => nameEditor.open(),
       onDayNight: () => sky.toggle(),
       onText: () => ui.textMode.open(),
+      onTravel: () => openTrip(),
       onQuality: () => {
         const q: Quality = engine.quality() === "high" ? "low" : "high";
         engine.setQuality(q);
@@ -449,6 +456,12 @@ async function start(
         syncInput();
       }),
     );
+    // «Viajar»: fast travel to any other world (chrome button, V, gamepad LT); never over another dialog.
+    const trip = createTravelPanel(host, lang, "selva");
+    cleanups.push(() => trip.dispose());
+    const openTrip = () => {
+      if (!gameOpen && !dialogOpen && modals === 0) trip.open();
+    };
 
     // ---------------------------------------------------------------- auto quality governor
     const manualQuality = (() => {
@@ -663,6 +676,7 @@ async function start(
       else if (e.code === "KeyK") ui.textMode.open();
       else if (e.code === "KeyN") music.toggleMute();
       else if (e.code === "KeyF") void photo.shoot();
+      else if (e.code === "KeyV") openTrip();
       else return;
       e.preventDefault();
     };
@@ -687,6 +701,9 @@ async function start(
         else if (!busy) ui.textMode.open();
       } else if (a === "photo") {
         if (!busy) void photo.shoot();
+      } else if (a === "travel") {
+        if (trip.isOpen()) trip.close();
+        else if (!busy) openTrip();
       } else if (a === "confirm") {
         const el = document.activeElement as HTMLElement | null;
         if (el && el !== document.body && activeDialog()?.contains(el)) el.click();

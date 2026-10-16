@@ -98,3 +98,18 @@ export function keneSpot(L: SpotLayout): KeneSpot {
 export function aroundTotem(angle: number, r: number): [number, number] {
   return [TOTEM_LOCAL[0] + Math.sin(angle) * r, TOTEM_LOCAL[1] + Math.cos(angle) * r];
 }
+
+/**
+ * Height of the clearing's flat floor (its raised deck): just above the highest terrain sample of the
+ * clearing (it rises a few cm off the road end). Shared by the totem (which registers the deck) and the
+ * people sitting in the clearing (built before the deck exists).
+ */
+export function keneFloorY(s: KeneSpot, heightAt: (x: number, z: number) => number): number {
+  let top = s.roadY;
+  for (let r = 0; r <= PLAZA_R; r += 1.2)
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) {
+      const p = s.world(Math.sin(a) * r, Math.cos(a) * r);
+      top = Math.max(top, heightAt(p.x, p.z));
+    }
+  return top + 0.05;
+}

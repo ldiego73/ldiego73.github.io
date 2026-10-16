@@ -115,7 +115,10 @@ export const create: CreateAmbient = (env, hudRoot): Ambient => {
       const a = gateAction(near);
       if (a.kind === "travel") {
         busy = true;
-        travelTo(lang, "cusco", a.to);
+        // Cleared again when the traveler chooses to stay (travel.ts asks first).
+        void travelTo(lang, "cusco", a.to).then((ok) => {
+          busy = ok;
+        });
         return true;
       }
       note.textContent = SOON[lang];

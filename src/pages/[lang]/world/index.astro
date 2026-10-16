@@ -144,10 +144,15 @@ const enUrl = lang === "en" ? canonical : altUrl;
       showText(true);
     } else {
       Promise.all([import("../../../world/index"), import("../../../world/trailhead")])
-        .then(([{ mountWorld }, { arrivalFrom }]) => {
+        .then(([{ mountWorld }, { arrivalFrom, travelledFrom }]) => {
           const lang = host.dataset.lang === "en" ? "en" : "es";
           const search = new URLSearchParams(location.search);
-          const dispose = mountWorld(host, { lang, skipIntro: search.has("skip"), arrive: arrivalFrom(location.search) });
+          // Arriving from any other world skips the title (at its branch when there is one, else at the gate).
+          const dispose = mountWorld(host, {
+            lang,
+            skipIntro: search.has("skip") || travelledFrom(location.search),
+            arrive: arrivalFrom(location.search),
+          });
           mounted = true;
           window.addEventListener("pagehide", (e) => {
             if (!e.persisted) dispose();

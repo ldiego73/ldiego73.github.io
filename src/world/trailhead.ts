@@ -69,6 +69,19 @@ export function arrivalFrom(search: string): { x: number; z: number; yaw: number
   return from && from in ARRIVALS ? ARRIVALS[from as ArrivalFrom] : null;
 }
 
+/** Other worlds a traveler can arrive from (the «Viajar» panel jumps straight here from any of them). */
+const ORIGINS: ReadonlySet<string> = new Set(["selva", "cusco", "costa", "titicaca", "colca"]);
+
+/**
+ * True when the page was reached by travelling from another world (`?from=<id>`). Then the mountain skips its
+ * title like any arrival: at the matching branch when `arrivalFrom` knows the origin (the Antisuyu and Qusqu
+ * punkus), else at the trail's usual start by the gate (a direct jump from the coast, the lake or the canyon).
+ */
+export function travelledFrom(search: string): boolean {
+  const from = new URLSearchParams(search).get("from");
+  return !!from && ORIGINS.has(from);
+}
+
 /**
  * True near what the trailhead builds (the Wasi with its porch and walk, the Antisuyu and Qusqu branches and
  * their punkus).

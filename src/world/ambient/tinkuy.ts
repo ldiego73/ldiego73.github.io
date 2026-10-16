@@ -112,7 +112,10 @@ export const create: CreateAmbient = (envIn): Ambient => {
       const to = near;
       busy = true;
       near = null;
-      travelTo(lang, "qhapaq", to);
+      // Cleared again when the traveler chooses to stay (travel.ts asks first).
+      void travelTo(lang, "qhapaq", to).then((ok) => {
+        busy = ok;
+      });
       return true;
     },
     dispose() {

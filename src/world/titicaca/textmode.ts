@@ -14,6 +14,7 @@ import { CATALOG, requiredStamps } from "../../lib/passport";
 import type { Lang } from "../contract";
 import { esc, renderWildlife } from "../textmode";
 import { worldUrl } from "../travel";
+import { TRIP_TEXT } from "../travel-panel-logic";
 import { taquilePanel } from "./ambient/taquile/logic";
 import { statTiles } from "./ambient/titikala/logic";
 import { ISLANDS, islandGroup } from "./plan";
@@ -31,7 +32,10 @@ const COPY = {
     bonus: "Sello extra del pasaporte",
     arriveTitle: "Llegar",
     arrive:
-      "Llegas desde Qusqu por un punku de piedra, una portada inca trapezoidal con un letrero tallado, al inicio del camino; en su vano se ve una pintura de Haukaypata. Detrás de ti, «E · Volver a Qusqu» te lleva de vuelta a la plaza, a su puerta del Collasuyu. De noche arden dos braseros a sus lados. Llevas la ropa andina de la montaña.",
+      "Llegas desde Qusqu por un punku de piedra, una portada inca trapezoidal con un letrero tallado, al inicio del camino; en su vano se ve una pintura de Haukaypata. Detrás de ti, «E · Volver a Qusqu» te lleva de vuelta a la plaza, a su puerta del Collasuyu. De noche arden dos braseros a sus lados. El viajero va abrigado para el altiplano: sombrero de fieltro marrón con cinta roja, chompa de alpaca tejida con franjas de grecas, chalina roja, pantalón largo y botas.",
+    llamaTitle: "Tu llama",
+    llama:
+      "Unos pasos más allá de la llegada, a la derecha del camino, espera una llama ensillada amarrada a un poste, junto a un abrevadero de piedra y un atado de ichu: lleva una manta tejida de colores, una montura, borlas de lana colgando y pompones en las orejas. A su lado, «E · Montar la llama» te sube; montado avanzas bastante más rápido por el camino, y «E · Bajar» o Esc te baja (ella da un paso al costado). La llama es para el camino: se detiene y te baja al subir a la pasarela de totora, a las islas, a los muelles o a la balsa, al dejar el camino hacia Sillustani, Taquile o la roca Titikala (esos lugares se visitan a pie) y antes de llegar al punku; se queda esperando al borde del camino. Mientras vas en la balsa no aparece su aviso.",
     sillustaniTitle: "Chullpas de Sillustani",
     sillustani:
       "A un lado del camino, un sendero sube a una colina con cuatro chullpas, las torres funerarias de los señores qolla: torres de piedra labrada que se ensanchan hacia arriba, con una cornisa y una pequeña puerta hacia el este. Una está a medio derrumbar, con sus piedras caídas al pie. En la cima hay un círculo de piedras paradas y un letrero que nombra el lugar. Llegar a la cima da un sello extra.",
@@ -51,10 +55,12 @@ const COPY = {
       "Antes de Taquile, un ramal corto baja del camino a un muelle de madera sobre pilotes, el otro extremo del viaje en balsa.",
     peopleTitle: "Gente del lago",
     people:
-      "De día, en la isla central una mujer con pollera y sombrero bombín saluda con la mano a quien llega, otra cuida el fogón y dos niños corren en círculos; en las otras islas hay gente tejiendo y amarrando atados de totora. En el lago, tres pescadores de pie en sus balsitas dan vueltas por el agua abierta y de vez en cuando tiran de su cordel. En la puna, una pastora sentada cuida sus alpacas, y dos caminantes van y vienen por el camino entre el embarcadero de los uros y Taquile. Al anochecer casi todos vuelven a casa: solo quedan la mujer del fogón y la pastora, y las balsitas descansan en el agua.",
+      "De día, en la isla central una mujer con pollera y sombrero bombín saluda con la mano a quien llega, otra cuida el fogón y dos niños corren en círculos; en las otras islas hay gente tejiendo y amarrando atados de totora. En el lago, tres pescadores de pie en sus balsitas dan vueltas por el agua abierta y de vez en cuando tiran de su cordel. En la puna, una pastora sentada cuida sus alpacas y otra hila de pie junto a sus ovejas. Dos caminantes van y vienen entre el embarcadero de los uros y Taquile, y por todo el camino, en ambos sentidos, pasan viajeros: mujeres con pollera y bombín que cargan su atado en un aguayo a la espalda, hombres con chullo o sombrero de fieltro, algunos también cargados. En los extremos del camino dan la vuelta, y lejos de tu vista a veces aparecen en otro tramo. Al final del camino, en Titikala, hay gente reunida en un pago a la Pachamama (ver más abajo). Al anochecer casi todos vuelven a casa: solo quedan la mujer del fogón, la pastora de las alpacas y, en Titikala, el paqo y un peregrino junto al brasero; las balsitas descansan en el agua.",
     finaleTitle: "Isla del Sol · Titikala, fin del Collasuyu",
     finale:
       "El camino termina en un promontorio que representa la Isla del Sol. En su plaza está la roca sagrada Titikala, «la roca del puma»: una roca larga y rojiza que parece un puma echado, con una mesa de piedra para ofrendas delante, un disco de oro de Inti sobre una estela detrás y un círculo de piedras bajas alrededor, abierto hacia el camino. Por la ladera norte baja una escalinata inca hacia el agua. Según la leyenda inca, aquí Inti hizo salir del lago a Manco Cápac y Mama Ocllo.",
+    offering:
+      "En el lado este de la plaza, fuera del paso hacia la roca, se hace un pago a la Pachamama: sobre una manta tejida en el suelo está el despacho, con hojas de coca, claveles rojos y blancos, una concha y un paquete de papel, y al lado un brasero de barro. Un paqo arrodillado va colocando las hojas de coca y de rato en rato levanta un k'intu a sus labios; a su alrededor hay peregrinos sentados y una mujer de pie que eleva las manos hacia la roca. Al oeste, una madre con su atado mira jugar a sus niños. De noche solo quedan el paqo y un peregrino, y las brasas del brasero brillan.",
     finaleArrive:
       "La primera vez que llegas a la roca en una visita, suena un breve tema (con el sonido activo), de la roca brota una lluvia de chispas doradas como el sol del amanecer que caen despacio (no si tu sistema pide reducir el movimiento), y el disco de Inti y un halo brillan un momento. Luego se abre el panel «¡Lo lograste!», con tu nombre de viajero si lo pusiste, cuatro cifras reales y botones para crear tu postal, agendar 60 minutos, descargar el CV, volver a Qusqu o volver al sitio. Junto a la roca, la tecla E lo vuelve a abrir. De noche, el disco de Inti brilla tenue.",
     stats: "Las cifras del panel",
@@ -77,7 +83,10 @@ const COPY = {
     bonus: "Bonus passport stamp",
     arriveTitle: "Arriving",
     arrive:
-      "You arrive from Qusqu through a stone punku, a trapezoidal Inca doorway with a carved sign, at the start of the road; in its opening is a painting of Haukaypata. Behind you, “E · Back to Qusqu” takes you back to the plaza, to its Collasuyu gate. At night two braziers burn beside it. You wear the mountain's Andean clothes.",
+      "You arrive from Qusqu through a stone punku, a trapezoidal Inca doorway with a carved sign, at the start of the road; in its opening is a painting of Haukaypata. Behind you, “E · Back to Qusqu” takes you back to the plaza, to its Collasuyu gate. At night two braziers burn beside it. The traveler is dressed for the altiplano: a brown felt hat with a red band, a knitted alpaca sweater with patterned bands, a red scarf, long trousers and boots.",
+    llamaTitle: "Your llama",
+    llama:
+      "A few steps past the arrival, on the right of the road, a saddled llama waits tied to a post, by a stone trough and a sheaf of ichu: it wears a colourful woven blanket, a saddle, hanging wool tassels and pompoms on its ears. Beside it, “E · Ride the llama” mounts you; riding, you go a good deal faster along the road, and “E · Dismount” or Esc gets you off (it steps aside). The llama is for the road: it stops and lets you off when you step onto the reed boardwalk, the islands, the piers or the boat, when you leave the road for Sillustani, Taquile or the Titikala rock (those places are visited on foot) and before the punku; it waits at the roadside. While you are on the boat its prompt does not show.",
     sillustaniTitle: "Sillustani chullpas",
     sillustani:
       "Beside the road, a path climbs a hill with four chullpas, the funerary towers of the Qolla lords: towers of dressed stone that widen as they rise, with a cornice and a small doorway facing east. One is half ruined, its stones fallen at its foot. On the top stands a ring of upright stones and a sign that names the place. Reaching the top gives a bonus stamp.",
@@ -97,10 +106,12 @@ const COPY = {
       "Before Taquile, a short branch leads down from the road to a wooden pier on posts, the other end of the boat trip.",
     peopleTitle: "People of the lake",
     people:
-      "By day, on the central island a woman in a pollera and bowler hat waves at whoever arrives, another tends the hearth and two children run in circles; on the other islands people are weaving and binding bundles of totora. On the lake, three fishermen standing in their little reed boats go round the open water and now and then haul on their lines. On the puna a herder sits watching her alpacas, and two walkers go back and forth on the road between the Uros landing and Taquile. At nightfall almost everyone goes home: only the woman at the hearth and the herder stay, and the little boats rest on the water.",
+      "By day, on the central island a woman in a pollera and bowler hat waves at whoever arrives, another tends the hearth and two children run in circles; on the other islands people are weaving and binding bundles of totora. On the lake, three fishermen standing in their little reed boats go round the open water and now and then haul on their lines. On the puna a herder sits watching her alpacas and another spins on her feet beside her sheep. Two walkers go back and forth between the Uros landing and Taquile, and all along the road, both ways, travellers come and go: women in polleras and bowler hats carrying their bundle in an aguayo on their backs, men in chullos or felt hats, some loaded too. At the ends of the road they turn back, and out of your sight they sometimes reappear on another stretch. At the end of the road, at Titikala, people are gathered for an offering to the Pachamama (see below). At nightfall almost everyone goes home: only the woman at the hearth, the alpaca herder and, at Titikala, the paqo and one pilgrim by the brazier stay; the little boats rest on the water.",
     finaleTitle: "Isla del Sol · Titikala, end of the Collasuyu",
     finale:
       "The road ends on a headland that stands for the Isla del Sol. On its plaza stands the sacred rock Titikala, “the puma's rock”: a long reddish rock that looks like a crouching puma, with a stone offering table in front of it, a gold disc of Inti on a stela behind it and a ring of low stones round it, open toward the road. Down the north slope an Inca stairway runs to the water. In Inca legend, Inti made Manco Cápac and Mama Ocllo rise from the lake here.",
+    offering:
+      "On the plaza's east side, off the walk to the rock, an offering to the Pachamama (a pago) is under way: on a woven cloth on the ground lies the despacho, with coca leaves, red and white carnations, a shell and a paper packet, and beside it a clay brazier. A kneeling paqo lays out the coca leaves and now and then lifts a k'intu to his lips; round him sit pilgrims, and a woman stands raising her hands toward the rock. To the west, a mother with her bundle watches her children play. At night only the paqo and one pilgrim stay, and the brazier's embers glow.",
     finaleArrive:
       "The first time you reach the rock on a visit, a short tune plays (with sound on), a shower of sunrise-gold sparks bursts from the rock and drifts slowly down (not if your system asks for reduced motion), and the Inti disc and a halo flare for a moment. Then the panel “You made it!” opens, with your traveler name if you set one, four true figures and buttons to make your postcard, book 60 minutes, download the resume, go back to Qusqu or back to the site. By the rock, the E key opens it again. At night, the Inti disc glows faintly.",
     stats: "The panel's figures",
@@ -143,6 +154,7 @@ export function renderTiticacaTextMode(lang: Lang, opts: { headingLevel?: number
   const back = worldUrl(lang, "cusco", "titicaca");
 
   section("llegar", c.arriveTitle, `<p>${esc(c.arrive)}</p><p>${link(back, c.back)}</p>`);
+  section("llama", c.llamaTitle, `<p>${esc(c.llama)}</p>`);
   section("sillustani", c.sillustaniTitle, `<p>${esc(c.sillustani)}</p>${stampLine("titicaca:station:sillustani")}`);
   const islands = ISLANDS.map((isl) => {
     const g = islandGroup(isl);
@@ -167,10 +179,10 @@ export function renderTiticacaTextMode(lang: Lang, opts: { headingLevel?: number
   section(
     "titikala",
     c.finaleTitle,
-    `<p>${esc(c.finale)}</p><p>${esc(c.finaleArrive)}</p><h${h3}>${esc(c.stats)}</h${h3}><ul>${stats}</ul><p>${link(SITE.calendly, c.book, true)} · ${link(SITE.resume[lang], c.cv)} · ${link(back, c.back)}</p>${stampLine("titicaca:summit")}`,
+    `<p>${esc(c.finale)}</p><p>${esc(c.offering)}</p><p>${esc(c.finaleArrive)}</p><h${h3}>${esc(c.stats)}</h${h3}><ul>${stats}</ul><p>${link(SITE.calendly, c.book, true)} · ${link(SITE.resume[lang], c.cv)} · ${link(back, c.back)}</p>${stampLine("titicaca:summit")}`,
   );
   section("fauna", c.wildlife, renderWildlife(lang, h3, TITICACA_WILDLIFE));
-  section("mapa", c.mapTitle, `<p>${esc(c.map)}</p>`);
+  section("mapa", c.mapTitle, `<p>${esc(c.map)}</p><p>${esc(TRIP_TEXT[lang])}</p>`);
   const req = CATALOG.filter((s) => required.has(s.id))
     .map((s) => `<li>${esc(s.label[lang])}</li>`)
     .join("");

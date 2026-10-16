@@ -14,6 +14,7 @@ import { CATALOG, requiredStamps } from "../../lib/passport";
 import type { Lang } from "../contract";
 import { esc, renderWildlife } from "../textmode";
 import { worldUrl } from "../travel";
+import { TRIP_TEXT } from "../travel-panel-logic";
 import { figures } from "./ambient/nazca/logic";
 import { artifactCompanies, artifactUses, colcaStages, finaleStats, span } from "./content";
 import { COLCA_WILDLIFE } from "./wildlife";
@@ -30,9 +31,14 @@ const COPY = {
     bonus: "Sello extra del pasaporte",
     arriveTitle: "Llegar",
     arrive:
-      "Llegas desde Qusqu por un punku de piedra al este del camino, en el borde del cañón, mirando hacia el oeste. Junto al punku, «E · Volver a Qusqu» te lleva de vuelta a la plaza de Qusqu, frente al punku del Kuntisuyu. Llevas la ropa andina de la montaña.",
+      "Llegas desde Qusqu por un punku de piedra al este del camino, en el borde del cañón, mirando hacia el oeste. Junto al punku, «E · Volver a Qusqu» te lleva de vuelta a la plaza de Qusqu, frente al punku del Kuntisuyu. El viajero va de trekking: gorra con cubrenuca, cortavientos bicolor con cierre, pantalón cargo con bolsillos laterales y botas de caminata.",
     roadTitle: "El camino y el cañón",
     road: "El camino va por el borde norte del cañón, a unos pasos del precipicio. Bajo el borde hay una pared de roca y luego andenes, terrazas de cultivo preincas que bajan como escalones, con parcelas verdes, amarillas, doradas y de tierra; más abajo, paredes de roca con franjas de colores y, en el fondo, muy por debajo del camino, el río. Capas de neblina cruzan el cañón, más espesas por la mañana. Al otro lado se ven más andenes y, en el horizonte del sur, los volcanes Sabancaya (con una tenue fumarola), Hualca Hualca y Ampato; detrás del pueblo, al noreste, el Mismi. En la puna hay ichu, tolas, cactus columnares y piedras. Luego el camino gira al norte y baja a la pampa de Nasca, de grava rojiza, y después sube de nuevo hacia el borde del cañón.",
+    ride: "Unos pasos después del punku, a la derecha del camino, espera una mula ensillada: «E · Montar la mula» y te lleva al trote por el borde del cañón, por el pueblo y las colcas, y por la bajada a la pampa; «E · Bajar» o Esc te baja, y no entra en las plazas de las estaciones. Donde la bajada llega a la pampa, la mula se detiene y te bajas; unos pasos más allá, junto al camino, espera una cuatrimoto: «E · Subir a la cuatrimoto» y te lleva más rápido por la pampa, por el mirador de Nasca y Cahuachi, y por la subida hasta la Cruz del Cóndor; sus ruedas giran y se tuercen en las curvas. No sube a la torre ni entra en las plazas, y no vuelve a subir hacia el cañón: allí te bajas. No hace ruido de motor.",
+    travellers:
+      "Por todo el camino va y viene gente, cada uno por su lado del camino, de ida y vuelta; se detienen si te paras delante y al final de su tramo se dan la vuelta. Por el borde del cañón: mujeres del valle con su ropa bordada y el sombrero de Cabanaconde o el de los collaguas (una con su canasta), un campesino con su atado, caminantes con mochila y gorra, y otro campesino que lleva dos llamas cargadas. En la bajada y en la subida final, caminantes y una mujer de Cabanaconde. En la pampa de Nasca: arqueólogos con sombrero de lona, visitantes con mochila y gente de Nasca con sombrero de fieltro. De noche vuelven a casa.",
+    gather:
+      "De día hay gente en el mirador: visitantes junto al parapeto mirando a los cóndores (uno les toma fotos y otro descansa en una banca de piedra), una vendedora con tejidos doblados sobre una manta, una mujer de Cabanaconde con su sombrero bordado y dos niños que juegan cerca del letrero. El paso del camino a la cruz queda libre.",
     puebloTitle: "Pueblo collagua",
     pueblo:
       "Al norte del camino, un pueblo al estilo de Yanque o Chivay: una plaza empedrada con una pileta de piedra y arbustos de kantu florecidos, casas de adobe encalado, de adobe y de piedra con techos de paja, de teja o de calamina, y al norte la iglesia blanca colonial andina, con su portada de sillar tallado, dos campanarios con cúpulas y un atrio con arco. Un letrero tallado nombra el pueblo.",
@@ -83,9 +89,14 @@ const COPY = {
     bonus: "Bonus passport stamp",
     arriveTitle: "Arriving",
     arrive:
-      "You arrive from Qusqu through a stone punku at the east end of the road, on the canyon's rim, facing west. By the punku, “E · Back to Qusqu” takes you back to the plaza of Qusqu, in front of the Kuntisuyu punku. You wear the mountain's Andean clothes.",
+      "You arrive from Qusqu through a stone punku at the east end of the road, on the canyon's rim, facing west. By the punku, “E · Back to Qusqu” takes you back to the plaza of Qusqu, in front of the Kuntisuyu punku. The traveler is dressed for trekking: a cap with a neck flap, a two-tone zipped windbreaker, cargo trousers with side pockets and hiking boots.",
     roadTitle: "The road and the canyon",
     road: "The road runs along the canyon's north rim, a few steps from the drop. Under the rim there is a rock face and then andenes, pre-Inca farming terraces stepping down, with green, yellow, golden and bare plots; lower down, rock walls in coloured bands and, at the bottom, far below the road, the river. Layers of mist cross the canyon, thicker in the morning. Across it there are more terraces and, on the southern skyline, the volcanoes Sabancaya (with a faint fumarole), Hualca Hualca and Ampato; behind the village, to the north-east, Mismi. On the puna there is ichu grass, tola shrubs, columnar cacti and stones. Then the road turns north and goes down to the Nazca pampa, of reddish gravel, and later climbs back toward the canyon's rim.",
+    ride: "A few steps past the punku, on the right of the road, a saddled mule waits: “E · Ride the mule” and it trots you along the canyon's rim, past the village and the colcas, and down the descent to the pampa; “E · Dismount” or Esc gets you off, and it does not go into the stations' plazas. Where the descent reaches the pampa the mule stops and you get off; a few steps further, by the road, a quad bike waits: “E · Ride the quad bike” and it takes you faster across the pampa, past the Nazca lookout and Cahuachi, and up the climb to the Cruz del Cóndor; its wheels roll and turn into the bends. It does not climb the tower or go into the plazas, and it does not go back up toward the canyon: you get off there. It makes no engine sound.",
+    travellers:
+      "People come and go along the whole road, each on their own side, there and back; they stop if you stand in their way and turn back at the end of their stretch. Along the canyon's rim: women of the valley in their embroidered dress and the Cabanaconde or Collagua hat (one with her basket), a farmer with his bundle, walkers with packs and caps, and another farmer leading two pack llamas. On the descent and the final climb, walkers and a woman of Cabanaconde. On the Nazca pampa: archaeologists in canvas sun hats, visitors with packs and people from Nasca in felt hats. At night they go home.",
+    gather:
+      "By day there are people at the lookout: visitors by the parapet watching the condors (one taking photos of them, another resting on a stone bench), a vendor with folded textiles on a cloth, a woman of Cabanaconde in her embroidered hat and two children playing near the sign. The way from the road to the cross stays clear.",
     puebloTitle: "Collagua village",
     pueblo:
       "North of the road, a village in the style of Yanque or Chivay: a paved plaza with a stone fountain and flowering kantu bushes, houses of whitewashed adobe, bare adobe and stone with thatched, tiled or tin roofs, and on its north side the white colonial-Andean church, with its carved sillar portal, two bell towers with domes and an atrium with an arched gate. A carved sign names the village.",
@@ -156,7 +167,7 @@ export function renderColcaTextMode(lang: Lang, opts: { headingLevel?: number; t
   const qusqu = worldUrl(lang, "cusco", "colca");
 
   section("llegar", c.arriveTitle, `<p>${esc(c.arrive)}</p><p>${link(qusqu, c.back)}</p>`);
-  section("camino", c.roadTitle, `<p>${esc(c.road)}</p>`);
+  section("camino", c.roadTitle, `<p>${esc(c.road)}</p><p>${esc(c.ride)}</p><p>${esc(c.travellers)}</p>`);
   section(
     "pueblo",
     c.puebloTitle,
@@ -206,10 +217,10 @@ export function renderColcaTextMode(lang: Lang, opts: { headingLevel?: number; t
   section(
     "cruz",
     c.cruzTitle,
-    `<p>${esc(c.cruz)}</p><p>${esc(c.finale)}</p><ul>${statList}</ul><p>${esc(c.finaleButtons)}</p><p>${link(SITE.calendly, c.book, true)} · ${link(SITE.resume[lang], c.cv)} · ${link(qusqu, c.back)} · ${link(`/${lang}/`, c.site)}</p>${stampLine("colca:station:cruz")}${stampLine("colca:summit")}`,
+    `<p>${esc(c.cruz)}</p><p>${esc(c.gather)}</p><p>${esc(c.finale)}</p><ul>${statList}</ul><p>${esc(c.finaleButtons)}</p><p>${link(SITE.calendly, c.book, true)} · ${link(SITE.resume[lang], c.cv)} · ${link(qusqu, c.back)} · ${link(`/${lang}/`, c.site)}</p>${stampLine("colca:station:cruz")}${stampLine("colca:summit")}`,
   );
   section("fauna", c.lifeTitle, `<p>${esc(c.life)}</p>${renderWildlife(lang, h3, COLCA_WILDLIFE)}`);
-  section("mapa", c.mapTitle, `<p>${esc(c.map)}</p>`);
+  section("mapa", c.mapTitle, `<p>${esc(c.map)}</p><p>${esc(TRIP_TEXT[lang])}</p>`);
 
   return `<header class="kw-tm-head"><h${h1} id="${esc(tid)}" class="kw-tm-title">${esc(c.title)}</h${h1}>
 <p class="kw-tm-lede">${esc(c.lede)}</p>

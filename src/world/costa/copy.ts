@@ -42,9 +42,10 @@ export const COSTA_HELP: { title: L; lines: Record<Lang, string[]> } = {
       "En el mercado de Huanchaco, sube a un caballito de totora y rema hasta la playa del norte",
       "M: mapa · el viaje rápido se abre al llegar al mercado de Huanchaco",
       "P: pasaporte y tu postal · F: foto · K: modo texto",
+      "V o el botón «Viajar»: ir directo a otro mundo",
       "T: día o noche · N: música · Esc: cerrar",
       "En móvil: joystick a la izquierda, botones a la derecha, arrastra para girar la cámara.",
-      "Con mando: stick izquierdo camina o rema, stick derecho gira la cámara, A salta, X interactúa, B vuelve, Y abre el mapa, RB o RT corre, LB toma una foto, Start muestra esta ayuda.",
+      "Con mando: stick izquierdo camina o rema, stick derecho gira la cámara, A salta, X interactúa, B vuelve, Y abre el mapa, RB o RT corre, LB toma una foto, LT abre «Viajar», Start muestra esta ayuda.",
     ],
     en: [
       "WASD or arrows: walk",
@@ -55,9 +56,10 @@ export const COSTA_HELP: { title: L; lines: Record<Lang, string[]> } = {
       "At the Huanchaco market, board a totora reed boat and paddle to the north beach",
       "M: map · fast travel opens once you reach the Huanchaco market",
       "P: passport and your postcard · F: photo · K: text mode",
+      "V or the “Travel” button: go straight to another world",
       "T: day or night · N: music · Esc: close",
       "On mobile: joystick on the left, buttons on the right, drag to turn the camera.",
-      "With a gamepad: left stick walks or paddles, right stick turns the camera, A jumps, X interacts, B goes back, Y opens the map, RB or RT runs, LB takes a photo, Start shows this help.",
+      "With a gamepad: left stick walks or paddles, right stick turns the camera, A jumps, X interacts, B goes back, Y opens the map, RB or RT runs, LB takes a photo, LT opens Travel, Start shows this help.",
     ],
   },
 };
