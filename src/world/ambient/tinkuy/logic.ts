@@ -1,10 +1,23 @@
 /**
- * Tinkuy (crossroads) plan: pure numbers and helpers for the signpost at the trailhead and the Antisuyu
- * branch down to the stone punku (no three.js, no DOM). trailhead.ts stays the single source of the
- * branch, the punku and the arrival spot; this file derives the walkable band, the colliders and ranges.
+ * Tinkuy (crossroads) plan: pure numbers and helpers for the signpost at the trailhead, the Antisuyu branch
+ * down to its stone punku and the Qusqu branch (the Qhapaq Ñan running on south from the trail's start) to the
+ * punku that leads to the Cusco hub (no three.js, no DOM). trailhead.ts stays the single source of the
+ * branches, the punkus and the arrival spots; this file derives the walkable bands, the colliders and ranges.
+ * Helpers that take a punku default to the Antisuyu one.
  */
 import type { Collider } from "../../contract";
-import { PUNKU, SELVA_BRANCH, SELVA_BRANCH_HALF_WIDTH, WASI } from "../../trailhead";
+import {
+  PUNKU,
+  QUSQU_BRANCH,
+  QUSQU_BRANCH_HALF_WIDTH,
+  QUSQU_PUNKU,
+  SELVA_BRANCH,
+  SELVA_BRANCH_HALF_WIDTH,
+  WASI,
+} from "../../trailhead";
+
+/** A punku's frame on the ground plan (yaw: rotation.y; its +Z faces back up its branch). */
+export type PunkuAt = { readonly x: number; readonly z: number; readonly yaw: number };
 
 export type P2 = readonly [number, number];
 
@@ -22,6 +35,14 @@ export const PUNKU_FRONT: P2 = [PUNKU.x + PUNKU_DIR.x * 1.1, PUNKU.z + PUNKU_DIR
 /** Walkable centreline: from inside the plaza, along the branch, to the punku's doorstep. */
 export const BAND: readonly P2[] = [BAND_START, ...SELVA_BRANCH, PUNKU_FRONT];
 export const BAND_R = SELVA_BRANCH_HALF_WIDTH;
+
+/** The Qusqu punku's facing and doorstep, and its band: from the trail's south end to the doorstep. */
+export const QUSQU_DIR = { x: Math.sin(QUSQU_PUNKU.yaw), z: Math.cos(QUSQU_PUNKU.yaw) } as const;
+export const QUSQU_FRONT: P2 = [QUSQU_PUNKU.x + QUSQU_DIR.x * 1.1, QUSQU_PUNKU.z + QUSQU_DIR.z * 1.1];
+/** Starts on the paved trail (t 0 is at z ≈ 113), so the band joins it without a seam. */
+const QUSQU_START: P2 = [42.3, 112.4];
+export const QUSQU_BAND: readonly P2[] = [QUSQU_START, ...QUSQU_BRANCH, QUSQU_FRONT];
+export const QUSQU_BAND_R = QUSQU_BRANCH_HALF_WIDTH;
 
 /** Prompt ("E · Viajar al Antisuyu") within this distance of the punku, in front of it. */
 export const TRAVEL_R = 3;
@@ -44,6 +65,8 @@ export const SIGN_TARGETS = {
   wasi: [WASI.x + WASI.halfD, WASI.z] as P2,
   /** Across the plaza toward the branch. */
   antisuyu: [50.5, 101.5] as P2,
+  /** Down the trail and on south to the Qusqu punku. */
+  qusqu: [QUSQU_PUNKU.x, QUSQU_PUNKU.z] as P2,
 };
 
 /** Yaw (rotation.y) that turns a board whose arrow points along local +X toward world direction (dx, dz). */
@@ -79,41 +102,45 @@ export function distToPath(path: readonly P2[], x: number, z: number): number {
 }
 
 /** Punku local frame (x across the doorway, z out of its front). */
-export function punkuLocal(x: number, z: number): { x: number; z: number } {
-  const dx = x - PUNKU.x;
-  const dz = z - PUNKU.z;
-  const c = Math.cos(PUNKU.yaw);
-  const s = Math.sin(PUNKU.yaw);
+export function punkuLocal(x: number, z: number, p: PunkuAt = PUNKU): { x: number; z: number } {
+  const dx = x - p.x;
+  const dz = z - p.z;
+  const c = Math.cos(p.yaw);
+  const s = Math.sin(p.yaw);
   return { x: dx * c - dz * s, z: dx * s + dz * c };
 }
 
-export function punkuWorld(lx: number, lz: number): { x: number; z: number } {
-  const c = Math.cos(PUNKU.yaw);
-  const s = Math.sin(PUNKU.yaw);
-  return { x: PUNKU.x + lx * c + lz * s, z: PUNKU.z - lx * s + lz * c };
+export function punkuWorld(lx: number, lz: number, p: PunkuAt = PUNKU): { x: number; z: number } {
+  const c = Math.cos(p.yaw);
+  const s = Math.sin(p.yaw);
+  return { x: p.x + lx * c + lz * s, z: p.z - lx * s + lz * c };
 }
 
 /** True when the traveler stands at the doorway, on its front side (never from behind the stones). */
-export function inTravelRange(x: number, z: number): boolean {
-  const l = punkuLocal(x, z);
+export function inTravelRange(x: number, z: number, p: PunkuAt = PUNKU): boolean {
+  const l = punkuLocal(x, z, p);
   return Math.hypot(l.x, l.z) <= TRAVEL_R && l.z > -0.9;
 }
 
 /** The jambs as discs (the punku is turned off the world axes, so no boxes). */
-export function jambColliders(): Collider[] {
+export function jambColliders(p: PunkuAt = PUNKU): Collider[] {
   const out: Collider[] = [];
   const cx = (DOORWAY.bottom + DOORWAY.jamb) / 2;
   for (const sx of [-1, 1])
     for (const lz of [-0.3, 0.3]) {
-      const p = punkuWorld(sx * cx, lz);
-      out.push({ kind: "circle", x: p.x, z: p.z, r: 0.55 });
+      const w = punkuWorld(sx * cx, lz, p);
+      out.push({ kind: "circle", x: w.x, z: w.z, r: 0.55 });
     }
   return out;
 }
 
-/** Ground cover to clear (world point): the branch band and the punku's footprint. */
+/** Ground cover to clear (world point): both branch bands and the punkus' footprints. */
 export function clearsGround(x: number, z: number): boolean {
   if (distToPath(BAND, x, z) < BAND_R + 0.6) return true;
-  const l = punkuLocal(x, z);
-  return Math.abs(l.x) < 2.6 && l.z > -1.2 && l.z < 2.2;
+  if (distToPath(QUSQU_BAND, x, z) < QUSQU_BAND_R + 0.6) return true;
+  for (const p of [PUNKU, QUSQU_PUNKU]) {
+    const l = punkuLocal(x, z, p);
+    if (Math.abs(l.x) < 2.6 && l.z > -1.2 && l.z < 2.2) return true;
+  }
+  return false;
 }

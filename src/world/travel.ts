@@ -1,15 +1,25 @@
 /**
- * Travel between worlds that live on different pages (mountain /world/ ↔ jungle /world/selva/).
- * `prefetchWorld` warms the target page and its JavaScript chunks when the traveler nears a portal;
- * `travelTo` emits `world:travel`, fades the screen to the loader colour and navigates.
+ * Travel between worlds that live on different pages (mountain /world/ ↔ jungle /world/selva/ ↔ the Cusco hub
+ * /world/cusco/). `prefetchWorld` warms the target page and its JavaScript chunks when the traveler nears a
+ * portal; `travelTo` emits `world:travel`, fades the screen to the loader colour and navigates.
+ *
+ * `?from=<world>` tells the target page where the traveler came from, so it starts at the matching portal:
+ * the mountain reads it with trailhead.ts `arrivalFrom` (ARRIVALS), the suyu worlds with suyu/arrival.ts. The
+ * jungle has a single entrance and ignores it.
  */
 
 import type { Lang } from "./contract";
 import { emit, type WorldId } from "./events";
 
+/** Worlds whose page reads `?from=` (the jungle starts at its only punku whatever the origin). */
+const FROM_AWARE = new Set<WorldId>(["qhapaq", "cusco"]);
+
 export function worldUrl(lang: Lang, to: WorldId, from?: WorldId): string {
+  const q = from && from !== to && from !== "wasi" && FROM_AWARE.has(to) ? `?from=${from}` : "";
   if (to === "selva") return `/${lang}/world/selva/`;
-  return `/${lang}/world/${from && from !== "qhapaq" && from !== "wasi" ? `?from=${from}` : ""}`;
+  if (to === "cusco") return `/${lang}/world/cusco/${q}`;
+  // The mountain (and the Wasi inside it): coming from its own house is not an arrival.
+  return `/${lang}/world/${from === "qhapaq" ? "" : q}`;
 }
 
 const warmed = new Set<string>();
@@ -23,6 +33,7 @@ export function prefetchWorld(lang: Lang, to: WorldId): void {
   document.head.append(link);
   // The page is small; the real cost is its JavaScript. Warm those chunks too (they share hashes with the page).
   if (to === "selva") void import("./selva/warm").then((m) => m.warmSelva()).catch(() => {});
+  else if (to === "cusco") void import("./cusco/warm").then((m) => m.warmCusco()).catch(() => {});
 }
 
 export function travelTo(lang: Lang, from: WorldId, to: WorldId, fadeMs = 450): void {

@@ -457,8 +457,15 @@ async function start(
     input.enabled = false;
     // The camera keeps above terrain and above any registered deck (a house floor over a dip in the slope).
     const cam = createFollowCam(camera, (x, z) => topOf(decks, layout.heightAt(x, z), x, z));
-    // The camera never ends up behind the waterfall cliff, inside the cave's rock or inside the Antisuyu punku.
-    for (const name of ["waterfall-cliff", "cave-walls", "cave-liner", "cave-roof", "tinkuy-punku"]) {
+    // The camera never ends up behind the waterfall cliff, inside the cave's rock or inside a tinkuy punku.
+    for (const name of [
+      "waterfall-cliff",
+      "cave-walls",
+      "cave-liner",
+      "cave-roof",
+      "tinkuy-punku",
+      "tinkuy-qusqu-punku",
+    ]) {
       const o = scene.getObjectByName(name);
       if (o) cam.occluders.push(o);
     }

@@ -1,6 +1,6 @@
 /**
  * Tinkuy (crossroads) at the trailhead: where the mountain road meets the other worlds. Pure constants, no
- * three.js, shared by the mountain runtime (arrival spawn), the Wasi house and the Antisuyu branch.
+ * three.js, shared by the mountain runtime (arrival spawn), the Wasi house and the Antisuyu and Qusqu branches.
  *
  * Mountain world frame around the gate: the trail runs north (−z) past the gate plaza at x≈42; the plaza is
  * on the east (+x) side, centred near (46.1, 100.3); the llama waits beside the gate arch.
@@ -10,6 +10,9 @@
  *    down to a flagstone walk that joins the trail.
  *  - Antisuyu branch: a dirt path leaves the plaza's east edge and goes down south-east to a stone punku;
  *    crossing the punku travels to the jungle page.
+ *  - Qusqu branch: the Qhapaq Ñan itself runs on past the trail's start (t 0, x≈42, z≈113), down south
+ *    across the flat valley floor (ground ≈ 4.3–5.3, the river bank is ≥ 10 u further south) to a second
+ *    punku; crossing it travels to the Cusco hub page.
  * Values are the agreed starting point; the owner of ambient/wasi.ts and ambient/tinkuy.ts may refine them
  * after checking the ground (keep this file the single source).
  */
@@ -39,12 +42,26 @@ export const SELVA_BRANCH_HALF_WIDTH = 1.6;
 /** The punku (trapezoidal stone doorway) at the end of the branch; facing back up the branch. */
 export const PUNKU = { x: 66.8, z: 120, yaw: -2.55 } as const;
 
-export type ArrivalFrom = "selva";
+/** Qusqu branch from the trail's south end (t 0) down to the Qusqu punku, [x, z] points. */
+export const QUSQU_BRANCH: ReadonlyArray<readonly [number, number]> = [
+  [42.2, 113.6],
+  [41.6, 117.5],
+  [40.7, 121.5],
+  [39.9, 125.2],
+];
+export const QUSQU_BRANCH_HALF_WIDTH = 1.7;
+
+/** The Qusqu punku at the end of that branch, facing back up it (north, toward the trail). */
+export const QUSQU_PUNKU = { x: 39.4, z: 127.8, yaw: 2.95 } as const;
+
+export type ArrivalFrom = "selva" | "cusco";
 
 /** Where the traveler appears on the mountain when coming back from another world (?from=<id>). */
 export const ARRIVALS: Record<ArrivalFrom, { x: number; z: number; yaw: number }> = {
   /** On the branch ~12 u up from the punku (so the follow camera is not inside the doorway), facing the plaza. */
   selva: { x: 60, z: 110, yaw: -2.48 },
+  /** On the Qusqu branch ~10 u up from its punku, facing north up the branch toward the trail. */
+  cusco: { x: 41.5, z: 118, yaw: 2.93 },
 };
 
 export function arrivalFrom(search: string): { x: number; z: number; yaw: number } | null {
@@ -53,19 +70,25 @@ export function arrivalFrom(search: string): { x: number; z: number; yaw: number
 }
 
 /**
- * True near what the trailhead builds (the Wasi with its porch and walk, the Antisuyu branch and the punku).
+ * True near what the trailhead builds (the Wasi with its porch and walk, the Antisuyu and Qusqu branches and
+ * their punkus).
  * Flora placement skips these spots so no tree trunk (or its collider) ends up inside the house or on the path.
  */
 export function nearTrailheadBuilt(x: number, z: number, pad = 0): boolean {
   if (Math.hypot(x - WASI.x, z - WASI.z) < Math.hypot(WASI.halfW, WASI.halfD) + 2.5 + pad) return true;
   if (Math.hypot(x - PUNKU.x, z - PUNKU.z) < 4.5 + pad) return true;
-  for (let i = 0; i < SELVA_BRANCH.length - 1; i++) {
-    const [ax, az] = SELVA_BRANCH[i] as readonly [number, number];
-    const [bx, bz] = SELVA_BRANCH[i + 1] as readonly [number, number];
-    const dx = bx - ax;
-    const dz = bz - az;
-    const u = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
-    if (Math.hypot(x - ax - dx * u, z - az - dz * u) < SELVA_BRANCH_HALF_WIDTH + 0.6 + pad) return true;
-  }
+  if (Math.hypot(x - QUSQU_PUNKU.x, z - QUSQU_PUNKU.z) < 4.5 + pad) return true;
+  for (const [branch, hw] of [
+    [SELVA_BRANCH, SELVA_BRANCH_HALF_WIDTH],
+    [QUSQU_BRANCH, QUSQU_BRANCH_HALF_WIDTH],
+  ] as const)
+    for (let i = 0; i < branch.length - 1; i++) {
+      const [ax, az] = branch[i] as readonly [number, number];
+      const [bx, bz] = branch[i + 1] as readonly [number, number];
+      const dx = bx - ax;
+      const dz = bz - az;
+      const u = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+      if (Math.hypot(x - ax - dx * u, z - az - dz * u) < hw + 0.6 + pad) return true;
+    }
   return false;
 }

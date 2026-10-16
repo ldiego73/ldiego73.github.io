@@ -10,7 +10,9 @@ How ldiego73.github.io is put together: a static Astro site with three Three.js 
 │        ├── arcade ── src/arcade-lobby (3D hall) + src/games/<slug> (9 games)       │
 │        ├── world ── src/world (Qhapaq Ñan mountain + Wasi house: core, content,   │
 │        │            ambients)                                                      │
-│        └── world/selva ── src/world/selva (Antisuyu jungle: own runtime, page)     │
+│        ├── world/selva ── src/world/selva (Antisuyu jungle: own runtime, page)     │
+│        └── world/cusco ── src/world/cusco (Qusqu hub) on src/world/suyu (generic   │
+│                           suyu runtime for the hub and the coming suyu worlds)     │
 │                                   │                                                │
 │                     src/audio (procedural Web Audio: music, SFX, ambience)         │
 └────────────────────────────────────────────────────────────────────────────────────┘
@@ -22,7 +24,7 @@ How ldiego73.github.io is put together: a static Astro site with three Three.js 
 ### Routing and i18n
 
 - **Config.** `astro.config.mjs` sets `site`, i18n with locales `es` (the default) and `en`, `prefixDefaultLocale: true`, and the MDX and sitemap integrations. Fonts load through the Astro Fonts API.
-- **Pages.** Every page lives under `src/pages/[lang]/`: home, `projects/`, `blog/`, `arcade/` (lobby plus `[game].astro`), `world/index.astro` (mountain), `world/selva.astro` (jungle), `cv.astro`, `uses.astro` and `rss.xml.ts`.
+- **Pages.** Every page lives under `src/pages/[lang]/`: home, `projects/`, `blog/`, `arcade/` (lobby plus `[game].astro`), `world/index.astro` (mountain), `world/selva.astro` (jungle), `world/cusco.astro` (the Qusqu hub), `cv.astro`, `uses.astro` and `rss.xml.ts`.
 - **Root page.** `src/pages/index.astro` picks the language in this order: a saved `localStorage.lang`, then `navigator.languages`, then Spanish.
 - **UI strings.** They live in `src/i18n/ui.ts` (`t()`, `LANGS`, helpers).
 - **Language switch.** `src/lib/lang-switch.ts` keeps the reader in place. It goes to the equivalent route (or the translated twin of a post), carries over the section in view as `#hash`, and remembers the choice.
@@ -73,8 +75,10 @@ The world is a set of worlds, each loaded only when the traveler goes there (`Wo
 | `qhapaq`: the Qhapaq Ñan mountain climb | `/{lang}/world/`, `src/world/` | The page's main bundle |
 | `wasi`: the owner's Andean house at the trailhead (career, education and CV, contact, passport table) | Inside the mountain page, `src/world/ambient/wasi.ts` | The exterior is built with the mountain. The interior (`ambient/wasi/interior.ts`) is a dynamic `import()` fired within ~45 u of the house and disposed beyond 120 u |
 | `selva`: the Antisuyu jungle road (uses, blog, projects, arcade, canoe, canopy, Amazon fauna) | `/{lang}/world/selva/`, `src/world/selva/` | Its own page and runtime. It never imports the mountain's layout, terrain, fauna, NPCs or content |
+| `cusco`: Qusqu, the hub at Haukaypata (usnu with the khipu of the suyus, Qorikancha, twelve-angled stone, chasqui post, five punkus) | `/{lang}/world/cusco/`, `src/world/cusco/` | Its own page, on the generic suyu runtime (`src/world/suyu/`) |
+| Coming: `costa` (Chinchaysuyu), `titicaca` (Collasuyu), `colca` (Kuntisuyu) | `/{lang}/world/<id>/`, `src/world/<id>/` | Each its own page on the suyu runtime; their gates in Qusqu stay closed until then |
 
-**Travelling between worlds.** `src/world/trailhead.ts` holds the tinkuy (crossroads) coordinates: the Wasi footprint, the Antisuyu branch path and the stone punku. `ambient/tinkuy.ts` builds the signpost, the branch and the punku. Near the punku it prefetches the jungle page (`prefetchWorld` in `src/world/travel.ts`); E there calls `travelTo`, which emits `world:travel`, fades and navigates. The jungle's own punku travels back to `/{lang}/world/?from=selva`; the mountain page reads `?from=` with `arrivalFrom()` and starts at `ARRIVALS.selva` on the branch, skipping the title.
+**Travelling between worlds.** `src/world/trailhead.ts` holds the tinkuy (crossroads) coordinates: the Wasi footprint, the Antisuyu branch and its punku, and the Qusqu branch (the road running on south from the trail's start) and its punku. `ambient/tinkuy.ts` builds the signpost (four arrows), both branches and both punkus. Near a punku it prefetches that world's page (`prefetchWorld` in `src/world/travel.ts`); E there calls `travelTo`, which emits `world:travel`, fades and navigates with `?from=<world>` (`worldUrl`). The jungle's own punku travels back to `/{lang}/world/?from=selva`; the mountain page reads `?from=` with `arrivalFrom()` and starts at `ARRIVALS.selva` or `ARRIVALS.cusco` on the matching branch, skipping the title. The Qusqu hub's five punkus lead to the mountain and the jungle (open) and to the three coming suyus (closed); a suyu world reads `?from=` with `suyu/arrival.ts` and starts in front of the punku the traveler came through.
 
 **One passport, one page per world.** `src/lib/passport.ts` tags every stamp with its `world` (absent means `qhapaq`), lists the pages in `WORLD_PAGES`, and `passportComplete(state, world?)` checks one page or all of them. The passport ambient (`ambient/passport.ts`) runs in both runtimes and opens on the page of the current world (`setPassportWorld`, i.e. `document.documentElement.dataset.world`). The arcade reward needs every page.
 
@@ -186,6 +190,28 @@ Route `/{lang}/world/selva/`. Not a climb but a long, mostly flat road (about 81
 - **Map, postcard and text mode.** `selva/map.ts` (M or gamepad Y; fast travel after the `selva:station:collpa` stamp), the world-aware postcard (`summarize(…, "selva")`, `createJourneyDialog({ world })`), and `selva/textmode.ts` (`renderSelvaTextMode`, rendered at build time by `selva.astro`, with the field guide `selva/wildlife.ts`).
 - **Harnesses.** `bunx vite --config src/world/selva/dev/vite.config.ts --port 5203` (`?lang=es&skip=1`, same `__kw` hook) and the scenery-only harness in `selva/scenery-dev/`.
 
+### 2.3 The generic suyu runtime (`src/world/suyu/`)
+
+The jungle's runtime made generic, so the hub and the coming suyu worlds (coast, lake, canyon) do not each clone 1 100 lines. A world folder describes itself with a `SuyuDef` (`suyu/contract.ts`) and its page calls `mountSuyu(host, { lang }, def)` (`suyu/index.ts`). The jungle and the mountain keep their own runtimes.
+
+- **Shared, unchanged:** engine, toon + ink, sky, follow camera, input (keyboard, touch, gamepad), chrome, loader, photo mode, name editor, creatures, decks, seats, detail cull, quality governor, avatar, journey postcard, passport and rewards. Same walking physics, E/Esc routing, `world:modal` counter, `world:mount`/`world:sit`/`world:teleport` handling and `__kw` dev hook as the other runtimes.
+- **`SuyuLayout`** (pure, the world's `layout.ts`): `trail`, `heightAt`, `groundAt`, `stationPose`, `walkable`/`addWalkable`/`addCollider`/`colliders`, `plazas`, `isWater`, `waterDist` (negative in water), `isGround`, `trailQuery`, `grid`, `bounds`. World-specific queries go in the world's own type that extends it.
+- **`SuyuEnv`** = `WorldEnv` + `env.suyu` (`world`, `layout`, `groundAt` with decks, `isGround`, `randomGroundPoint`, `isWater`, `waterDist`, `trailDistance`).
+- **`SuyuDef` fields:** `world` (a `WorldId`), `name`, `stations` (`SuyuStation`: id, kind, t, side, offset, label, optional `stamp` kind or `false`, optional `visit` radius), `buildLayout`, `cells` (heightfield tiers), `createScenery` (else `suyu/fallback-ground.ts`), `ambients` (the world's literal `import.meta.glob(["./ambient/*.ts", "!./ambient/*.test.ts"])`), `loader` copy, `textMode` factory, `music` (day/night tracks), `atmosphere` (weather fog/cover, fog tint, near/far scale, ink fade), `spawn` (`default` and per origin `from`, a road `t` or a point), `outfit` (avatar), `place` (photo place), `visit.radius`, `map` (`suyu/map.ts`: title, canvas description, unlock stamp, extra roads and marks, aspect), `help` (controls copy for `suyu/hud.ts`), `postcard`, and `hooks` (camera occluder proxies, per-frame extras).
+- **Stamps:** a station within its visit radius stamps `<world>:station:<id>` with its kind (default `station`, which is required by the passport; `egg`/`npc` are bonus; `false` stamps nothing). Add the matching `CATALOG` entries.
+- **Vehicles:** `suyu/ride.ts`, the canoe's protocol for any boat or raft.
+- **Helpers:** `suyu/map-logic.ts` and `suyu/arrival.ts` are pure and tested; `suyu/textmode.ts` shows a world's pure text renderer in the paper overlay; `suyu/copy.ts` titles the loader.
+
+### 2.4 Qusqu, the hub (`src/world/cusco/`)
+
+Route `/{lang}/world/cusco/`. Haukaypata, the great plaza of Inca Qusqu, as a compact diorama with the real bearings (−z north).
+
+- **Plan** (`cusco/plan.ts`, pure): the plaza, the usnu's three tiers (each a step: walkable through `groundAt`), the five streets and `GATES`, the single table of the roads: Qhapaq Ñan south to the mountain, Chinchaysuyu north-west (`costa`), Antisuyu north-east (`selva`), Collasuyu south-east (`titicaca`), Kuntisuyu south-west (`colca`), each with `available`, the passport pages it leads to, what the world holds and its dye. Only `qhapaq` and `selva` are open. Stations: usnu and Qorikancha (required stamps), the twelve-angled stone (`egg`) and the chasqui post (`npc`), plus one per gate (no stamp).
+- **Layout** (`cusco/layout.ts`, pure, tested): the Huatanay valley heightfield (flat core, rising hills, Sacsayhuamán's hill), the walkable plaza and streets, the axis trail from the Qhapaq gate north over the usnu.
+- **Scenery** (`cusco/scenery.ts` + `scenery/`): valley ground, `scenery/masonry.ts` (a fast typed-array builder for ashlar walls with trapezoidal doors and niches), the plaza mesh (paving, usnu, kallanka halls, kancha walls and houses, the Qorikancha facade with its gold band and Inti disc), the streets mesh (walls, paving, Hatun Rumiyoc), Sacsayhuamán's zigzag walls, the ring of apus and instanced native plants. About eight draw calls.
+- **Ambients:** `punkus` (the five gates: stone, glimpses and signs in three meshes; open ones travel and prefetch, closed ones say "coming soon"), `khipu` (the khipu of the suyus on the usnu, knots = stamps per road in decimal positions; the panel with progress per page; the once-ever Tawantinsuyu finale when every page is complete, `FINALE_KEY`), `chasqui` (post + contact card), `landmarks` (Qorikancha stele, Hatun Rumiyoc plaque), `life` (walkers, the seated chasqui, a herder with instanced pack llamas), `doves` (native eared doves that take off as you come near).
+- **Text mode** `cusco/textmode.ts` (rendered at build time by `cusco.astro`). **Harness:** `bunx vite --config src/world/cusco/dev/vite.config.ts --port 5221` (`?lang=es`, `&from=selva` to arrive through a punku), with `dev/shots.mjs` and `dev/panels.mjs`.
+
 ## 3. Arcade
 
 - **Lobby.** `src/arcade-lobby/` is the 3D hall: cabinets (`cabinet.ts`), attract screens (`attract.ts`) and the reward skin (`aguayo.ts`). The world's arcade tambo reuses the same cabinets.
@@ -247,6 +273,14 @@ The catalog decides when the passport is complete and therefore when the arcade 
 1. Add its id to `WorldId` (`src/world/events.ts`) and a page to `WORLD_PAGES`, with its stamps tagged `world`, in `src/lib/passport.ts`.
 2. Small and close to the trail: build it as a mountain ambient whose heavy part is a dynamic `import()` loaded on approach (like the Wasi). Large: give it its own folder, contract, runtime and page (like `src/world/selva/`), and a portal in `src/world/trailhead.ts` + `travel.ts` (`worldUrl`, `ARRIVALS`).
 3. Give it its own text mode, OG card (`src/pages/og/[...route].png.ts`) and an e2e smoke test. Keep mountain-only modules out of its bundle.
+
+**Add a suyu world on the generic runtime** (the coast, the lake, the canyon):
+
+1. Add its id to `WorldId` (`src/world/events.ts`), a page to `WORLD_PAGES` and its stamps (tagged `world`) to `CATALOG` in `src/lib/passport.ts`, and a `SECTIONS` entry in `ambient/passport.ts`.
+2. Create `src/world/<id>/`: `layout.ts` (pure, implements or extends `SuyuLayout`, with tests), `scenery.ts`, `ambient/*.ts`, `textmode.ts` (pure renderer + tests), `copy.ts`, and `def.ts` exporting a `SuyuDef` whose `ambients` is the folder's own literal `import.meta.glob(["./ambient/*.ts", "!./ambient/*.test.ts"])`; `index.ts` calls `mountSuyu(host, opts, def)`. Copy `src/world/cusco/dev/` for a harness.
+3. Add `src/pages/[lang]/world/<id>.astro` (copy `cusco.astro`), an OG card (`src/lib/og.ts`, `src/pages/og/[...route].png.ts`, a screenshot in `src/assets/og/`), a `warm.ts`, and the id to `worldUrl`/`prefetchWorld` in `src/world/travel.ts`.
+4. Open its gate in Qusqu: in `src/world/cusco/plan.ts` `GATES`, set `world` to the new `WorldId`, `available: true` and its `pages`. Its punku in the hub should travel back with `travelTo(lang, "<id>", "cusco")`, and the hub's `spawn.from` picks it up from `GATES`.
+5. Add an e2e smoke test. Keep the mountain's and the jungle's modules out of its bundle.
 
 **Add or move a station:** edit `STATIONS` in `src/world/contract.ts` (mountain) or `SELVA_STATIONS` in `src/world/selva/contract.ts` (jungle). This change ripples to:
 

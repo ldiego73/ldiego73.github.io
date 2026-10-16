@@ -6,7 +6,7 @@
  * the traveler has reached the summit (`summit` stamp, kept in storage); then the map emits
  * `world:teleport {to}` and index.ts moves the traveler with a short fade.
  * Next to the canvas, a keyboard list of stations (the accessible version of the map).
- * Landmarks at the trailhead (the Wasi house, the Antisuyu punku; trailhead.ts) are drawn as labelled
+ * Landmarks at the trailhead (the Wasi house, the Antisuyu and Qusqu punkus; trailhead.ts) are drawn as labelled
  * diamonds only: they are not fast-travel stops.
  */
 import "./map.css";
@@ -14,7 +14,7 @@ import type { Lang } from "./contract";
 import { emit, on } from "./events";
 import { fonts } from "./palette";
 import { createOverlay, esc } from "./textmode";
-import { PUNKU, WASI } from "./trailhead";
+import { PUNKU, QUSQU_PUNKU, WASI } from "./trailhead";
 
 export interface MapStop {
   id: string;
@@ -40,6 +40,7 @@ export const ALWAYS_OPEN = new Set(["gate"]);
 export const LANDMARKS: ReadonlyArray<{ id: string; label: { es: string; en: string }; x: number; z: number }> = [
   { id: "wasi", label: { es: "Wasi", en: "Wasi" }, x: WASI.x, z: WASI.z },
   { id: "punku", label: { es: "Punku del Antisuyu", en: "Antisuyu punku" }, x: PUNKU.x, z: PUNKU.z },
+  { id: "punku-qusqu", label: { es: "Punku de Qusqu", en: "Qusqu punku" }, x: QUSQU_PUNKU.x, z: QUSQU_PUNKU.z },
 ];
 
 /** Square bounds around points, padded. */

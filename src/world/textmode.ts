@@ -97,11 +97,14 @@ const COPY = {
       "Sobre la mesa del viajero esperan tu pasaporte, con un sello por cada lugar descubierto en cada mundo, y la postal de tu viaje para compartir. El pasaporte se abre con la tecla P; la postal, con el botón «Mi postal» del pasaporte.",
     tinkuy: "Tinkuy · el cruce de caminos",
     tinkuyLede:
-      "Donde el caminito de la Wasi llega al sendero, frente a la plaza de la puerta, se cruzan los caminos. Un poste señala los rumbos: el Qhapaq Ñan sube hacia la cumbre, la Wasi espera al otro lado del sendero y un camino de tierra baja hacia el Antisuyu.",
+      "Donde el caminito de la Wasi llega al sendero, frente a la plaza de la puerta, se cruzan los caminos. Un poste señala los rumbos: el Qhapaq Ñan sube hacia la cumbre, la Wasi espera al otro lado del sendero, un camino de tierra baja hacia el Antisuyu y otro sigue al sur, hacia Qusqu.",
     antisuyuLede:
       "Desde el borde oriental de la plaza, el ramal del Antisuyu desciende hacia el sureste hasta un punku, una portada de piedra trapezoidal. Al cruzarla viajas a la selva: un camino casi llano por el bosque, junto a un gran río que se puede recorrer en canoa, con puentes colgantes en el dosel cerca del final.",
     selvaStops: "Paradas del camino de la selva",
     selvaLink: "Cruzar el punku: ir al camino del Antisuyu",
+    qusquLede:
+      "Desde el inicio del sendero, el camino sigue hacia el sur hasta otro punku con un letrero tallado, «Qusqu · Haukaypata»: al cruzarlo viajas a la gran plaza de Qusqu, de donde salen los caminos a los demás mundos.",
+    qusquLink: "Cruzar el punku: ir a Qusqu",
   },
   en: {
     title: "Qhapaq Ñan · text mode",
@@ -171,11 +174,14 @@ const COPY = {
       "On the traveler's table wait your passport, with a stamp for every place found in every world, and your journey postcard to share. Open the passport with the P key; the postcard with the passport's \"My postcard\" button.",
     tinkuy: "Tinkuy · the crossroads",
     tinkuyLede:
-      "Where the Wasi's walk meets the path, across from the gate plaza, the roads meet. A signpost points the ways: the Qhapaq Ñan climbs to the summit, the Wasi waits across the path and a dirt road goes down toward the Antisuyu.",
+      "Where the Wasi's walk meets the path, across from the gate plaza, the roads meet. A signpost points the ways: the Qhapaq Ñan climbs to the summit, the Wasi waits across the path, a dirt road goes down toward the Antisuyu and another runs on south, toward Qusqu.",
     antisuyuLede:
       "From the east edge of the plaza, the Antisuyu branch goes down to the south-east to a punku, a trapezoidal stone doorway. Crossing it takes you to the jungle: a mostly flat road through the forest beside a wide river you can travel by canoe, with hanging bridges in the canopy near the end.",
     selvaStops: "Stops on the jungle road",
     selvaLink: "Cross the punku: go to the Antisuyu road",
+    qusquLede:
+      "From the start of the path, the road runs on south to another punku with a carved board, “Qusqu · Haukaypata”: crossing it takes you to the great plaza of Qusqu, where the roads to the other worlds begin.",
+    qusquLink: "Cross the punku: go to Qusqu",
   },
 } as const;
 
@@ -324,13 +330,15 @@ function wasiHtml(lang: Lang, h3: number): string {
 <${h}>${esc(roomLabel(lang, "mesa"))}</${h}><p>${esc(cp.mesaLede)}</p>`;
 }
 
-/** The tinkuy signpost and the Antisuyu branch to the punku, with a plain link to the jungle page. */
+/** The tinkuy signpost, the Antisuyu branch and the Qusqu punku, with plain links to the jungle and the hub. */
 function tinkuyHtml(lang: Lang, h3: number): string {
   const cp = COPY[lang];
   const stops = SELVA_STATIONS.map((s) => `<li>${esc(s.label[lang])}</li>`).join("");
   return `<p>${esc(cp.tinkuyLede)}</p><p>${esc(cp.antisuyuLede)}</p>
 <p><a class="kw-tm-travel" href="${esc(worldUrl(lang, "selva"))}">${esc(cp.selvaLink)}</a></p>
-<h${h3}>${esc(cp.selvaStops)}</h${h3}><ol>${stops}</ol>`;
+<h${h3}>${esc(cp.selvaStops)}</h${h3}><ol>${stops}</ol>
+<p>${esc(cp.qusquLede)}</p>
+<p><a class="kw-tm-travel" href="${esc(worldUrl(lang, "cusco", "qhapaq"))}">${esc(cp.qusquLink)}</a></p>`;
 }
 
 /** The full narration as an HTML string (escaped). `headingLevel` is the level of the document title. */

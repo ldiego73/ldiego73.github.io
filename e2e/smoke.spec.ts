@@ -81,6 +81,30 @@ test("Antisuyu jungle world loads on its own page", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("Cusco hub world loads on its own page", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/es/world/cusco/");
+  await expect(page.locator("#world canvas").first()).toBeAttached({ timeout: 15000 });
+  await page.waitForTimeout(2500);
+  expect(errors).toEqual([]);
+});
+
+test("arriving at the Cusco hub through the Antisuyu punku", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/en/world/cusco/?from=selva");
+  await expect(page.locator("#world canvas").first()).toBeAttached({ timeout: 15000 });
+  await page.waitForTimeout(2500);
+  expect(errors).toEqual([]);
+});
+
+test("coming back from Cusco starts on the mountain without the title", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/es/world/?from=cusco");
+  await expect(page.locator("#world canvas").first()).toBeAttached({ timeout: 15000 });
+  await page.waitForTimeout(2500);
+  expect(errors).toEqual([]);
+});
+
 test("coming back from the jungle starts on the mountain without the title", async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto("/en/world/?from=selva");
