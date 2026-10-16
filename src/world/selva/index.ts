@@ -327,7 +327,7 @@ async function start(
 
     let avatar: Avatar;
     try {
-      avatar = createAvatar(env);
+      avatar = createAvatar(env, "explorer");
     } catch (err) {
       console.warn("[selva] avatar fallback", err);
       avatar = fallbackAvatar(env.toon);
@@ -362,7 +362,7 @@ async function start(
     early.push(() => {
       for (const a of ambients) a.dispose();
     });
-    const cull = createDetailCull(scene, { skip: (o) => o.name === "traveler" });
+    const cull = createDetailCull(scene, { skip: (o) => o.name === "traveler" || o.name === "ride-mule" });
     cull.scan();
     let cullClock = 0;
     early.push(() => cull.dispose());

@@ -35,7 +35,7 @@ const COPY = {
     close: "Cerrar",
     skip: "Saltar al modo texto",
     stamp: "Sello del pasaporte",
-    gate: "Cruzas un punku de piedra, una portada inca trapezoidal con musgo, y entras a la selva. Detrás de ti, el mismo punku te devuelve al Qhapaq Ñan.",
+    gate: "Cruzas un punku de piedra, una portada inca trapezoidal con musgo, y entras a la selva. Detrás de ti, el mismo punku te devuelve al Qhapaq Ñan. Llegas con ropa de explorador: sombrero de ala ancha, polo, short y botas. En el borde de la plaza espera una mula ensillada, con alforjas: «E · Montar la mula» te sube y andas más rápido; «E · Bajar» o Esc te deja donde estés. La mula es para el camino: las paradas se recorren a pie. Si sales del camino hacia una parada, subes a un muelle, una pasarela o una balsa, o llegas a los puentes del dosel, te bajas y la mula te espera a un lado del camino.",
     regaton:
       "Un bote de regatón, el comerciante del río: una canoa larga de motor peque-peque con cabina techada de irapay, amarrada a un muelle. En el muelle extiende su mercancía en puestos: las herramientas con las que trabajo, agrupadas como en la página «Lo que uso». Cada puesto abre su lista. Desde el embarcadero de balsa, al pie de la escalera, una tabla sube a bordo: puedes caminar bajo la cabina, donde también se ve la mercancía. El bote no zarpa.",
     usesLink: "Ver «Lo que uso»",
@@ -78,7 +78,7 @@ const COPY = {
     close: "Close",
     skip: "Skip to text mode",
     stamp: "Passport stamp",
-    gate: "You walk through a stone punku, a mossy trapezoidal Inca doorway, into the jungle. Behind you, the same punku takes you back to the Qhapaq Ñan.",
+    gate: "You walk through a stone punku, a mossy trapezoidal Inca doorway, into the jungle. Behind you, the same punku takes you back to the Qhapaq Ñan. You arrive dressed as an explorer: wide-brim hat, polo shirt, shorts and boots. At the edge of the plaza a saddled mule with saddlebags waits: “E · Ride the mule” gets you on and you travel faster; “E · Dismount” or Esc leaves you wherever you are. The mule is for the road: the stops are visited on foot. If you leave the road toward a stop, step onto a pier, a boardwalk or a raft, or reach the canopy bridges, you get off and the mule waits for you at the roadside.",
     regaton:
       "A regatón's boat, the river trader: a long peke-peke motor canoe with a palm-thatched cabin, moored at a dock. On the dock his wares are laid out on stalls: the tools I work with, grouped as on the “Uses” page. Each stall opens its list. From the balsa jetty at the foot of the stairs a plank leads aboard: you can walk under the cabin, where the wares can be browsed too. The boat stays moored.",
     usesLink: "See “Uses”",

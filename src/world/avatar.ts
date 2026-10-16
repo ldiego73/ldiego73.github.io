@@ -4,8 +4,10 @@ import { on, type SitPose } from "./events";
 import { C, canvasTex, DYE, toonMapped } from "./props";
 
 /**
- * Generic Andean traveler (not a real person): chullo with ear flaps and pompom, poncho with khipu dye
- * stripes, backpack with a laptop edge peeking out, boots. Chunky, Messenger-like proportions.
+ * Generic traveler (not a real person), dressed per world (`outfit`):
+ *  - "andean" (mountain, default): chullo with ear flaps and pompom, poncho with khipu dye stripes, long pants.
+ *  - "explorer" (Antisuyu jungle): wide-brim explorer hat, short-sleeved polo, bandana, belted shorts, socks.
+ * Both carry the backpack with a laptop edge peeking out, and boots. Chunky, Messenger-like proportions.
  * Origin at the feet, facing +Z (core sets group.rotation.y = yaw). About 1.6 units tall.
  * All motion is procedural: idle breathing + look-around, walk/run cycles, jump, landing squash, dust.
  * Riding (`world:mount`): legs straddle the saddle, hands on the reins, no walk cycle, a light bob with speed.
@@ -17,6 +19,16 @@ const PANTS = "#2f3557";
 const BOOT = "#4a2e1c";
 const SWEATER = "#7a2f35";
 const PACK = "#6b4a2b";
+// Explorer outfit (jungle): light cotton polo, khaki shorts, a tan felt hat with a leather band.
+const POLO = "#e6dcc2";
+const POLO_TRIM = "#4f7a62";
+const SHORTS = "#a88d5c";
+const BELT = "#5a3b24";
+const HAT = "#c7a96f";
+const HAT_BAND = "#5a3b24";
+const HAIR = "#2b1d15";
+
+export type Outfit = "andean" | "explorer";
 
 function ponchoTexture() {
   return canvasTex(256, 128, (ctx, w, h) => {
@@ -89,7 +101,12 @@ class Spring {
   }
 }
 
-export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
+/**
+ * `outfit` is an optional extra argument (still assignable to CreateAvatar): the mountain loader calls
+ * `createAvatar(env)` and gets the Andean traveler; the jungle page passes "explorer".
+ */
+export function createAvatar(env: WorldEnv, outfit: Outfit = "andean"): Avatar {
+  const explorer = outfit === "explorer";
   const group = new THREE.Group();
   group.name = "traveler";
   const geos: THREE.BufferGeometry[] = [];
@@ -115,18 +132,23 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
   const shinGeo = g(new THREE.CapsuleGeometry(0.085, 0.07, 3, 8));
   const bootGeo = g(new THREE.BoxGeometry(0.15, 0.11, 0.24));
   const cuffGeo = g(new THREE.CylinderGeometry(0.09, 0.09, 0.05, 8));
+  const shortsGeo = explorer ? g(new THREE.CapsuleGeometry(0.1, 0.07, 3, 8)) : null;
+  const sockGeo = explorer ? g(new THREE.CylinderGeometry(0.09, 0.088, 0.11, 8)) : null;
   const KNEE = 0.25;
   const knees: THREE.Group[] = [];
   const makeLeg = (side: number) => {
     const pivot = new THREE.Group();
     pivot.position.set(0.105 * side, 0.56, 0);
-    pivot.add(mesh(thighGeo, toon(PANTS), 0, -0.145, 0));
+    pivot.add(mesh(thighGeo, toon(explorer ? SKIN : PANTS), 0, -0.145, 0));
+    // Shorts leg: a wider khaki capsule over the top of the thigh, ending above the knee.
+    if (explorer) pivot.add(mesh(shortsGeo!, toon(SHORTS), 0, -0.1, 0));
     const knee = new THREE.Group();
     knee.position.y = -KNEE;
-    knee.add(mesh(shinGeo, toon(PANTS), 0, -0.12, 0));
+    knee.add(mesh(shinGeo, toon(explorer ? SKIN : PANTS), 0, -0.12, 0));
     knee.add(mesh(bootGeo, toon(BOOT), 0, -0.5 + KNEE, 0.035));
-    // Sandal strap/sock cuff in cotton.
-    knee.add(mesh(cuffGeo, toon(C.cotton), 0, -0.42 + KNEE, 0));
+    // Sandal strap/sock cuff in cotton (the explorer wears taller hiking socks).
+    if (explorer) knee.add(mesh(sockGeo!, toon(C.cotton), 0, -0.39 + KNEE, 0));
+    else knee.add(mesh(cuffGeo, toon(C.cotton), 0, -0.42 + KNEE, 0));
     pivot.add(knee);
     knees.push(knee);
     rig.add(pivot);
@@ -139,39 +161,71 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
   const torso = new THREE.Group();
   torso.position.y = 0.56;
   rig.add(torso);
-  const chest = mesh(g(new THREE.CylinderGeometry(0.19, 0.17, 0.48, 10)), toon(SWEATER), 0, 0.24, 0);
+  const chest = mesh(g(new THREE.CylinderGeometry(0.19, 0.17, 0.48, 10)), toon(explorer ? POLO : SWEATER), 0, 0.24, 0);
   torso.add(chest);
 
-  // Poncho: pivot at the shoulders, hangs over the chest; striped cloth.
-  const ponchoTex = ponchoTexture();
-  ponchoTex.wrapS = THREE.RepeatWrapping;
-  ponchoTex.repeat.set(2, 1);
-  const ponchoMat = toonMapped(env, ponchoTex);
-  owned.push(ponchoMat);
-  const ponchoGeo = g(new THREE.CylinderGeometry(0.17, 0.4, 0.46, 12, 1));
-  ponchoGeo.translate(0, -0.23, 0);
-  // Slightly square the poncho (a cloth rectangle draped over the shoulders).
-  {
-    const p = ponchoGeo.getAttribute("position");
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i);
-      const z = p.getZ(i);
-      p.setXYZ(i, x * 1.08, p.getY(i), z * 0.86);
+  // Andean: poncho (pivot at the shoulders, hangs over the chest; striped cloth) + neck opening collar.
+  // Explorer: polo collar and placket, a knotted bandana, shorts waist and belt.
+  let ponchoTex: THREE.CanvasTexture | null = null;
+  let poncho: THREE.Mesh | null = null;
+  if (!explorer) {
+    ponchoTex = ponchoTexture();
+    ponchoTex.wrapS = THREE.RepeatWrapping;
+    ponchoTex.repeat.set(2, 1);
+    const ponchoMat = toonMapped(env, ponchoTex);
+    owned.push(ponchoMat);
+    const ponchoGeo = g(new THREE.CylinderGeometry(0.17, 0.4, 0.46, 12, 1));
+    ponchoGeo.translate(0, -0.23, 0);
+    // Slightly square the poncho (a cloth rectangle draped over the shoulders).
+    {
+      const p = ponchoGeo.getAttribute("position");
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i);
+        const z = p.getZ(i);
+        p.setXYZ(i, x * 1.08, p.getY(i), z * 0.86);
+      }
+      ponchoGeo.computeVertexNormals();
     }
-    ponchoGeo.computeVertexNormals();
+    poncho = mesh(ponchoGeo, ponchoMat, 0, 0.5, 0);
+    torso.add(poncho);
+    torso.add(mesh(g(new THREE.TorusGeometry(0.11, 0.035, 5, 10)), toon(DYE.indigo), 0, 0.5, 0).rotateX(Math.PI / 2));
+  } else {
+    // Polo collar (thin trim ring) and a red bandana triangle hanging on the chest. No red ring at the chin:
+    // from the follow camera's height it reads as lips.
+    torso.add(mesh(g(new THREE.TorusGeometry(0.125, 0.02, 4, 12)), toon(POLO_TRIM), 0, 0.475, 0).rotateX(Math.PI / 2));
+    // Three-sided cone, apex down, flattened front-to-back: a cloth triangle whose flat face is the front.
+    const bibGeo = g(new THREE.ConeGeometry(0.11, 0.16, 3));
+    bibGeo.rotateX(Math.PI);
+    bibGeo.scale(1, 1, 0.25);
+    const bib = mesh(bibGeo, toon(DYE.red), 0, 0.4, 0.2);
+    bib.rotation.x = 0.05;
+    torso.add(bib);
+    // Polo placket (two buttons' worth of trim) below the bandana.
+    const placket = mesh(g(new THREE.BoxGeometry(0.05, 0.1, 0.02)), toon(POLO_TRIM), 0, 0.31, 0.175);
+    placket.rotation.x = -0.05;
+    env.noOutline(placket);
+    torso.add(placket);
+    // Shorts waist (the polo tucked in) and a leather belt with a brass buckle.
+    torso.add(mesh(g(new THREE.CylinderGeometry(0.176, 0.185, 0.12, 10)), toon(SHORTS), 0, 0.04, 0));
+    torso.add(mesh(g(new THREE.CylinderGeometry(0.182, 0.182, 0.04, 10)), toon(BELT), 0, 0.1, 0));
+    const buckle = mesh(g(new THREE.BoxGeometry(0.06, 0.045, 0.02)), toon(DYE.ochre), 0, 0.1, 0.18);
+    env.noOutline(buckle);
+    torso.add(buckle);
   }
-  const poncho = mesh(ponchoGeo, ponchoMat, 0, 0.5, 0);
-  torso.add(poncho);
-  // Neck opening collar.
-  torso.add(mesh(g(new THREE.TorusGeometry(0.11, 0.035, 5, 10)), toon(DYE.indigo), 0, 0.5, 0).rotateX(Math.PI / 2));
 
   // Arms (pivot at shoulder), sleeves + hands.
   const armGeo = g(new THREE.CapsuleGeometry(0.065, 0.26, 3, 8));
   const handGeo = g(new THREE.SphereGeometry(0.07, 8, 6));
+  const sleeveGeo = explorer ? g(new THREE.CapsuleGeometry(0.078, 0.07, 3, 8)) : null;
+  const forearmGeo = explorer ? g(new THREE.CapsuleGeometry(0.058, 0.17, 3, 8)) : null;
   const makeArm = (side: number) => {
     const pivot = new THREE.Group();
     pivot.position.set(0.25 * side, 0.43, 0);
-    pivot.add(mesh(armGeo, toon(SWEATER), 0, -0.17, 0));
+    if (explorer) {
+      // Short polo sleeve over a bare forearm.
+      pivot.add(mesh(sleeveGeo!, toon(POLO), 0, -0.07, 0));
+      pivot.add(mesh(forearmGeo!, toon(SKIN), 0, -0.21, 0));
+    } else pivot.add(mesh(armGeo, toon(SWEATER), 0, -0.17, 0));
     pivot.add(mesh(handGeo, toon(SKIN), 0, -0.36, 0.01));
     torso.add(pivot);
     return pivot;
@@ -225,36 +279,74 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
   env.noOutline(nose);
   head.add(nose);
 
-  // Chullo: knitted cap + cuff band + ear flaps with tassels + pompom.
-  const chulloTex = chulloTexture();
-  chulloTex.wrapS = THREE.RepeatWrapping;
-  chulloTex.repeat.set(3, 1);
-  const chulloMat = toonMapped(env, chulloTex);
-  owned.push(chulloMat);
-  const capGeo = g(new THREE.SphereGeometry(0.255, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55));
-  const cap = mesh(capGeo, chulloMat, 0, 0.25, -0.01);
-  cap.scale.set(1.02, 1.12, 1.02);
-  head.add(cap);
-  // Pointed crown (chullos are a bit conical).
-  head.add(mesh(g(new THREE.ConeGeometry(0.13, 0.16, 10)), chulloMat, 0, 0.5, -0.03));
-  const pompomPivot = new THREE.Group();
-  pompomPivot.position.set(0, 0.56, -0.03);
-  pompomPivot.add(mesh(g(new THREE.IcosahedronGeometry(0.07, 0)), toon(DYE.ochre), 0, 0.06, 0));
-  head.add(pompomPivot);
-  const flapGeo = g(new THREE.BoxGeometry(0.06, 0.18, 0.14));
-  const tasselGeo = g(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 4));
-  const tasselEndGeo = g(new THREE.IcosahedronGeometry(0.035, 0));
+  // Headwear. Andean: chullo (knitted cap + cuff band + ear flaps with tassels + pompom). Explorer: hair and a
+  // wide-brim felt hat; the hat sits on a pivot that wobbles a little with the gait (the pompom's spring).
+  let chulloTex: THREE.CanvasTexture | null = null;
   const tassels: THREE.Group[] = [];
-  for (const s of [-1, 1]) {
-    const flap = mesh(flapGeo, chulloMat, 0.235 * s, 0.13, -0.01);
-    flap.rotation.z = 0.12 * s;
-    head.add(flap);
-    const tp = new THREE.Group();
-    tp.position.set(0.25 * s, 0.03, -0.01);
-    tp.add(mesh(tasselGeo, toon(DYE.indigo), 0, -0.08, 0));
-    tp.add(mesh(tasselEndGeo, toon(DYE.red), 0, -0.17, 0));
-    head.add(tp);
-    tassels.push(tp);
+  const bobPivot = new THREE.Group();
+  /** How far the bob pivot follows its spring: the pompom swings freely, the hat brim only nods. */
+  const bobAmp = explorer ? 0.12 : 1;
+  if (!explorer) {
+    chulloTex = chulloTexture();
+    chulloTex.wrapS = THREE.RepeatWrapping;
+    chulloTex.repeat.set(3, 1);
+    const chulloMat = toonMapped(env, chulloTex);
+    owned.push(chulloMat);
+    const capGeo = g(new THREE.SphereGeometry(0.255, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55));
+    const cap = mesh(capGeo, chulloMat, 0, 0.25, -0.01);
+    cap.scale.set(1.02, 1.12, 1.02);
+    head.add(cap);
+    // Pointed crown (chullos are a bit conical).
+    head.add(mesh(g(new THREE.ConeGeometry(0.13, 0.16, 10)), chulloMat, 0, 0.5, -0.03));
+    bobPivot.position.set(0, 0.56, -0.03);
+    bobPivot.add(mesh(g(new THREE.IcosahedronGeometry(0.07, 0)), toon(DYE.ochre), 0, 0.06, 0));
+    head.add(bobPivot);
+    const flapGeo = g(new THREE.BoxGeometry(0.06, 0.18, 0.14));
+    const tasselGeo = g(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 4));
+    const tasselEndGeo = g(new THREE.IcosahedronGeometry(0.035, 0));
+    for (const s of [-1, 1]) {
+      const flap = mesh(flapGeo, chulloMat, 0.235 * s, 0.13, -0.01);
+      flap.rotation.z = 0.12 * s;
+      head.add(flap);
+      const tp = new THREE.Group();
+      tp.position.set(0.25 * s, 0.03, -0.01);
+      tp.add(mesh(tasselGeo, toon(DYE.indigo), 0, -0.08, 0));
+      tp.add(mesh(tasselEndGeo, toon(DYE.red), 0, -0.17, 0));
+      head.add(tp);
+      tassels.push(tp);
+    }
+  } else {
+    // Hair: a cap of the skull sphere tilted back, so the hairline clears the eyes and covers the nape.
+    const hair = mesh(
+      g(new THREE.SphereGeometry(0.245, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.6)),
+      toon(HAIR),
+      0,
+      0.2,
+      -0.005,
+    );
+    hair.rotation.x = -0.45;
+    hair.scale.set(1.01, 0.99, 0.96);
+    head.add(hair);
+    const earGeo = g(new THREE.SphereGeometry(0.045, 6, 5));
+    for (const s of [-1, 1]) {
+      const ear = mesh(earGeo, toon(SKIN), 0.232 * s, 0.13, 0);
+      ear.scale.set(0.6, 1, 0.8);
+      head.add(ear);
+    }
+    // Hat (pivot at the brim): wide flat brim, rounded crown with a pinch, leather band. Tipped back a touch.
+    bobPivot.position.set(0, 0.33, -0.01);
+    bobPivot.rotation.x = -0.12;
+    bobPivot.add(mesh(g(new THREE.CylinderGeometry(0.42, 0.44, 0.03, 18)), toon(HAT), 0, 0, 0));
+    const crown = mesh(g(new THREE.CylinderGeometry(0.2, 0.245, 0.19, 14)), toon(HAT), 0, 0.1, 0);
+    crown.scale.set(1, 1, 0.92);
+    bobPivot.add(crown);
+    const top = mesh(g(new THREE.SphereGeometry(0.2, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.5)), toon(HAT), 0, 0.19, 0);
+    top.scale.set(1, 0.35, 0.92);
+    bobPivot.add(top);
+    const band = mesh(g(new THREE.CylinderGeometry(0.236, 0.246, 0.045, 14)), toon(HAT_BAND), 0, 0.045, 0);
+    band.scale.set(1, 1, 0.92);
+    bobPivot.add(band);
+    head.add(bobPivot);
   }
 
   // ---- Dust puffs (world space, pooled)
@@ -372,15 +464,19 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
       // Secondary motion: poncho trails behind, tassels swing, pompom wobbles.
       const amp = rm ? 0.4 : 1;
       const pTarget = -(0.12 * walkW + 0.22 * runW) - THREE.MathUtils.clamp(accel * 0.02, -0.15, 0.15) + airW * 0.25;
-      poncho.rotation.x = ponchoSpring.step(pTarget * amp, dt);
-      poncho.rotation.z = Math.cos(phase) * 0.05 * walkW * amp;
+      const pX = ponchoSpring.step(pTarget * amp, dt);
+      if (poncho) {
+        poncho.rotation.x = pX;
+        poncho.rotation.z = Math.cos(phase) * 0.05 * walkW * amp;
+      }
       const tTarget = -(0.3 * walkW + 0.5 * runW) + airW * 0.6 + Math.sin(phase * 2) * 0.12 * walkW;
       const tx = tasselSpring.step(tTarget * amp, dt);
       for (const tp of tassels) {
         tp.rotation.x = tx;
         tp.rotation.z = Math.sin(phase + tp.position.x) * 0.15 * walkW * amp;
       }
-      pompomPivot.rotation.x = pompomSpring.step((-0.3 * walkW - 0.5 * runW + airW * 0.5 - bob * 4) * amp, dt);
+      const bobX = pompomSpring.step((-0.3 * walkW - 0.5 * runW + airW * 0.5 - bob * 4) * amp, dt) * bobAmp;
+      bobPivot.rotation.x = (explorer ? -0.12 : 0) + bobX;
 
       // Seated on the llama: legs straddle the saddle, hands hold the reins, bob with the trot.
       if (rideW > 0.001) {
@@ -472,11 +568,14 @@ export const createAvatar: CreateAvatar = (env: WorldEnv): Avatar => {
       offSit();
       for (const p of dust) p.m.removeFromParent();
       for (const x of geos) x.dispose();
-      ponchoTex.dispose();
-      chulloTex.dispose();
+      ponchoTex?.dispose();
+      chulloTex?.dispose();
       for (const m of owned) m.dispose();
       group.removeFromParent();
     },
   };
   return avatar;
-};
+}
+
+// Still a CreateAvatar (the mountain loader calls it with env only).
+createAvatar satisfies CreateAvatar;
