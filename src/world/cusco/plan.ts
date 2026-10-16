@@ -56,14 +56,11 @@ export const ROAD_LEN = 30;
 /** The traveler arrives this far inside a gate (on its street, facing the plaza): out of its prompt range. */
 export const ARRIVE_IN = 12;
 
-/** Future worlds have no WorldId yet; their gates are closed until their page exists. */
-export type FutureWorld = "colca";
-
 export interface Gate {
   /** Station id of the gate (and the stem of its sign). */
   id: "qhapaq" | "chinchaysuyu" | "antisuyu" | "collasuyu" | "kuntisuyu";
   /** The world behind the gate. */
-  world: WorldId | FutureWorld;
+  world: WorldId;
   /** Travel opens only when the world's page exists. */
   available: boolean;
   /** Where the street leaves the plaza (a plaza corner or the middle of its south edge). */
@@ -154,16 +151,16 @@ export const GATES: ReadonlyArray<Gate> = [
   {
     id: "kuntisuyu",
     world: "colca",
-    available: false,
+    available: true,
     mouth: [PLAZA.x0, PLAZA.z1],
     dir: [-D, D],
     name: { es: "Kuntisuyu", en: "Kuntisuyu" },
     bearing: { es: "al suroeste, hacia el Colca y Nasca", en: "south-west, to the Colca and Nazca" },
     holds: {
-      es: "El cañón del Colca con sus cóndores y las líneas de Nasca.",
-      en: "The Colca canyon with its condors, and the Nazca lines.",
+      es: "El camino del cañón del Colca y la pampa de Nasca: los logros de cada etapa de mi carrera guardados en colcas, mis artefactos de arquitectura trazados como geoglifos, un pueblo collagua, cóndores y el mirador de la Cruz del Cóndor.",
+      en: "The road of the Colca canyon and the Nazca pampa: the achievements of each stage of my career stored in colcas, my architecture artifacts drawn as geoglyphs, a Collagua village, condors and the Cruz del Cóndor lookout.",
     },
-    pages: [],
+    pages: ["colca"],
     dye: "#3446a6",
     glimpse: ["#f3dcb4", "#c98b5a", "#8a5a35"],
   },

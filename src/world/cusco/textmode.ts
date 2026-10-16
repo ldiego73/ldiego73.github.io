@@ -47,7 +47,8 @@ const COPY = {
     email: "Correo",
     gatesTitle: "Los cinco punkus",
     gates:
-      "De cada esquina de la plaza sale una calle entre muros de piedra, y otra sale al sur. Cada una termina en un punku, una portada trapezoidal de piedra con un letrero tallado y, en el vano, un vistazo de su mundo. Cerca de un punku abierto, «E · Viajar» te lleva a ese mundo; un punku cerrado tiene una tranca de troncos y un letrero «Próximamente», y no viaja.",
+      "De cada esquina de la plaza sale una calle entre muros de piedra, y otra sale al sur. Cada una termina en un punku, una portada trapezoidal de piedra con un letrero tallado y, en el vano, un vistazo de su mundo. Cerca de un punku abierto, «E · Viajar» te lleva a ese mundo.",
+    gatesClosed: "Un punku cerrado tiene una tranca de troncos y un letrero «Próximamente», y no viaja.",
     open: "Abierto",
     closed: "Próximamente",
     go: "Ir",
@@ -88,7 +89,8 @@ const COPY = {
     email: "Email",
     gatesTitle: "The five punkus",
     gates:
-      "A street between stone walls leaves each corner of the plaza, and another leaves to the south. Each ends at a punku, a trapezoidal stone doorway with a carved sign and, in the opening, a glimpse of its world. Near an open punku, “E · Travel” takes you to that world; a closed punku has a bar of logs and a “Coming soon” sign, and does not travel.",
+      "A street between stone walls leaves each corner of the plaza, and another leaves to the south. Each ends at a punku, a trapezoidal stone doorway with a carved sign and, in the opening, a glimpse of its world. Near an open punku, “E · Travel” takes you to that world.",
+    gatesClosed: "A closed punku has a bar of logs and a “Coming soon” sign, and does not travel.",
     open: "Open",
     closed: "Coming soon",
     go: "Go",
@@ -140,7 +142,9 @@ export function renderCuscoTextMode(lang: Lang, opts: { headingLevel?: number; t
       g.available && g.world !== "cusco" ? ` · ${link(worldUrl(lang, g.world as "qhapaq", "cusco"), c.go)}` : "";
     return `<li><h${h3}>${esc(g.name[lang])} · ${esc(g.bearing[lang])}</h${h3}><p><strong>${esc(state)}</strong>${go}</p><p>${esc(g.holds[lang])}</p></li>`;
   }).join("");
-  section("punkus", c.gatesTitle, `<p>${esc(c.gates)}</p><ul>${gates}</ul>`);
+  // The closed-gate sentence only while some suyu is still closed (plan.ts GATES `available`).
+  const closedNote = GATES.some((g) => !g.available) ? ` ${c.gatesClosed}` : "";
+  section("punkus", c.gatesTitle, `<p>${esc(c.gates + closedNote)}</p><ul>${gates}</ul>`);
   section("qorikancha", c.qoriTitle, `<p>${esc(c.qori)}</p>${stampLine("cusco:station:qorikancha")}`);
   section("hatun-rumiyoc", c.stoneTitle, `<p>${esc(c.stone)}</p>${stampLine("cusco:station:hatun-rumiyoc")}`);
   const socials = SOCIALS.filter((s) => !s.url.startsWith("mailto:"))
