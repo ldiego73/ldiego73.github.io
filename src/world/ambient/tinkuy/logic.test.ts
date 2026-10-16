@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Collider } from "../../contract";
 import { STATIONS } from "../../contract";
 import { buildLayout } from "../../layout";
-import { ARRIVALS, arrivalFrom, PUNKU, SELVA_BRANCH, WASI } from "../../trailhead";
+import { ARRIVALS, arrivalFrom, PUNKU, QUSQU_BRANCH, QUSQU_PUNKU, SELVA_BRANCH, WASI } from "../../trailhead";
 import { llamaHome } from "../mount/logic";
 import { WALK, WALK_R } from "../wasi/plan";
 import {
@@ -19,7 +19,12 @@ import {
   pathCircles,
   punkuLocal,
   punkuWorld,
+  QUSQU_BAND,
+  QUSQU_BAND_R,
+  QUSQU_DIR,
+  QUSQU_FRONT,
   SIGN,
+  SIGN_TARGETS,
 } from "./logic";
 
 const FOOTPRINT: Record<string, number> = Object.fromEntries(
@@ -99,6 +104,45 @@ describe("tinkuy plan", () => {
   });
 });
 
+describe("tinkuy: the Qusqu punku", () => {
+  test("its band runs from the trail's start to the doorstep, the punku facing back up it", () => {
+    expect(QUSQU_BAND.slice(1, 1 + QUSQU_BRANCH.length)).toEqual([...QUSQU_BRANCH]);
+    expect(QUSQU_BAND[QUSQU_BAND.length - 1]).toEqual(QUSQU_FRONT);
+    const [bx, bz] = QUSQU_BRANCH[QUSQU_BRANCH.length - 1]!;
+    const d = Math.hypot(bx - QUSQU_PUNKU.x, bz - QUSQU_PUNKU.z);
+    expect(QUSQU_DIR.x * ((bx - QUSQU_PUNKU.x) / d) + QUSQU_DIR.z * ((bz - QUSQU_PUNKU.z) / d)).toBeGreaterThan(0.95);
+    const front = punkuWorld(0, 1.1, QUSQU_PUNKU);
+    expect(front.x).toBeCloseTo(QUSQU_FRONT[0], 6);
+    expect(inTravelRange(QUSQU_FRONT[0], QUSQU_FRONT[1], QUSQU_PUNKU)).toBe(true);
+    const behind = punkuWorld(0, -2, QUSQU_PUNKU);
+    expect(inTravelRange(behind.x, behind.z, QUSQU_PUNKU)).toBe(false);
+    // The two punkus never share a prompt.
+    expect(inTravelRange(QUSQU_FRONT[0], QUSQU_FRONT[1])).toBe(false);
+    expect(inTravelRange(PUNKU_FRONT[0], PUNKU_FRONT[1], QUSQU_PUNKU)).toBe(false);
+    const doorway = punkuWorld(0, 0.3, QUSQU_PUNKU);
+    for (const c of jambColliders(QUSQU_PUNKU)) expect(inside(c, doorway.x, doorway.z, 0.42)).toBe(false);
+  });
+
+  test("arrival from Cusco: on the band, facing up the branch, out of the prompt", () => {
+    const a = ARRIVALS.cusco;
+    expect(arrivalFrom("?from=cusco")).toEqual(a);
+    expect(distToPath(QUSQU_BAND, a.x, a.z)).toBeLessThan(QUSQU_BAND_R - 0.5);
+    expect(inTravelRange(a.x, a.z, QUSQU_PUNKU)).toBe(false);
+    const up = Math.atan2(QUSQU_BRANCH[1]![0] - QUSQU_BRANCH[2]![0], QUSQU_BRANCH[1]![1] - QUSQU_BRANCH[2]![1]);
+    let d = a.yaw - up;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    expect(Math.abs(d)).toBeLessThan(0.15);
+  });
+
+  test("the signpost's fourth arrow points south toward it", () => {
+    const [tx, tz] = SIGN_TARGETS.qusqu;
+    const yaw = arrowYaw(tx - SIGN.x, tz - SIGN.z);
+    // Board +X → world (cos yaw, −sin yaw): mostly +z (south).
+    expect(-Math.sin(yaw)).toBeGreaterThan(0.9);
+  });
+});
+
 describe("tinkuy on the real trailhead", () => {
   for (const cells of [280, 190, 160]) {
     const L = buildLayout({ cells, footprint: FOOTPRINT });
@@ -123,6 +167,24 @@ describe("tinkuy on the real trailhead", () => {
         if (p.kind !== "circle" || q.kind !== "circle") continue;
         expect(Math.abs(L.groundAt(p.x, p.z) - L.groundAt(q.x, q.z))).toBeLessThan(0.9);
       }
+    });
+
+    test(`Qusqu branch: joins the trail, walkable once registered, gentle, dry and clear of the Wasi (${cells} cells)`, () => {
+      expect(L.walkable(QUSQU_BAND[0]![0], QUSQU_BAND[0]![1])).toBe(true);
+      const a = ARRIVALS.cusco;
+      for (const c of pathCircles(QUSQU_BAND, QUSQU_BAND_R)) L.addWalkable(c);
+      expect(L.walkable(a.x, a.z)).toBe(true);
+      const pts = pathCircles(QUSQU_BAND, QUSQU_BAND_R, 0.3);
+      for (let i = 1; i < pts.length; i++) {
+        const p = pts[i - 1]!;
+        const q = pts[i]!;
+        if (p.kind !== "circle" || q.kind !== "circle") continue;
+        expect(Math.abs(L.groundAt(p.x, p.z) - L.groundAt(q.x, q.z))).toBeLessThan(0.9);
+        // Well above the river (water level ≈ −0.8 on this reach).
+        expect(L.groundAt(q.x, q.z)).toBeGreaterThan(3);
+      }
+      for (const [x, z] of QUSQU_BAND) expect(Math.hypot(x - WASI.x, z - WASI.z)).toBeGreaterThan(WASI.halfW + 6);
+      expect(Math.hypot(QUSQU_PUNKU.x - PUNKU.x, QUSQU_PUNKU.z - PUNKU.z)).toBeGreaterThan(20);
     });
 
     test(`signpost: off the paved trail and clear of the Wasi walk, the arch and the llama (${cells} cells)`, () => {

@@ -1,7 +1,8 @@
 /**
  * Share images, one per page and language (see src/lib/og.ts). Prerendered to static PNGs at build:
  * /og/<lang>/home.png, /og/<lang>/blog.png, /og/<lang>/blog/<slug>.png, /og/<lang>/projects.png,
- * /og/<lang>/arcade.png, /og/<lang>/arcade/<game>.png, /og/<lang>/world.png, /og/<lang>/world/selva.png, /og/<lang>/cv.png.
+ * /og/<lang>/arcade.png, /og/<lang>/arcade/<game>.png, /og/<lang>/world.png, /og/<lang>/world/selva.png, /og/<lang>/world/cusco.png,
+ * /og/<lang>/cv.png.
  */
 
 import { getCollection } from "astro:content";
@@ -11,6 +12,7 @@ import { LANGS, type Lang, t } from "../../i18n/ui";
 import { getRepos } from "../../lib/github";
 import {
   arcadeCard,
+  cuscoCard,
   cvCard,
   gameCard,
   homeCard,
@@ -50,6 +52,7 @@ export const getStaticPaths = (async () => {
     for (const g of GAMES) add(`${lang}/arcade/${g.slug}`, async () => gameCard(lang, g));
     add(`${lang}/world`, async () => worldCard(lang));
     add(`${lang}/world/selva`, async () => selvaCard(lang));
+    add(`${lang}/world/cusco`, async () => cuscoCard(lang));
     add(`${lang}/uses`, async () =>
       listCard({
         title: lang === "es" ? "Lo que uso" : "Uses",

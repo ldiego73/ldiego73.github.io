@@ -1,6 +1,7 @@
 import { type ArcadeState, load as loadArcade } from "../games/core/store";
 import { ACHIEVEMENTS } from "../games/registry";
 import { type L, STATIONS } from "../world/contract";
+import { CUSCO_STATIONS } from "../world/cusco/plan";
 import type { StampKind, WorldId } from "../world/events";
 import { SELVA_STATIONS } from "../world/selva/contract";
 
@@ -21,6 +22,7 @@ export const WORLD_PAGES: ReadonlyArray<{ id: WorldId; label: L }> = [
   { id: "qhapaq", label: { es: "Qhapaq Ñan", en: "Qhapaq Ñan" } },
   { id: "wasi", label: { es: "Wasi · la casa", en: "Wasi · the house" } },
   { id: "selva", label: { es: "Antisuyu · la selva", en: "Antisuyu · the jungle" } },
+  { id: "cusco", label: { es: "Qusqu · Haukaypata", en: "Qusqu · Haukaypata" } },
 ];
 export const worldOf = (stamp: Pick<PassportStamp, "world">): WorldId => stamp.world ?? "qhapaq";
 
@@ -115,6 +117,20 @@ export const CATALOG: readonly PassportStamp[] = [
     world: "selva" as const,
     label: { es, en },
   })),
+  // Qusqu: the hub plaza. Reaching the usnu and the Qorikancha completes the page; the twelve-angled stone and
+  // the chasqui post are bonus finds. Gates stamp nothing (cusco/plan.ts `stamp: false`).
+  ...CUSCO_STATIONS.flatMap((station) =>
+    station.stamp === false
+      ? []
+      : [
+          {
+            id: `cusco:station:${station.id}`,
+            kind: station.stamp ?? ("station" as const),
+            world: "cusco" as const,
+            label: station.label,
+          },
+        ],
+  ),
 ];
 
 const ids = new Set(CATALOG.map((stamp) => stamp.id));

@@ -11,7 +11,7 @@ import { flattenToonGroup, vertexToon } from "../../merge-colors";
 import { DYE } from "../../palette";
 import { C, canvasTex, drawBoard, FONT, fitFont, Kit, redraw, rng, toonMapped } from "../../props";
 import { PUNKU } from "../../trailhead";
-import { arrowYaw, BAND, BAND_R, DOORWAY, SIGN, SIGN_TARGETS } from "./logic";
+import { arrowYaw, BAND, BAND_R, DOORWAY, type P2, type PunkuAt, SIGN, SIGN_TARGETS } from "./logic";
 
 export interface Owned {
   geos: THREE.BufferGeometry[];
@@ -26,6 +26,7 @@ const LABELS: Record<keyof typeof SIGN_TARGETS, { es: string; en: string }> = {
   qhapaq: { es: "QHAPAQ ÑAN · CUMBRE", en: "QHAPAQ ÑAN · SUMMIT" },
   wasi: { es: "WASI · LA CASA", en: "WASI · THE HOUSE" },
   antisuyu: { es: "ANTISUYU · SELVA", en: "ANTISUYU · JUNGLE" },
+  qusqu: { es: "QUSQU · HAUKAYPATA", en: "QUSQU · HAUKAYPATA" },
 };
 
 const finish = (k: Kit, name: string, mat: THREE.Material) => {
@@ -78,9 +79,9 @@ export function buildSignpost(env: WorldEnv, lang: Lang, ground: Ground, mat: TH
     );
   });
 
-  // Three arrow boards: local +X points along the arrow; the tip is a short prism.
+  // Four arrow boards: local +X points along the arrow; the tip is a short prism.
   const rows = Object.keys(SIGN_TARGETS) as Array<keyof typeof SIGN_TARGETS>;
-  const heights = [2.55, 2.1, 1.65];
+  const heights = [2.55, 2.1, 1.65, 1.2];
   const BOARD = { len: 1.7, h: 0.36, d: 0.07 };
   const textGeos: THREE.BufferGeometry[] = [];
   const tip = new THREE.Shape();
@@ -100,8 +101,8 @@ export function buildSignpost(env: WorldEnv, lang: Lang, ground: Ground, mat: TH
     const off = 0.12 + BOARD.len / 2;
     k.box(BOARD.len, BOARD.h, BOARD.d, off * cos, y - BOARD.h / 2, -off * sin, i === 1 ? C.wood : "#9a6a40", yaw);
     k.add(tipGeo, i === 1 ? C.wood : "#9a6a40", (0.12 + BOARD.len) * cos, y, -(0.12 + BOARD.len) * sin, 0, yaw, 0);
-    // A dye stripe along the bottom edge (Qhapaq red, Wasi ochre, Antisuyu turquoise).
-    const dye = [DYE.red, DYE.ochre, DYE.turq][i]!;
+    // A dye stripe along the bottom edge (Qhapaq red, Wasi ochre, Antisuyu turquoise, Qusqu indigo).
+    const dye = [DYE.red, DYE.ochre, DYE.turq, DYE.indigo][i]!;
     k.box(BOARD.len - 0.1, 0.05, BOARD.d + 0.02, off * cos, y - BOARD.h / 2 + 0.02, -off * sin, dye, yaw);
     // Lettering on both faces (UV row i of the atlas); the back face is turned so it reads too.
     for (const face of [1, -1]) {
@@ -175,12 +176,24 @@ export function buildSignpost(env: WorldEnv, lang: Lang, ground: Ground, mat: TH
 // ------------------------------------------------------------------------------------------- branch
 
 /** Dirt ribbon (vertex colours, follows the ground) + flagstones and edge stones (merged). */
-export function buildBranch(env: WorldEnv, ground: Ground, mat: THREE.Material, own: Owned) {
+export function buildBranch(
+  env: WorldEnv,
+  ground: Ground,
+  mat: THREE.Material,
+  own: Owned,
+  o: { band: readonly P2[]; r: number; name: string; seed: number } = {
+    band: BAND,
+    r: BAND_R,
+    name: "tinkuy-branch",
+    seed: 61,
+  },
+) {
+  const BAND_R = o.r;
   const group = new THREE.Group();
-  group.name = "tinkuy-branch";
-  const rand = rng(61);
+  group.name = o.name;
+  const rand = rng(o.seed);
   const curve = new THREE.CatmullRomCurve3(
-    BAND.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+    o.band.map(([x, z]) => new THREE.Vector3(x, 0, z)),
     false,
     "centripetal",
   );
@@ -236,7 +249,7 @@ export function buildBranch(env: WorldEnv, ground: Ground, mat: THREE.Material, 
   geo.computeBoundingSphere();
   own.geos.push(geo);
   const ribbon = new THREE.Mesh(geo, mat);
-  ribbon.name = "tinkuy-branch:dirt";
+  ribbon.name = `${o.name}:dirt`;
   ribbon.receiveShadow = true;
   group.add(ribbon);
 
@@ -274,7 +287,7 @@ export function buildBranch(env: WorldEnv, ground: Ground, mat: THREE.Material, 
         k.rock(0.16 + rand() * 0.1, x, ground(x, z) - 0.08, z, rand() < 0.5 ? C.stoneDark : C.stone, rand);
       }
   }
-  group.add(finish(k, "tinkuy-branch-stones", mat));
+  group.add(finish(k, `${o.name}-stones`, mat));
   return group;
 }
 
@@ -286,13 +299,26 @@ export interface PunkuModel {
   update(t: number): void;
 }
 
-export function buildPunku(env: WorldEnv, ground: Ground, mat: THREE.Material, own: Owned): PunkuModel {
+/**
+ * A trapezoidal stone punku at `at` (default the Antisuyu one). The jungle style grows moss, vines and broad
+ * leaves round the stones and shows a jungle glimpse; the Qusqu style is clean Inca masonry with a carved
+ * sign on the lintel and a glimpse of the plaza of Qusqu (flagstones, the usnu and a thatched hall).
+ */
+export function buildPunku(
+  env: WorldEnv,
+  ground: Ground,
+  mat: THREE.Material,
+  own: Owned,
+  o: { at: PunkuAt; style: "jungle" | "qusqu"; lang?: Lang } = { at: PUNKU, style: "jungle" },
+): PunkuModel {
+  const PUNKU = o.at;
+  const jungle = o.style === "jungle";
   const group = new THREE.Group();
-  group.name = "tinkuy-punku";
+  group.name = jungle ? "tinkuy-punku" : "tinkuy-qusqu-punku";
   const y0 = ground(PUNKU.x, PUNKU.z);
   group.position.set(PUNKU.x, y0, PUNKU.z);
   group.rotation.y = PUNKU.yaw;
-  const rand = rng(97);
+  const rand = rng(jungle ? 97 : 131);
   const k = new Kit(env);
   const { bottom, top, height, jamb, depth } = DOORWAY;
   const g = (lx: number, lz: number) => {
@@ -329,21 +355,52 @@ export function buildPunku(env: WorldEnv, ground: Ground, mat: THREE.Material, o
   k.box(lw, 0.62, depth + 0.06, 0, 0.18 + height, 0, C.stone);
   k.box(lw - 0.5, 0.36, depth - 0.1, 0, 0.8 + height, 0, C.stoneDark);
   // Moss and creeping green: the jungle is already reaching over the stones.
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < (jungle ? 9 : 0); i++) {
     const x = (rand() - 0.5) * lw;
     k.box(0.3 + rand() * 0.4, 0.06, depth * 0.7, x, 1.15 + height, (rand() - 0.5) * 0.2, i % 2 ? "#3f8a3e" : "#5aa04a");
   }
   // Hanging vines from the lintel, both faces.
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < (jungle ? 7 : 0); i++) {
     const x = -lw / 2 + 0.25 + rand() * (lw - 0.5);
     const len = 0.5 + rand() * 1.1;
     const z = (rand() < 0.5 ? -1 : 1) * (depth / 2 + 0.04);
     k.box(0.04, len, 0.04, x, 0.18 + height - len + 0.05, z, "#2f7d3a");
     addLeaf(k, "#3f9a46", x, 0.18 + height - len, z, -0.3, rand() * 3, 0.25, 0.25, 0.25);
   }
-  group.add(finish(k, "tinkuy-punku", mat));
+  if (!jungle) {
+    // Qusqu: a dressed sill stone in front and two low guardian stones flanking the way.
+    k.box(bottom + 0.4, 0.12, 0.6, 0, -0.02, depth / 2 + 0.35, C.stone);
+    for (const sx of [-1, 1])
+      k.rock(
+        0.42,
+        sx * (bottom / 2 + jamb + 0.7),
+        g(sx * (bottom / 2 + jamb + 0.7), 0.9) - 0.15,
+        0.9,
+        C.stoneDark,
+        rand,
+      );
+  }
+  group.add(finish(k, jungle ? "tinkuy-punku" : "tinkuy-qusqu-punku", mat));
+  if (!jungle) group.add(qusquSign(env, own, o.lang ?? env.lang, lw, height, depth));
+  if (jungle) junglePlants(env, own, group, rand, g);
+  const glimpse = buildGlimpse(env, own, jungle ? paintJungle : paintQusqu, bottom, top, height);
+  group.add(glimpse.mesh);
+  const glimpseMat = glimpse.mat;
+  const glimpseTex = glimpse.tex;
 
-  // Jungle plants: broad bent leaves (double-sided material), bromeliads, a banana-like stalk.
+  const rm = env.reducedMotion;
+  return {
+    group,
+    update(t) {
+      if (rm) return;
+      glimpseMat.opacity = 0.8 + Math.sin(t * 1.7) * 0.07 + Math.sin(t * 4.3) * 0.03;
+      glimpseTex.offset.x = Math.sin(t * 0.6) * 0.02;
+    },
+  };
+}
+
+/** Jungle plants: broad bent leaves (double-sided material), bromeliads, a banana-like stalk. */
+function junglePlants(env: WorldEnv, own: Owned, group: THREE.Group, rand: () => number, g: Ground) {
   const leafMat = vertexToon();
   leafMat.side = THREE.DoubleSide;
   own.mats.push(leafMat);
@@ -383,78 +440,142 @@ export function buildPunku(env: WorldEnv, ground: Ground, mat: THREE.Material, o
   const pm = flattenToonGroup(plants, leafMat);
   if (pm) pm.castShadow = true;
   group.add(plants);
+}
 
-  // The glimpse: a trapezoid filling the opening, a soft jungle gradient with leaf silhouettes and light.
-  const glimpseTex = canvasTex(128, 256, (ctx, w, h) => {
-    const gr = ctx.createLinearGradient(0, 0, 0, h);
-    gr.addColorStop(0, "#cfeec0");
-    gr.addColorStop(0.35, "#69c27a");
-    gr.addColorStop(0.75, "#1f7a45");
-    gr.addColorStop(1, "#0e4a2c");
-    ctx.fillStyle = gr;
-    ctx.fillRect(0, 0, w, h);
-    // Light in the middle distance.
-    const lg = ctx.createRadialGradient(w / 2, h * 0.38, 2, w / 2, h * 0.38, w * 0.6);
-    lg.addColorStop(0, "rgba(255,250,210,0.85)");
-    lg.addColorStop(1, "rgba(255,250,210,0)");
-    ctx.fillStyle = lg;
-    ctx.fillRect(0, 0, w, h);
-    // Leaf silhouettes framing the view.
-    const r = rng(3);
-    ctx.fillStyle = "rgba(10,60,32,0.85)";
-    for (let i = 0; i < 9; i++) {
-      const side = i % 2 ? 1 : -1;
-      const x = side > 0 ? w - r() * 18 : r() * 18;
-      const y = 30 + r() * (h - 40);
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(side * (0.9 + r() * 0.5));
-      ctx.beginPath();
-      ctx.ellipse(0, -26, 9, 28, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-    // A far river glint.
-    ctx.fillStyle = "rgba(170,230,240,0.6)";
-    ctx.fillRect(w * 0.3, h * 0.62, w * 0.4, 3);
-  });
-  own.texs.push(glimpseTex);
-  const glimpseMat = new THREE.MeshBasicMaterial({
-    map: glimpseTex,
+type Paint = (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
+
+/** The glimpse of the jungle: a soft green gradient with leaf silhouettes, light and a river glint. */
+const paintJungle: Paint = (ctx, w, h) => {
+  const gr = ctx.createLinearGradient(0, 0, 0, h);
+  gr.addColorStop(0, "#cfeec0");
+  gr.addColorStop(0.35, "#69c27a");
+  gr.addColorStop(0.75, "#1f7a45");
+  gr.addColorStop(1, "#0e4a2c");
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, w, h);
+  // Light in the middle distance.
+  const lg = ctx.createRadialGradient(w / 2, h * 0.38, 2, w / 2, h * 0.38, w * 0.6);
+  lg.addColorStop(0, "rgba(255,250,210,0.85)");
+  lg.addColorStop(1, "rgba(255,250,210,0)");
+  ctx.fillStyle = lg;
+  ctx.fillRect(0, 0, w, h);
+  // Leaf silhouettes framing the view.
+  const r = rng(3);
+  ctx.fillStyle = "rgba(10,60,32,0.85)";
+  for (let i = 0; i < 9; i++) {
+    const side = i % 2 ? 1 : -1;
+    const x = side > 0 ? w - r() * 18 : r() * 18;
+    const y = 30 + r() * (h - 40);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(side * (0.9 + r() * 0.5));
+    ctx.beginPath();
+    ctx.ellipse(0, -26, 9, 28, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  // A far river glint.
+  ctx.fillStyle = "rgba(170,230,240,0.6)";
+  ctx.fillRect(w * 0.3, h * 0.62, w * 0.4, 3);
+};
+
+/** The glimpse of Qusqu: a clear highland sky, ochre hills, a thatched hall and the stepped usnu on flagstones. */
+const paintQusqu: Paint = (ctx, w, h) => {
+  const gr = ctx.createLinearGradient(0, 0, 0, h);
+  gr.addColorStop(0, "#cfe1f1");
+  gr.addColorStop(0.45, "#e9e2cf");
+  gr.addColorStop(1, "#b9b2a3");
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#8fa86a";
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.42);
+  ctx.quadraticCurveTo(w * 0.5, h * 0.3, w, h * 0.44);
+  ctx.lineTo(w, h * 0.56);
+  ctx.lineTo(0, h * 0.56);
+  ctx.fill();
+  // A thatched hall across the back.
+  ctx.fillStyle = "#c79a52";
+  ctx.beginPath();
+  ctx.moveTo(w * 0.05, h * 0.5);
+  ctx.lineTo(w * 0.5, h * 0.4);
+  ctx.lineTo(w * 0.95, h * 0.5);
+  ctx.fill();
+  ctx.fillStyle = "#9d978b";
+  ctx.fillRect(w * 0.08, h * 0.5, w * 0.84, h * 0.08);
+  // The usnu: three steps, a gold glint on top.
+  ctx.fillStyle = "#a8a296";
+  for (let i = 0; i < 3; i++) ctx.fillRect(w * (0.2 + i * 0.08), h * (0.7 - i * 0.04), w * (0.6 - i * 0.16), h * 0.04);
+  ctx.fillStyle = "#e8b631";
+  ctx.fillRect(w * 0.46, h * 0.6, w * 0.08, h * 0.02);
+};
+
+/** A trapezoid filling the opening with a painted glimpse (no outline, shimmering in update()). */
+function buildGlimpse(env: WorldEnv, own: Owned, paint: Paint, bottom: number, top: number, height: number) {
+  const tex = canvasTex(128, 256, paint);
+  own.texs.push(tex);
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex,
     transparent: true,
     opacity: 0.88,
     depthWrite: false,
     side: THREE.DoubleSide,
     toneMapped: false,
   });
-  own.mats.push(glimpseMat);
+  own.mats.push(mat);
   const shape = new THREE.Shape();
   shape.moveTo(-bottom / 2 + 0.02, 0);
   shape.lineTo(bottom / 2 - 0.02, 0);
   shape.lineTo(top / 2 - 0.02, height);
   shape.lineTo(-top / 2 + 0.02, height);
   shape.closePath();
-  const glimpseGeo = new THREE.ShapeGeometry(shape);
+  const geo = new THREE.ShapeGeometry(shape);
   // UVs from the shape's bounding box.
-  const uv = glimpseGeo.getAttribute("uv");
-  const p = glimpseGeo.getAttribute("position");
+  const uv = geo.getAttribute("uv");
+  const p = geo.getAttribute("position");
   for (let i = 0; i < uv.count; i++) uv.setXY(i, (p.getX(i) + bottom / 2) / bottom, p.getY(i) / height);
-  own.geos.push(glimpseGeo);
-  const glimpse = new THREE.Mesh(glimpseGeo, glimpseMat);
-  glimpse.name = "tinkuy-glimpse";
-  glimpse.position.y = 0.18;
-  env.noOutline(glimpse);
-  group.add(glimpse);
+  own.geos.push(geo);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = "tinkuy-glimpse";
+  mesh.position.y = 0.18;
+  env.noOutline(mesh);
+  return { mesh, mat, tex };
+}
 
-  const rm = env.reducedMotion;
-  return {
-    group,
-    update(t) {
-      if (rm) return;
-      glimpseMat.opacity = 0.8 + Math.sin(t * 1.7) * 0.07 + Math.sin(t * 4.3) * 0.03;
-      glimpseTex.offset.x = Math.sin(t * 0.6) * 0.02;
-    },
+/** Carved board on the Qusqu punku's lintel (both faces): where the road goes. */
+function qusquSign(env: WorldEnv, own: Owned, lang: Lang, lw: number, height: number, depth: number) {
+  const label = { es: "QUSQU · HAUKAYPATA", en: "QUSQU · HAUKAYPATA" }[lang];
+  const sub = { es: "el centro del Tawantinsuyu", en: "the centre of the Tawantinsuyu" }[lang];
+  const draw = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    drawBoard(ctx, w, h, "#7a5232");
+    ctx.fillStyle = "#f3ead8";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    fitFont(ctx, label, "800", FONT.display, 44, w - 50, "condensed ");
+    ctx.fillText(label, w / 2, h * 0.4);
+    ctx.fillStyle = "#e8b631";
+    fitFont(ctx, sub, "700", FONT.body, 22, w - 50);
+    ctx.fillText(sub, w / 2, h * 0.74);
+    ctx.fillStyle = DYE.indigo;
+    ctx.fillRect(12, h - 16, w - 24, 6);
   };
+  const tex = canvasTex(512, 128, draw);
+  own.texs.push(tex);
+  own.redraws.push(() => redraw(tex, draw));
+  const mat = toonMapped(env, tex);
+  own.mats.push(mat);
+  const w = Math.min(lw - 0.3, 2.9);
+  const geo = new THREE.PlaneGeometry(w, w / 4);
+  own.geos.push(geo);
+  const group = new THREE.Group();
+  group.name = "tinkuy-qusqu-sign";
+  for (const face of [1, -1]) {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(0, 0.18 + height + 0.31, face * (depth / 2 + 0.045));
+    m.rotation.y = face > 0 ? 0 : Math.PI;
+    group.add(m);
+  }
+  return group;
 }
 
 /** A broad leaf: an elongated blade along +Z with a midrib fold and a downward curl (unit size). */

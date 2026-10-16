@@ -4,7 +4,7 @@ Guide for coding agents working on this repository. Read [ARCHITECTURE.md](ARCHI
 
 ## Project in one paragraph
 
-This is the personal site of Luis Diego, a static Astro site deployed to GitHub Pages. It has bilingual routes (`/es/…`, `/en/…`). The career is told as an Andean khipu. The site also has a blog, projects, a CV, a `/uses` page, an arcade of nine Three.js games, and "KHIPU", a set of explorable 3D worlds: the Qhapaq Ñan mountain (the traveler climbs past one tambo per company), the Wasi house at its trailhead, and the Antisuyu jungle road on its own page. Everything visual and audible in the games and the world is procedural: geometry, canvas textures and Web Audio.
+This is the personal site of Luis Diego, a static Astro site deployed to GitHub Pages. It has bilingual routes (`/es/…`, `/en/…`). The career is told as an Andean khipu. The site also has a blog, projects, a CV, a `/uses` page, an arcade of nine Three.js games, and "KHIPU", a set of explorable 3D worlds: the Qhapaq Ñan mountain (the traveler climbs past one tambo per company), the Wasi house at its trailhead, the Antisuyu jungle road on its own page, and Qusqu, the hub plaza whose punkus lead to every world (on the generic suyu runtime in `src/world/suyu/`). Everything visual and audible in the games and the world is procedural: geometry, canvas textures and Web Audio.
 
 ## Toolchain
 
@@ -28,6 +28,7 @@ This is the personal site of Luis Diego, a static Astro site deployed to GitHub 
 | `bunx vite --config src/world/dev/vite.config.ts --port 5191` | World harness: `/?lang=es` (`&skip=1` skips the title) |
 | `bunx vite --config src/world/content-dev/vite.config.ts --port 5192` | World content with a mock `WorldEnv` |
 | `bunx vite --config src/world/selva/dev/vite.config.ts --port 5203` | Jungle (Antisuyu) harness: `/?lang=es&skip=1` |
+| `bunx vite --config src/world/cusco/dev/vite.config.ts --port 5221` | Qusqu hub harness (generic suyu runtime): `/?lang=es` (`&from=selva` arrives through that punku) |
 
 ### Definition of done
 
@@ -80,7 +81,7 @@ Run it with `bunx playwright test -c .pw-alt.config.ts`.
 ## Code conventions
 
 - **Pure logic apart from rendering.** Rules, math and state machines go in DOM-free and Three-free modules with a colocated `*.test.ts`. Examples: `layout.ts`, `fauna-sim.ts`, `quality.ts`, `calendar.ts`, `ambient/*/logic.ts`, and `games/<slug>/state.ts`. Three.js code goes in view and builder files.
-- **Worlds load separately.** The jungle page (`src/world/selva/`) must not import mountain-only modules (`layout.ts`, `terrain.ts`, `trail.ts`, `fauna.ts`, `npcs.ts`, `content.ts`, `landmarks.ts`). Shared pieces (engine, toon, camera, input, avatar, creatures, decks, passport) are fine.
+- **Worlds load separately.** The jungle page (`src/world/selva/`) and the suyu worlds (`src/world/suyu/`, `src/world/cusco/`, …) must not import mountain-only modules (`layout.ts`, `terrain.ts`, `trail.ts`, `fauna.ts`, `npcs.ts`, `content.ts`, `landmarks.ts`), and suyu worlds must not import from `src/world/selva/`. Shared pieces (engine, toon, camera, input, avatar, creatures, decks, passport, people, fauna models) are fine.
 - **World modules do not import each other.** They communicate through typed window events in `src/world/events.ts` (`emit` / `on`), the `WorldEnv` contract, and shared registries such as `creatures.ts`.
 - **One feature, one place.**
   - A new world system is an ambient in `src/world/ambient/<name>.ts`, with helpers in `src/world/ambient/<name>/`.

@@ -6,9 +6,11 @@ import type { L } from "./contract";
 
 /**
  * The worlds of the Tawantinsuyu. "qhapaq" is the mountain climb (/world/), "wasi" the house at the trailhead
- * (lazy interior inside the mountain page), "selva" the Antisuyu jungle road (its own page, /world/selva/).
+ * (lazy interior inside the mountain page), "selva" the Antisuyu jungle road (its own page, /world/selva/),
+ * "cusco" the hub at Haukaypata, the great plaza of Qusqu where the suyu roads start (/world/cusco/, on the
+ * generic suyu runtime in ./suyu/). New suyu worlds add their id here when their page exists.
  */
-export type WorldId = "qhapaq" | "wasi" | "selva";
+export type WorldId = "qhapaq" | "wasi" | "selva" | "cusco";
 
 export type StampKind =
   | "station"

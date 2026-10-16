@@ -95,6 +95,10 @@ describe("Qhapaq Ñan passport", () => {
         "sachavaca",
         "shansho",
       ].map((id) => `selva:fauna:${id}`),
+      "cusco:station:usnu",
+      "cusco:station:qorikancha",
+      "cusco:station:hatun-rumiyoc",
+      "cusco:station:chasqui",
     ];
     expect(CATALOG.map((stamp) => stamp.id).sort()).toEqual(expected.sort());
     expect(new Set(expected).size).toBe(CATALOG.length);
@@ -200,7 +204,7 @@ describe("Qhapaq Ñan passport", () => {
     const bonus = new Set(["egg", "fauna", "npc", "record", "festival"]);
     for (const stamp of CATALOG) if (!bonus.has(stamp.kind)) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
-    expect(mergedPassport(state, emptyState()).worldCollected).toBe(21 + 4 + SELVA_STATIONS.length + 3);
+    expect(mergedPassport(state, emptyState()).worldCollected).toBe(21 + 4 + SELVA_STATIONS.length + 3 + 2);
     delete state.stamps["weather:fog"];
     expect(passportComplete(state)).toBe(false);
     for (const stamp of CATALOG) state.stamps[stamp.id] = 1234;
@@ -217,7 +221,18 @@ describe("Qhapaq Ñan passport", () => {
     expect(passportComplete(state)).toBe(false);
     for (const stamp of requiredStamps("wasi")) state.stamps[stamp.id] = 1234;
     for (const stamp of requiredStamps("selva")) state.stamps[stamp.id] = 1234;
+    expect(passportComplete(state)).toBe(false);
+    for (const stamp of requiredStamps("cusco")) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
     expect(requiredStamps("selva").some((stamp) => stamp.id.startsWith("selva:fauna:"))).toBe(false);
+  });
+
+  test("the Cusco hub page needs only the usnu and the Qorikancha; gates stamp nothing", () => {
+    expect(requiredStamps("cusco").map((stamp) => stamp.id)).toEqual([
+      "cusco:station:usnu",
+      "cusco:station:qorikancha",
+    ]);
+    expect(CATALOG.some((stamp) => stamp.id === "cusco:station:antisuyu")).toBe(false);
+    expect(CATALOG.find((stamp) => stamp.id === "cusco:station:hatun-rumiyoc")?.kind).toBe("egg");
   });
 });

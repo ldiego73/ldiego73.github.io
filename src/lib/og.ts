@@ -72,6 +72,7 @@ const COPY = {
     world: "Camina mi carrera: un tambo por empresa, del valle a la cumbre.",
     worldTag: "Mundo 3D",
     selva: "El camino de la selva del Antisuyu, junto a un gran río: lo que uso, lo que escribo y lo que construyo.",
+    cusco: "Haukaypata, la plaza de Qusqu: el usnu con el khipu de tu avance y los punkus hacia cada mundo.",
     arcade: "9 juegos en bloques sobre bugs, incidentes y despliegues.",
     play: "Juega en el navegador",
     repos: "en GitHub",
@@ -87,6 +88,7 @@ const COPY = {
     world: "Walk my career: one tambo per company, from the valley to the summit.",
     worldTag: "3D world",
     selva: "The Antisuyu jungle road beside a great river: what I use, what I write and what I build.",
+    cusco: "Haukaypata, the plaza of Qusqu: the usnu with the khipu of your progress and the punkus to every world.",
     arcade: "9 blocky games about bugs, incidents and deploys.",
     play: "Play in the browser",
     repos: "on GitHub",
@@ -402,6 +404,10 @@ export const worldCard = (lang: Lang) =>
 /** The Antisuyu jungle page: the project stilt houses seen from the river (src/assets/og/selva.jpg). */
 export const selvaCard = (lang: Lang) =>
   shotCard(shot("selva"), COPY[lang].worldTag, "Antisuyu", COPY[lang].selva, C.turq);
+
+/** The Cusco hub page: the usnu and the Qorikancha on Haukaypata (src/assets/og/cusco.jpg). */
+export const cuscoCard = (lang: Lang) =>
+  shotCard(shot("cusco"), COPY[lang].worldTag, "Qusqu", COPY[lang].cusco, C.ochre);
 
 export const arcadeCard = (lang: Lang, lede: string) =>
   shotCard(shot("arcade"), COPY[lang].play, "ARCADE", lede || COPY[lang].arcade, C.ochre, "Pixel", 620);

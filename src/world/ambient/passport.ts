@@ -1,10 +1,10 @@
 /**
  * Passport ambient: records `world:stamp` discoveries (src/lib/passport.ts is the store) and shows the
- * passport as a paper booklet with one page per world (WORLD_PAGES: Qhapaq Ñan, Wasi, Antisuyu) plus an
+ * passport as a paper booklet with one page per world (WORLD_PAGES: Qhapaq Ñan, Wasi, Antisuyu, Qusqu) plus an
  * Arcade page. Each page shows its own progress and a "page complete" seal; the header shows the totals.
  * Pages are an ARIA tabs widget (roving tabindex, ←/→/Home/End); the booklet traps focus and Esc closes it.
  *
- * Reusable from other world pages (the jungle): the book opens on the page of the world it runs in, read at
+ * Reusable from other world pages (the jungle, the suyu worlds): the book opens on the page of the world it runs in, read at
  * open time from `document.documentElement.dataset.world` (set it with `setPassportWorld`). While the
  * traveler is inside the Wasi house (`world:interior` with an id starting with "wasi") it opens on Wasi.
  * Mountain-only parts are guarded: walk-up stamping of stations/summit runs only on the mountain, and the
@@ -56,6 +56,7 @@ const COPY = {
   extras: { es: "Encargos, récords y fiestas", en: "Errands, records and festivals" },
   rooms: { es: "Habitaciones", en: "Rooms" },
   rio: { es: "Río y dosel", en: "River and canopy" },
+  plaza: { es: "Plaza", en: "Plaza" },
   arcade: { es: "Arcade", en: "Arcade" },
   stamps: { es: "sellos", en: "stamps" },
   achievements: { es: "logros", en: "achievements" },
@@ -96,6 +97,10 @@ const SECTIONS: Record<WorldId, Section[]> = {
     { label: COPY.camino, kinds: ["station"] },
     { label: COPY.rio, kinds: ["ride", "field"] },
     { label: COPY.fauna, kinds: ["fauna"] },
+  ],
+  cusco: [
+    { label: COPY.plaza, kinds: ["station"] },
+    { label: COPY.secretos, kinds: ["egg", "npc"] },
   ],
 };
 
@@ -203,7 +208,8 @@ export const create: CreateAmbient = (env, hudRoot) => {
 
   // Walk-up stamps for the mountain's stations and summit. Only on the mountain page: elsewhere the env's
   // trail and stations belong to another world (the jungle's trail end is not the summit).
-  const onMountain = currentWorld() !== "selva" && !("selva" in env);
+  const here = currentWorld();
+  const onMountain = (here === "qhapaq" || here === "wasi") && !("selva" in env) && !("suyu" in env);
   const nearby = onMountain
     ? CATALOG.filter(
         (stamp) => worldOf(stamp) === "qhapaq" && (stamp.kind === "station" || stamp.kind === "summit"),
