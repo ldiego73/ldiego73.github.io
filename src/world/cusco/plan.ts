@@ -57,7 +57,7 @@ export const ROAD_LEN = 30;
 export const ARRIVE_IN = 12;
 
 /** Future worlds have no WorldId yet; their gates are closed until their page exists. */
-export type FutureWorld = "titicaca" | "colca";
+export type FutureWorld = "colca";
 
 export interface Gate {
   /** Station id of the gate (and the stem of its sign). */
@@ -138,16 +138,16 @@ export const GATES: ReadonlyArray<Gate> = [
   {
     id: "collasuyu",
     world: "titicaca",
-    available: false,
+    available: true,
     mouth: [PLAZA.x1, PLAZA.z1],
     dir: [D, D],
     name: { es: "Collasuyu", en: "Collasuyu" },
     bearing: { es: "al sureste, hacia el lago Titicaca", en: "south-east, to Lake Titicaca" },
     holds: {
-      es: "El lago Titicaca, las islas de los uros y sus balsas de totora.",
-      en: "Lake Titicaca, the Uros islands and their totora boats.",
+      es: "El camino del lago Titicaca: mis habilidades en las islas flotantes de los uros, mi formación y certificaciones en Taquile, una balsa de totora y la roca sagrada de la Isla del Sol.",
+      en: "The Lake Titicaca road: my skills on the Uros floating islands, my education and certifications on Taquile, a totora reed boat and the sacred rock of the Isla del Sol.",
     },
-    pages: [],
+    pages: ["titicaca"],
     dye: "#efe6d6",
     glimpse: ["#dfeaf6", "#4f86c4", "#c9b77a"],
   },

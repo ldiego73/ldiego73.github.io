@@ -79,8 +79,8 @@ const S = {
   closeAria: { es: "Cerrar", en: "Close" },
   finaleKicker: { es: "Recorriste el Tawantinsuyu", en: "You walked the Tawantinsuyu" },
   finaleLede: {
-    es: "Completaste todas las páginas del pasaporte que existen hoy: los caminos de Qusqu, la montaña, la Wasi, la selva y la costa. Gracias por recorrer mi trabajo de esta forma.",
-    en: "You completed every passport page there is today: Qusqu's roads, the mountain, the Wasi, the jungle and the coast. Thank you for walking through my work this way.",
+    es: "Completaste todas las páginas del pasaporte que existen hoy: los caminos de Qusqu, la montaña, la Wasi, la selva, la costa y el lago. Gracias por recorrer mi trabajo de esta forma.",
+    en: "You completed every passport page there is today: Qusqu's roads, the mountain, the Wasi, the jungle, the coast and the lake. Thank you for walking through my work this way.",
   },
   stats: { es: "Tu recorrido", en: "Your journey" },
   postcard: { es: "Crear mi postal", en: "Make my postcard" },

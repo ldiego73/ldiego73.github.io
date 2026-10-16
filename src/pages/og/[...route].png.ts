@@ -2,7 +2,7 @@
  * Share images, one per page and language (see src/lib/og.ts). Prerendered to static PNGs at build:
  * /og/<lang>/home.png, /og/<lang>/blog.png, /og/<lang>/blog/<slug>.png, /og/<lang>/projects.png,
  * /og/<lang>/arcade.png, /og/<lang>/arcade/<game>.png, /og/<lang>/world.png, /og/<lang>/world/selva.png, /og/<lang>/world/cusco.png,
- * /og/<lang>/world/costa.png, /og/<lang>/cv.png.
+ * /og/<lang>/world/costa.png, /og/<lang>/world/titicaca.png, /og/<lang>/cv.png.
  */
 
 import { getCollection } from "astro:content";
@@ -22,6 +22,7 @@ import {
   projectsCard,
   renderPng,
   selvaCard,
+  titicacaCard,
   worldCard,
 } from "../../lib/og";
 import { getPosts } from "../../lib/posts";
@@ -55,6 +56,7 @@ export const getStaticPaths = (async () => {
     add(`${lang}/world/selva`, async () => selvaCard(lang));
     add(`${lang}/world/cusco`, async () => cuscoCard(lang));
     add(`${lang}/world/costa`, async () => costaCard(lang));
+    add(`${lang}/world/titicaca`, async () => titicacaCard(lang));
     add(`${lang}/uses`, async () =>
       listCard({
         title: lang === "es" ? "Lo que uso" : "Uses",

@@ -1,0 +1,20 @@
+/* Uros island panel (../uros.ts) on the shared paper panel (ambient/fields/fields.css, prefix qnf-): the selvage
+   in the island's dye between bands of totora straw, and the skills as reed-tied chips. Prefix tq-. */
+.tq-uros .qnf-panel::before {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--tq-dye, #c4383f) 0 22px,
+    #efe6d6 22px 27px,
+    #d9c27c 27px 44px,
+    #efe6d6 44px 49px
+  );
+}
+.tq-skills li {
+  padding: 4px 10px;
+  border-left: 6px solid var(--tq-dye, #c4383f);
+  border-radius: 4px 999px 999px 4px;
+  font-size: 0.82rem;
+}
+.tq-uros .qnf-nav {
+  margin-top: 4px;
+}
