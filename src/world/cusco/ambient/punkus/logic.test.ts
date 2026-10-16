@@ -33,7 +33,9 @@ describe("hub punkus", () => {
   test("open gates travel, closed gates only say coming soon", () => {
     expect(gateAction(by("antisuyu"))).toEqual({ kind: "travel", to: "selva" });
     expect(gateAction(by("qhapaq"))).toEqual({ kind: "travel", to: "qhapaq" });
-    for (const id of ["chinchaysuyu", "collasuyu", "kuntisuyu"]) expect(gateAction(by(id))).toEqual({ kind: "soon" });
+    expect(gateAction(by("chinchaysuyu"))).toEqual({ kind: "travel", to: "costa" });
+    for (const id of ["collasuyu", "kuntisuyu"]) expect(gateAction(by(id))).toEqual({ kind: "soon" });
+    expect(gatePrompt(by("chinchaysuyu"), "es")).toBe("E · Viajar al Chinchaysuyu");
     expect(gatePrompt(by("antisuyu"), "es")).toBe("E · Viajar al Antisuyu");
     expect(gatePrompt(by("qhapaq"), "en")).toBe("E · Back to the Qhapaq Ñan");
     expect(gatePrompt(by("collasuyu"), "es")).toBe("Collasuyu · Próximamente");
@@ -44,7 +46,9 @@ describe("hub punkus", () => {
     const [ax, az] = gatePoint(by("antisuyu"));
     expect(gatesToPrefetch(ax - 5, az + 5).map((g) => g.id)).toEqual(["antisuyu"]);
     const [cx, cz] = gatePoint(by("chinchaysuyu"));
-    expect(gatesToPrefetch(cx, cz)).toEqual([]);
+    expect(gatesToPrefetch(cx, cz).map((g) => g.id)).toEqual(["chinchaysuyu"]);
+    const [kx, kz] = gatePoint(by("kuntisuyu"));
+    expect(gatesToPrefetch(kx, kz)).toEqual([]);
     expect(gatesToPrefetch(0, 0)).toEqual([]);
   });
 });

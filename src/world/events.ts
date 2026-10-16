@@ -8,9 +8,10 @@ import type { L } from "./contract";
  * The worlds of the Tawantinsuyu. "qhapaq" is the mountain climb (/world/), "wasi" the house at the trailhead
  * (lazy interior inside the mountain page), "selva" the Antisuyu jungle road (its own page, /world/selva/),
  * "cusco" the hub at Haukaypata, the great plaza of Qusqu where the suyu roads start (/world/cusco/, on the
- * generic suyu runtime in ./suyu/). New suyu worlds add their id here when their page exists.
+ * generic suyu runtime in ./suyu/), "costa" the Chinchaysuyu coast road (/world/costa/, on the suyu runtime).
+ * New suyu worlds add their id here when their page exists.
  */
-export type WorldId = "qhapaq" | "wasi" | "selva" | "cusco";
+export type WorldId = "qhapaq" | "wasi" | "selva" | "cusco" | "costa";
 
 export type StampKind =
   | "station"
@@ -44,8 +45,8 @@ export interface MountDetail {
   speedMul: number;
   /** Extra height of the avatar's feet above the ground while seated (0 when not riding). */
   seatHeight: number;
-  /** What is ridden; absent means the llama (older emitters). */
-  vehicle?: "llama" | "canoe";
+  /** What is ridden; absent means the llama (older emitters). "caballito": the coast's totora reed boat. */
+  vehicle?: "llama" | "canoe" | "caballito";
 }
 
 /** How the avatar sits: "bench" hands on the knees, "desk" hands forward on a keyboard (typing). */

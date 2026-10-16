@@ -57,7 +57,7 @@ export const ROAD_LEN = 30;
 export const ARRIVE_IN = 12;
 
 /** Future worlds have no WorldId yet; their gates are closed until their page exists. */
-export type FutureWorld = "costa" | "titicaca" | "colca";
+export type FutureWorld = "titicaca" | "colca";
 
 export interface Gate {
   /** Station id of the gate (and the stem of its sign). */
@@ -106,16 +106,16 @@ export const GATES: ReadonlyArray<Gate> = [
   {
     id: "chinchaysuyu",
     world: "costa",
-    available: false,
+    available: true,
     mouth: [PLAZA.x0, PLAZA.z0],
     dir: [-D, -D],
     name: { es: "Chinchaysuyu", en: "Chinchaysuyu" },
     bearing: { es: "al noroeste, hacia la costa", en: "north-west, to the coast" },
     holds: {
-      es: "Un camino por la costa del Pacífico.",
-      en: "A road along the Pacific coast.",
+      es: "El camino de la costa junto al Pacífico: mi carrera otra vez, una huaca por empresa (de Nasca a Chan Chan), el mercado de artefactos de Huanchaco, un paseo en caballito de totora, fauna marina y el Inti hundiéndose en la Mamacocha al final del camino.",
+      en: "The coast road beside the Pacific: my career again, one huaca per company (from Nazca to Chan Chan), the Huanchaco market of artifacts, a ride on a totora reed boat, sea life and Inti sinking into the Mamacocha at the road's end.",
     },
-    pages: [],
+    pages: ["costa"],
     dye: "#c4383f",
     glimpse: ["#f1e3c4", "#9fd0d6", "#e3c68f"],
   },

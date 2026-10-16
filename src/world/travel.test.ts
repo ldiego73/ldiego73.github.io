@@ -12,5 +12,8 @@ describe("world urls", () => {
     expect(worldUrl("en", "cusco")).toBe("/en/world/cusco/");
     expect(worldUrl("en", "cusco", "qhapaq")).toBe("/en/world/cusco/?from=qhapaq");
     expect(worldUrl("en", "cusco", "selva")).toBe("/en/world/cusco/?from=selva");
+    expect(worldUrl("es", "costa")).toBe("/es/world/costa/");
+    expect(worldUrl("es", "costa", "cusco")).toBe("/es/world/costa/?from=cusco");
+    expect(worldUrl("en", "cusco", "costa")).toBe("/en/world/cusco/?from=costa");
   });
 });

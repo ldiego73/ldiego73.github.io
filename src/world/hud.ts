@@ -91,6 +91,11 @@ export function createHud(
     onPanelClose?(key: string | null): void;
     stations: MapStation[];
     trail: Array<{ x: number; z: number }>;
+    /**
+     * Panels only: no corner tools, minimap or help overlay and no `world:help` listener (a suyu world reuses
+     * the station panels next to its own corner tools, ./suyu/hud.ts).
+     */
+    bare?: boolean;
   },
 ): Hud {
   const L = (k: UIKey) => t(lang, k);
@@ -145,7 +150,7 @@ export function createHud(
   helpBtn.innerHTML =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 9a3 3 0 1 1 4.2 2.8c-.9.4-1.4 1.1-1.4 2.1v.6"/><path d="M12 18h.01"/></svg>';
   tools.append(mapBtn, helpBtn);
-  hud.appendChild(tools);
+  if (!opts.bare) hud.appendChild(tools);
 
   // Minimap.
   const mapBox = el("figure", "qn-map");
@@ -154,7 +159,7 @@ export function createHud(
   mapCanvas.setAttribute("aria-label", L("qn.map"));
   const mapCap = el("figcaption", "qn-map-cap");
   mapBox.append(mapCanvas, mapCap);
-  hud.appendChild(mapBox);
+  if (!opts.bare) hud.appendChild(mapBox);
   // The corner minimap stays small; the full map + fast travel is core's map.ts (opened via `world:map`).
 
   // Help overlay.
@@ -174,7 +179,7 @@ export function createHud(
   helpClose.type = "button";
   helpCard.append(ht, hl, helpClose);
   help.appendChild(helpCard);
-  hud.appendChild(help);
+  if (!opts.bare) hud.appendChild(help);
 
   // Game overlay.
   const game = el("div", "qn-game");
@@ -305,7 +310,7 @@ export function createHud(
     helpBtn.focus({ preventScroll: true });
   });
   const onHelpEv = () => setHelp();
-  window.addEventListener("world:help", onHelpEv);
+  if (!opts.bare) window.addEventListener("world:help", onHelpEv);
 
   // ------------------------------------------------------------ builders
   const head = (title: string, sub?: string, dye?: string) => {

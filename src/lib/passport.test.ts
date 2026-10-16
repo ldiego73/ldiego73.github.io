@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { emptyState } from "../games/core/store";
 import { ACHIEVEMENTS } from "../games/registry";
 import { STATIONS } from "../world/contract";
+import { COSTA_STATIONS } from "../world/costa/plan";
 import { SELVA_STATIONS } from "../world/selva/contract";
 import {
   CATALOG,
@@ -99,6 +100,10 @@ describe("Qhapaq Ñan passport", () => {
       "cusco:station:qorikancha",
       "cusco:station:hatun-rumiyoc",
       "cusco:station:chasqui",
+      ...COSTA_STATIONS.filter((station) => station.stamp !== false).map((station) => `costa:station:${station.id}`),
+      "costa:ride:caballito",
+      "costa:summit",
+      ...["lobo-marino", "pinguino", "pelicano", "guanay", "gaviota", "cangrejo"].map((id) => `costa:fauna:${id}`),
     ];
     expect(CATALOG.map((stamp) => stamp.id).sort()).toEqual(expected.sort());
     expect(new Set(expected).size).toBe(CATALOG.length);
@@ -204,7 +209,10 @@ describe("Qhapaq Ñan passport", () => {
     const bonus = new Set(["egg", "fauna", "npc", "record", "festival"]);
     for (const stamp of CATALOG) if (!bonus.has(stamp.kind)) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
-    expect(mergedPassport(state, emptyState()).worldCollected).toBe(21 + 4 + SELVA_STATIONS.length + 3 + 2);
+    const costaRequired = COSTA_STATIONS.filter((station) => station.stamp !== false).length + 2;
+    expect(mergedPassport(state, emptyState()).worldCollected).toBe(
+      21 + 4 + SELVA_STATIONS.length + 3 + 2 + costaRequired,
+    );
     delete state.stamps["weather:fog"];
     expect(passportComplete(state)).toBe(false);
     for (const stamp of CATALOG) state.stamps[stamp.id] = 1234;
@@ -223,6 +231,8 @@ describe("Qhapaq Ñan passport", () => {
     for (const stamp of requiredStamps("selva")) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(false);
     for (const stamp of requiredStamps("cusco")) state.stamps[stamp.id] = 1234;
+    expect(passportComplete(state)).toBe(false);
+    for (const stamp of requiredStamps("costa")) state.stamps[stamp.id] = 1234;
     expect(passportComplete(state)).toBe(true);
     expect(requiredStamps("selva").some((stamp) => stamp.id.startsWith("selva:fauna:"))).toBe(false);
   });
@@ -234,5 +244,15 @@ describe("Qhapaq Ñan passport", () => {
     ]);
     expect(CATALOG.some((stamp) => stamp.id === "cusco:station:antisuyu")).toBe(false);
     expect(CATALOG.find((stamp) => stamp.id === "cusco:station:hatun-rumiyoc")?.kind).toBe("egg");
+  });
+
+  test("the coast page needs every company station, the market, the caballito ride and the finale", () => {
+    const ids = requiredStamps("costa").map((stamp) => stamp.id);
+    expect(ids).toContain("costa:station:huanchaco");
+    expect(ids).toContain("costa:ride:caballito");
+    expect(ids).toContain("costa:summit");
+    expect(ids.filter((id) => id.startsWith("costa:station:")).length).toBe(8);
+    expect(ids.some((id) => id.startsWith("costa:fauna:"))).toBe(false);
+    expect(CATALOG.some((stamp) => stamp.id === "costa:station:punku")).toBe(false);
   });
 });
