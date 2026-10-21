@@ -86,6 +86,7 @@ export function createWorldStyle(o: WorldStyleOptions): WorldStyle {
   const last = new Map<number, { x: number; z: number }>();
   const seen = new Set<number>();
   const sample = { x: 0, y: 0, z: 0, gust: 0, speed: 0 };
+  const safeFocus = o.focus.clone();
   const u = o.engine.outline.uniforms;
 
   return {
@@ -127,7 +128,11 @@ export function createWorldStyle(o: WorldStyleOptions): WorldStyle {
       // ----- wind
       const ws = windState(windProfile, t, o.reducedMotion, liveWind.state);
       packWind(ws, KW_U);
-      const f = o.focus;
+      // A non-finite focus (e.g. a dev hook fed NaN) would poison the uniform arrays and make three throw:
+      // keep using the last finite one.
+      if (Number.isFinite(o.focus.x) && Number.isFinite(o.focus.y) && Number.isFinite(o.focus.z))
+        safeFocus.copy(o.focus);
+      const f = safeFocus;
       windAt(ws, f.x, f.z, f.y, sample);
       liveWind.gust += (sample.gust - liveWind.gust) * Math.min(1, dt * 3);
       sky.setWind(ws.dirX, ws.dirZ, ws.strength * (1 + sample.gust * 0.5));

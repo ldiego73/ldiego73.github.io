@@ -19,8 +19,9 @@ import { reedSpots } from "./placement";
 /** One clump: stalks of 1.6–2.6 u leaning a little outward, base at y 0 (the water line is ~0.4 u up). */
 function clumpGeometry(): THREE.BufferGeometry {
   const parts: Array<{ geometry: THREE.BufferGeometry; color: THREE.Color; matrix: THREE.Matrix4 }> = [];
-  // Three rings up the stalk so the height² bend curves it instead of tilting a straight stick.
-  const stalk = new THREE.CylinderGeometry(0.02, 0.055, 1, 4, 3, true);
+  // Two segments up the stalk: the height² bend then curves it instead of tilting a straight stick (a third
+  // segment read no better and cost ~150k more triangles across the beds).
+  const stalk = new THREE.CylinderGeometry(0.02, 0.055, 1, 4, 2, true);
   stalk.translate(0, 0.5, 0);
   const tip = new THREE.ConeGeometry(0.03, 0.22, 4);
   tip.translate(0, 0.11, 0);

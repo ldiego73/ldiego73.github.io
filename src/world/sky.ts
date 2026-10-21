@@ -164,7 +164,9 @@ const CloudShader = {
       // Cut-out edge: never softer than the profile's edge, never sharper than a pixel.
       float e = max(uCloudEdge * 0.25, fwidth(v) * 0.9);
       float m = smoothstep(uCloudThreshold - e, uCloudThreshold + e, v);
-      float a = m * uCloudAlpha * smoothstep(0.03, 0.22, d.y);
+      // Gone below ~6° elevation: nearer the horizon the plane projection smears the shapes into a soft band that
+      // hid the far snow peaks (Cordillera Real on the lake); the hard two-tone look only holds higher up.
+      float a = m * uCloudAlpha * smoothstep(0.1, 0.28, d.y);
       if (a < 0.004) discard;
       // Two tones: shaded where the cloud is still thick a step toward the sun (the far side).
       vec2 toSun = normalize(uCloudSun.xz + vec2(1e-4)) * 0.16;
