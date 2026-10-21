@@ -50,7 +50,15 @@ describe("face decal projection", () => {
     expect(out[8]).toBe(0);
   });
   test("mirrored decals read the same on both sides", () => {
-    const m: FaceMap = { origin: [0.08, 0, 0], right: [0, 0, 1], up: [0, 1, 0], fwd: [1, 0, 0], w: 0.1, h: 0.1, mirror: true };
+    const m: FaceMap = {
+      origin: [0.08, 0, 0],
+      right: [0, 0, 1],
+      up: [0, 1, 0],
+      fwd: [1, 0, 0],
+      w: 0.1,
+      h: 0.1,
+      mirror: true,
+    };
     const pos = new Float32Array([0.08, 0.01, 0.02, -0.08, 0.01, 0.02]);
     const nrm = new Float32Array([1, 0, 0, -1, 0, 0]);
     const out = new Float32Array(6);
