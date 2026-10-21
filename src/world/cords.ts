@@ -4,6 +4,7 @@ import type { WorldEnv } from "./contract";
 import { cullDistance, deviceCullFactor } from "./detail-cull";
 import { type ColoredPart, flattenToonGroup, mergeColored, vertexToon } from "./merge-colors";
 import { C, DYE, Kit, localWind } from "./props";
+import { paintStrength } from "./style-gl";
 
 /**
  * A company's khipu on a wooden frame: the primary cord along the bar, one pendant per stage
@@ -57,12 +58,14 @@ export function buildKhipu(env: WorldEnv, specs: CordSpec[], seed = 1): KhipuMod
   // tip, tie wraps) another, and the knots are instanced per shape in a base and a lit mesh (instance
   // colors = dye). Sway and the light-up pulse move the knot instances from update(), so the toon shading,
   // the ink prepass and picking (any child of the tagged group) see exactly what the per-knot meshes did.
-  const vMat = vertexToon();
-  const knotMat = env.toon("#ffffff");
+  // The cords and knots swing in the wind: no world-space painted blotches sliding over them (style-gl.ts).
+  const vMat = paintStrength(vertexToon(), 0);
+  const knotMat = paintStrength(env.toon("#ffffff").clone(), 0);
+  knotMat.userData.kwShared = false;
   const litMat = knotMat.clone();
   litMat.emissive = new THREE.Color(C.torch);
   litMat.emissiveIntensity = 0.75;
-  owned.push(vMat, litMat);
+  owned.push(vMat, knotMat, litMat);
 
   const subs = specs.filter((s) => s.kind === "sub").length;
   const barW = 1.15 + subs * 0.32;

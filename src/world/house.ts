@@ -28,6 +28,7 @@ import {
   thatchRoof,
   toonMapped,
 } from "./props";
+import { noPaint } from "./style-gl";
 
 /**
  * The chasqui post is the owner's house: an enterable stone house at the top of the trail.
@@ -730,6 +731,8 @@ export function buildHouse(env: WorldEnv, lang: Lang, groundOuter: (x: number, z
         mkk.add(new THREE.SphereGeometry(0.04, 6, 5), DYE[d as keyof typeof DYE], -0.3 + i * 0.2, -0.15 - kk * 0.12, 0);
     });
     mk.add(mkk.build("message-khipu"));
+    // It swings in the wind: no world-space painted blotches sliding over the cords (style-gl.ts).
+    noPaint(mk);
     g.add(mk);
   });
   yardItem(0.6, [...SIDE_L].reverse(), (g) => {

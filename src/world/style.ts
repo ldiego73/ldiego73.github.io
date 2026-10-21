@@ -159,20 +159,22 @@ const MOUNTAIN: StyleProfile = {
 export const STYLES: Record<WorldId, StyleProfile> = {
   qhapaq: MOUNTAIN,
   wasi: MOUNTAIN,
-  // Antisuyu: humid lowland forest. Periwinkle shade, a touch tealer than the sierra's indigo: it turns the
-  // shaded leaves blue-green and the red laterite and the wood maroon-brown (a teal tint would turn them olive,
-  // the multiply eats their red), a bright lit side with a strong highlight band (sun-struck
-  // leaves pop out of the gloom), small gold-leaning painted patches (a crown or a shrub shows two or three;
+  // Antisuyu: humid lowland forest. Violet shade: in the runtime's green air the cast shadows hold mostly green
+  // ambient, so a blue or teal tint turned the red laterite and the wood olive; violet keeps their red (maroon
+  // earth, brown wood) while the shaded leaves still go deep blue-green. A bright lit side with a strong
+  // highlight band (sun-struck leaves pop out of the gloom), small gold-leaning painted patches (a crown or a shrub shows two or three;
   // the road's own painted texture takes less, ground.ts), a warm rim, and a dense green-teal haze in three
   // painted planes that starts close: the forest fades into layers a few trees deep. Puffy, crisp clouds.
   selva: {
     ...SIERRA,
-    shadowTint: "#5070c0",
+    shadowTint: "#7a62b8",
     shadowStrength: 0.62,
     cel: { lit: 0.95, terminator: 0.52, softness: 0.012, shade: 0.5, highlight: 0.22, highlightAt: 0.85 },
     ink: { color: "#4a1e12", night: "#16263a", silhouette: 1.7, crease: 0.7, creaseAlpha: 0.7 },
     rim: { color: "#fff1c8", amount: 0.25, power: 3 },
-    paint: { amount: 0.28, scale: 2.8, flat: 0.4, vertex: 1, warm: "#f2c250", hue: 0.6, edge: 0.02 },
+    // amount stays at the shared cap (style.test.ts); the jungle's stronger swing rides the class multipliers:
+    // ×1.4 on vertex-coloured foliage, terrain and trunks (0.28), ×0.55 on flat props (0.11).
+    paint: { amount: 0.2, scale: 2.8, flat: 0.55, vertex: 1.4, warm: "#f2c250", hue: 0.6, edge: 0.02 },
     atmosphere: { ...SIERRA.atmosphere, near: 28, far: 360, tint: "#8cd2cc", strength: 0.66, heightK: 0.3 },
     clouds: { ...SIERRA.clouds, cover: 0.5, scale: 0.9, shade: 0.7 },
     sky: { saturation: 1.35, zenith: "#3a96e4", zenithK: 0.55 },

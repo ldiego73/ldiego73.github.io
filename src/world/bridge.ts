@@ -5,6 +5,7 @@ import { artifactsOnBridge } from "./artifacts";
 import type { Collider, Station, WorldEnv } from "./contract";
 import { flattenToonGroup, vertexToon } from "./merge-colors";
 import { C, canvasTex, DYE, Kit, localWind, rng, toonMapped } from "./props";
+import { noPaint } from "./style-gl";
 
 /**
  * Q'eswachaka rope bridge across the gorge the core cuts at the bridge station: woven ichu ropes
@@ -375,6 +376,8 @@ export function buildBridge(env: WorldEnv, station: Station): Bridge {
 
   const center = deck.getPointAt(0.5);
   const start = frame(0).p.clone().addScaledVector(frame(0).tan, -1.4);
+  // The bridge and its cords rock in the wind: no world-space painted blotches sliding over them (style-gl.ts).
+  noPaint(group);
   const rm = env.reducedMotion;
   const wind = { x: 0, z: 0, speed: 0, gust: 0 };
   let swing = 0.006;

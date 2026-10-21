@@ -82,7 +82,8 @@ export function buildSummit(env: WorldEnv, ground: (x: number, z: number) => num
   const top = y + 0.85;
 
   // ---------- golden Inti (sun disk with rays), slowly turning
-  const gold = env.toon(GOLD).clone();
+  // The Inti turns: no world-space painted blotches sliding over the gold.
+  const gold = paintStrength(env.toon(GOLD).clone(), 0);
   gold.emissive = new THREE.Color("#ffcf5a");
   gold.emissiveIntensity = 0.28;
   mats.push(gold);
