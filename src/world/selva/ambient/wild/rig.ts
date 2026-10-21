@@ -17,6 +17,7 @@
  */
 import * as THREE from "three";
 import { GeoBuilder } from "../../../flora/geom";
+import { paintStrength } from "../../../style-gl";
 
 export const J = { body: 0, fl: 1, fr: 2, hl: 3, hr: 4, head: 5, tail: 6 } as const;
 
@@ -123,6 +124,8 @@ export function rigMaterial(gradientMap: THREE.Texture | null, spec: RigSpec, ri
       );
   };
   m.customProgramCacheKey = () => "selva-fauna-rig";
+  // Animals move: no world-space painted blotches on them (style-gl.ts).
+  paintStrength(m, 0);
   return { material: m, rim };
 }
 

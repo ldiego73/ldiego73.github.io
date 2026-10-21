@@ -111,7 +111,7 @@ The client script then lazy-imports `src/world/index.ts`.
 - Engine and quality: `engine.ts` (renderer, quality, adaptive DPR), `quality.ts` (pure auto governor).
 - Ground and road: `layout.ts` (pure heightfield, trail spline, gorge, plazas, walkable test), `terrain.ts` with `flora/` (terrain, river, vegetation), `trail.ts` (the stone path).
 - Sky and calendar: `sky.ts` (day/night, sun, moon, stars, Milky Way, fog, the weather hook), `calendar.ts` (real date in Cusco: season, Inti Raymi, moon phase; override with `?date=YYYY-MM-DD`).
-- Rendering style: `toon.ts`, `outline.ts` and `merge-colors.ts` (see Rendering pipeline below).
+- Rendering style: `style.ts`, `style-gl.ts`, `style-runtime.ts`, `wind.ts`, `wind-glsl.ts`, `toon.ts`, `outline.ts` and `merge-colors.ts` (see Rendering pipeline below).
 - Camera and controls: `camera.ts`, `input.ts`, `chrome.ts`, `travel-panel.ts` (the «Viajar» panel).
 - Screens and dialogs: `intro.ts`, `loader.ts`, `map.ts`, `dialogs.ts`, `textmode.ts`.
 - Climb record and music: `journey.ts`, `journey-card.ts`, `music.ts`.
@@ -168,22 +168,92 @@ Modules do not import each other. They talk through typed window events (`src/wo
 
 ### Rendering pipeline
 
-The look is toon shading with hand-inked outlines.
+The look is "cel pintado andino": painterly cel shading with hand-inked outlines, shared by every world. A world picks a profile by id and gets everything with no other work; world-specific shaders opt in to the pieces they need.
 
-- **Materials.** `env.toon(color)` returns a cached `MeshToonMaterial` with a 3-step ramp.
-- **Ink outline.** `outline.ts` runs a normal + depth prepass on layer 0, then a full-screen edge detect that fades into the fog.
-  - Objects opt out with `env.noOutline(obj)`, which moves them to layer 1 (`NO_OUTLINE_LAYER`).
-  - Transparent or shader-driven objects get an ink-mask twin (`inkMask()` in `toon.ts`).
-- **Draw-call budget.** The whole mountain is in view at once, so draw calls dominate the frame cost.
-  - `merge-colors.ts` (`mergeColored`, `flattenToonGroup`) folds flat-colored parts into one vertex-colored mesh. `arcade-merge.ts` does the same for the cabinets.
-  - Repeated things are instanced.
-  - `detail-cull.ts` hides small meshes beyond a distance band (`CULL_BANDS`), rescanning every 5 s, with a tighter factor on phones.
-- **Quality governor.** `quality.ts` steps the cost down only when frame times stay low (pixel ratio, then outline) and back up with hysteresis. A manual quality choice disables it.
-- **Camera occluders.** `camera.ts` raycasts against named occluders (waterfall cliff, cave, the Antisuyu punku) and per-area occluders, so the camera never ends up inside rock.
+**Files.**
+
+| File | What it holds |
+| --- | --- |
+| `style.ts` | Pure. `StyleProfile` and the per-world registries `STYLES` and `WIND` (`Record<WorldId, …>`), colour helpers, and the packing of a profile into the shared uniform array (`SLOT`, `packStyle`). Tune the numbers here. |
+| `wind.ts` | Pure. The wind field: `WindProfile`, `windState` (drifted direction, gusts, reduced motion), `gustAt` / `windAt` (CPU sampler for particles, cloth, sound, creatures), `pickPushers` (bodies that part the grass), `createSpringField` / `springs` (kicks of small trees brushed past) and `liveWind` (this frame's wind for any CPU reader). |
+| `wind-glsl.ts` | The GLSL twin of `wind.ts`: `cpaGust`, `cpaWindOffset` (grass, tree, cloth modes, pushers, kicks) and the `project_vertex` replacement. |
+| `style-gl.ts` | Patches three's shader chunks once per page (`installStyleShaders`, called by `engine.ts`), owns the shared uniform arrays (`KW_U`, `KW_PUSH`, `KW_KICK`) and the opt-in helpers (`windSway`, `inkAwareMaterial`, `paintStrength`, `noPaint`, `clothFlex`, `styleUniforms`). |
+| `style-runtime.ts` | `createWorldStyle(...)`: the per-frame driver every runtime calls. |
+| `toon.ts`, `outline.ts`, `merge-colors.ts`, `sky.ts` | Toon materials, the ink pass, vertex-colour merges and the sky (see below). |
+
+**How a runtime wires it** (already done in `index.ts`, `selva/index.ts` and `suyu/index.ts`):
+
+```ts
+const style = createWorldStyle({ world, engine, sky, reducedMotion, focus: pos, noPaint: [avatar.group] });
+// every frame, after sky.update and the runtime's own fog tweaks (the jungle's green air, a suyu world's tint):
+style.update(dt, time);
+```
+
+The dev hook exposes it as `__kw.style`: `__kw.style.set({ ...__kw.style.profile, paint: { ... } })` retunes a profile live, and `__kw.style.set(undefined, windProfile)` swaps the wind.
+
+**Style profile fields** (`StyleProfile` in `style.ts`; every field is documented there):
+
+- `shadowTint`, `shadowStrength`: the colour mixed into the shaded side and into cast shadows (indigo in the sierra, blue-green in the jungle, teal on the coast…). The tint is used as a hue at unit luminance, so it shifts colour without darkening; `cel.shade` sets how dark the shade is.
+- `cel`: `lit` (light on the lit side; 0 turns the cel ramp off and falls back to the gradient texture), `terminator`, `softness`, `shade`, `highlight` and `highlightAt` (the thin third band).
+- `ink`: `color` by day, `night` after dusk, `silhouette` (width of depth edges near the camera, thinning to 1 px with distance), `crease` and `creaseAlpha` (normal edges inside a shape, thinner and lighter).
+- `rim?`: an optional thin rim of light on the lit side's silhouettes.
+- `paint`: `amount` (lightness swing), `scale` (blotch size in world units), `flat` and `vertex` (multipliers for flat-coloured and vertex- or instance-coloured materials), `warm` and `hue` (the hue the light blotches lean to), `edge` (cut-out to watercolour).
+- `atmosphere`: `near`, `far`, `tint`, `strength`, `heightBase`, `heightFalloff`, `heightK` and `layers` (soft painted distance planes).
+- `clouds`: `cover`, `scale`, `speed`, `shade`, `edge`, `alpha`.
+- `sky`: `saturation`, and an optional anime `zenith` blue with `zenithK`.
+
+**What every material gets automatically.**
+
+- **Cel light** (every `MeshToonMaterial`: `env.toon`, `vertexToon`, merged meshes, instanced meshes, flora, and toon materials with their own `onBeforeCompile`). `lights_toon_pars_fragment` computes a crisp two-tone terminator plus the highlight band from uniforms and keeps a lit mask. `aomap_fragment` mixes the shadow tint into the shaded side and into cast shadows (the mask is normalized by the key light, so a cast shadow counts as shade) and adds the rim.
+- **Painted blotches** (toon). `color_fragment` modulates the albedo with world-space value noise posterized into three soft-edged levels (darker, as is, lighter), fading out past ~160–420 u. Vertex- or instance-coloured materials get `paint.vertex` (terrain, merged scenery, flora); flat ones get `paint.flat` (props).
+  - Moving bodies opt out, because world-space blotches would slide over them. The avatar opts out through `noPaint` in the runtimes. The shared people rig (`ambient/people/rig.ts`), the night-fauna rig, the jungle's wild rig and the bird rig set `paintStrength(m, 0)`.
+- **Aerial perspective** (every fogged material, built-in or custom, that uses three's fog chunks). `fog_fragment` first hazes the colour toward a lighter, bluer tint by distance and altitude: the haze takes its brightness from this frame's fog, so day, dusk, night and weather keep working. Then three's fog applies as before.
+- **Ink.** `outline.ts` samples silhouettes `uSil` texels away and creases `uCrease` texels away on the linearly filtered normal buffer, scaled by `uCreaseK`. All three at 1 reproduce the old single-weight ink. The ink colour is the profile's warm brown by day and its night ink after dusk. `inkMask()` and `noOutline()` work as before.
+- **Sky.** `sky.setStyle` saturates the dome, leans the day zenith to the profile's blue and turns on a layer of hard-edged, two-tone stylised clouds: thresholded value noise on a sky plane, shaded on the side away from the sun.
+  - The clouds drift along the wind. Weather cover thickens them, fog thins them, and they vanish in the title void.
+  - The layer draws at the far plane after the stars and before every world transparent, so it never covers terrain, mist or particles. The sun and moon discs stay in front of it.
+  - Day/night, `setWeather`, garúa, mist, stars and the moon are unchanged.
+
+All shared uniforms at zero mean three's own look. That is the state before the first `update`, and the state of a custom shader that does not spread `styleUniforms()`.
+
+**How the uniforms reach every material.** `KW_U` (13 vec4 slots, `SLOT` in `style.ts`), `KW_PUSH` (12 pushers) and `KW_KICK` (6 spring kicks) are Float32Arrays added to every `THREE.ShaderLib` entry. `UniformsUtils.clone` copies typed arrays by reference, so one write per frame reaches every built-in material; `style-gl.test.ts` guards this assumption. The GLSL names are prefixed `cpa` (`cpaU`, `cpaPaint`…) and the chunk is `#include <cpa_pars>`. Do not use the `cpa` prefix in world shaders.
+
+**Wind.** One field per world (`WIND[world]`): base direction and strength, slow direction drift, travelling gust bands (visible as a wave crossing the grass), leaf flutter, an optional height `calm` band (the jungle floor) and `lift` (canyon updrafts, for particles and cloth).
+
+- Every frame the runtime publishes the field to the GPU and to `liveWind`. `liveWind.sample(x, z, y?)` returns `{ x, y, z, gust, speed }`, the same gust the grass shows at that spot, and `liveWind.gust` is a smoothed gust strength at the traveler for sound.
+- **Pushers.** The solid bodies of the creatures registry nearest the traveler (up to 12) bend grass and bushes away from themselves. Any ambient that registers bodies gets this for free.
+- **Spring kicks.** `springs.add([{ x, z, r }])` registers small trees and bushes, and returns the remover to call on dispose. When the traveler or a nearby body brushes one, a damped spring shakes its crown; at most 6 at once, off under reduced motion. The mountain registers queñua, chusquea and unca.
+- **Reduced motion.** A gentle, constant, slow sway with no gusts, flutter or kicks. Bodies still part the grass they stand in.
+
+**Opting a material in.**
+
+- Sway a built-in material with `windSway(material, { mode, flex?, height?, amp? })`.
+  - `"grass"` is for grass, reeds and flowers; `"tree"` is for trunk bend (height²), branch sway, leaf flutter and kicks; `"cloth"` is for banners, streamers, aguayos and sails.
+  - The weight is the geometry's `flex` attribute (with `flex: true`) or the object-space height over `height`, measured from the object's or instance's origin. A merged, non-instanced meadow needs `flex`.
+  - It also makes the material ink-aware (`allowOverride = false` plus an early-out that writes the displaced normal in the prepass), so the ink follows the motion.
+  - The mountain's flora uses it: `flora/material.ts` `swayMaterial` and `treeMaterial`.
+- Make cloth with `clothFlex(geo, axis, pinned, free)`, which writes `flex` from 0 at the pole to 1 at the free edge, then call `windSway(mat, { mode: "cloth", flex: true })`.
+- Set the paint per material with `paintStrength(material, k)`: 0 turns it off, 1 is the class default. `noPaint(obj)` does the same for a whole subtree and swaps cached toon materials for a twin instead of editing them.
+- For a material whose vertices move in its own `onBeforeCompile` (a rig), call `inkAwareMaterial(material)` to get the same ink-aware output.
+- **Custom `ShaderMaterial`.** Spread `...styleUniforms()` into its uniforms. With `fog: true` and three's fog chunks it then gets the haze automatically. In GLSL, `#include <cpa_pars>` (or `<common>`) gives you:
+  - `cpaWorldFromView(viewPos)`;
+  - `cpaPaint(rgb, worldPos, amount)` and `cpaCel(normal, lightDir)`, which return `(irradiance, lit)` and are fragment only;
+  - `cpaShadeTint(lit)` and `cpaHaze(rgb, viewDepth, worldY)`;
+  - `cpaGust(xz)` and `cpaWindOffset(worldPos, origin, hn, weight, worldNormal, mode)`, or set the `KW_WIND*` defines and keep `#include <project_vertex>`.
+
+**Draw-call budget.** The whole mountain is in view at once, so draw calls dominate the frame cost. The style adds one draw (the cloud layer) and no extra pass: everything else is shader work in existing draws.
+
+- `merge-colors.ts` (`mergeColored`, `flattenToonGroup`) folds flat-colored parts into one vertex-colored mesh. `arcade-merge.ts` does the same for the cabinets.
+- Repeated things are instanced.
+- `detail-cull.ts` hides small meshes beyond a distance band (`CULL_BANDS`), rescanning every 5 s, with a tighter factor on phones.
+
+**Quality governor.** `quality.ts` steps the cost down only when frame times stay low (pixel ratio, then outline) and back up with hysteresis. A manual quality choice disables it. With the outline off, ink-aware materials simply never see the prepass flag.
+
+**Camera occluders.** `camera.ts` raycasts against named occluders (waterfall cliff, cave, the Antisuyu punku) and per-area occluders, so the camera never ends up inside rock.
 
 ### Dev hook
 
-In dev builds only (`import.meta.env.DEV`), the world host element exposes `__kw`. It provides `setTime`, `setDate`, `teleport(t, side)`, `orbit`, `face`, `walk`, `tour`, `state()`, `creatures`, `scene` and `engine`. The screenshot scripts in `src/world/dev/`, `fauna-dev/` and `npc-dev/` drive the world harness through it.
+In dev builds only (`import.meta.env.DEV`), the world host element exposes `__kw`. It provides `setTime`, `setDate`, `teleport(t, side)`, `orbit`, `face`, `walk`, `tour`, `state()`, `creatures`, `scene`, `engine`, `style` (live style and wind tuning) and `drawCalls()`. The screenshot scripts in `src/world/dev/`, `fauna-dev/` and `npc-dev/` drive the world harness through it.
 
 ### 2.2 Jungle: Antisuyu (`src/world/selva/`)
 
@@ -290,7 +360,7 @@ E2E tests (`e2e/smoke.spec.ts`) check that every page renders without errors or 
 
 1. Create `src/world/ambient/<name>.ts` (mountain) or `src/world/selva/ambient/<name>.ts` (jungle) that exports `create: CreateAmbient`. Put builders and pure logic in `src/world/ambient/<name>/`, with tests for the logic.
 2. Register moving bodies in `creatures`, and declare `keepOut` zones for static gatherings. Register floors, decks and steps above the terrain in `decks` (walkable areas only cover ground-level paths).
-3. Use `env.toon`, instancing and merging. Call `noOutline` only for glows and particles.
+3. Use `env.toon`, instancing and merging. Call `noOutline` only for glows and particles. Swaying plants and cloth use `windSway`; moving bodies opt out of the painted blotches (`paintStrength(m, 0)` or `noPaint`); particles and sound read `liveWind`.
 4. Respect `env.quality`, `env.reducedMotion` and `env.sky.isNight()`.
 5. If it has an interaction, implement `prompt()` together with `interact()`, and emit `world:modal` while a panel is open.
 6. If it is fauna, describe it in `src/world/wildlife.ts` so the text mode stays truthful.

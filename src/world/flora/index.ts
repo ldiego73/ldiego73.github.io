@@ -4,8 +4,10 @@
  *
  * - InstancedMeshes per species and tile (trees 36 u, ground cover 48 u / 36 u on phones; merged,
  *   vertex-colored geometry), frustum- and distance-culled.
- * - Ground cover sways in the vertex shader (shared wind uniforms; still under reduced motion) and stays
- *   ink-correct (see material.ts). Trees are static, cast shadows and register trunk colliders.
+ * - Everything rides the world's shared wind (../wind.ts, cel pintado andino): ground cover bends with
+ *   gust fronts rolling up the slope and parts around the traveler and nearby animals; trees bend at the
+ *   crown, flutter, and the small ones (queñua, chusquea, unca) spring back when brushed (`springs`).
+ *   Both stay ink-correct (see material.ts). Trees cast shadows and register trunk colliders.
  * - Bird perches and flower points are published on an Object3D named "flora-perches"
  *   (`userData: FloraPerches`) so ambient/birds.ts can find them through the scene.
  * - A manual `world:quality` switch to low thins the ground cover to 45% ("ichu" itself is thinned by index.ts).
@@ -15,7 +17,8 @@
 import * as THREE from "three";
 import { on } from "../events";
 import type { Layout } from "../layout";
-import { inkAware, type SwayUniforms, staticMaterial, swayMaterial } from "./material";
+import { springs } from "../wind";
+import { swayMaterial, treeMaterial } from "./material";
 import {
   alisoModel,
   chusqueaModel,
@@ -107,13 +110,8 @@ function tiled(
   return out;
 }
 
-const reducedMotionPref = () => {
-  try {
-    return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
-};
+/** Trees that spring back when brushed (small crowns; the big pisonay and aliso just sway). */
+const SPRINGY = new Set<TreeKind>(["quenua", "chusquea", "unca"]);
 
 export function createFlora(
   L: Layout,
@@ -126,12 +124,12 @@ export function createFlora(
   const plan = planFlora(L, quality, o.avoid ?? [], phone ? PHONE_DENSITY : undefined);
   const coverCull = phone ? 120 : 190;
   const coverTile = phone ? COVER_TILE.phone : COVER_TILE.desktop;
-  const reduced = o.reducedMotion ?? reducedMotionPref();
-  const wind: SwayUniforms = { uTime: { value: 0 }, uWind: { value: reduced ? 0 : 1 } };
-  const swayMat = swayMaterial(gradientMap, wind);
-  const treeMat = staticMaterial(gradientMap);
+  // Reduced motion is the wind state's business (style-runtime.ts): a slow, constant sway without gusts.
+  const swayMat = swayMaterial(gradientMap);
+  const treeMat = treeMaterial(gradientMap);
   const geos: THREE.BufferGeometry[] = [];
   const objects: THREE.Object3D[] = [];
+  const removeSprings: Array<() => void> = [];
 
   // ---------------------------------------------------------------- ground cover
   const valley = new THREE.Color(TINTS.ichuValley);
@@ -146,7 +144,6 @@ export function createFlora(
     geos.push(geo);
     // Ground cover is gone in the fog well before 190 u; tiles past that skip every pass.
     for (const mesh of tiled(name, geo, swayMat, list, tints, tintFor, coverCull, coverTile)) {
-      inkAware(mesh);
       mesh.userData.fullCount = mesh.count;
       cover.push(mesh);
       objects.push(mesh);
@@ -181,6 +178,9 @@ export function createFlora(
       objects.push(mesh);
     }
     for (const inst of list) L.addCollider({ kind: "circle", x: inst.x, z: inst.z, r: TREE_R[kind].trunk * inst.s });
+    // Small trees and bamboo shake when the traveler brushes past (spring kicks, ../wind.ts).
+    if (SPRINGY.has(kind))
+      removeSprings.push(springs.add(list.map((i) => ({ x: i.x, z: i.z, r: TREE_R[kind].trunk * i.s + 0.35 }))));
   }
   // Bird perches + hummingbird flowers, published for ambient/birds.ts.
   const perches = new THREE.Object3D();
@@ -203,11 +203,12 @@ export function createFlora(
 
   return {
     objects,
-    update(t) {
-      wind.uTime.value = t;
+    update(_t) {
+      // The wind clock is shared (style-runtime.ts); kept for the terrain.ts call site.
     },
     dispose() {
       offQuality();
+      for (const r of removeSprings) r();
       swayMat.dispose();
       treeMat.dispose();
       for (const g of geos) g.dispose();

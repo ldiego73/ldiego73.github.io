@@ -9,6 +9,7 @@
 import * as THREE from "three";
 import type { WorldEnv } from "../../contract";
 import { type Body, creatures, park } from "../../creatures";
+import { paintStrength } from "../../style-gl";
 import { gradientMap } from "../../toon";
 import type { QuadParts, QuadRig } from "./models";
 import { P, type Pose } from "./sim";
@@ -39,6 +40,8 @@ export function rimToon(rimColor: THREE.ColorRepresentation = "#9fb4ff"): RimMat
     );
   };
   material.customProgramCacheKey = () => "nightfauna-rim";
+  // Animals move: no world-space painted blotches on them (style-gl.ts).
+  paintStrength(material, 0);
   return { material, rim, dispose: () => material.dispose() };
 }
 

@@ -64,6 +64,7 @@ import { createWorldMusic } from "./music";
 import { DYE } from "./palette";
 import { createGovernor, detectDevice, LEVELS } from "./quality";
 import { createSky } from "./sky";
+import { createWorldStyle } from "./style-runtime";
 import { createScenery } from "./terrain";
 import { disposeTextures, redrawAll } from "./tex";
 import { createToonCache } from "./toon";
@@ -631,6 +632,16 @@ async function start(
     const pos = arrive
       ? new THREE.Vector3(arrive.x, layout.groundAt(arrive.x, arrive.z), arrive.z)
       : new THREE.Vector3(sp.x, layout.groundAt(sp.x, sp.z), sp.z);
+    // Cel pintado andino + shared wind (style-runtime.ts): the world's profile, ink, haze, clouds and wind.
+    const style = createWorldStyle({
+      world: "qhapaq",
+      engine,
+      sky,
+      reducedMotion,
+      focus: pos,
+      noPaint: [avatar.group],
+    });
+    early.push(() => style.dispose());
     const vel = new THREE.Vector2();
     let vy = 0;
     let grounded = true;
@@ -1153,6 +1164,7 @@ async function start(
       sky.update(dt, camera, focus, phase === "play");
       engine.outline.uniforms.uInk.value.copy(sky.ink);
       scenery.cloudMaterial.color.copy(sky.cloudTint);
+      style.update(dt, time);
       scenery.update(dt, time);
 
       if (phase === "title") {
@@ -1342,6 +1354,27 @@ async function start(
       (host as HTMLElement & { __kw?: unknown }).__kw = {
         begin,
         engine,
+        /** Style + wind driver (style-runtime.ts): `style.set(profile, wind)` to tune live. */
+        style,
+        /** Draw calls and triangles of one whole composed frame (all passes), averaged over ~0.6 s. */
+        drawCalls: () =>
+          new Promise((res) => {
+            const info = engine.renderer.info;
+            let frames = 0;
+            const count = engine.onFrame(() => {
+              if (frames++ === 0) {
+                info.autoReset = false;
+                info.reset();
+              }
+            });
+            setTimeout(() => {
+              count();
+              const n = Math.max(1, frames);
+              const r = { calls: Math.round(info.render.calls / n), triangles: Math.round(info.render.triangles / n) };
+              info.autoReset = true;
+              res(r);
+            }, 600);
+          }),
         layout,
         scene,
         teleport(t: number, side = 0, faceBack = false) {
