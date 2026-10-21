@@ -130,7 +130,7 @@ export class HumanAnimator {
     const idleW = 1 - walkW;
     const shift = (rm ? 0.008 : 0.016) * Math.sin(t * 0.55) * idleW;
     const hipRest = this.rest.hips as THREE.Vector3;
-    const drop = 0.035 * walkW + 0.055 * runW;
+    const drop = 0.035 * walkW + 0.02 * runW;
     const hips = this.b.hips as THREE.Bone;
     hips.position.set(shift + pv.x * st.hipSway * ampK, hipRest.y - drop + (rm ? 0 : pv.y), 0);
     hips.rotation.set(0.04 * runW, pv.yaw * ampK, pv.roll * st.hipSway * ampK - shift * 1.6);
@@ -139,7 +139,7 @@ export class HumanAnimator {
     this.lastHipX = hips.position.x;
 
     // ---------------------------------------------------------------- legs (IK)
-    const lift = mix(0.075, 0.17, this.runW) * ampK;
+    const lift = mix(0.075, 0.24, this.runW) * ampK;
     for (const [side, ph] of [
       ["L", this.phase],
       ["R", this.phase + 0.5],
@@ -221,7 +221,8 @@ export class HumanAnimator {
           sgn * mix(0.1, st.armOut + 0.12, runW),
           "ZXY",
         );
-        fore.rotation.set(mix(-1.2, -1.25, runW), sgn * -0.55 * c, 0);
+        // Pitch first, then turn inward (YXZ), so the forearms cross in front instead of pointing ahead.
+        fore.rotation.set(mix(-1.25, -1.25, runW), sgn * -0.85 * c, 0, "YXZ");
         hand.rotation.set(-0.1, sgn * -0.3 * c, sgn * 0.1);
       } else {
         arm.rotation.set(swing, 0, sgn * (st.armOut + 0.12 * runW + breath * 0.01 * idleW), "ZXY");

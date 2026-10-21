@@ -292,8 +292,8 @@ export function campesinaPieces(bones: BoneDef[]): Piece[] {
   }
 
   // ---------------------------------------------------------------- pollera (two tiers) and lliclla: cloth
-  pieces.push(pollera(field, b, "pollera-under", 0.27 * K, 0.014, 0.43, 16, SL.under));
-  pieces.push(pollera(field, b, "pollera", 0.44 * K, 0.028, 0.46, 16, SL.pollera));
+  pieces.push(pollera(field, b, "pollera-under", 0.27 * K, 0.01, 0.41, 16, SL.under));
+  pieces.push(pollera(field, b, "pollera", 0.44 * K, 0.036, 0.47, 16, SL.pollera));
   pieces.push(lliclla(field, b));
   return pieces;
 }
