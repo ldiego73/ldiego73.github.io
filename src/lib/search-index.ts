@@ -102,6 +102,12 @@ export function paletteIndex(lang: Lang): Promise<PaletteItem[]> {
         k: "uses stack tools herramientas ia ai agents agentes",
       },
       { g: "pages", t: t(lang, "nav.arcade"), h: `${base}arcade/`, k: "games juegos" },
+      {
+        g: "pages",
+        t: t(lang, "nav.services"),
+        h: `${base}services/`,
+        k: "servicios services consultoria consulting precios pricing cloud finops arquitectura",
+      },
       { g: "pages", t: c.contact, h: `${base}#contact` },
       { g: "pages", t: c.cvPage, h: `${base}cv/`, k: "cv resume" },
     ];

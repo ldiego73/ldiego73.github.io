@@ -9,6 +9,8 @@ const pages = [
   "/en/arcade/",
   "/es/cv/",
   "/en/uses/",
+  "/es/services/",
+  "/en/services/",
 ];
 
 const watchErrors = (page: Page) => {
@@ -38,6 +40,24 @@ test("language switch keeps the page", async ({ page }) => {
   await page.locator("a.lang").click();
   await expect(page).toHaveURL(/\/en\/projects\/?$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
+});
+
+test("nav groups open as dropdowns on desktop and flat on phones", async ({ page }, info) => {
+  await page.goto("/es/services/");
+  const about = page.locator("#nav-about a", { hasText: "Lo que uso" });
+  if (info.project.name === "mobile") {
+    await page.locator("[data-menu]").click();
+    await expect(about).toBeVisible();
+    return;
+  }
+  await expect(about).toBeHidden();
+  const btn = page.locator(".group-btn").first();
+  await btn.click();
+  await expect(btn).toHaveAttribute("aria-expanded", "true");
+  await expect(about).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(about).toBeHidden();
+  await expect(btn).toBeFocused();
 });
 
 test("theme toggle persists", async ({ page }) => {

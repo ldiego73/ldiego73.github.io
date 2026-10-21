@@ -1,18 +1,21 @@
 ---
+import { BUDGETS, FORMATS } from "../../data/services";
 import { SITE, SOCIALS } from "../../data/site";
 import { type Lang, t } from "../../i18n/ui";
 import Icon from "../Icon.astro";
 
 interface Props {
   lang: Lang;
+  /** Services page variant: consulting is implied, and the form asks for a format and an optional budget. */
+  services?: boolean;
 }
-const { lang } = Astro.props;
+const { lang, services = false } = Astro.props;
 ---
 <section class="section contact" id="contact" aria-labelledby="contact-title">
   <div class="wrap grid">
     <div class="intro">
-      <h2 id="contact-title">{t(lang, "contact.title")}</h2>
-      <p class="lede">{t(lang, "contact.lede")}</p>
+      <h2 id="contact-title">{t(lang, services ? "services.contact.title" : "contact.title")}</h2>
+      <p class="lede">{t(lang, services ? "services.contact.lede" : "contact.lede")}</p>
       <a class="btn btn-primary" href={SITE.calendly} target="_blank" rel="noopener">
         <Icon name="calendar" />
         {t(lang, "contact.book")}
@@ -59,17 +62,44 @@ const { lang } = Astro.props;
           <input id="c-email" name="email" type="email" autocomplete="email" required />
         </label>
       </div>
-      <label for="c-reason">
-        <span>{t(lang, "contact.reason")}</span>
-        <select id="c-reason" name="reason">
-          <option>{t(lang, "contact.reason.consulting")}</option>
-          <option>{t(lang, "contact.reason.job")}</option>
-          <option>{t(lang, "contact.reason.talk")}</option>
-          <option>{t(lang, "contact.reason.other")}</option>
-        </select>
-      </label>
+      {
+        services ? (
+          <div class="row">
+            <input type="hidden" name="reason" value={t(lang, "contact.reason.consulting")} />
+            <label for="c-format">
+              <span>{t(lang, "services.contact.format")}</span>
+              <select id="c-format" name="format" data-format-select>
+                {FORMATS.map((f) => (
+                  <option value={f.name[lang]} data-format={f.id}>
+                    {f.name[lang]}
+                  </option>
+                ))}
+                <option>{t(lang, "services.contact.unsure")}</option>
+              </select>
+            </label>
+            <label for="c-budget">
+              <span>{t(lang, "services.contact.budget")}</span>
+              <select id="c-budget" name="budget">
+                {BUDGETS.map((b) => (
+                  <option>{b[lang]}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : (
+          <label for="c-reason">
+            <span>{t(lang, "contact.reason")}</span>
+            <select id="c-reason" name="reason">
+              <option>{t(lang, "contact.reason.consulting")}</option>
+              <option>{t(lang, "contact.reason.job")}</option>
+              <option>{t(lang, "contact.reason.talk")}</option>
+              <option>{t(lang, "contact.reason.other")}</option>
+            </select>
+          </label>
+        )
+      }
       <label for="c-message">
-        <span>{t(lang, "contact.message")}</span>
+        <span>{t(lang, services ? "services.contact.message" : "contact.message")}</span>
         <textarea id="c-message" name="message" rows="5" required></textarea>
       </label>
       <label class="hp" aria-hidden="true">
@@ -117,8 +147,10 @@ const { lang } = Astro.props;
       const data = new FormData(form);
       if (data.get("_gotcha")) return;
       if (!d.endpoint) {
-        const subject = `${data.get("reason")} · ${data.get("name")}`;
-        const body = `${data.get("message")}\n\n${data.get("name")} <${data.get("email")}>`;
+        const format = data.get("format");
+        const subject = `${format ? `${data.get("reason")} · ${format}` : data.get("reason")} · ${data.get("name")}`;
+        const budget = data.get("budget") ? `\n\n${data.get("budget")}` : "";
+        const body = `${data.get("message")}${budget}\n\n${data.get("name")} <${data.get("email")}>`;
         status.textContent = d.msgMailto ?? "";
         status.dataset.state = "ok";
         location.href = `mailto:${d.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;

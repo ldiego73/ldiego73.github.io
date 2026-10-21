@@ -9,17 +9,38 @@ interface Props {
 }
 const { lang, alternate } = Astro.props;
 const base = `/${lang}/`;
-const links = [
-  { href: `${base}#story`, label: t(lang, "nav.story") },
-  { href: `${base}#artifacts`, label: t(lang, "nav.artifacts") },
+type Link = { href: string; label: string; world?: boolean };
+type Group = { id: string; label: string; items: Link[] };
+/**
+ * Six entries on desktop: two groups open as dropdowns, the rest are plain links. On the phone menu the groups are
+ * flat: a small heading over their links, nothing to expand.
+ */
+const entries: Array<Link | Group> = [
+  {
+    id: "about",
+    label: t(lang, "nav.about"),
+    items: [
+      { href: `${base}#story`, label: t(lang, "nav.story") },
+      { href: `${base}#artifacts`, label: t(lang, "nav.artifacts") },
+      { href: `${base}uses/`, label: t(lang, "nav.uses") },
+      { href: `${base}cv/`, label: t(lang, "nav.cv") },
+    ],
+  },
   { href: `${base}projects/`, label: t(lang, "nav.projects") },
   { href: `${base}blog/`, label: t(lang, "nav.blog") },
-  { href: `${base}uses/`, label: t(lang, "nav.uses") },
-  { href: `${base}arcade/`, label: t(lang, "nav.arcade") },
-  { href: `${base}world/`, label: lang === "es" ? "Mundo" : "World", world: true },
+  {
+    id: "explore",
+    label: t(lang, "nav.explore"),
+    items: [
+      { href: `${base}world/`, label: lang === "es" ? "Mundo" : "World", world: true },
+      { href: `${base}arcade/`, label: t(lang, "nav.arcade") },
+    ],
+  },
+  { href: `${base}services/`, label: t(lang, "nav.services") },
   { href: `${base}#contact`, label: t(lang, "nav.contact") },
 ];
 const current = Astro.url.pathname;
+const isCurrent = (href: string) => current.startsWith(href) && !href.includes("#");
 ---
 <header class="site-header">
   <div class="wrap bar">
@@ -28,19 +49,47 @@ const current = Astro.url.pathname;
       <span>LDIEGO73</span>
     </a>
     <nav class="nav" aria-label={t(lang, "nav.menu")} id="site-nav">
-      <ul>
+      <ul class="top">
         {
-          links.map((l) => (
-            <li>
-              <a
-                href={l.href}
-                class:list={[{ "nav-world": "world" in l }]}
-                aria-current={current.startsWith(l.href) && !l.href.includes("#") ? "page" : undefined}
-              >
-                {l.label}
-              </a>
-            </li>
-          ))
+          entries.map((e) =>
+            "items" in e ? (
+              <li class="group" data-nav-group>
+                <button
+                  class:list={["group-btn", { active: e.items.some((i) => isCurrent(i.href)) }]}
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls={`nav-${e.id}`}
+                >
+                  {e.label}
+                  <svg class="caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                    <path d="M2.5 4.5 6 8l3.5-3.5" />
+                  </svg>
+                </button>
+                <span class="group-label mono" aria-hidden="true">
+                  {e.label}
+                </span>
+                <ul class="sub" id={`nav-${e.id}`}>
+                  {e.items.map((i) => (
+                    <li>
+                      <a
+                        href={i.href}
+                        class:list={[{ "nav-world": i.world }]}
+                        aria-current={isCurrent(i.href) ? "page" : undefined}
+                      >
+                        {i.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ) : (
+              <li>
+                <a href={e.href} aria-current={isCurrent(e.href) ? "page" : undefined}>
+                  {e.label}
+                </a>
+              </li>
+            ),
+          )
         }
       </ul>
     </nav>
@@ -118,7 +167,56 @@ const current = Astro.url.pathname;
     if ((e.target as HTMLElement).closest("a")) {
       nav.classList.remove("open");
       menuBtn?.setAttribute("aria-expanded", "false");
+      closeGroups();
     }
+  });
+
+  // Desktop dropdowns (disclosure pattern): click or Enter toggles, Esc closes and returns focus, a click outside or
+  // focus leaving the group closes it, and a mouse hovering the group opens it. Below 1000px the groups are flat.
+  const groups = [...document.querySelectorAll<HTMLElement>("[data-nav-group]")];
+  const btnOf = (g: HTMLElement) => g.querySelector<HTMLButtonElement>(".group-btn");
+  const setOpen = (g: HTMLElement, open: boolean) => btnOf(g)?.setAttribute("aria-expanded", String(open));
+  function closeGroups(except?: HTMLElement) {
+    for (const g of groups) if (g !== except) setOpen(g, false);
+  }
+  const desktop = matchMedia("(min-width: 1001px)");
+  for (const g of groups) {
+    const btn = btnOf(g);
+    let leaveTimer = 0;
+    // A mouse click right after hover opened the group keeps it open instead of toggling it shut.
+    let hoverOpened = false;
+    btn?.addEventListener("click", (e) => {
+      if (hoverOpened && e.detail > 0) {
+        hoverOpened = false;
+        return;
+      }
+      const open = btn.getAttribute("aria-expanded") !== "true";
+      closeGroups(g);
+      setOpen(g, open);
+    });
+    g.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || btn?.getAttribute("aria-expanded") !== "true") return;
+      setOpen(g, false);
+      btn.focus();
+    });
+    g.addEventListener("focusout", (e) => {
+      if (!g.contains(e.relatedTarget as Node | null)) setOpen(g, false);
+    });
+    g.addEventListener("pointerenter", (e) => {
+      if (e.pointerType !== "mouse" || !desktop.matches) return;
+      clearTimeout(leaveTimer);
+      closeGroups(g);
+      hoverOpened = btn?.getAttribute("aria-expanded") !== "true";
+      setOpen(g, true);
+    });
+    g.addEventListener("pointerleave", (e) => {
+      if (e.pointerType !== "mouse" || !desktop.matches) return;
+      hoverOpened = false;
+      leaveTimer = window.setTimeout(() => setOpen(g, false), 180);
+    });
+  }
+  document.addEventListener("click", (e) => {
+    if (!(e.target as HTMLElement).closest("[data-nav-group]")) closeGroups();
   });
 </script>
 
@@ -138,6 +236,7 @@ const current = Astro.url.pathname;
     min-height: 62px;
   }
   .brand {
+    flex: none;
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -150,21 +249,91 @@ const current = Astro.url.pathname;
     margin-left: auto;
   }
   .nav ul {
-    display: flex;
-    gap: 22px;
     list-style: none;
     margin: 0;
     padding: 0;
   }
-  .nav a {
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+  }
+  .nav a,
+  .group-btn {
     color: var(--muted);
     text-decoration: none;
     font-size: 0.94rem;
     white-space: nowrap;
   }
   .nav a:hover,
-  .nav a[aria-current="page"] {
+  .nav a[aria-current="page"],
+  .group-btn:hover,
+  .group-btn.active,
+  .group-btn[aria-expanded="true"] {
     color: var(--fg);
+  }
+  .group {
+    position: relative;
+  }
+  .group-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .caret {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.2s var(--ease-out);
+  }
+  .group-btn[aria-expanded="true"] .caret {
+    transform: rotate(180deg);
+  }
+  .group-label {
+    display: none;
+  }
+  /* Dropdown panel: one of the few raised surfaces (DESIGN.md: surface + border + one soft shadow). The top padding
+     bridges the gap under the button so the pointer can travel into the panel without closing it. */
+  .nav .sub {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: -14px;
+    padding-top: 12px;
+    isolation: isolate;
+  }
+  .group-btn[aria-expanded="true"] + .group-label + .sub {
+    display: block;
+  }
+  .sub::before {
+    content: "";
+    position: absolute;
+    inset: 12px 0 0;
+    z-index: -1;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.25);
+  }
+  .sub li {
+    min-width: 180px;
+  }
+  .sub a {
+    display: block;
+    padding: 10px 16px;
+  }
+  .sub li:first-child a {
+    padding-top: 14px;
+  }
+  .sub li:last-child a {
+    padding-bottom: 14px;
   }
   .tool.search {
     grid-auto-flow: column;
@@ -182,6 +351,7 @@ const current = Astro.url.pathname;
     }
   }
   .tools {
+    flex: none;
     display: flex;
     gap: 8px;
   }
@@ -251,8 +421,9 @@ const current = Astro.url.pathname;
     .nav.open {
       display: block;
     }
-    .nav ul {
+    .nav .top {
       flex-direction: column;
+      align-items: stretch;
       gap: 0;
       padding: 8px var(--gutter) 16px;
     }
@@ -261,6 +432,37 @@ const current = Astro.url.pathname;
       padding: 12px 0;
       font-size: 1.1rem;
       border-bottom: 1px solid var(--line);
+    }
+    /* Phone menu: groups are flat, a small heading over their links laid out two per row. */
+    .group-btn {
+      display: none;
+    }
+    .group-label {
+      display: block;
+      padding: 16px 0 2px;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .nav .sub,
+    .group-btn[aria-expanded="true"] + .group-label + .sub {
+      position: static;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 16px;
+      padding: 0;
+    }
+    .sub::before {
+      display: none;
+    }
+    .sub li {
+      min-width: 0;
+    }
+    .sub a,
+    .sub li:first-child a,
+    .sub li:last-child a {
+      padding: 12px 0;
     }
   }
 </style>

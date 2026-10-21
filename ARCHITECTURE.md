@@ -27,7 +27,7 @@ How ldiego73.github.io is put together: a static Astro site with three Three.js 
 ### Routing and i18n
 
 - **Config.** `astro.config.mjs` sets `site`, i18n with locales `es` (the default) and `en`, `prefixDefaultLocale: true`, and the MDX and sitemap integrations. Fonts load through the Astro Fonts API.
-- **Pages.** Every page lives under `src/pages/[lang]/`: home, `projects/`, `blog/`, `arcade/` (lobby plus `[game].astro`), `world/index.astro` (mountain), `world/selva.astro` (jungle), `world/cusco.astro` (the Qusqu hub), `world/titicaca.astro` (the Collasuyu lake), `world/colca.astro` (the Kuntisuyu), `cv.astro`, `uses.astro` and `rss.xml.ts`.
+- **Pages.** Every page lives under `src/pages/[lang]/`: home, `projects/`, `blog/`, `arcade/` (lobby plus `[game].astro`), `world/index.astro` (mountain), `world/selva.astro` (jungle), `world/cusco.astro` (the Qusqu hub), `world/titicaca.astro` (the Collasuyu lake), `world/colca.astro` (the Kuntisuyu), `cv.astro`, `uses.astro`, `services.astro` and `rss.xml.ts`.
 - **Root page.** `src/pages/index.astro` picks the language in this order: a saved `localStorage.lang`, then `navigator.languages`, then Spanish.
 - **UI strings.** They live in `src/i18n/ui.ts` (`t()`, `LANGS`, helpers).
 - **Language switch.** `src/lib/lang-switch.ts` keeps the reader in place. It goes to the equivalent route (or the translated twin of a post), carries over the section in view as `#hash`, and remembers the choice.
@@ -51,6 +51,7 @@ How ldiego73.github.io is put together: a static Astro site with three Three.js 
 | `src/data/career.ts` | Companies, stages, knots, cross-company artifacts. Read by the home khipu, chapters, CV, world tambos, NPC dialogs, exhibits, the C4 maquettes and the text mode. |
 | `src/data/site.ts` | Email, Calendly, social links, the Formspree endpoint, resume paths, the Umami config |
 | `src/data/uses.ts` | The `/uses` page: AIDLC phases, AI tooling, the site stack, daily tools |
+| `src/data/services.ts` | The `/services` page: consulting formats with reference prices (USD floors), how an engagement starts, AI principles, FAQ, and the contact form's format and budget options |
 | `src/content/blog/{es,en}/*.mdx` | Native posts (collection defined in `src/content.config.ts`), paired by `translationKey` |
 
 ### Build-time fetchers

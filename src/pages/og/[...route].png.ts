@@ -2,11 +2,13 @@
  * Share images, one per page and language (see src/lib/og.ts). Prerendered to static PNGs at build:
  * /og/<lang>/home.png, /og/<lang>/blog.png, /og/<lang>/blog/<slug>.png, /og/<lang>/projects.png,
  * /og/<lang>/arcade.png, /og/<lang>/arcade/<game>.png, /og/<lang>/world.png, /og/<lang>/world/selva.png, /og/<lang>/world/cusco.png,
- * /og/<lang>/world/costa.png, /og/<lang>/world/titicaca.png, /og/<lang>/world/colca.png, /og/<lang>/cv.png.
+ * /og/<lang>/world/costa.png, /og/<lang>/world/titicaca.png, /og/<lang>/world/colca.png, /og/<lang>/cv.png,
+ * /og/<lang>/uses.png, /og/<lang>/services.png.
  */
 
 import { getCollection } from "astro:content";
 import type { APIRoute, GetStaticPaths } from "astro";
+import { FORMATS, fromPrice } from "../../data/services";
 import { GAMES } from "../../games/registry";
 import { LANGS, type Lang, t } from "../../i18n/ui";
 import { getRepos } from "../../lib/github";
@@ -59,6 +61,17 @@ export const getStaticPaths = (async () => {
     add(`${lang}/world/costa`, async () => costaCard(lang));
     add(`${lang}/world/titicaca`, async () => titicacaCard(lang));
     add(`${lang}/world/colca`, async () => colcaCard(lang));
+    add(`${lang}/services`, async () =>
+      listCard({
+        title: t(lang, "nav.services"),
+        lede:
+          lang === "es"
+            ? "Cloud, arquitectura, web y mobile, DevSecOps e IA en el desarrollo."
+            : "Cloud, architecture, web and mobile, DevSecOps and AI in delivery.",
+        dye: "#dda63c",
+        items: FORMATS.map((f) => ({ text: f.name[lang], meta: fromPrice(lang, f), color: "#dda63c" })),
+      }),
+    );
     add(`${lang}/uses`, async () =>
       listCard({
         title: lang === "es" ? "Lo que uso" : "Uses",

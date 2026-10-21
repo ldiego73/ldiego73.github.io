@@ -1,0 +1,462 @@
+---
+import Contact from "../../components/home/Contact.astro";
+import Icon from "../../components/Icon.astro";
+import { AI_PRINCIPLES, AREAS, FAQ, FORMATS, fromPrice, STEPS } from "../../data/services";
+import { LANGS, type Lang } from "../../i18n/ui";
+import Base from "../../layouts/Base.astro";
+
+export const getStaticPaths = () => LANGS.map((lang) => ({ params: { lang } }));
+const lang = Astro.params.lang as Lang;
+
+const COPY = {
+  es: {
+    title: "Servicios",
+    kicker: "Consultoría · 3 formatos",
+    h1: "Elige cómo trabajamos",
+    lede: "Arquitecto y líder técnico con 15+ años entre mobile, arquitectura, cloud e IA. Primero entiendo el problema; después vemos si conviene un diagnóstico, un proyecto o acompañamiento.",
+    formats: "Formatos",
+    mayInclude: "Puede incluir, según tu caso",
+    fit: "Ideal si",
+    aiKicker: "IA en el proceso",
+    aiTag: "IA",
+    aiTitle: "La IA trabaja conmigo, no en mi lugar",
+    aiLede:
+      "Uso IA en cada etapa para analizar, construir y documentar más rápido. El criterio, las decisiones y la revisión siguen siendo humanos.",
+    aiMore: "Cómo trabajo con agentes de IA",
+    steps: "Cómo empieza",
+    faq: "Preguntas frecuentes",
+  },
+  en: {
+    title: "Services",
+    kicker: "Consulting · 3 formats",
+    h1: "Choose how we work",
+    lede: "Architect and tech lead with 15+ years across mobile, architecture, cloud and AI. First I understand the problem; then we see whether an assessment, a project or a retainer fits.",
+    formats: "Formats",
+    mayInclude: "May include, depending on your case",
+    fit: "A good fit if",
+    aiKicker: "AI in the process",
+    aiTag: "AI",
+    aiTitle: "AI works with me, not instead of me",
+    aiLede: "I use AI at every stage to analyze, build and document faster. Judgment, decisions and review stay human.",
+    aiMore: "How I work with AI agents",
+    steps: "How it starts",
+    faq: "FAQ",
+  },
+}[lang];
+---
+<Base lang={lang} title={COPY.title} description={COPY.lede}>
+  <div class="wrap page">
+    <header class="intro">
+      <div class="intro-head">
+        <p class="mono kicker">{COPY.kicker}</p>
+        <h1>{COPY.h1}</h1>
+      </div>
+      <div class="intro-side">
+        <p class="lede">{COPY.lede}</p>
+        <ul class="areas" aria-label={lang === "es" ? "Áreas" : "Areas"}>
+          {
+            AREAS.map((a) => (
+              <li class={`mono dye-${a.dye}`}>
+                <span class="dot" aria-hidden="true" />
+                {a.name[lang]}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </header>
+
+    <section aria-label={COPY.formats} class="cols">
+      {
+        FORMATS.map((f) => (
+          <article class="col" aria-labelledby={`f-${f.id}`}>
+            <div class="knots" aria-hidden="true">
+              {Array.from({ length: f.knots }, () => (
+                <span />
+              ))}
+            </div>
+            <div class="col-head">
+              <p class="mono kicker">{f.kicker[lang]}</p>
+              <h2 id={`f-${f.id}`}>{f.name[lang]}</h2>
+            </div>
+            <p class="muted">{f.pitch[lang]}</p>
+            <div class="price">
+              <p class="mono amount">{fromPrice(lang, f)}</p>
+              <p class="mono note">{f.priceNote[lang]}</p>
+            </div>
+            <div class="incl">
+              <h3 class="incl-h">{COPY.mayInclude}</h3>
+              <ul>
+                {f.items.map((it) => (
+                  <li>{it[lang]}</li>
+                ))}
+              </ul>
+            </div>
+            <p class="ai-line">
+              <span class="mono ai-tag">{COPY.aiTag}</span>
+              <span>{f.ai[lang]}</span>
+            </p>
+            <p class="muted small">
+              <strong>{COPY.fit}</strong> {f.fit[lang]}
+            </p>
+            <a class="btn cta" href="#contact" data-pick-format={f.id}>
+              {f.cta[lang]}
+              <Icon name="arrow" size={16} />
+            </a>
+          </article>
+        ))
+      }
+    </section>
+
+    <section class="ai dye-turq" aria-labelledby="ai-h">
+      <div class="ai-head">
+        <p class="mono kicker ai-kicker">{COPY.aiKicker}</p>
+        <h2 id="ai-h">{COPY.aiTitle}</h2>
+        <p class="muted">{COPY.aiLede}</p>
+        <a class="more" href={`/${lang}/uses/`}>{COPY.aiMore} <Icon name="arrow" size={16} /></a>
+      </div>
+      <ul class="principles">
+        {
+          AI_PRINCIPLES.map((p) => (
+            <li>
+              <h3 class="p-h">{p.title[lang]}</h3>
+              <p class="muted small">{p.text[lang]}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="steps-sec" aria-labelledby="steps-h">
+      <h2 id="steps-h">{COPY.steps}</h2>
+      <ol class="steps">
+        {
+          STEPS.map((s, i) => (
+            <li>
+              <span class="bead" aria-hidden="true" />
+              <span class="mono n">{String(i + 1).padStart(2, "0")}</span>
+              <h3 class="s-h">{s.title[lang]}</h3>
+              <p class="muted small">{s.text[lang]}</p>
+              <p class="ai-line small">
+                <span class="mono ai-tag">{COPY.aiTag}</span>
+                <span>{s.ai[lang]}</span>
+              </p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="faq" aria-labelledby="faq-h">
+      <h2 id="faq-h" class="sr-only">{COPY.faq}</h2>
+      {
+        FAQ.map((q) => (
+          <details>
+            <summary>{q.q[lang]}</summary>
+            <p class="muted">{q.a[lang]}</p>
+          </details>
+        ))
+      }
+    </section>
+  </div>
+  <Contact lang={lang} services />
+</Base>
+
+<script>
+  // A format's CTA preselects that format in the contact form below.
+  for (const a of document.querySelectorAll<HTMLAnchorElement>("a[data-pick-format]")) {
+    a.addEventListener("click", () => {
+      const select = document.querySelector<HTMLSelectElement>("[data-format-select]");
+      const option = select?.querySelector<HTMLOptionElement>(`option[data-format="${a.dataset.pickFormat}"]`);
+      if (select && option) select.value = option.value;
+    });
+  }
+</script>
+
+<style>
+  .page {
+    padding-block: var(--space-5) var(--space-5);
+  }
+  .muted {
+    color: var(--muted);
+  }
+  .small {
+    font-size: 0.94rem;
+  }
+  .kicker {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .intro {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: var(--space-4);
+    align-items: end;
+    margin-bottom: var(--space-5);
+  }
+  .intro-head,
+  .intro-side {
+    display: grid;
+    gap: var(--space-2);
+  }
+  .areas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .areas li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    padding: 5px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--dye);
+  }
+
+  /* Formats: three hairline columns, not boxed cards (DESIGN.md: lists are rows separated by hairlines). */
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-block: 1px solid var(--line);
+  }
+  /* Each column spans the same 8 rows (knots, head, pitch, price, includes, AI, fit, CTA) through subgrid, so
+     prices, lists and buttons line up across the three formats whatever each text's length. */
+  .col {
+    display: grid;
+    grid-row: span 8;
+    grid-template-rows: subgrid;
+    row-gap: 18px;
+    align-content: start;
+    padding: var(--space-4) var(--space-3);
+    border-left: 1px solid var(--line);
+  }
+  .col:first-child {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .col:last-child {
+    padding-right: 0;
+  }
+  .col-head {
+    display: grid;
+    gap: 6px;
+  }
+  .col h2 {
+    font-size: var(--step-3);
+  }
+  /* A long knot: one bead per step of commitment. */
+  .knots {
+    display: flex;
+    gap: 6px;
+  }
+  .knots span {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ochre);
+  }
+  .price {
+    display: grid;
+    align-content: start;
+    gap: 2px;
+    padding-block: 16px;
+    border-block: 1px dashed var(--line);
+  }
+  .amount {
+    font-size: var(--step-1);
+    font-weight: 600;
+  }
+  .note {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .incl {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+  }
+  .incl-h {
+    font: 600 0.94rem / 1.4 var(--font-body);
+    text-transform: none;
+  }
+  .incl ul {
+    align-content: start;
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 4px;
+    font-size: 0.96rem;
+  }
+  .ai-line {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+  .ai-tag {
+    flex: none;
+    font-size: 0.7rem;
+    color: var(--turq);
+    border: 1px solid var(--turq);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  .col strong {
+    color: var(--fg);
+  }
+  .cta {
+    justify-self: start;
+  }
+
+  .ai,
+  .steps-sec {
+    padding-top: var(--space-5);
+    margin-top: var(--space-5);
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: var(--space-4);
+  }
+  .cols + .ai {
+    border-top: 0;
+    margin-top: 0;
+  }
+  .ai-head {
+    display: grid;
+    gap: var(--space-2);
+    max-width: 68ch;
+  }
+  .ai-kicker {
+    color: var(--turq);
+  }
+  .ai h2,
+  .steps-sec h2 {
+    font-size: var(--step-3);
+  }
+  .more {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    justify-self: start;
+  }
+  .principles {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+  .principles li {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    padding-top: 14px;
+    border-top: 2px solid var(--dye);
+  }
+  .p-h,
+  .s-h {
+    font: 600 1rem / 1.4 var(--font-body);
+    text-transform: none;
+  }
+
+  /* How it starts: the primary cord with one bead per step. */
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .steps::before {
+    content: "";
+    position: absolute;
+    inset: 7px 0 auto;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--cotton);
+    opacity: 0.5;
+  }
+  .steps li {
+    position: relative;
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+  .bead {
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    border: 3px solid var(--ochre);
+    background: var(--bg);
+    box-sizing: border-box;
+  }
+  .n {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .faq {
+    margin-top: var(--space-5);
+    border-top: 1px solid var(--line);
+  }
+  details {
+    border-bottom: 1px solid var(--line);
+    padding-block: 18px;
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    min-height: 28px;
+  }
+  details p {
+    margin-top: 10px;
+    max-width: 70ch;
+  }
+
+  @media (max-width: 900px) {
+    .cols {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .col,
+    .col:first-child,
+    .col:last-child {
+      border-left: 0;
+      border-top: 1px solid var(--line);
+      padding-inline: 0;
+    }
+    .col:first-child {
+      border-top: 0;
+    }
+    .principles {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-3);
+    }
+    .steps {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .steps::before {
+      display: none;
+    }
+  }
+  @media (max-width: 560px) {
+    .steps {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

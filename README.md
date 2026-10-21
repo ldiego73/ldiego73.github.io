@@ -29,6 +29,7 @@ src/
   data/career.ts        Companies, stages, knots and cross-company artifacts (single source of truth)
   data/site.ts          Email, Calendly, form endpoint, resume paths, social links, analytics
   data/uses.ts          The /uses page: AI-assisted delivery, tools, site stack
+  data/services.ts      The /services page: formats, reference prices, steps, FAQ
   i18n/ui.ts            UI strings (es, en) and helpers
   lib/khipu/            Khipu model (tested) and Three.js scene with rope physics
   lib/og.ts             Social share cards (rendered at build time by pages/og/)
@@ -41,7 +42,7 @@ src/
   audio/                Procedural Web Audio: music engine, sound effects, phone-speaker profile
   world/                KHIPU worlds: mountain runtime, shared core, ambients, Wasi house
   world/selva/          Antisuyu jungle world: its own runtime, layout, scenery, ambients
-  pages/[lang]/         Home, projects, blog, uses, arcade, world (+ world/selva), cv, rss.xml
+  pages/[lang]/         Home, projects, blog, uses, services, arcade, world (+ world/selva), cv, rss.xml
   pages/og/             One PNG share card per page
 scripts/                Screenshot, resume PDF, social image and Lighthouse summary helpers
 e2e/                    Playwright smoke tests
@@ -53,6 +54,7 @@ lighthouse/             Lighthouse CI budgets (pull requests and production)
 - **Experience:** edit `src/data/career.ts`. The khipu, chapters, flat view, CV, world tambos, NPC dialogs and the Wasi house all read from it.
 - **Blog:** add `src/content/blog/es/<slug>.mdx` and `src/content/blog/en/<slug>.mdx` with the same `translationKey`. Medium posts from `@ldiego73` are merged in at build time. Posts also appear in the worlds (the mountain's writing khipu and the jungle's maloca).
 - **Uses:** edit `src/data/uses.ts` (the `/uses` page and the jungle trader's boat).
+- **Services and prices:** edit `src/data/services.ts` (the `/services` page, its OG card and the contact form's format and budget options).
 - **Social links:** append to `SOCIALS` in `src/data/site.ts`.
 - **Contact form:** posts to Formspree (`formEndpoint` in `src/data/site.ts`). While empty, the form opens a pre-filled email instead.
 - **Resume:** `public/resume/luis-diego-cv-es.pdf` is the original. Regenerate the English one after editing career data: build, run `bunx astro preview --port 4330 --ignore-lock`, then `bun scripts/resume-pdf.ts 4330`.
