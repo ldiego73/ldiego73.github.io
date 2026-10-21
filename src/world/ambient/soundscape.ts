@@ -2,7 +2,8 @@
  * World soundscape (ambient, no prompt): continuous wind / water / rain beds, day birds, night crickets + owl,
  * footsteps that follow the traveler, and the world's sound effects hooked to window events.
  *
- *   wind     louder with altitude (avatar y between trailhead and summit) and near the summit
+ *   wind     louder with altitude (avatar y between trailhead and summit) and near the summit; it swells with the
+ *            shared wind's gust fronts as they pass the traveler (wind.ts liveWind)
  *   water    distance to the nearest river/stream sample (env.extra.isWater ring probe) and the waterfall base,
  *            panned toward the source relative to the camera
  *   rain     while `world:weather` says kind "garua" (read by string name, detail checked defensively)
@@ -30,6 +31,7 @@ import { type CreateAmbient, STATIONS } from "../contract";
 import { creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { on } from "../events";
+import { liveWind } from "../wind";
 import { playCall } from "./soundscape/calls";
 import { type CallRequest, Critters, type Listener, type Situation } from "./soundscape/critters";
 import { Layers } from "./soundscape/layers";
@@ -357,7 +359,13 @@ export const create: CreateAmbient = (env) => {
         const summitDist = Math.hypot(summit.x - avatar.x, summit.z - avatar.z);
         const night = env.sky.isNight();
         const mix = mixTargets({ alt, summitDist, water, night, raining, inside, modal, game });
-        const gn = 0.5 + 0.5 * Math.sin(clock * 0.37) * Math.sin(clock * 0.13 + 1.3);
+        // Gusts you hear are the gust fronts you see crossing the ichu (wind.ts liveWind, smoothed at the
+        // traveler); with no gusts (still air, reduced motion) a slow swell keeps the bed alive.
+        const amp = liveWind.state.gustAmp;
+        const gn =
+          amp > 0
+            ? Math.min(1, liveWind.gust / amp)
+            : 0.5 + 0.25 * Math.sin(clock * 0.37) * Math.sin(clock * 0.13 + 1.3);
         layers.apply(mix, {
           gust: 0.7 + 0.5 * gn,
           windFreq: 360 + 380 * gn + 260 * alt,

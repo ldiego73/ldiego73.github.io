@@ -4,9 +4,12 @@
  *    vertex shader (static buffers, zero CPU work per frame).
  *  - Mist banks: a handful of soft billboard sprites hugging the slopes around the traveler; re-placed only
  *    when the traveler has walked away from them.
+ * Both follow the world's shared wind (wind.ts `liveWind`): the drizzle slants and drifts with it, gust fronts
+ * included, and the banks creep a few units downwind (capped, so they never slide into a slope).
  */
 import * as THREE from "three";
 import { noOutline } from "../../toon";
+import { liveWind } from "../../wind";
 
 const BOX = new THREE.Vector3(28, 16, 28);
 const FALL = 5.5;
@@ -99,23 +102,23 @@ export function createGarua(max: number, count: number): Garua {
     draw(n);
   };
   setCount(count);
-  let t = 0;
   return {
     object: lines,
     setCount,
     update(dt, center, amount, color, heavy = 0) {
       lines.visible = amount > 0.02;
       if (!lines.visible) return;
-      t += dt;
       draw(base * (1 + 0.6 * heavy));
       vel.y = -FALL * (1 + 0.9 * heavy);
       U.uLen!.value = 0.55 + 0.75 * heavy;
-      // A slow gusting wind; offsets stay wrapped so float precision never degrades.
-      vel.x = 0.9 + Math.sin(t * 0.13) * 0.6;
-      vel.z = 0.4 + Math.cos(t * 0.09) * 0.5;
-      off.x = (off.x + vel.x * dt) % BOX.x;
+      // The world's shared wind at the traveler (wind.ts liveWind: gust fronts included); offsets stay wrapped
+      // in [0, size) so float precision never degrades.
+      const w = liveWind.sample(center.x, center.z, center.y);
+      vel.x = w.x * 0.8;
+      vel.z = w.z * 0.8;
+      off.x = (((off.x + vel.x * dt) % BOX.x) + BOX.x) % BOX.x;
       off.y = (((off.y + vel.y * dt) % BOX.y) + BOX.y) % BOX.y;
-      off.z = (off.z + vel.z * dt) % BOX.z;
+      off.z = (((off.z + vel.z * dt) % BOX.z) + BOX.z) % BOX.z;
       (U.uCenter!.value as THREE.Vector3).copy(center);
       (U.uColor!.value as THREE.Color).copy(color).lerp(WHITE, 0.55);
       U.uAlpha!.value = amount * (0.55 + 0.2 * heavy);
@@ -178,6 +181,7 @@ export function createMistBanks(n: number, groundAt: (x: number, z: number) => n
   noOutline(group);
   group.visible = false;
   const anchor = new THREE.Vector3(1e9, 0, 0);
+  const drift = { x: 0, z: 0 };
   let t = 0;
   const place = (center: THREE.Vector3) => {
     anchor.copy(center);
@@ -217,9 +221,13 @@ export function createMistBanks(n: number, groundAt: (x: number, z: number) => n
         m.opacity = amount * 0.6 * near;
         m.color.copy(color).lerp(WHITE, 0.35);
       }
-      // Very slow drift.
-      group.position.x = Math.sin(t * 0.03) * 3;
-      group.position.z = Math.cos(t * 0.027) * 3;
+      // Very slow drift, leaning downwind (eased toward ~3 u per unit of wind speed).
+      const w = liveWind.sample(center.x, center.z);
+      const e = Math.min(1, dt * 0.03);
+      drift.x += (THREE.MathUtils.clamp(w.x * 3, -4, 4) - drift.x) * e;
+      drift.z += (THREE.MathUtils.clamp(w.z * 3, -4, 4) - drift.z) * e;
+      group.position.x = drift.x + Math.sin(t * 0.03) * 1.5;
+      group.position.z = drift.z + Math.cos(t * 0.027) * 1.5;
     },
     dispose() {
       map.dispose();

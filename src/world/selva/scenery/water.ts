@@ -7,10 +7,16 @@
  * is measured with `shoreDistance` (heightAt, what the terrain mesh renders) and the ribbon runs EXTRA past
  * it, under the bank, hidden by the terrain's depth. Shore foam sits on that measured waterline.
  * Opaque and on the ink layer (no inkMask: masks are for readable labels only). The shader only touches
- * `diffuseColor`, so the 3-step toon ramp, fog and the day/night lights apply as on every other surface.
+ * `diffuseColor`, so the cel light, the tinted shade, the aerial haze, fog and the day/night lights apply as on
+ * every other surface. The style's world-space painted blotches are off here (they would sit still under the
+ * flowing foam like stains); instead the shared wind paints the water: where a gust front crosses the river
+ * (`cpaGust`, the same wave that rolls over the canopy) the surface roughens into "cat's paws", darker bands
+ * of fine sky-lit ripples running across the wind. The drifting leaves and twigs are nudged by the same wind.
  */
 import * as THREE from "three";
+import { paintStrength } from "../../style-gl";
 import type { ToonCache } from "../../toon";
+import { liveWind } from "../../wind";
 import type { SelvaLayout } from "../contract";
 import { floatModel } from "./models";
 import { rng } from "./placement";
@@ -94,6 +100,13 @@ function riverMaterial(toon: ToonCache) {
         float edge = smoothstep(0.9, 0.98, vShore) * (0.55 + 0.45 * kwNoise(vec2(flow * 0.5, across * 40.0)));
         float foam = clamp(streak * 0.7 + ripple * 0.3 + edge * 0.8, 0.0, 1.0);
         diffuseColor.rgb = mix(diffuseColor.rgb, uFoam * (1.0 - uNight * 0.45), foam);
+        // Cat's paws: a gust crossing the water roughens it into a darker band of fine ripples across the wind.
+        vec2 wd = cpaWindDir();
+        float paw = smoothstep(0.1, 0.3, cpaGust(vW)) * (1.0 - foam);
+        vec2 wq = vec2(dot(vW, wd), dot(vW, vec2(-wd.y, wd.x)));
+        float fine = step(0.6, kwNoise(vec2(wq.x * 2.2 - uTime * 1.6, wq.y * 0.45)));
+        diffuseColor.rgb *= 1.0 - paw * 0.12;
+        diffuseColor.rgb = mix(diffuseColor.rgb, uSheen * (1.0 - uNight * 0.6), paw * fine * 0.32);
         // Grazing-angle sheen (the sky on the water) so the flat brown reads as a surface, not a mud flat.
         vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
         float fres = pow(1.0 - clamp(dot(normalize(vViewPosition), upV), 0.0, 1.0), 3.0);
@@ -102,6 +115,7 @@ function riverMaterial(toon: ToonCache) {
       );
   };
   material.customProgramCacheKey = () => "selva-river";
+  paintStrength(material, 0);
   return { material, uniforms };
 }
 
@@ -221,8 +235,14 @@ export function buildWater(L: SelvaLayout, toon: ToonCache, quality: "low" | "hi
       uniforms.uTime.value = motion ? time : 0;
       if (!motion) return;
       for (const d of drift) {
-        d.s = (d.s + d.speed * dt) % total;
-        d.yaw += d.spin * dt;
+        // The wind on the water nudges each float along the flow and across it (liveWind: the gust you see).
+        sample(d.s, d.off, p, dir);
+        const w = liveWind.sample(p.x, p.z, level);
+        const along = w.x * dir.x + w.z * dir.z;
+        const across = w.z * dir.x - w.x * dir.z;
+        d.s = (d.s + Math.max(0.05, d.speed + along * 0.25) * dt + total) % total;
+        d.off = Math.max(-0.85, Math.min(0.85, d.off + across * 0.025 * dt));
+        d.yaw += d.spin * (1 + w.gust * 2) * dt;
       }
       place();
     },

@@ -14,7 +14,9 @@
  *
  * Rendering: one instanced crowd on the shared people rig (../../ambient/people: one InstancedMesh per part,
  * only parts someone near wears are drawn) with the Colca garments (./gente/garments.ts), the two llamas
- * (./wild/camelids.ts) and the vendor's cloth (one merged mesh). Everyone is a creatures body (solid).
+ * (./wild/camelids.ts), the vendor's cloth (one merged mesh) and the mantas she hangs behind her (one cloth
+ * mesh on the shared wind, ../cloth.ts). Everyone is a creatures body (solid). The people's own idle motion
+ * (glances, a reach to the textiles) is their rig's, not the wind's.
  */
 import * as THREE from "three";
 import {
@@ -35,6 +37,7 @@ import { creatures } from "../../creatures";
 import { LLAMA } from "../../fauna-models";
 import { vertexToon } from "../../merge-colors";
 import type { SuyuEnv } from "../../suyu/contract";
+import { ClothKit, clothMesh } from "../cloth";
 import { VKit } from "../kit";
 import type { ColcaLayout } from "../layout";
 import {
@@ -257,6 +260,29 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   env.scene.add(stall);
   env.addCollider({ kind: "circle", x: stallPos.x, z: stallPos.z, r: 0.75 });
   const stallBody = creatures.add("stall", 0.8, { x: stallPos.x, z: stallPos.z });
+  // Behind her, three mantas hung on a cord between two poles, rippling on the shared wind (../cloth.ts).
+  const rack = new ClothKit();
+  const along = { x: sn, y: 0, z: cs };
+  const RACK = { x: 5.7, z0: -5.9, z1: -4.1, h: 1.95 } as const;
+  for (const lz of [RACK.z0, RACK.z1]) {
+    const p = W(RACK.x, lz);
+    rack.tube({ x: p.x, y: floorY - 0.1, z: p.z }, { x: p.x, y: floorY + RACK.h + 0.1, z: p.z }, 0.04, "#6b4a2e");
+    env.addCollider({ kind: "circle", x: p.x, z: p.z, r: 0.2 });
+  }
+  const a0 = W(RACK.x, RACK.z0);
+  const a1 = W(RACK.x, RACK.z1);
+  rack.tube({ x: a0.x, y: floorY + RACK.h, z: a0.z }, { x: a1.x, y: floorY + RACK.h, z: a1.z }, 0.015, "#e9e1cf");
+  const mantas: Array<ReadonlyArray<string>> = [
+    ["#c4383f", "#dda63c", "#c4383f", "#2a9d8f", "#c4383f"],
+    ["#3446a6", "#f5f1e8", "#e07a3a", "#f5f1e8", "#3446a6"],
+    ["#8a2f6a", "#e9b23a", "#3f7f4a", "#e9b23a", "#8a2f6a"],
+  ];
+  mantas.forEach((bands, i) => {
+    const p = W(RACK.x, RACK.z0 + 0.32 + i * 0.58);
+    rack.drape({ x: p.x, y: floorY + RACK.h - 0.02, z: p.z }, along, 0.5, 0.95 - (i % 2) * 0.12, bands);
+  });
+  const rackMesh = clothMesh(rack, "colca-viajeros:mantas");
+  env.scene.add(rackMesh.mesh);
 
   // ------------------------------------------------------------------ frame
   let day: boolean | null = null;
@@ -439,6 +465,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       herd.dispose();
       stall.removeFromParent();
       stallGeo.dispose();
+      rackMesh.mesh.removeFromParent();
+      rackMesh.dispose();
       stallMat.dispose();
     },
   };

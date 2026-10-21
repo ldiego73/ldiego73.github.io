@@ -5,7 +5,11 @@
  *    ultramarine), softly broken by noise so the contours never look ruled;
  *  - foam: the breakers' crests in the surf zone, the swash edge that runs up the sand and back (where the
  *    water column over the beach is thinnest), and lace rings round rocks and islets;
- *  - the sky at grazing angles (fog colour, two steps), the toon light ramp on the wave slopes, and a sun path:
+ *  - anime two-tone open water: the swell's crests a flat lighter tone cut hard from the troughs, long thin
+ *    painted strokes along the crests, a pale aqua lip under each breaker's foam, and the shared style's painted
+ *    blotches (cpaPaint, ../../style-gl.ts) at a gentler strength; the toon material also gets the shared cel
+ *    light, shade tint and aerial haze like every other built-in material;
+ *  - the sky at grazing angles (fog colour, two steps; near and mid water only), and a sun path:
  *    a glittering band toward the sun, wide and golden when the sun is low (sunset over the sea), and a silver
  *    one under the moon at night.
  *
@@ -199,12 +203,25 @@ export function buildSea(L: CostaLayout, _toon: ToonCache, quality: "low" | "hig
         col = mix(col, uShallow, step(depth, 2.2));
         // A lighter band right before the sand: the water thins over the beach face.
         col = mix(col, mix(uShallow, uFoam, 0.35), step(depth, 0.55) * step(0.0, vS - 2.0 + wob));
+        // Two-tone swell (the cel way): the crests of the swell a flat, lighter tone, the troughs as they are,
+        // cut hard. Strongest over open water, gone in the surf zone (the breakers have their own foam).
+        float swellY = vSeaY - kwSwash(w.y, vS, t);
+        float open = kwSm(30.0, 70.0, vS) * (1.0 - kwSm(500.0, 1400.0, vS));
+        col = mix(col, mix(col, uShallow, 0.42), step(0.13 + 0.06 * (kwN(w * 0.07) - 0.5), swellY) * open);
+        // Painted strokes: long, thin, lighter dashes along the swell's crests, drifting slowly shoreward.
+        float stroke = kwN(vec2(w.x * 0.11 - t * 0.12, w.y * 0.018 + kwN(w * 0.03) * 1.5));
+        col = mix(col, mix(col, uFoam, 0.5), step(0.84, stroke) * step(0.06, swellY) * open * 0.8);
+        // Painted blotches of the shared style over the open water (gentler than on land).
+        col = cpaPaint(col, vWp, 0.6 * open);
         // Far out: a slow, darker cobalt so the horizon line holds.
-        col = mix(col, mix(uDeep, uSky, 0.3), kwSm(400.0, 1800.0, vS) * 0.6);
+        col = mix(col, mix(uDeep, uMid, 0.3), kwSm(400.0, 1800.0, vS) * 0.6);
         // Breakers: foam on the crests across the surf zone, broken up by noise.
         float crest = kwCrest(w.y, vS, t);
         float lace = kwN(vec2(w.y * 0.6, vS * 1.7 + t * 0.4));
         float foam = step(0.42, crest * (0.7 + 0.6 * lace));
+        // A pale aqua band under each crest's foam (the curling face of the wave), hard-edged.
+        float lip = step(0.16, crest * (0.7 + 0.6 * lace)) * (1.0 - foam);
+        col = mix(col, mix(uShallow, uFoam, 0.45), lip);
         // The trailing lace just seaward of each crest (thin, patchy).
         float trail = step(0.93, kwBreakPhase(w.y, vS - 2.2, t)) * step(0.55, lace) * kwSurfEnv(vS + 3.0);
         foam = max(foam, trail * 0.85);
@@ -218,7 +235,9 @@ export function buildSea(L: CostaLayout, _toon: ToonCache, quality: "low" | "hig
         vec3 N = normalize(vWn);
         float fres = 1.0 - clamp(dot(V, N), 0.0, 1.0);
         float sky = step(0.82, fres) * 0.35 + step(0.93, fres) * 0.25;
-        col = mix(col, uSky, sky * (1.0 - foam));
+        // Near and mid water only: far out the steps would break into grey patches below the horizon; there the
+        // style's aerial haze does the fading instead.
+        col = mix(col, uSky, sky * (1.0 - foam) * (1.0 - kwSm(160.0, 520.0, vS) * 0.85));
         col = mix(col, uFoam * (1.0 - uNight * 0.5), foam);
         // Sun path: glitter toward the sun, a narrow golden road when it is low; a silver path under the moon.
         vec3 Ng = normalize(N + vec3(kwN(w * 1.6 + t * 0.7) - 0.5, 0.0, kwN(w.yx * 1.4 - t * 0.6) - 0.5) * 0.28 * uDetail);

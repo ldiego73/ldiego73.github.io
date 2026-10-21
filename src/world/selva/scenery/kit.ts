@@ -1,13 +1,14 @@
 /**
  * Geometry + material kit for the jungle plants: a vertex-colored GeoBuilder, tapered tubes, arcing paths,
- * lumpy foliage blobs, leaf shading, and the wind-sway toon material that keeps the ink outline on the
- * swaying vertices (see the notes on `swayMaterial` / `inkAware`).
+ * lumpy foliage blobs, leaf shading, and the wind-sway toon material (a thin wrapper over the shared wind of
+ * the cel pintado andino style, see `swayMaterial`).
  *
  * Adapted from the mountain's flora/geom.ts and flora/material.ts. Copied rather than imported so the
  * jungle bundle never requests the mountain-only `src/world/flora/` folder (the selva runtime's shots check
  * that), and so either world can evolve its plants without touching the other.
  */
 import * as THREE from "three";
+import { type WindSwayOptions, windSway } from "../../style-gl";
 
 export type ColorFn = (p: THREE.Vector3, n: THREE.Vector3) => THREE.Color;
 export type FlexFn = (p: THREE.Vector3) => number;
@@ -244,72 +245,17 @@ export function leafShade(under: string, mid: string, top: string): ColorFn {
 
 // ---------------------------------------------------------------- wind sway material
 
-/** Shared flag: 1 while the outline prepass draws. Set by `inkAware` meshes right before their draw. */
-const INK = { value: 0 };
-
-/** Makes a mesh using one of these materials ink-correct (call once per mesh). */
-export function inkAware(mesh: THREE.Mesh) {
-  mesh.onBeforeRender = (_r, scene) => {
-    INK.value = (scene as THREE.Scene).overrideMaterial ? 1 : 0;
-  };
-}
-
-const INK_FRAG_PARS = "#include <common>\nuniform float uInkPass;";
-const INK_FRAG_OUT = `#include <dithering_fragment>
-  if (uInkPass > 0.5) gl_FragColor = vec4(normalize(normal) * 0.5 + 0.5, 1.0);`;
-
-function baseToon(gradientMap: THREE.Texture | null, side: THREE.Side) {
-  const m = new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap, side });
-  m.allowOverride = false;
-  return m;
-}
-
-export interface SwayUniforms {
-  uTime: { value: number };
-  /** Sway amplitude multiplier (0 = still, e.g. reduced motion). */
-  uWind: { value: number };
-}
-
 /**
- * Vertex-colored toon material with wind sway: each vertex moves by `flex` (attribute) × instance height
- * scale along a slowly turning world wind direction, with per-instance phase (from the instance position)
- * and travelling gusts so a meadow ripples instead of pulsing in sync.
+ * Vertex-colored toon material on the world's shared wind (../../style-gl.ts `windSway`, ../../wind-glsl.ts):
+ * the jungle's calm band (still air on the forest floor, the canopy moving), the gust fronts, the bodies near
+ * the traveler parting the undergrowth and the spring kicks all come from there, and the material is
+ * ink-aware (the outline prepass draws it displaced). Reduced motion is the wind state's job (slow, constant
+ * sway, no gusts). Each call returns a new material: never patch the shared toon cache.
  */
-export function swayMaterial(gradientMap: THREE.Texture | null, u: SwayUniforms, side: THREE.Side = THREE.FrontSide) {
-  const m = baseToon(gradientMap, side);
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = u.uTime;
-    shader.uniforms.uWind = u.uWind;
-    shader.uniforms.uInkPass = INK;
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute float flex;\nuniform float uTime, uWind;")
-      .replace(
-        "#include <project_vertex>",
-        `vec4 mvPosition = vec4( transformed, 1.0 );
-        #ifdef USE_INSTANCING
-          mvPosition = instanceMatrix * mvPosition;
-          vec2 ip = instanceMatrix[3].xz;
-          float isc = length(instanceMatrix[1].xyz);
-        #else
-          vec2 ip = vec2(0.0);
-          float isc = 1.0;
-        #endif
-        // Wind: a gentle prevailing direction that wanders, gusts rolling across the slope.
-        vec2 wdir = normalize(vec2(0.8 + 0.3 * sin(uTime * 0.05), 0.55 + 0.3 * cos(uTime * 0.043)));
-        float along = dot(ip, wdir);
-        float gust = 0.55 + 0.45 * sin(along * 0.09 - uTime * 0.9) * sin(along * 0.023 + uTime * 0.31);
-        float ph = uTime * 1.7 + ip.x * 0.37 + ip.y * 0.29;
-        float sw = (0.6 + 0.4 * sin(ph) + 0.18 * sin(ph * 2.3 + 1.1)) * gust;
-        float k = flex * isc * uWind;
-        mvPosition.xz += wdir * sw * k + vec2(-wdir.y, wdir.x) * sin(ph * 1.3) * 0.25 * k;
-        mvPosition.y -= sw * sw * k * 0.18;
-        mvPosition = modelViewMatrix * mvPosition;
-        gl_Position = projectionMatrix * mvPosition;`,
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", INK_FRAG_PARS)
-      .replace("#include <dithering_fragment>", INK_FRAG_OUT);
-  };
-  m.customProgramCacheKey = () => "selva-sway";
-  return m;
+export function swayMaterial(
+  gradientMap: THREE.Texture | null,
+  o: WindSwayOptions,
+  side: THREE.Side = THREE.FrontSide,
+): THREE.MeshToonMaterial {
+  return windSway(new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap, side }), o);
 }

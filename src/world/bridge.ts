@@ -4,7 +4,7 @@ import type { Artifact } from "../data/career";
 import { artifactsOnBridge } from "./artifacts";
 import type { Collider, Station, WorldEnv } from "./contract";
 import { flattenToonGroup, vertexToon } from "./merge-colors";
-import { C, canvasTex, DYE, Kit, rng, toonMapped } from "./props";
+import { C, canvasTex, DYE, Kit, localWind, rng, toonMapped } from "./props";
 
 /**
  * Q'eswachaka rope bridge across the gorge the core cuts at the bridge station: woven ichu ropes
@@ -376,6 +376,9 @@ export function buildBridge(env: WorldEnv, station: Station): Bridge {
   const center = deck.getPointAt(0.5);
   const start = frame(0).p.clone().addScaledVector(frame(0).tan, -1.4);
   const rm = env.reducedMotion;
+  const wind = { x: 0, z: 0, speed: 0, gust: 0 };
+  let swing = 0.006;
+  let lean = 0;
   const v = new THREE.Vector3();
 
   return {
@@ -396,12 +399,20 @@ export function buildBridge(env: WorldEnv, station: Station): Bridge {
       return p.y;
     },
     update(dt, t, active) {
-      if (!rm) group.quaternion.setFromAxisAngle(axis, Math.sin(t * 0.9) * 0.012);
+      if (!rm) {
+        // The shared wind rocks the bridge harder as a gust front crosses the gorge (props.ts localWind), and
+        // the hanging cords lean downwind and swing with it.
+        localWind(group, wind);
+        const e = Math.min(1, dt * 2);
+        swing += (0.006 + 0.008 * wind.gust - swing) * e;
+        lean += (THREE.MathUtils.clamp(wind.x * 0.06, -0.15, 0.15) - lean) * e;
+        group.quaternion.setFromAxisAngle(axis, Math.sin(t * 0.9) * swing * 1.6);
+      }
       for (const c of cords) {
         const target = c.id === active ? 1 : 0;
         c.glow += (target - c.glow) * Math.min(1, dt * 5);
         for (const mm of c.mats) mm.emissiveIntensity = c.glow * 0.7;
-        if (!rm) c.g.rotation.z = Math.sin(t * 1.2 + c.ph) * 0.06;
+        if (!rm) c.g.rotation.z = lean + Math.sin(t * 1.2 + c.ph) * swing * 7;
       }
     },
     dispose() {

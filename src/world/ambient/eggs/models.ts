@@ -8,6 +8,7 @@ import type { L, WorldEnv } from "../../contract";
 import { merge, vizcachaParts } from "../../fauna-models";
 import { DYE, WORLD } from "../../palette";
 import { canvasTex, glowSprite } from "../../props";
+import { noPaint } from "../../style-gl";
 
 const COAT = ["#cfc6b6", "#b9b1a3", "#c7bfb2", "#aca59a", "#d6cdbd"];
 const TAIL = "#5f5a54";
@@ -76,6 +77,8 @@ export function createEggKit(env: WorldEnv): EggKit {
       tail.position.copy(Z.tailPivot);
       tail.add(new THREE.Mesh(Z.tail, env.toon(TAIL)));
       body.add(tail);
+      // They pop up and turn: no world-space painted blotches sliding over the coat (style-gl.ts).
+      noPaint(group);
       return { group, body, head, tail };
     },
     rocks(seed) {

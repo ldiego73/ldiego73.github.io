@@ -21,6 +21,7 @@ import type { WorldEnv } from "../../contract";
 import { flattenToonGroup, vertexToon } from "../../merge-colors";
 import { DYE } from "../../palette";
 import { C, canvasTex, FONT, glowSprite, Kit, redraw, rng, toonMapped } from "../../props";
+import { paintStrength } from "../../style-gl";
 import { khipuCords } from "./content";
 import type { WallSet } from "./exterior";
 import { W_COL } from "./exterior";
@@ -73,7 +74,9 @@ export function buildInterior(env: WorldEnv, host: InteriorHost, hudRoot: HTMLEl
   const group = new THREE.Group();
   group.name = "wasi-interior";
   host.group.add(group);
-  const vmat = vertexToon();
+  // Indoors the furniture is small and hand-made: the world-scale painted blotches (several units across) would
+  // split a table or a bench into a light and a dark half, so they are kept to a faint wash in here.
+  const vmat = paintStrength(vertexToon(), 0.35);
   const geos: THREE.BufferGeometry[] = [];
   const mats: THREE.Material[] = [vmat];
   const texs: THREE.Texture[] = [];

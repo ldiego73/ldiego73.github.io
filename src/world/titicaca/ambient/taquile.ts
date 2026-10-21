@@ -2,7 +2,8 @@
  * Taquile: the village of master weavers on its terraced headland, the Collasuyu's school. A path climbs from
  * the road through a stone arch (Taquile's arches have a little gabled roof of stone slabs) to the village
  * plaza: stone houses with thatched roofs and blue doors, and on the north side the weavers' cooperative with a
- * pedal loom in front of it, a half-woven cloth on its warp, and a line of chullos and chumpi belts hung out.
+ * pedal loom in front of it, a half-woven cloth on its warp, and a line of chullos, chumpi belts and a striped
+ * manta hung out (the belts and the manta are cloth on the shared wind, ./kit/build.ts `cloth`).
  * The weavers themselves (men knitting chullos, women spinning) are people of ./gente.ts.
  *
  * At the loom, "E · Ver formación" opens a panel woven like a Taquile textile (./taquile/taquile.css): the
@@ -17,12 +18,11 @@ import { createFieldPanel, el } from "../../ambient/fields/panel";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { on } from "../../events";
-import { vertexToon } from "../../merge-colors";
 import { FONT } from "../../props";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { TiticacaLayout } from "../layout";
 import { LOOM, TAQUILE } from "../plan";
-import { Build, frameAt } from "./kit/build";
+import { Build, frameAt, kitMaterial } from "./kit/build";
 import { buildBoards, paperBoard } from "./kit/signs";
 import { HOUSES, inLoomRange, TAQUILE_COPY, taquilePanel, WORKSHOP } from "./taquile/logic";
 import "./taquile/taquile.css";
@@ -106,6 +106,9 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   const lineB = new THREE.Vector3(WORKSHOP.x - 1.2, wFloor, WORKSHOP.z + 4.6);
   for (const p of [lineA, lineB]) b.cyl(0.06, 0.07, 2.3, p.x, p.y - 0.1, p.z, "#5e3b22", 5);
   b.stick(lineA.clone().setY(wFloor + 2.1), lineB.clone().setY(wFloor + 2.1), 0.015, "#efe6d6", 3);
+  // The belts and the manta are cloth held at the line (./kit/build.ts `cloth`): they swing in the gusts.
+  const lineYaw = Math.atan2(lineB.x - lineA.x, lineB.z - lineA.z) + Math.PI / 2;
+  const top = wFloor + 2.08;
   for (let k = 1; k < 8; k++) {
     const u = k / 8;
     const p = lineA.clone().lerp(lineB, u);
@@ -113,17 +116,25 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       // A chullo: knitted cone with ear flaps.
       b.cyl(0.02, 0.17, 0.42, p.x, wFloor + 1.62, p.z, WEAVE[k % 6] as string, 8);
       b.cyl(0.18, 0.18, 0.08, p.x, wFloor + 1.62, p.z, "#efe6d6", 8);
+    } else if (k === 4) {
+      // A manta: bands of colour like Taquile's weavings, each band its slice of the one hanging cloth.
+      const H = 0.78;
+      const bands = [0, 1, 4, 1, 0, 3];
+      bands.forEach((c, i) => {
+        const h = H / bands.length;
+        b.cloth(0.46, h + 0.004, p.x, top - h * (i + 0.5), p.z, WEAVE[c] as string, {
+          yaw: lineYaw,
+          flex: [i / bands.length, (i + 1) / bands.length],
+          segs: [3, 2],
+          thick: 0.025 + (i % 2) * 0.004,
+        });
+      });
     } else
-      b.box(
-        0.14,
-        0.9,
-        0.03,
-        p.x,
-        wFloor + 1.15,
-        p.z,
-        WEAVE[(k + 1) % 6] as string,
-        Math.atan2(lineB.x - lineA.x, lineB.z - lineA.z) + Math.PI / 2,
-      );
+      b.cloth(0.14, 0.9, p.x, top - 0.45, p.z, WEAVE[(k + 1) % 6] as string, {
+        yaw: lineYaw,
+        flex: [0, 0.8],
+        segs: [1, 5],
+      });
   }
   colliders.push({ x: lineA.x, z: lineA.z, r: 0.3 }, { x: lineB.x, z: lineB.z, r: 0.3 });
 
@@ -153,7 +164,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   }
 
   const geo = b.build();
-  const mat = vertexToon();
+  const mat = kitMaterial(geo);
   const group = new THREE.Group();
   group.name = "titicaca-taquile";
   if (geo) {

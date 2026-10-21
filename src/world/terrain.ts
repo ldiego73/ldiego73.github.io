@@ -19,6 +19,7 @@ import {
 } from "./layout";
 import { WORLD } from "./palette";
 import { detectDevice } from "./quality";
+import { paintStrength } from "./style-gl";
 import { canvasTex, fbm, noise2, rng } from "./tex";
 import type { ToonCache } from "./toon";
 
@@ -772,7 +773,11 @@ export function createScenery(
   }
 
   // ---------------------------------------------------------------- clouds
-  const cloudMaterial = new THREE.MeshToonMaterial({ color: "#ffffff", gradientMap: toon.toon("#fff").gradientMap });
+  // Clouds drift: no world-space painted blotches sliding over them (style-gl.ts); the cel light shapes them.
+  const cloudMaterial = paintStrength(
+    new THREE.MeshToonMaterial({ color: "#ffffff", gradientMap: toon.toon("#fff").gradientMap }),
+    0,
+  );
   const clouds = new THREE.Group();
   clouds.name = "clouds";
   {

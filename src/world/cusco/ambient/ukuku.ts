@@ -24,6 +24,7 @@ import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures, park } from "../../creatures";
 import { emit, on } from "../../events";
 import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import {
   BELL_FAR,
@@ -64,7 +65,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   const music = getMusic();
 
   // ------------------------------------------------------------------ model
-  const mat = vertexToon();
+  // A dancing body: no world-space paint (it would slide over the fleece).
+  const mat = paintStrength(vertexToon(), 0);
   const rig = buildUkuku(mat);
   const groundY = env.suyu.groundAt(SPOT.x, SPOT.z);
   rig.root.position.set(SPOT.x, groundY, SPOT.z);

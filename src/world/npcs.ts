@@ -24,6 +24,7 @@ import { type Body, creatures } from "./creatures";
 import { emit } from "./events";
 import { type Convo, DialogMachine, MISSION_DIALOGS, NPC_DIALOGS, type NpcDialog } from "./npc-dialogs";
 import { DYE } from "./palette";
+import { paintStrength } from "./style-gl";
 
 /**
  * Tech chasquis: 7 NPC messengers walking the Qhapaq Ñan up and down. Each wears an unku tunic with khipu-dye
@@ -652,7 +653,8 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
 
   // One vertex-colored toon material for every NPC body (shares the core's 3-step ramp).
   const ramp = env.toon("#ffffff").gradientMap;
-  const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp });
+  // People move: no world-space painted blotches sliding over them (style-gl.ts).
+  const mat = paintStrength(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp }), 0);
   const P = protos();
 
   const root = new THREE.Group();

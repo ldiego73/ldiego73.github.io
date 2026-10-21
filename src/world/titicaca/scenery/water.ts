@@ -3,16 +3,23 @@
  * it. Two meshes share the material: a grid over the heightfield carrying the depth under each vertex (cells
  * wholly on land are dropped), and a skirt from the heightfield's edge out to the horizon (deep water).
  *
- * The shader only touches the colour before lighting (and adds the sun's glints after it), so the 3-step toon
- * ramp, fog and the day / night lights apply as on every other surface:
- *  - depth: turquoise over the shallow reed shelf → the lake's deep cobalt blue farther out;
- *  - ripples: thin bright bands from two drifting noise fields (calm water, gentle movement);
- *  - shore: a lapping foam line where the depth runs out;
- *  - sky: a grazing-angle sheen in the sky's colour (the reflection hint), and sparkling glints on the line
- *    from the sun to the eye, dimmed at night.
- * With prefers-reduced-motion the water is drawn still (no time). The water stays off the ink pass (see below).
+ * Painted like anime water (the "cel pintado andino" style, ../../style.ts): flat tones with crisp edges, not
+ * gradients. The shader only touches the colour before lighting (and adds the sun's sparkle after it), so the
+ * cel light, the aerial haze (it is a fogged built-in material: the shared style uniforms reach it, and they are
+ * spread in explicitly as well), the fog and the day / night lights apply as on every other surface:
+ *  - depth: three flat bands, turquoise over the reed shelf → mid blue → the lake's deep cobalt, their edges
+ *    wobbling with noise like brush strokes;
+ *  - wind: the shared wind's gust fronts (`cpaGust`, the same wave that lays the reeds and the ichu over) cross
+ *    the water as darker, ruffled cat's paws, and the ripples drift downwind (`cpaWindDir`);
+ *  - ripples: two-tone, a thin bright crest line with a darker trough line under it, denser in the gusts;
+ *  - shore: a crisp lapping foam line where the depth runs out;
+ *  - sky: a two-step grazing-angle sheen in the sky's colour (the reflection hint), and hard little sparkles
+ *    on the ripple crests along the sun's path, twinkling, gone at night.
+ * With prefers-reduced-motion the water is drawn still (no time; the wind has no gusts then). The water stays
+ * off the ink pass (see below).
  */
 import * as THREE from "three";
+import { styleUniforms } from "../../style-gl";
 import { noOutline, type ToonCache } from "../../toon";
 import type { TiticacaLayout } from "../layout";
 
@@ -39,7 +46,7 @@ function lakeMaterial(toon: ToonCache) {
     uSun: { value: new THREE.Vector3(0, 1, 0) },
   };
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+    Object.assign(shader.uniforms, styleUniforms(), uniforms);
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -68,36 +75,59 @@ function lakeMaterial(toon: ToonCache) {
         `#include <color_fragment>
         float d = vDepth;
         vec2 p = vW.xz;
-        vec3 water = mix(uShallow, uMid, smoothstep(0.25, 1.6, d));
-        water = mix(water, uDeep, smoothstep(1.6, 5.0, d));
-        // Large slow patches (wind on the water) so the deep blue is not a flat fill.
+        // Brush wobble of the band edges, and an anti-aliasing width for every crisp step below.
+        float kwB = kwNoise(p * 0.05) - 0.5;
+        float kwAa = max(fwidth(d), 0.004);
+        // Depth in three flat bands (anime water), not a gradient.
+        vec3 water = mix(uShallow, uMid, smoothstep(-kwAa, kwAa, d - 0.7 - kwB * 0.5));
+        water = mix(water, uDeep, smoothstep(-kwAa * 2.0, kwAa * 2.0, d - 2.6 - kwB * 1.6));
+        // Large slow patches so the deep blue is not a flat fill (two tones, soft enough not to shimmer).
         float patchN = kwNoise(p * 0.012 + vec2(uTime * 0.004, 0.0));
-        water *= 0.94 + 0.12 * patchN;
-        // Ripples: two drifting fields; a thin band where their mix crosses a level.
-        float n1 = kwNoise(p * 0.09 + vec2(uTime * 0.05, uTime * 0.02));
-        float n2 = kwNoise(p * 0.21 - vec2(uTime * 0.03, -uTime * 0.05));
+        water *= 0.95 + 0.08 * smoothstep(0.45, 0.55, patchN);
+        // The shared wind: gust fronts cross the lake as darker ruffled bands (cat's paws), the ripples drift
+        // downwind. cpaGust is 0 under reduced motion and before the style's first frame.
+        vec2 kwWd = cpaWindDir();
+        float kwG = clamp(cpaGust(p) * 0.8, 0.0, 1.0);
+        float kwPaw = smoothstep(0.42, 0.5, kwG + (kwNoise(p * 0.07) - 0.5) * 0.35);
+        water = mix(water, uDeep * vec3(0.78, 0.86, 1.0), kwPaw * 0.3 * smoothstep(0.3, 1.2, d));
+        // Ripples: two drifting fields; where their mix crosses a level, a bright crest line over a darker
+        // trough line (two-tone), more of them in a gust.
+        vec2 kwFlow = kwWd * uTime;
+        float n1 = kwNoise(p * 0.09 - kwFlow * 0.08 + vec2(uTime * 0.02, 0.0));
+        float n2 = kwNoise(p * 0.21 - kwFlow * 0.13 + vec2(0.0, uTime * 0.03));
         float m = n1 * 0.6 + n2 * 0.4;
-        float rip = smoothstep(0.6, 0.62, m) * (1.0 - smoothstep(0.63, 0.66, m));
-        water = mix(water, mix(uSky, vec3(1.0), 0.4), rip * 0.22 * (1.0 - uNight * 0.7));
-        // Lapping foam where the water meets the shore (depth → 0), breaking up with noise.
+        float kwW = fwidth(m) + 0.004;
+        float lvl = 0.6 - kwG * 0.07;
+        float rip = smoothstep(lvl - kwW, lvl, m) * (1.0 - smoothstep(lvl + 0.025, lvl + 0.025 + kwW, m));
+        float trough = smoothstep(lvl - 0.07 - kwW, lvl - 0.07, m) * (1.0 - smoothstep(lvl - 0.045, lvl - 0.045 + kwW, m));
+        float dim = 1.0 - uNight * 0.7;
+        water = mix(water, uDeep * 0.82, trough * 0.35 * dim);
+        water = mix(water, mix(uSky, vec3(1.0), 0.55), rip * 0.5 * dim);
+        // Lapping foam where the water meets the shore (depth → 0), breaking up with noise: crisp white.
         float lap = 0.5 + 0.5 * sin(uTime * 1.1 + kwNoise(p * 0.3) * 6.0);
-        float edge = 1.0 - smoothstep(0.02, 0.14 + 0.1 * lap, d);
+        float edge = 1.0 - smoothstep(0.1 + 0.08 * lap, 0.12 + 0.08 * lap, d);
         float foam = edge * step(0.35, kwNoise(p * 0.8 + uTime * 0.1));
-        // Grazing-angle sheen: the sky on the water (a reflection hint).
+        // Grazing-angle sheen: the sky on the water in two flat steps (a painted reflection band).
         vec3 eye = normalize(cameraPosition - vW);
         float fres = pow(1.0 - clamp(eye.y, 0.0, 1.0), 4.0);
-        water = mix(water, uSky * (1.0 - uNight * 0.75), fres * 0.4);
-        water = mix(water, uFoam * (1.0 - uNight * 0.5), clamp(foam, 0.0, 1.0) * 0.85);
+        float sheen = smoothstep(0.22, 0.26, fres) * 0.22 + smoothstep(0.55, 0.6, fres) * 0.26;
+        water = mix(water, uSky * (1.0 - uNight * 0.75), sheen);
+        water = mix(water, uFoam * (1.0 - uNight * 0.5), clamp(foam, 0.0, 1.0) * 0.9);
         diffuseColor.rgb = water;
-        // Sun glints on the path from the sun to the eye (added after lighting below).
+        // Sparkle (added after lighting below): hard points on the ripple crests along the sun's path, plus a
+        // wider, sparser twinkle field, both gone at night and with the sun down.
         vec3 rv = reflect(-eye, vec3(0.0, 1.0, 0.0));
-        float sunPath = pow(max(dot(rv, normalize(uSun)), 0.0), 60.0);
-        float sparkle = step(0.82, kwNoise(p * 1.7 + vec2(uTime * 0.6, -uTime * 0.4)));
-        float kwGlint = sunPath * sparkle * (1.0 - uNight) * step(0.0, uSun.y);`,
+        float sunDot = max(dot(rv, normalize(uSun)), 0.0);
+        float sunPath = pow(sunDot, 60.0);
+        float sunWide = pow(sunDot, 9.0);
+        float tw = kwNoise(p * 1.7 + vec2(uTime * 0.6, -uTime * 0.4) - kwFlow * 0.2);
+        float sparkle = step(0.8 - kwG * 0.06, tw) * (0.5 + rip) ;
+        float twinkle = step(0.93, kwNoise(p * 2.9 - vec2(uTime * 0.9, uTime * 0.5))) * step(0.5, fract(uTime * 1.3 + kwHash(floor(p * 2.9))));
+        float kwGlint = (sunPath * sparkle + sunWide * twinkle * 0.7) * (1.0 - uNight) * step(0.0, uSun.y);`,
       )
       .replace(
         "#include <opaque_fragment>",
-        "outgoingLight += vec3(1.0, 0.96, 0.86) * kwGlint * 0.9;\n#include <opaque_fragment>",
+        "outgoingLight += vec3(1.0, 0.97, 0.88) * min(kwGlint, 1.2) * 1.1;\n#include <opaque_fragment>",
       );
   };
   material.customProgramCacheKey = () => "titicaca-lake";

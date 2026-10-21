@@ -4,13 +4,15 @@
  * terrace says the repo's language, its height and density the stars (log scale). A wooden sign at the
  * foot of each terrace: "E · Ver repositorio" opens a dialog with the repo, a GitHub link and the legend;
  * ←/→ walk the terraces. Stamp `field:huerto` on the first visit.
+ * The crops nod in the world's shared wind (one instanced mesh per crop, its parts merged with a `flex` that
+ * grows toward the tip: props.ts SwayKit, style-gl.ts `windSway` "grass"), and part around the traveler.
  */
 import * as THREE from "three";
 import { SOCIALS } from "../../data/site";
 import type { CreateAmbient, L } from "../contract";
 import { type WorldRepo, worldData } from "../data";
 import { emit } from "../events";
-import { C, drawBoard, FONT, hashStr, Kit, rng, stoneWall } from "../props";
+import { C, drawBoard, FONT, hashStr, Kit, rng, SwayKit, stoneWall, swayPlantMaterial } from "../props";
 import {
   circle,
   createMarker,
@@ -300,30 +302,33 @@ export const create: CreateAmbient = (env, hudRoot) => {
   }
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
-  const qt = new THREE.Quaternion();
   const e = new THREE.Euler();
   const p = new THREE.Vector3();
   const sc = new THREE.Vector3();
   const instanced: THREE.InstancedMesh[] = [];
+  // One unit plant per crop (its parts merged, vertex-coloured, flex 0 at the soil → ~0.14 plant units of bend
+  // at the tip), instanced once per crop: fewer draws than one mesh per part, and it sways as one plant.
+  const cropMat = swayPlantMaterial();
+  const cropGeos: THREE.BufferGeometry[] = [];
   for (const [crop, list] of plantsOf) {
     if (!list.length) continue;
-    for (const part of PLANTS[crop]) {
-      const mesh = new THREE.InstancedMesh(geos[part.geo], env.toon(part.color), list.length);
-      mesh.name = `huerto-${crop}`;
-      list.forEach((pl, k) => {
-        q.setFromEuler(e.set(0, pl.ry, 0));
-        qt.setFromEuler(e.set(0, 0, part.tilt ?? 0));
-        q.multiply(qt);
-        const ox = (part.x ?? 0) * pl.s;
-        p.set(pl.x + Math.cos(pl.ry) * ox, pl.y + part.y * pl.s, pl.z - Math.sin(pl.ry) * ox);
-        sc.set(part.s[0] * pl.s, part.s[1] * pl.s, part.s[2] * pl.s);
-        mesh.setMatrixAt(k, m4.compose(p, q, sc));
-      });
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.computeBoundingSphere();
-      group.add(mesh);
-      instanced.push(mesh);
-    }
+    const sk = new SwayKit();
+    const plant = { base: 0, height: 1, bend: 0.14 };
+    for (const part of PLANTS[crop])
+      sk.add(geos[part.geo], part.color, part.x ?? 0, part.y, 0, ...part.s, plant, 0, 0, part.tilt ?? 0);
+    const unit = sk.build();
+    if (!unit) continue;
+    cropGeos.push(unit);
+    const mesh = new THREE.InstancedMesh(unit, cropMat, list.length);
+    mesh.name = `huerto-${crop}`;
+    list.forEach((pl, k) => {
+      q.setFromEuler(e.set(0, pl.ry, 0));
+      mesh.setMatrixAt(k, m4.compose(p.set(pl.x, pl.y, pl.z), q, sc.set(pl.s, pl.s, pl.s)));
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+    group.add(mesh);
+    instanced.push(mesh);
   }
 
   // ------------------------------------------------------------------ colliders + walkables
@@ -499,6 +504,8 @@ export const create: CreateAmbient = (env, hudRoot) => {
       marker.dispose();
       for (const m of instanced) m.dispose();
       for (const g of Object.values(geos)) g.dispose();
+      for (const g of cropGeos) g.dispose();
+      cropMat.dispose();
       atlas.dispose();
       disposeGeometries(group);
     },

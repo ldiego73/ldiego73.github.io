@@ -152,9 +152,15 @@ export function toWorld(cx: number, cz: number, yaw: number, lx: number, lz: num
 
 /**
  * Kite sway in the summit wind: lateral / vertical offsets (units) and roll (radians) at clock `t`.
- * Layered sines so it never looks like a metronome; still (zeros) with reduced motion.
+ * Layered sines so it never looks like a metronome; still (zeros) with reduced motion. `gust` (0 … ~1.1, the
+ * shared wind's gust at the kite: wind.ts `liveWind`) makes it climb, dart wider and twitch.
  */
-export function kiteSway(t: number, rm: boolean, out: { side: number; up: number; roll: number; pitch: number }) {
+export function kiteSway(
+  t: number,
+  rm: boolean,
+  out: { side: number; up: number; roll: number; pitch: number },
+  gust = 0,
+) {
   if (rm) {
     out.side = 0;
     out.up = 0;
@@ -162,10 +168,12 @@ export function kiteSway(t: number, rm: boolean, out: { side: number; up: number
     out.pitch = 0;
     return out;
   }
-  out.side = Math.sin(t * 0.43) * 1.1 + Math.sin(t * 1.17 + 1.3) * 0.35;
-  out.up = Math.sin(t * 0.31 + 0.6) * 0.55 + Math.sin(t * 0.97) * 0.18;
-  out.roll = Math.sin(t * 0.43 + 0.5) * 0.32 + Math.sin(t * 2.3) * 0.06;
-  out.pitch = Math.sin(t * 0.77 + 2) * 0.1;
+  const g = Math.min(Math.max(gust, 0), 1.2);
+  const k = 1 + 0.35 * g;
+  out.side = (Math.sin(t * 0.43) * 1.1 + Math.sin(t * 1.17 + 1.3) * 0.35) * k;
+  out.up = Math.sin(t * 0.31 + 0.6) * 0.55 + Math.sin(t * 0.97) * 0.18 + 0.9 * g;
+  out.roll = (Math.sin(t * 0.43 + 0.5) * 0.3 + Math.sin(t * 2.3) * 0.06 * (1 + g)) * Math.min(k, 1.25);
+  out.pitch = Math.sin(t * 0.77 + 2) * 0.1 - 0.12 * g;
   return out;
 }
 

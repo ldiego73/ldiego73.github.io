@@ -5,9 +5,13 @@
  * Helpers only: this file does not export `create`.
  *
  * Draw calls (static): every kené-painted surface (pole, anaconda, jars) shares ONE atlas and ONE mesh; every
- * flat-coloured part (dais, plaza, crown feathers, carved bands, poles, cords and pennants, the anaconda's
- * head) is ONE vertex-coloured mesh; the streamers are one dynamic mesh on the atlas material. The burst adds
- * one instanced petal mesh and one instanced morpho mesh, visible only while it plays.
+ * rigid flat-coloured part (dais, plaza, carved bands, poles, cords, the anaconda's head) is ONE vertex-coloured
+ * mesh; everything that moves with the wind (the crown's macaw feathers, the poles' feather tufts and the
+ * pennants) is ONE more vertex-coloured mesh with a `flex` weight (0 where it is tied, growing to the free tip)
+ * on the shared wind's "grass" mode; the streamers are one static ribbon mesh on the atlas material that the
+ * shared wind waves as cloth (`flex` 0 at the pole → 1 at the free end). No CPU animation: the gust you see
+ * crossing the canopy is the one that lifts the streamers. The burst adds one instanced petal mesh and one
+ * instanced morpho mesh, visible only while it plays.
  *
  * Atlas (1024², canvas y down): POLE x 0–512 × y 0–1024 (cream ground, brown lines, 2 periods across so it
  * wraps round the pole), SKIN x 512–1024 × y 0–512 (achiote red, black bold lines and cream fine lines: the
@@ -19,6 +23,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { WorldEnv } from "../../../contract";
 import type { Kit } from "../../../props";
+import type { GeoBuilder } from "../../scenery/kit";
 import { A, type Rand } from "../embarcadero/amazon";
 import { type KeneDesign, keneDesign, PERIOD } from "./pattern";
 import { aroundTotem, DAIS_R, POLE_ANGLES, POLE_R, POTS, TOTEM_LOCAL } from "./spot";
@@ -399,25 +404,56 @@ export function buildPainted(mat: THREE.Material, floorY: number): Painted {
 
 const FEATHERS = [K.scarlet, K.yellow, K.blue, K.scarlet, K.green, K.yellow] as const;
 
-/** One feather: a flattened 4-sided cone, tip up, at (x, y, z), leaning `lean` outward along yaw `ry`. */
-function feather(kit: Kit, x: number, y: number, z: number, len: number, ry: number, lean: number, color: string) {
+/** Wind weight (u of bend at full wind) at a feather's tip and at a pennant's free corner. */
+const FEATHER_FLEX = 0.3;
+const PENNANT_FLEX = 0.26;
+
+/** Writes a `flex` attribute: `k` × (how far along `axis` from `from` to `to`), clamped 0–1. */
+function flexAlong(g: THREE.BufferGeometry, axis: "x" | "y" | "z", from: number, to: number, k: number) {
+  const pos = g.getAttribute("position") as THREE.BufferAttribute;
+  const out = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const v = axis === "x" ? pos.getX(i) : axis === "y" ? pos.getY(i) : pos.getZ(i);
+    out[i] = k * Math.min(1, Math.max(0, (v - from) / (to - from)));
+  }
+  g.setAttribute("flex", new THREE.BufferAttribute(out, 1));
+  return g;
+}
+
+/**
+ * One feather: a flattened 4-sided cone, tip up, at (x, y, z), leaning `lean` outward along yaw `ry`, into the
+ * wind-swayed builder (its weight grows from the quill to the tip).
+ */
+function feather(
+  sway: GeoBuilder,
+  x: number,
+  y: number,
+  z: number,
+  len: number,
+  ry: number,
+  lean: number,
+  color: string,
+) {
   const g = new THREE.ConeGeometry(0.1, len, 4);
   g.translate(0, len / 2, 0);
   g.scale(1, 1, 0.35);
+  flexAlong(g, "y", 0, len, FEATHER_FLEX * Math.min(1.4, len));
   // Tilt toward +Z first, then turn: the feather leans out along (sin ry, cos ry).
   g.rotateX(lean);
   g.rotateY(ry);
-  kit.add(g, color, x, y, z);
-  g.dispose();
+  g.translate(x, y, z);
+  sway.add(g, { color });
 }
 
 /**
  * Every flat-coloured part, into `kit` (plaza frame): plaza floor, dais, the pole's carved base, bands and cap,
- * the feather crown, Ronin's head, the banner poles with feather tufts and the pennant cords between them.
+ * Ronin's head, the banner poles and the pennant cords between them; the parts that move with the wind (the
+ * feather crown, the poles' feather tufts, the pennants) go into `sway` with their `flex` weights.
  * `floorY` is the plaza floor height relative to the frame origin.
  */
 export function buildFlat(
   kit: Kit,
+  sway: GeoBuilder,
   rand: Rand,
   o: { floorY: number; plazaR: number; head: { pos: THREE.Vector3; dir: THREE.Vector3 } },
 ) {
@@ -472,12 +508,21 @@ export function buildFlat(
     const a = (i / 22) * Math.PI * 2;
     const r = POLE.r * 1.05;
     const len = 1.35 + (i % 2) * 0.35;
-    feather(kit, tx + Math.sin(a) * r, cy, tz + Math.cos(a) * r, len, a, 0.55, FEATHERS[i % FEATHERS.length] as string);
+    feather(
+      sway,
+      tx + Math.sin(a) * r,
+      cy,
+      tz + Math.cos(a) * r,
+      len,
+      a,
+      0.55,
+      FEATHERS[i % FEATHERS.length] as string,
+    );
   }
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2 + 0.26;
     const r = POLE.r * 0.6;
-    feather(kit, tx + Math.sin(a) * r, cy, tz + Math.cos(a) * r, 0.95, a, 0.25, i % 2 ? K.blue : K.yellow);
+    feather(sway, tx + Math.sin(a) * r, cy, tz + Math.cos(a) * r, 0.95, a, 0.25, i % 2 ? K.blue : K.yellow);
   }
   // Ronin's head: a blunt boa head (achiote red, black crown) facing along the neck, eyes and a forked tongue.
   // Parts are built at the origin facing +Z, pitched, turned to the neck's heading and moved onto it.
@@ -520,7 +565,7 @@ export function buildFlat(
     for (let f = 0; f < 5; f++) {
       const fa = (f / 5) * Math.PI * 2 + i;
       feather(
-        kit,
+        sway,
         x + Math.sin(fa) * 0.05,
         fy + h + 0.12,
         z + Math.cos(fa) * 0.05,
@@ -538,6 +583,8 @@ export function buildFlat(
     new THREE.Float32BufferAttribute([-0.12, 0, 0, 0.12, 0, 0, 0, -0.28, 0, 0.12, 0, 0, -0.12, 0, 0, 0, -0.28, 0], 3),
   );
   tri.computeVertexNormals();
+  // Tied along the cord (y 0), free at the bottom corner (y −0.28).
+  flexAlong(tri, "y", 0, -0.28, PENNANT_FLEX);
   const pennant = [K.cream, K.achiote, K.black, K.yellow] as const;
   for (let i = 0; i + 1 < tops.length; i++) {
     const a = tops[i] as THREE.Vector3;
@@ -552,7 +599,10 @@ export function buildFlat(
     const ry = Math.atan2(-(b.z - a.z), b.x - a.x);
     for (let k = 1; k < n; k++) {
       const p = pts[k] as THREE.Vector3;
-      kit.add(tri, pennant[(k + i) % pennant.length] as string, p.x, p.y, p.z, 0, ry + (rand() - 0.5) * 0.2, 0);
+      const g = tri.clone();
+      g.rotateY(ry + (rand() - 0.5) * 0.2);
+      g.translate(p.x, p.y, p.z);
+      sway.add(g, { color: pennant[(k + i) % pennant.length] as string });
     }
   }
   tri.dispose();
@@ -563,15 +613,20 @@ export function buildFlat(
 /** Two streamers per banner pole, hanging from just under its tuft and blowing out and down. */
 export interface Streamers {
   mesh: THREE.Mesh;
-  update(t: number, wind: number): void;
   dispose(): void;
 }
 
+/**
+ * The streamers as one static ribbon mesh in a gently blown rest pose (out and down, tangential round the ring,
+ * one each way). The shared wind does the rest as cloth: give `mat` `windSway(mat, { mode: "cloth", flex: true })`
+ * (the `flex` attribute is 0 at the pole, 1 at the free end).
+ */
 export function buildStreamers(mat: THREE.Material, floorY: number): Streamers {
   const SEG = 10;
   const LEN = 1.7;
   const W = 0.26;
-  const list: Array<{ ox: number; oy: number; oz: number; dx: number; dz: number; ph: number }> = [];
+  const BLOW = 0.6;
+  const list: Array<{ ox: number; oy: number; oz: number; dx: number; dz: number }> = [];
   for (const [i, a] of POLE_ANGLES.entries()) {
     const x = Math.sin(a) * POLE_R;
     const z = Math.cos(a) * POLE_R;
@@ -581,55 +636,47 @@ export function buildStreamers(mat: THREE.Material, floorY: number): Streamers {
       const dx = Math.cos(a) * s * 0.8 + Math.sin(a) * 0.45;
       const dz = -Math.sin(a) * s * 0.8 + Math.cos(a) * 0.45;
       const l = Math.hypot(dx, dz);
-      list.push({ ox: x, oy: floorY + h - 0.05, oz: z, dx: dx / l, dz: dz / l, ph: i * 1.7 + s });
+      list.push({ ox: x, oy: floorY + h - 0.05, oz: z, dx: dx / l, dz: dz / l });
     }
   }
   const nv = list.length * (SEG + 1) * 2;
   const pos = new Float32Array(nv * 3);
   const uv = new Float32Array(nv * 2);
+  const flex = new Float32Array(nv);
   const idx: number[] = [];
   const r = REGION.streamer;
   // Along the streamer: the region's x (512 px); across: an 80 px strip at the top of the region.
   const stripV = 80 / ATLAS;
-  list.forEach((_, k) => {
+  list.forEach((st, k) => {
     for (let i = 0; i <= SEG; i++) {
       const v0 = (k * (SEG + 1) + i) * 2;
-      const u = (r.x + (i / SEG) * r.w) / ATLAS;
-      uv.set([u, 1 - r.y / ATLAS, u, 1 - r.y / ATLAS - stripV], v0 * 2);
+      const u = i / SEG;
+      const tu = (r.x + u * r.w) / ATLAS;
+      uv.set([tu, 1 - r.y / ATLAS, tu, 1 - r.y / ATLAS - stripV], v0 * 2);
       if (i < SEG) idx.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2);
+      // Rest pose: hangs mostly down and swings out a little (the old animation's mean shape).
+      const out = LEN * (0.18 * u + 0.32 * u * u * BLOW);
+      const drop = LEN * u * (0.95 - 0.25 * BLOW * u);
+      const cx = st.ox + st.dx * out;
+      const cz = st.oz + st.dz * out;
+      const cy = st.oy - drop;
+      const wx = -st.dz * (W / 2);
+      const wz = st.dx * (W / 2);
+      pos.set([cx - wx, cy, cz - wz, cx + wx, cy, cz + wz], v0 * 3);
+      flex[v0] = u;
+      flex[v0 + 1] = u;
     }
   });
   const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  g.setAttribute("flex", new THREE.BufferAttribute(flex, 1));
   g.setIndex(idx);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
   const mesh = new THREE.Mesh(g, mat);
   mesh.name = "selva-kene:streamers";
-  const write = (t: number, wind: number) => {
-    list.forEach((s, k) => {
-      for (let i = 0; i <= SEG; i++) {
-        const u = i / SEG;
-        // Hangs mostly down and swings out with the wind; the free end flutters and twists the most.
-        const flap = Math.sin(t * 4.6 + s.ph - u * 4.2) * 0.22 * u * wind;
-        const out = LEN * (0.18 * u + 0.32 * u * u * wind) + flap;
-        const drop = LEN * u * (0.95 - 0.25 * wind * u);
-        const cx = s.ox + s.dx * out;
-        const cz = s.oz + s.dz * out;
-        const cy = s.oy - drop;
-        // Width across the swing direction, twisting a little along the ribbon.
-        const tw = Math.sin(t * 3.3 + s.ph + u * 2.5) * 0.7 * u * wind;
-        const wx = (-s.dz * Math.cos(tw) + s.dx * Math.sin(tw)) * (W / 2);
-        const wz = (s.dx * Math.cos(tw) + s.dz * Math.sin(tw)) * (W / 2);
-        const v0 = (k * (SEG + 1) + i) * 2;
-        pos.set([cx - wx, cy, cz - wz, cx + wx, cy, cz + wz], v0 * 3);
-      }
-    });
-    (g.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
-    g.computeVertexNormals();
-  };
-  write(0, 0.6);
-  g.computeBoundingSphere();
-  return { mesh, update: write, dispose: () => g.dispose() };
+  return { mesh, dispose: () => g.dispose() };
 }
 
 // ------------------------------------------------------------------------------------------------ burst

@@ -9,6 +9,7 @@
 import * as THREE from "three";
 import type { CreateAmbient } from "../../contract";
 import { mergeColored, vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { ColcaLayout } from "../layout";
 import { FLOWERS, toWorld } from "./pueblo/logic";
@@ -62,7 +63,8 @@ export const create: CreateAmbient = (baseEnv) => {
     return { ...w, y: env.heightAt(w.x, w.z) + 1.1 };
   });
   const n = env.quality === "high" ? 3 : 2;
-  const mat = vertexToon();
+  // Moving bodies take no painted blotches (they would slide over them).
+  const mat = paintStrength(vertexToon(), 0);
   const bGeo = bodyGeo();
   const wGeo = wingGeo();
   const bodies = new THREE.InstancedMesh(bGeo, mat, n);

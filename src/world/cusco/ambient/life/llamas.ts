@@ -9,6 +9,7 @@ import * as THREE from "three";
 import type { WorldEnv } from "../../../contract";
 import { camelidParts, LLAMA } from "../../../fauna-models";
 import { mergeColored, vertexToon } from "../../../merge-colors";
+import { paintStrength } from "../../../style-gl";
 
 /** Coats (instance colours; the vertex shades darken the body a little under the paler belly). */
 const COATS = ["#fbf6ee", "#a8724a", "#5a463a", "#e0bf92"];
@@ -48,7 +49,8 @@ export class LlamaHerd {
     private n: number,
   ) {
     this.group.name = "cusco-llamas";
-    this.mat = vertexToon();
+    // Moving bodies: no world-space paint (it would slide over the coats).
+    this.mat = paintStrength(vertexToon(), 0);
     const P = this.rig;
     const R = P.rig;
     const c = (hex: string) => new THREE.Color(hex);

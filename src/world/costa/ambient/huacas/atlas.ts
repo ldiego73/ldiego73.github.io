@@ -401,6 +401,8 @@ export class Quads {
   private pos: number[] = [];
   private uv: number[] = [];
   private nrm: number[] = [];
+  /** Cloth weight per vertex (0 = rigid; `hanging` writes 0 at the top → 1 at the hem). */
+  private flex: number[] = [];
   /**
    * A vertical quad: bottom-left at (ax, y, az) → bottom-right (bx, y, bz), height h; the cell is repeated
    * `rep` times along its width (by splitting into rep quads).
@@ -423,8 +425,43 @@ export class Quads {
       const y1 = (yb ?? y) + h;
       this.pos.push(x0, y0, z0, x1, y0, z1, x1, y1, z1, x0, y0, z0, x1, y1, z1, x0, y1, z0);
       this.uv.push(u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1);
-      for (let k = 0; k < 6; k++) this.nrm.push(nx, 0, nz);
+      for (let k = 0; k < 6; k++) {
+        this.nrm.push(nx, 0, nz);
+        this.flex.push(0);
+      }
     }
+  }
+
+  /**
+   * A cloth hanging from its top edge (a mantle on a beam): like `wall`, but split into a grid so the shared
+   * wind (cloth mode) can ripple it, with `flex` 0 at the top → 1 at the hem.
+   */
+  hanging(ax: number, az: number, bx: number, bz: number, y: number, h: number, cell: Cell, cols = 4, rows = 5) {
+    const [u0, v0, u1, v1] = CELLS[cell];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const l = Math.hypot(dx, dz) || 1;
+    const nx = -dz / l;
+    const nz = dx / l;
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) {
+        const a0 = c / cols;
+        const a1 = (c + 1) / cols;
+        const b0 = r / rows;
+        const b1 = (r + 1) / rows;
+        const P = (a: number, b: number) => {
+          this.pos.push(ax + dx * a, y + h * b, az + dz * a);
+          this.uv.push(u0 + (u1 - u0) * a, v0 + (v1 - v0) * b);
+          this.nrm.push(nx, 0, nz);
+          this.flex.push(1 - b);
+        };
+        P(a0, b0);
+        P(a1, b0);
+        P(a1, b1);
+        P(a0, b0);
+        P(a1, b1);
+        P(a0, b1);
+      }
   }
   get empty() {
     return this.pos.length === 0;
@@ -434,6 +471,7 @@ export class Quads {
     g.setAttribute("position", new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute("normal", new THREE.Float32BufferAttribute(this.nrm, 3));
     g.setAttribute("uv", new THREE.Float32BufferAttribute(this.uv, 2));
+    g.setAttribute("flex", new THREE.Float32BufferAttribute(this.flex, 1));
     g.computeBoundingSphere();
     return g;
   }

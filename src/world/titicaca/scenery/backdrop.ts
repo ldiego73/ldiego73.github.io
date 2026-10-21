@@ -8,7 +8,9 @@
  *
  * Thin air: the ring draws without the scene fog (it would wash the range into a grey band at this distance);
  * a fixed blue haze is baked into its colours instead, a little more across the lake than on the land side, so
- * the peaks stay crisp but read as far away.
+ * the peaks stay crisp but read as far away. Painted like an anime backdrop (the "cel pintado andino" style):
+ * saturated blue-violet rock across the lake, warm ochre hills behind the altiplano, pure white snow with a hard
+ * edge, the haze a clear sky blue rather than grey; the cel light and the indigo shade tint do the rest.
  */
 import * as THREE from "three";
 import { noOutline, type ToonCache } from "../../toon";
@@ -48,12 +50,12 @@ export function buildBackdrop(L: TiticacaLayout, toon: ToonCache) {
   const pos: number[] = [];
   const col: number[] = [];
   const idx: number[] = [];
-  const rock = new THREE.Color("#8d8170");
-  const rockBlue = new THREE.Color("#5c606c");
-  const ochre = new THREE.Color("#b49a68");
-  const snow = new THREE.Color("#f6f6f2");
-  const haze = new THREE.Color("#b7c9df");
-  const shore = new THREE.Color("#9a9a74");
+  const rock = new THREE.Color("#8e7f86");
+  const rockBlue = new THREE.Color("#5560a6");
+  const ochre = new THREE.Color("#c39a5a");
+  const snow = new THREE.Color("#ffffff");
+  const haze = new THREE.Color("#9fbdf0");
+  const shore = new THREE.Color("#8f9c66");
   const c = new THREE.Color();
   const R = PROFILE.length;
   for (let i = 0; i <= SEGS; i++) {
@@ -94,7 +96,8 @@ export function buildBackdrop(L: TiticacaLayout, toon: ToonCache) {
       else if (j === 0 && north > 0.5) c.copy(shore);
       else if (north > 0.5) c.copy(rockBlue).lerp(rock, 0.4 * (1 - k));
       else c.copy(ochre).lerp(rock, 0.3 + 0.4 * k);
-      c.lerp(haze, THREE.MathUtils.lerp(0.14, 0.24, north));
+      // Snow takes half the haze: the caps stay the brightest, crispest thing on the skyline.
+      c.lerp(haze, THREE.MathUtils.lerp(0.16, 0.28, north) * (capped ? 0.5 : 1));
       col.push(c.r, c.g, c.b);
     });
   }

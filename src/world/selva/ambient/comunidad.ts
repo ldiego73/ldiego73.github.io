@@ -37,6 +37,7 @@ import { Crowd, paletteMaterial } from "../../ambient/people/rig";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { on } from "../../events";
 import { detectDevice } from "../../quality";
+import { paintStrength } from "../../style-gl";
 import type { SelvaEnv } from "../contract";
 import { ride } from "../ride";
 import { raftGames } from "./arcade/logic";
@@ -75,6 +76,9 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   const ramp = env.toon("#ffffff").gradientMap;
   const mat = paletteMaterial(ramp);
   const staticMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp });
+  // Props that move (the kids' ball, the fishing canoe, the peque-peque): no world-space painted blotches,
+  // they would slide over a moving body (style-gl.ts; the villagers' rig already opts out).
+  const movingMat = paintStrength(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp }), 0);
 
   // ------------------------------------------------------------ greeting bubble
   const layer = document.createElement("div");
@@ -141,7 +145,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     const f = stationFrame(env, "palafitos");
     const x = wx(f, 2.4, 1.2);
     const z = wz(f, 2.4, 1.2);
-    return createPlazaKids(env, crowd, staticMat, new THREE.Vector3(x, env.selva.groundAt(x, z), z), 2.6, n.plazaKids);
+    return createPlazaKids(env, crowd, movingMat, new THREE.Vector3(x, env.selva.groundAt(x, z), z), 2.6, n.plazaKids);
   });
   // Women at work beside the maloca, left of its door seen from the road (the board stands on the right).
   tryAdd("crafts", () => {
@@ -178,7 +182,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     // narrows past the embarcadero's moored canoe and the swimmers' sandbar (no room on the far half).
     const lane = boatLane(env, swimZone, BOAT_T[0], BOAT_T[1]);
     return lane
-      ? createRiver(env, crowd, staticMat, lane, ripples, { fisher: n.fisher, boat: n.boat, slow: swimZone })
+      ? createRiver(env, crowd, movingMat, lane, ripples, { fisher: n.fisher, boat: n.boat, slow: swimZone })
       : null;
   });
 
@@ -265,6 +269,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       ripples.dispose();
       mat.dispose();
       staticMat.dispose();
+      movingMat.dispose();
       layer.remove();
     },
   };

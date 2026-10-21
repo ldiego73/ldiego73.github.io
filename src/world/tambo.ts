@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Company } from "../data/career";
 import { companyYears, khipuFor } from "./artifacts";
 import type { Collider, Lang, WorldEnv } from "./contract";
@@ -9,6 +10,8 @@ import {
   canvasTex,
   circleAt,
   circlesAlong,
+  clothMaterial,
+  clothStripsGeometry,
   DYE,
   drawBoard,
   FONT,
@@ -24,6 +27,7 @@ import {
   type Torch,
   thatchRoof,
   toonMapped,
+  withFlex,
 } from "./props";
 
 /**
@@ -177,10 +181,6 @@ export function buildTambo(env: WorldEnv, company: Company, lang: Lang, id: stri
   const face = new THREE.Mesh(signGeo, signMat);
   face.position.set(0, 0.96, 0.035);
   signGroup.add(face);
-  // Dye ribbon tied to the post: the company's cord color.
-  const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.02), env.toon(DYE[company.dye]));
-  ribbon.position.set(0.62, 0.95, 0.07);
-  signKit.add(ribbon);
   signGroup.position.set(-side * (w / 2 - 0.3), 0, 2.4);
   signGroup.rotation.y = side * 0.25;
   group.add(signGroup);
@@ -199,7 +199,23 @@ export function buildTambo(env: WorldEnv, company: Company, lang: Lang, id: stri
   const post = torch.group.children.find((o) => o.name === "torch");
   if (post) for (const m of [...post.children]) body.attach(m);
   flattenToonGroup(body, vMat);
-  flattenToonGroup(signKit, vMat);
+  // The sign's posts and board, plus the dye ribbon tied to the post (the company's cord colour) as cloth on the
+  // shared wind, in ONE mesh: the rigid parts carry flex 0 (pinned), the ribbon 0 → 1 down to its tail.
+  const signMesh = flattenToonGroup(signKit, vMat);
+  const ribbonGeo = clothStripsGeometry([{ w: 0.11, h: 0.46, x: 0.62, y: 1.12, z: 0.075, color: DYE[company.dye] }]);
+  if (signMesh && ribbonGeo) {
+    const rigid = withFlex(signMesh.geometry);
+    const merged = mergeGeometries([rigid, ribbonGeo], false);
+    ribbonGeo.dispose();
+    if (merged) {
+      rigid.dispose();
+      merged.computeBoundingSphere();
+      signMesh.geometry = merged;
+      const clothMat = clothMaterial(0.8);
+      owned.push(clothMat);
+      signMesh.material = clothMat;
+    }
+  }
 
   const focus = new THREE.Vector3(kx * 0.7, 0, 2.2);
   const front = new THREE.Vector3(kx * 0.45, 0, 2.6);

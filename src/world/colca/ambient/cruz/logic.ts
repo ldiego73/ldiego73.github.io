@@ -98,14 +98,31 @@ export function spawnBits(n: number, topY: number, colors: number, rand: () => n
   });
 }
 
-/** One physics step: gravity, air drag (feathers drift and flutter), resting on the floor. */
-export function stepBit(b: Bit, dt: number, age: number, floor: (x: number, z: number) => number): void {
+/** How strongly the air carries each kind (1/s toward the wind's speed): light feathers more than confetti. */
+const CATCH = [1.1, 0.6] as const;
+/** World units per second of carry per unit of shared-wind speed (../../../wind.ts windAt). */
+const CARRY = 1.6;
+
+/**
+ * One physics step: gravity, air drag (feathers drift and flutter), the wind (local frame, the shared wind's
+ * `x`/`z`; still air when omitted) pulling the velocity toward its own, resting on the floor.
+ */
+export function stepBit(
+  b: Bit,
+  dt: number,
+  age: number,
+  floor: (x: number, z: number) => number,
+  wind: { x: number; z: number } = { x: 0, z: 0 },
+): void {
   if (b.landed) return;
   const drag = b.kind === 0 ? 2.2 : 1.1;
   const g = b.kind === 0 ? 3.2 : 7;
   b.vy -= g * dt;
   b.vx -= b.vx * drag * dt;
   b.vz -= b.vz * drag * dt;
+  const k = CATCH[b.kind] * dt;
+  b.vx += (wind.x * CARRY - b.vx) * k;
+  b.vz += (wind.z * CARRY - b.vz) * k;
   // Terminal fall speed (feathers sway down slowly).
   const term = b.kind === 0 ? -1.1 : -2.6;
   if (b.vy < term) b.vy = term;

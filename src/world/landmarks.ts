@@ -13,6 +13,8 @@ import {
   canvasTex,
   circleAt,
   circlesAlong,
+  clothMaterial,
+  clothStripsGeometry,
   cutaway,
   DYE,
   drawBoard,
@@ -32,6 +34,7 @@ import {
   thatchRoof,
   toonMapped,
 } from "./props";
+import { noPaint } from "./style-gl";
 
 /**
  * Non-company stations along the Qhapaq Ñan. Each is built in a local frame (+Z toward the trail,
@@ -156,13 +159,25 @@ export function buildGate(env: WorldEnv, lang: Lang): Place {
       6,
     );
   arch.add(ak.build("gate-arch"));
-  // Dye banners hanging from the lintel.
-  ["red", "ochre", "indigo", "turq"].forEach((dye, i) => {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.7, 0.03), env.toon(DYE[dye as keyof typeof DYE]));
-    own.geos.push(b.geometry);
-    b.position.set(-half + 0.6 + i * ((half * 2 - 1.2) / 3), 2.2, 0.5);
-    arch.add(b);
-  });
+  // Dye banners hanging from the lintel: one cloth mesh on the shared wind (pinned at the lintel, hems swing).
+  const bannerGeo = clothStripsGeometry(
+    (["red", "ochre", "indigo", "turq"] as const).map((dye, i) => ({
+      w: 0.24,
+      h: 0.78,
+      x: -half + 0.6 + i * ((half * 2 - 1.2) / 3),
+      y: 2.56,
+      z: 0.5,
+      color: DYE[dye],
+    })),
+  );
+  if (bannerGeo) {
+    const bannerMat = clothMaterial(0.9);
+    own.geos.push(bannerGeo);
+    own.mats.push(bannerMat);
+    const banners = new THREE.Mesh(bannerGeo, bannerMat);
+    banners.name = "gate-banners";
+    arch.add(banners);
+  }
 
   // Signpost at the station pose: arrow board pointing up the trail + list of stations.
   const post = new Kit(env);
@@ -238,6 +253,8 @@ export function buildGate(env: WorldEnv, lang: Lang): Place {
 
   // Llama by the gate (cozy diorama).
   const llama = buildLlama(env);
+  // It turns its head: no world-space painted blotches on the wool (style-gl.ts).
+  noPaint(llama);
   llama.position.set(-1.6, 0, -0.9);
   llama.rotation.y = 0.8;
   group.add(llama);

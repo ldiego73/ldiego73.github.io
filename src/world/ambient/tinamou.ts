@@ -19,6 +19,7 @@ import { creatures, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
 import { detectDevice } from "../quality";
+import { paintStrength } from "../style-gl";
 import { gradientMap } from "../toon";
 import { mirrorX, PLUMAGE, tinamouParts } from "./tinamou/model";
 import {
@@ -89,7 +90,8 @@ export const create: CreateAmbient = (env): Ambient => {
   // ---------------------------------------------------------------- meshes
   const parts = tinamouParts();
   const wingL = mirrorX(parts.wing);
-  const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: gradientMap() });
+  // Birds move: no world-space painted blotches sliding over the plumage (style-gl.ts).
+  const mat = paintStrength(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: gradientMap() }), 0);
   const featherMat = new THREE.MeshBasicMaterial({ color: "#ffffff", side: THREE.DoubleSide });
   const mk = (geo: THREE.BufferGeometry, name: string, count: number, m: THREE.Material = mat) => {
     const mesh = new THREE.InstancedMesh(geo, m, count);

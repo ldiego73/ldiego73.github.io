@@ -8,11 +8,18 @@
  *  - stones: angular boulders, more on the rim and the pampa's hills.
  * The pampa's middle stays bare so the geoglyphs read. Thinner on the low tier; never culled by distance (the
  * far ones fade into the haze). Ichu without ink outline (thin blades would be all ink far away).
+ *
+ * Wind (../../style-gl.ts `windSway`, the world's shared field in ../../style.ts WIND.colca): the ichu bends
+ * as grass (gust fronts rolling across the puna, parting round the traveler, the mounts and the people), the
+ * tola sways as a shrub and the ones beside the road shake when brushed (../../wind.ts springs). Cacti and
+ * stones stay rigid. Each kind has its own material (one draw call per kind either way).
  */
 import * as THREE from "three";
 import type { Quality } from "../../engine";
 import { mergeColored } from "../../merge-colors";
+import { windSway } from "../../style-gl";
 import { NO_OUTLINE_LAYER, type ToonCache } from "../../toon";
+import { springs } from "../../wind";
 import type { ColcaLayout } from "../layout";
 import { CANYON, canyonS, HALF, PAMPA, TOWER } from "../plan";
 
@@ -104,9 +111,22 @@ type Where = (x: number, z: number, d: number, s: number) => number;
 const onPampa = (z: number) => z < PAMPA.z1 + 10;
 const nearTower = (x: number, z: number) => Math.hypot(x - TOWER.x, z - TOWER.z) < 175;
 
+/** Ichu stands ~1 u; tola ~0.6 u (object units, the instance scale multiplies). */
+const ICHU_H = 1;
+const TOLA_H = 0.6;
+/** Tolas this close to the road shake when the traveler or a body brushes them. */
+const SPRING_D = 26;
+
 export function buildFlora(layout: ColcaLayout, toon: ToonCache, quality: Quality) {
   const rand = rng(0xc01ca);
-  const mat = toon.vertexToon();
+  const sway = {
+    // Bunch grass: tall, light blades; a strong lean in the gusts.
+    grass: windSway(toon.vertexToon(), { mode: "grass", height: ICHU_H, amp: 0.85 }),
+    // Resinous shrub: stiff, a gentle rock of the crown (springs make the brushed ones shake).
+    shrub: windSway(toon.vertexToon(), { mode: "tree", height: TOLA_H, amp: 3.2 }),
+    rigid: toon.vertexToon(),
+  };
+  const springPts: Array<{ x: number; z: number; r: number }> = [];
   const group = new THREE.Group();
   group.name = "colca-flora";
   const geos: THREE.BufferGeometry[] = [];
@@ -124,6 +144,7 @@ export function buildFlora(layout: ColcaLayout, toon: ToonCache, quality: Qualit
     scale: [number, number];
     ink: boolean;
     shadow: boolean;
+    mat: THREE.Material;
   }> = [
     {
       name: "ichu",
@@ -133,6 +154,7 @@ export function buildFlora(layout: ColcaLayout, toon: ToonCache, quality: Qualit
       scale: [0.7, 1.5],
       ink: false,
       shadow: false,
+      mat: sway.grass,
     },
     {
       name: "tola",
@@ -142,6 +164,7 @@ export function buildFlora(layout: ColcaLayout, toon: ToonCache, quality: Qualit
       scale: [0.7, 1.4],
       ink: true,
       shadow: true,
+      mat: sway.shrub,
     },
     {
       name: "cactus",
@@ -153,6 +176,7 @@ export function buildFlora(layout: ColcaLayout, toon: ToonCache, quality: Qualit
       scale: [0.7, 1.35],
       ink: true,
       shadow: true,
+      mat: sway.rigid,
     },
     {
       name: "stone",
@@ -163,13 +187,14 @@ export function buildFlora(layout: ColcaLayout, toon: ToonCache, quality: Qualit
       scale: [0.5, 2.2],
       ink: true,
       shadow: true,
+      mat: sway.rigid,
     },
   ];
   for (const k of kinds) {
     const geo = k.make();
     if (!geo) continue;
     geos.push(geo);
-    const mesh = new THREE.InstancedMesh(geo, mat, k.n);
+    const mesh = new THREE.InstancedMesh(geo, k.mat, k.n);
     let count = 0;
     for (let tries = 0; tries < k.n * 30 && count < k.n; tries++) {
       // Half the tries near the road (where the traveler looks), half anywhere.
@@ -198,6 +223,7 @@ export function buildFlora(layout: ColcaLayout, toon: ToonCache, quality: Qualit
       p.set(x, y - 0.05, z);
       m.compose(p, q, sc);
       mesh.setMatrixAt(count++, m);
+      if (k.mat === sway.shrub && d < SPRING_D) springPts.push({ x, z, r: 0.55 * f });
     }
     mesh.count = count;
     mesh.instanceMatrix.needsUpdate = true;
@@ -208,11 +234,13 @@ export function buildFlora(layout: ColcaLayout, toon: ToonCache, quality: Qualit
     if (!k.ink) mesh.layers.set(NO_OUTLINE_LAYER);
     group.add(mesh);
   }
+  const removeSprings = springs.add(springPts);
   return {
     group,
     dispose() {
+      removeSprings();
       for (const g of geos) g.dispose();
-      mat.dispose();
+      for (const m of Object.values(sway)) m.dispose();
       for (const c of group.children) (c as THREE.InstancedMesh).dispose?.();
     },
   };

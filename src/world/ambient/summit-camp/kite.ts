@@ -1,10 +1,14 @@
 /**
  * The children's kite (cometa): a diamond of dyed cloth on a cane cross with a tail of cotton bows, flown on
  * a long string from the holder's hand. It rides downwind of the summit, swaying with the wind
- * (plan.ts `kiteSway`; still with reduced motion). `lift` 0..1 reels it in (children going home).
+ * (plan.ts `kiteSway`; still with reduced motion): the shared wind's gust at the kite (wind.ts `liveWind`) makes
+ * it climb and dart, and the tail ripples as cloth on the same wind (style-gl.ts `windSway`, `flex` 0 at the
+ * diamond → 1 at the last bow). `lift` 0..1 reels it in (children going home).
  */
 import * as THREE from "three";
 import { DYE } from "../../palette";
+import { paintStrength, windSway } from "../../style-gl";
+import { liveWind } from "../../wind";
 import { Part, protos } from "../people/rig";
 import { kiteSway } from "./plan";
 
@@ -56,6 +60,11 @@ function kiteGeometry() {
   }
   const g = p.build();
   g.deleteAttribute("aSlot");
+  // Cloth weight: the diamond and the cross are rigid, the tail ripples more toward its end.
+  const pos = g.getAttribute("position");
+  const flex = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) flex[i] = Math.min(1, Math.max(0, (-0.62 - pos.getY(i)) / 1.9));
+  g.setAttribute("flex", new THREE.BufferAttribute(flex, 1));
   for (const t of tris) t.dispose();
   for (const v of Object.values(P)) v.dispose();
   return g;
@@ -92,6 +101,8 @@ export function createKite(noOutline: (o: THREE.Object3D) => void, gradientMap: 
   group.name = "summit-camp:kite";
   const geo = kiteGeometry();
   const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap, side: THREE.DoubleSide });
+  // It flies: no world-space painted blotches sliding over the cloth; the tail is cloth on the shared wind.
+  paintStrength(windSway(mat, { mode: "cloth", flex: true, amp: 1.6 }), 0);
   const kite = new THREE.Mesh(geo, mat);
   kite.name = "summit-camp:kite-body";
   kite.castShadow = true;
@@ -118,7 +129,7 @@ export function createKite(noOutline: (o: THREE.Object3D) => void, gradientMap: 
         return;
       }
       group.visible = true;
-      kiteSway(clock, rm, sway);
+      kiteSway(clock, rm, sway, liveWind.sample(kite.position.x, kite.position.z).gust);
       const k = lift * lift * (3 - 2 * lift);
       // Downwind and up; the sway moves it across the wind.
       kp.set(

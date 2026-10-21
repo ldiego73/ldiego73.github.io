@@ -32,9 +32,11 @@ import { decks } from "../../decks";
 import { emit, on } from "../../events";
 import { vertexToon } from "../../merge-colors";
 import { glowSprite } from "../../props";
+import { noPaint, windSway } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { travelTo } from "../../travel";
 import { loadTraveler } from "../../traveler";
+import { liveWind } from "../../wind";
 import { Geo } from "../kit";
 import type { CostaLayout } from "../layout";
 import { FINALE_T } from "../plan";
@@ -134,8 +136,11 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     const x = Math.sin(a) * r;
     const z = PLAT.z - Math.cos(a) * r;
     g.cyl(0.06, 0.08, 3.4, x, -0.3, z, "#5a3b24", 6);
+    // Cloth: pinned at the pole, flying free toward +z (they wave in the sea wind, see the material below).
+    g.cloth = { axis: "z", pinned: z, free: z + 0.84 };
     g.box(0.05, 1.3, 0.8, x, 1.75, z + 0.42, dyes[i] as string);
     g.box(0.06, 0.12, 0.82, x, 1.7, z + 0.42, "#efe6d6");
+    g.cloth = null;
   });
   // Braziers at the foot of the stair (road side).
   const fires: Array<[number, number, number]> = [];
@@ -146,7 +151,9 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   }
   const geo = g.build();
   const mat = vertexToon();
-  const mesh = new THREE.Mesh(geo, mat);
+  // The same mesh with the banners' flex: only the cloth moves (flex 0 elsewhere), no extra draw call.
+  const clothMat = windSway(vertexToon(), { mode: "cloth", flex: true, amp: 1.3 });
+  const mesh = new THREE.Mesh(geo, clothMat);
   mesh.name = "costa-finale:vc";
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -206,6 +213,9 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   flock.name = "costa-finale:flock";
   flock.frustumCulled = false;
   flock.visible = false;
+  // Moving bodies: no world-space paint sliding over them.
+  noPaint(flock);
+  noPaint(bits);
   group.add(flock);
   env.scene.add(group);
 
@@ -324,10 +334,17 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     }
     openIn = env.reducedMotion ? 0.4 : PANEL_DELAY;
   };
+  // The burst drifts on the live sea wind (the shared field, the same gusts the reeds and banners show),
+  // turned into the platform's frame; under reduced motion there is no burst at all.
   const wind = { x: 0, z: -0.8 };
+  const cy = Math.cos(f.yaw);
+  const sy = Math.sin(f.yaw);
   const stepAll = (dt: number) => {
     if (age < 0) return;
     age += dt;
+    const w = liveWind.sample(f.x, f.z);
+    wind.x = (w.x * cy - w.z * sy) * 0.75;
+    wind.z = (w.x * sy + w.z * cy) * 0.75;
     if (age > BURST.life + 6) {
       age = -1;
       bits.visible = false;
@@ -443,6 +460,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       group.removeFromParent();
       geo.dispose();
       mat.dispose();
+      clothMat.dispose();
       ringGeo.dispose();
       ringMat.dispose();
       bitGeo.dispose();

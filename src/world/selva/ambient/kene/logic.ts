@@ -145,12 +145,21 @@ const DRAG = 2.6;
 /** A falling petal sways sideways at this amplitude (u/s) and rate (rad/s). */
 const SWAY = 0.9;
 const SWAY_W = 3.2;
+/** Share of the wind speed a falling petal drifts with (petals are light: about the breeze itself). */
+export const PETAL_WIND = 0.9;
 
 /**
  * Steps one petal by dt (age = time since the burst): ballistic with strong drag (terminal fall ≈ G / DRAG),
- * a sideways sway while falling, resting on the ground (`floor(x, z)`, local) once it lands.
+ * a sideways sway while falling, drifting downwind with the shared wind (`wind`, local frame, u/s), resting on
+ * the ground (`floor(x, z)`, local) once it lands.
  */
-export function stepPetal(p: Petal, dt: number, age: number, floor: (x: number, z: number) => number) {
+export function stepPetal(
+  p: Petal,
+  dt: number,
+  age: number,
+  floor: (x: number, z: number) => number,
+  wind: { x: number; z: number } = { x: 0, z: 0 },
+) {
   const f = floor(p.x, p.z);
   if (p.y <= f + 0.02 && p.vy <= 0) {
     p.y = f + 0.02;
@@ -161,9 +170,11 @@ export function stepPetal(p: Petal, dt: number, age: number, floor: (x: number, 
   p.vx *= k;
   p.vz *= k;
   p.vy = p.vy * k - G * dt * (1 - Math.min(0.6, Math.max(0, -p.vy) * 0.25));
-  const sway = p.vy < 0 ? SWAY * Math.sin(age * SWAY_W + p.ph) : 0;
-  p.x += (p.vx + sway * Math.cos(p.ph)) * dt;
-  p.z += (p.vz + sway * Math.sin(p.ph)) * dt;
+  const falling = p.vy < 0;
+  const sway = falling ? SWAY * Math.sin(age * SWAY_W + p.ph) : 0;
+  const drift = falling ? PETAL_WIND : 0;
+  p.x += (p.vx + sway * Math.cos(p.ph) + wind.x * drift) * dt;
+  p.z += (p.vz + sway * Math.sin(p.ph) + wind.z * drift) * dt;
   p.y = Math.max(f + 0.02, p.y + p.vy * dt);
 }
 

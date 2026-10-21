@@ -21,6 +21,7 @@ import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit, on } from "../../events";
 import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { ride } from "../../suyu/ride";
 import { rng } from "../kit";
@@ -52,7 +53,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const root = new THREE.Group();
   root.name = "costa-caballito";
   env.scene.add(root);
-  const mat = vertexToon();
+  // Boats, paddles and fishermen ride the swell: no world-space paint sliding over them.
+  const mat = paintStrength(vertexToon(), 0);
 
   // ------------------------------------------------------------------ landings
   const landingAt = (t: number): Landing & { yaw: number; nx: number; nz: number } => {

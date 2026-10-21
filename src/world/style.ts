@@ -135,56 +135,123 @@ const SIERRA: StyleProfile = {
   sky: { saturation: 1.3, zenith: "#3f8fe0", zenithK: 0.55 },
 };
 
+/**
+ * Qhapaq Ñan mountain and the Wasi at its trailhead: the sierra template pushed to the showcase. A deeper
+ * indigo shade that reads on every rock face and cast shadow, a crisper terminator with a brighter lit side and
+ * highlight band, painted patches small enough (3 u) that every slope of ichu, cliff and terrace shows several
+ * (at the sierra's 4.5 u the two-octave noise stays in its middle band over whole slopes and the patches vanish),
+ * strongest on the vertex-coloured terrain, foliage and scenery (×1.8: a ±36 % swing there, ochre light patches and
+ * cool dark ones) and gentle on flat-coloured props, a warmer rim, a deeper anime zenith with hard, well-shaded cumulus, and a
+ * slightly stronger blue haze over the three painted distance planes of the cordillera.
+ */
+const MOUNTAIN: StyleProfile = {
+  ...SIERRA,
+  shadowTint: "#5250b8",
+  shadowStrength: 0.78,
+  cel: { lit: 0.92, terminator: 0.53, softness: 0.012, shade: 0.34, highlight: 0.18, highlightAt: 0.87 },
+  rim: { color: "#fff0cf", amount: 0.3, power: 3 },
+  paint: { amount: 0.2, scale: 3, flat: 0.6, vertex: 1.8, warm: "#f5c35a", hue: 0.6, edge: 0.03 },
+  atmosphere: { ...SIERRA.atmosphere, strength: 0.66, tint: "#8aaef0" },
+  clouds: { cover: 0.48, scale: 1.1, speed: 0.012, shade: 0.85, edge: 0.015, alpha: 0.98 },
+  sky: { saturation: 1.45, zenith: "#2a7fe8", zenithK: 0.68 },
+};
+
 export const STYLES: Record<WorldId, StyleProfile> = {
-  qhapaq: SIERRA,
-  wasi: SIERRA,
+  qhapaq: MOUNTAIN,
+  wasi: MOUNTAIN,
+  // Antisuyu: humid lowland forest. Periwinkle shade, a touch tealer than the sierra's indigo: it turns the
+  // shaded leaves blue-green and the red laterite and the wood maroon-brown (a teal tint would turn them olive,
+  // the multiply eats their red), a bright lit side with a strong highlight band (sun-struck
+  // leaves pop out of the gloom), small gold-leaning painted patches (a crown or a shrub shows two or three;
+  // the road's own painted texture takes less, ground.ts), a warm rim, and a dense green-teal haze in three
+  // painted planes that starts close: the forest fades into layers a few trees deep. Puffy, crisp clouds.
   selva: {
     ...SIERRA,
-    shadowTint: "#2f8a74",
-    shadowStrength: 0.6,
+    shadowTint: "#5070c0",
+    shadowStrength: 0.62,
+    cel: { lit: 0.95, terminator: 0.52, softness: 0.012, shade: 0.5, highlight: 0.22, highlightAt: 0.85 },
     ink: { color: "#4a1e12", night: "#16263a", silhouette: 1.7, crease: 0.7, creaseAlpha: 0.7 },
-    rim: { color: "#fff6d8", amount: 0.16, power: 3 },
-    paint: { ...SIERRA.paint, amount: 0.15, scale: 3.5, warm: "#e0a24a" },
-    atmosphere: { ...SIERRA.atmosphere, near: 40, far: 420, tint: "#9fd2bf", heightK: 0.3 },
-    clouds: { ...SIERRA.clouds, cover: 0.55, scale: 0.9 },
-    sky: { saturation: 1.2, zenith: "#4f9ad8", zenithK: 0.4 },
+    rim: { color: "#fff1c8", amount: 0.25, power: 3 },
+    paint: { amount: 0.28, scale: 2.8, flat: 0.4, vertex: 1, warm: "#f2c250", hue: 0.6, edge: 0.02 },
+    atmosphere: { ...SIERRA.atmosphere, near: 28, far: 360, tint: "#8cd2cc", strength: 0.66, heightK: 0.3 },
+    clouds: { ...SIERRA.clouds, cover: 0.5, scale: 0.9, shade: 0.7 },
+    sky: { saturation: 1.35, zenith: "#3a96e4", zenithK: 0.55 },
   },
+  // Qusqu: a warm stone town in a deep valley. Violet-indigo shade on the ashlar, gold-leaning painted patches
+  // on stone and grass (smaller than the sierra's, so a wall shows several), a gold rim, and the haze in three
+  // painted planes: plaza, Sacsayhuamán and the valley hills, the ring of apus.
   cusco: {
     ...SIERRA,
-    shadowTint: "#5a59a6",
-    ink: { ...SIERRA.ink, color: "#3a2618" },
-    paint: { ...SIERRA.paint, amount: 0.13, warm: "#e8b850" },
-    clouds: { ...SIERRA.clouds, cover: 0.38 },
+    shadowTint: "#5b52b4",
+    shadowStrength: 0.7,
+    cel: { ...CEL, softness: 0.012, shade: 0.4, highlight: 0.16, highlightAt: 0.88 },
+    ink: { color: "#3a2416", night: "#1d1f45", silhouette: 1.9, crease: 0.7, creaseAlpha: 0.75 },
+    rim: { color: "#ffe2a8", amount: 0.28, power: 3 },
+    paint: { amount: 0.2, scale: 3.4, flat: 0.5, vertex: 1, warm: "#eab04a", hue: 0.55, edge: 0.022 },
+    atmosphere: {
+      near: 28,
+      far: 440,
+      tint: "#98b4ec",
+      strength: 0.64,
+      heightBase: 4,
+      heightFalloff: 0.007,
+      heightK: 0.4,
+      layers: 3,
+    },
+    clouds: { cover: 0.44, scale: 1.05, speed: 0.012, shade: 0.8, edge: 0.016, alpha: 0.97 },
+    sky: { saturation: 1.38, zenith: "#3685e0", zenithK: 0.62 },
   },
+  // Chinchaysuyu: warm sand under a teal shade (the sea's colour in every shadow), a later terminator so the
+  // dune backs fall into a clear second tone, big sand-and-ochre patches, a saturated sky with hard white cumulus.
   costa: {
     ...SIERRA,
-    shadowTint: "#2b98a3",
-    shadowStrength: 0.58,
+    shadowTint: "#2a8fa8",
+    shadowStrength: 0.68,
+    cel: { ...CEL, terminator: 0.555, shade: 0.46, softness: 0.012, highlight: 0.16 },
     ink: { color: "#4a3121", night: "#18284a", silhouette: 1.7, crease: 0.7, creaseAlpha: 0.7 },
     rim: { color: "#fff4dc", amount: 0.2, power: 3 },
-    paint: { ...SIERRA.paint, amount: 0.13, scale: 6, warm: "#f0cf8a" },
-    atmosphere: { ...SIERRA.atmosphere, near: 70, far: 760, tint: "#a9dce4", strength: 0.45, heightK: 0.35 },
-    clouds: { ...SIERRA.clouds, cover: 0.3, scale: 1.2 },
-    sky: { saturation: 1.25, zenith: "#3c98e0", zenithK: 0.5 },
+    paint: { ...SIERRA.paint, amount: 0.17, scale: 7, flat: 0.4, vertex: 1.1, warm: "#f6d48e", hue: 0.5 },
+    atmosphere: { ...SIERRA.atmosphere, near: 70, far: 760, tint: "#9fd6e6", strength: 0.42, heightK: 0.35 },
+    clouds: { ...SIERRA.clouds, cover: 0.42, scale: 1.1, shade: 0.7 },
+    sky: { saturation: 1.35, zenith: "#2f8ee0", zenithK: 0.6 },
   },
   titicaca: {
     ...SIERRA,
     shadowTint: "#2b40a8",
-    shadowStrength: 0.66,
+    shadowStrength: 0.74,
+    cel: { ...CEL, terminator: 0.53, softness: 0.012, shade: 0.4, highlight: 0.17, highlightAt: 0.88 },
     ink: { color: "#3a2814", night: "#151c48", silhouette: 1.8, crease: 0.7, creaseAlpha: 0.75 },
-    paint: { ...SIERRA.paint, warm: "#f0c050" },
-    atmosphere: { ...SIERRA.atmosphere, near: 120, far: 900, tint: "#86aef0", strength: 0.38 },
-    clouds: { ...SIERRA.clouds, cover: 0.36, scale: 1.15 },
-    sky: { saturation: 1.35, zenith: "#2a6fd6", zenithK: 0.6 },
+    rim: { color: "#fff3d6", amount: 0.28, power: 3 },
+    // amount stays within the shared ceiling (0.2); the puna and the reed-built islands are vertex-coloured, so
+    // the vertex multiplier carries the stronger blotches.
+    paint: { ...SIERRA.paint, amount: 0.2, scale: 6.5, flat: 0.5, vertex: 1.3, warm: "#f0c050", hue: 0.55 },
+    atmosphere: { ...SIERRA.atmosphere, near: 120, far: 900, tint: "#7ea6f2", strength: 0.42 },
+    clouds: { ...SIERRA.clouds, cover: 0.42, scale: 1.2, shade: 0.8, edge: 0.014, alpha: 1 },
+    sky: { saturation: 1.42, zenith: "#2262d2", zenithK: 0.66 },
   },
+  // Kuntisuyu: ochre puna and red pampa under a violet-blue shade (the warm ground's complement, so the white
+  // church and the canyon walls shade lavender, not grey); bold, warm blotches on grass, gravel and rock; a
+  // haze that thickens below the rim (heightBase under the plateau), so the canyon reads deeper the lower one
+  // looks, with the mist veils in ./colca/scenery/mist.ts as its painted planes; a deep anime zenith.
   colca: {
     ...SIERRA,
-    shadowTint: "#7a4f98",
-    shadowStrength: 0.62,
+    shadowTint: "#6656b0",
+    shadowStrength: 0.64,
     ink: { color: "#4b1f12", night: "#1f1b44", silhouette: 1.8, crease: 0.7, creaseAlpha: 0.75 },
-    paint: { ...SIERRA.paint, amount: 0.16, scale: 5.5, warm: "#e89a52" },
-    atmosphere: { ...SIERRA.atmosphere, near: 90, far: 800, tint: "#a7b3e0", strength: 0.42 },
-    clouds: { ...SIERRA.clouds, cover: 0.34 },
+    rim: { color: "#fff0d6", amount: 0.24, power: 3 },
+    paint: { amount: 0.2, scale: 5, flat: 0.4, vertex: 1, warm: "#f0a858", hue: 0.45, edge: 0.02 },
+    atmosphere: {
+      near: 70,
+      far: 720,
+      tint: "#a3b4ea",
+      strength: 0.48,
+      heightBase: -20,
+      heightFalloff: 0.005,
+      heightK: 0.5,
+      layers: 3,
+    },
+    clouds: { ...SIERRA.clouds, cover: 0.36, scale: 1.05, shade: 0.7 },
+    sky: { saturation: 1.35, zenith: "#3a86dc", zenithK: 0.6 },
   },
 };
 
@@ -200,17 +267,19 @@ const PUNA: WindProfile = {
 export const WIND: Record<WorldId, WindProfile> = {
   qhapaq: PUNA,
   wasi: PUNA,
-  // Humid lowland: still air on the forest floor, the canopy moves.
+  // Humid lowland: still air on the forest floor (the road runs at y ≈ 4–7), the canopy moves (full wind from
+  // y 17, the crowns); broad, slow gust fronts roll over the treetops and the river.
   selva: {
     dir: 1.2,
-    strength: 0.5,
+    strength: 0.55,
     drift: 0.25,
-    gust: { amp: 0.35, length: 50, speed: 4, sharp: 2 },
-    flutter: 0.8,
-    calm: { below: 5, above: 16, k: 0.3 },
+    gust: { amp: 0.45, length: 55, speed: 5, sharp: 2.2 },
+    flutter: 1,
+    calm: { below: 6.5, above: 17, k: 0.35 },
   },
-  // Steady sea breeze from the Pacific (west) toward the land (+x): strong, few gusts.
-  costa: { dir: 0.1, strength: 1.05, drift: 0.12, gust: { amp: 0.3, length: 70, speed: 6, sharp: 1.6 }, flutter: 0.9 },
+  // Steady sea breeze from the Pacific (west) toward the land (+x): strong and constant, with long, clearly
+  // spaced gust fronts rolling in off the sea (they lift the sand and roll over the totora).
+  costa: { dir: 0.1, strength: 1.05, drift: 0.12, gust: { amp: 0.5, length: 64, speed: 7, sharp: 2.2 }, flutter: 0.9 },
   // Altiplano: strong and gusty, off the lake (north, −z) toward the shore.
   titicaca: {
     dir: Math.PI / 2,
@@ -220,16 +289,21 @@ export const WIND: Record<WorldId, WindProfile> = {
     flutter: 1.1,
   },
   // Canyon: up-valley wind and updrafts (condors ride them).
+  // Canyon: a steady wind along the canyon (toward −x, the way the flags fly) with clear gust fronts rolling
+  // across the puna and the pampa (they raise the pampa's dust), and updrafts: `lift` carries Sabancaya's plume
+  // up and lets the condors rise as a front passes under them.
   colca: {
     dir: Math.PI,
     strength: 0.85,
     drift: 0.3,
-    gust: { amp: 0.7, length: 44, speed: 6.5, sharp: 2.5 },
+    gust: { amp: 0.85, length: 40, speed: 7, sharp: 2.8 },
     flutter: 1,
     lift: 0.6,
   },
   // A sheltered valley town: gentle.
-  cusco: { dir: 0.9, strength: 0.55, drift: 0.3, gust: { amp: 0.4, length: 40, speed: 5, sharp: 2 }, flutter: 0.7 },
+  // A sheltered valley town: a steady breeze down the Huatanay (toward the east-south-east, so the usnu's
+  // banners fly broadside to the plaza's main views) with soft gust fronts, never the puna's squalls.
+  cusco: { dir: 0.4, strength: 0.7, drift: 0.3, gust: { amp: 0.6, length: 38, speed: 5.5, sharp: 2.4 }, flutter: 0.8 },
 };
 
 // ---------------------------------------------------------------- colour helpers (pure)

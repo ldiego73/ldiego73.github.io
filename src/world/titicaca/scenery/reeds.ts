@@ -1,11 +1,17 @@
 /**
  * Totora reed beds: clumps of tall green reeds standing in the shallow shelf along the shore and round the Uros
  * islands (the islands, their houses and their boats are built of this reed). One InstancedMesh of a clump
- * (a dozen tapered stalks, straw-coloured tips, a few dark seed heads), vertex-coloured, swaying in the wind in
- * the vertex shader (still with prefers-reduced-motion). Placement comes from ./placement.ts (pure).
+ * (a dozen tapered stalks, straw-coloured tips, a few dark seed heads), vertex-coloured, on the shared wind
+ * (../../style-gl.ts `windSway`, mode "grass"): the stalks bend by height² downwind, and the altiplano's gust
+ * fronts (../../style.ts `WIND.titicaca`, the gustiest world) roll across the beds as a visible wave; boats and
+ * birds part them. Reduced motion is the wind's own (slow, constant sway, no gusts). The reeds stay off the ink
+ * pass: a bed of stalks a few centimetres thick seen from the road is mostly silhouette, and inked it turns into
+ * dark scribbles over the water (tried with the cel pass; the ichu, shorter and seen closer, keeps its ink).
+ * Placement comes from ./placement.ts (pure).
  */
 import * as THREE from "three";
 import { mergeColored } from "../../merge-colors";
+import { windSway } from "../../style-gl";
 import { NO_OUTLINE_LAYER, type ToonCache } from "../../toon";
 import type { TiticacaLayout } from "../layout";
 import { reedSpots } from "./placement";
@@ -13,7 +19,8 @@ import { reedSpots } from "./placement";
 /** One clump: stalks of 1.6–2.6 u leaning a little outward, base at y 0 (the water line is ~0.4 u up). */
 function clumpGeometry(): THREE.BufferGeometry {
   const parts: Array<{ geometry: THREE.BufferGeometry; color: THREE.Color; matrix: THREE.Matrix4 }> = [];
-  const stalk = new THREE.CylinderGeometry(0.02, 0.055, 1, 4, 1, true);
+  // Three rings up the stalk so the height² bend curves it instead of tilting a straight stick.
+  const stalk = new THREE.CylinderGeometry(0.02, 0.055, 1, 4, 3, true);
   stalk.translate(0, 0.5, 0);
   const tip = new THREE.ConeGeometry(0.03, 0.22, 4);
   tip.translate(0, 0.11, 0);
@@ -66,34 +73,17 @@ function clumpGeometry(): THREE.BufferGeometry {
 
 export interface Reeds {
   mesh: THREE.InstancedMesh;
-  update(time: number, motion: boolean): void;
   dispose(): void;
 }
 
 export function buildReeds(L: TiticacaLayout, toon: ToonCache, quality: "low" | "high"): Reeds {
   const spots = reedSpots(L, quality === "high" ? 1150 : 700);
   const geo = clumpGeometry();
-  const mat = toon.vertexToon();
-  const uTime = { value: 0 };
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = uTime;
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nuniform float uTime;")
-      .replace(
-        "#include <begin_vertex>",
-        `#include <begin_vertex>
-        // Sway grows with height (the base is anchored in the mud); the phase rolls across the bed like wind.
-        vec2 kwBase = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
-        float kwH = max(position.y, 0.0);
-        float kwW = sin(uTime * 1.2 + kwBase.x * 0.08 + kwBase.y * 0.05) * 0.6 + sin(uTime * 2.3 + kwBase.y * 0.21) * 0.25;
-        transformed.x += kwW * 0.09 * kwH * kwH;
-        transformed.z += kwW * 0.04 * kwH * kwH;`,
-      );
-  };
-  mat.customProgramCacheKey = () => "titicaca-reeds";
+  // Bend reference: the tallest stalks (~2.6 u). The amplitude keeps the tip's bend near the mountain ichu's
+  // (≈ 0.14 × height at the base wind), so the gust crests (×3 here) visibly lay the beds over and let them go.
+  const mat = windSway(toon.vertexToon(), { mode: "grass", height: 2.4, amp: 0.42 });
   const mesh = new THREE.InstancedMesh(geo, mat, spots.length);
   mesh.name = "titicaca-reeds";
-  // Thin stalks would be all ink at a distance (like the hub's ichu): the reeds go without outline.
   mesh.layers.set(NO_OUTLINE_LAYER);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -111,9 +101,6 @@ export function buildReeds(L: TiticacaLayout, toon: ToonCache, quality: "low" | 
   mesh.computeBoundingSphere();
   return {
     mesh,
-    update(time, motion) {
-      uTime.value = motion ? time : 0;
-    },
     dispose() {
       geo.dispose();
       mat.dispose();

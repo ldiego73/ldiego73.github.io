@@ -15,6 +15,8 @@ import type { Ambient, CreateAmbient, L } from "../contract";
 import { creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
+import { localWind } from "../props";
+import { noPaint } from "../style-gl";
 import { angleLerp, llamaHome, rideAction } from "./mount/logic";
 import { buildSaddledLlama, SEAT_HEIGHT } from "./mount/model";
 
@@ -33,7 +35,10 @@ export const create: CreateAmbient = (env) => {
   const promptDismount = T_DISMOUNT[lang];
 
   const model = buildSaddledLlama(env);
+  const tasselWind = { x: 0, z: 0, speed: 0, gust: 0 };
   const g = model.group;
+  // The llama moves: no world-space painted blotches sliding over its wool (style-gl.ts).
+  noPaint(g);
   env.scene.add(g);
   const home = llamaHome(env);
   g.position.set(home.x, groundAt(home.x, home.z), home.z);
@@ -226,10 +231,21 @@ export const create: CreateAmbient = (env) => {
         Math.sin(phase * 2) * 0.05 * trotW * amp + (rm ? 0 : Math.sin(idleT * 1.3) * 0.03 * (1 - trotW));
       model.tail.rotation.x = 0.2 + Math.sin(phase * 2) * 0.25 * trotW * amp;
       model.tail.rotation.z = rm ? 0 : Math.sin(t * 1.7) * 0.15 * (1 - trotW);
+      // At rest the ear tassels stream a little downwind and flick when a gust passes (the shared wind in the
+      // llama's own frame); trotting, the gait swings them.
+      if (!rm) localWind(g, tasselWind);
+      const still = rm ? 0 : 1 - trotW;
       for (let i = 0; i < model.tassels.length; i++) {
         const tg = model.tassels[i]!;
-        tg.rotation.x = (-0.25 * trotW + Math.sin(phase * 2 + i) * 0.3 * trotW) * amp;
-        tg.rotation.z = Math.cos(phase + i * 0.7) * 0.15 * trotW * amp;
+        const flick = Math.sin(t * 2.6 + i * 1.9) * (0.03 + 0.07 * tasselWind.gust) * still;
+        tg.rotation.x =
+          (-0.25 * trotW + Math.sin(phase * 2 + i) * 0.3 * trotW) * amp +
+          THREE.MathUtils.clamp(-tasselWind.z * 0.12, -0.3, 0.3) * still +
+          flick;
+        tg.rotation.z =
+          Math.cos(phase + i * 0.7) * 0.15 * trotW * amp +
+          THREE.MathUtils.clamp(tasselWind.x * 0.12, -0.3, 0.3) * still +
+          flick * 0.6;
       }
     },
     prompt() {

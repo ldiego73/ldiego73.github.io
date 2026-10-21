@@ -11,6 +11,7 @@ import type { Ambient, CreateAmbient, L } from "../contract";
 import { creatures } from "../creatures";
 import { emit } from "../events";
 import { condorParts } from "../fauna-models";
+import { noPaint } from "../style-gl";
 
 const DAWN0 = 0.2;
 const DAWN1 = 0.3;
@@ -110,6 +111,8 @@ export const create: CreateAmbient = (env) => {
   const group = new THREE.Group();
   group.name = "golden-condor-secret";
   group.add(root, sparks);
+  // It flies: no world-space painted blotches sliding over the gold (style-gl.ts).
+  noPaint(root);
   group.visible = false;
   env.scene.add(group);
 

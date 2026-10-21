@@ -6,11 +6,15 @@
  *  - the volcanoes: Sabancaya (an active cone with a faint fumarole plume), Hualca Hualca and Ampato across
  *    the canyon to the south, and Mismi behind the village to the north-east (the real Mismi stands on the
  *    canyon's north side). Faceted cones with ravines and snow above SNOW_Y. Real distances are compressed.
- *  - the plume: a few soft puffs drifting up and away from Sabancaya's crater (one Points draw, no outline;
- *    still with prefers-reduced-motion).
+ *  - the plume: soft puffs rising from Sabancaya's crater and carried off by the shared wind (../../wind.ts
+ *    liveWind: the same drifting direction, gust fronts and updraft `lift` the grass and the condors feel), so
+ *    the column leans and stretches downwind in a gust (one Points draw, no outline; still with
+ *    prefers-reduced-motion). Hazed like the terrain (styleUniforms + fog chunks).
  */
 import * as THREE from "three";
+import { styleUniforms } from "../../style-gl";
 import type { ToonCache } from "../../toon";
+import { liveWind } from "../../wind";
 import { noise, smooth, terrainY } from "../layout";
 import { CANYON, canyonS, HALF } from "../plan";
 import { groundColor } from "./colors";
@@ -186,7 +190,12 @@ function plume(reducedMotion: boolean) {
     transparent: true,
     depthWrite: false,
     fog: true,
-    uniforms: { ...THREE.UniformsLib.fog, uColor: { value: new THREE.Color("#e9e4dc") }, uScale: { value: 600 } },
+    uniforms: {
+      ...THREE.UniformsLib.fog,
+      ...styleUniforms(),
+      uColor: { value: new THREE.Color("#e9e4dc") },
+      uScale: { value: 600 },
+    },
     vertexShader: `
       attribute float aSize; attribute float aAlpha; varying float vA; uniform float uScale;
       #include <fog_pars_vertex>
@@ -213,26 +222,61 @@ function plume(reducedMotion: boolean) {
   pts.name = "colca-plume";
   pts.frustumCulled = false;
   const top = v.h - 6;
-  const place = (time: number) => {
+  /** Puff life (s), how far the wind carries a puff per unit of wind speed, buoyant rise (u/s, fading). */
+  const LIFE = 70;
+  const CARRY = 2.6;
+  const RISE = 3.4;
+  const age = new Float32Array(PUFFS);
+  const born = (i: number) => {
+    pos[i * 3] = v.x + Math.sin(i * 7.1) * 3;
+    pos[i * 3 + 1] = top;
+    pos[i * 3 + 2] = v.z + Math.cos(i * 5.3) * 3;
+  };
+  for (let i = 0; i < PUFFS; i++) {
+    age[i] = (i / PUFFS) * LIFE;
+    born(i);
+  }
+  const look = (i: number) => {
+    const k = (age[i] as number) / LIFE;
+    size[i] = 26 + k * 70;
+    alpha[i] = 0.5 * smooth(0, 0.08, k) * (1 - smooth(0.55, 1, k));
+  };
+  /** Advances every puff by dt: carried by the wind sampled where it is, rising less as it ages. */
+  const step = (dt: number) => {
     for (let i = 0; i < PUFFS; i++) {
-      // Each puff loops over 70 s, staggered; rises ~120 u and drifts east-north-east as it widens.
-      const k = (time / 70 + i / PUFFS) % 1;
-      const wob = Math.sin(i * 12.9 + k * 6) * 6;
-      pos[i * 3] = v.x + k * 150 + wob;
-      pos[i * 3 + 1] = top + Math.sqrt(k) * 120;
-      pos[i * 3 + 2] = v.z - k * 40 + wob * 0.5;
-      size[i] = 26 + k * 70;
-      alpha[i] = 0.5 * smooth(0, 0.08, k) * (1 - smooth(0.55, 1, k));
+      let a = (age[i] as number) + dt;
+      if (a >= LIFE) {
+        a -= LIFE;
+        born(i);
+      }
+      age[i] = a;
+      const k = a / LIFE;
+      const o = i * 3;
+      const w = liveWind.sample(pos[o] as number, pos[o + 2] as number);
+      const wob = Math.sin(i * 12.9 + k * 6) * 0.08;
+      pos[o] = (pos[o] as number) + (w.x * CARRY + wob) * dt;
+      pos[o + 1] = (pos[o + 1] as number) + (RISE * (1 - k) ** 1.5 + 0.3 + w.y * CARRY) * dt;
+      pos[o + 2] = (pos[o + 2] as number) + (w.z * CARRY - wob * 0.5) * dt;
+      look(i);
     }
     geo.attributes.position!.needsUpdate = true;
     geo.attributes.aSize!.needsUpdate = true;
     geo.attributes.aAlpha!.needsUpdate = true;
   };
-  place(0);
+  // Warm start: the whole column is already standing when it first shows (one life in 1 s steps).
+  const warm = () => {
+    for (let s = 0; s < LIFE; s += 1) step(1);
+  };
+  // Hidden (alpha 0) until the warm start on the second frame, when the style runtime has published the wind.
+  let frames = 0;
   return {
     points: pts,
-    update(time: number) {
-      if (!reducedMotion) place(time);
+    update(dt: number) {
+      if (frames < 2) {
+        if (++frames === 2) warm();
+        return;
+      }
+      if (!reducedMotion) step(Math.min(dt, 0.1));
     },
     dispose() {
       geo.dispose();
@@ -251,7 +295,7 @@ export function buildBackdrop(toon: ToonCache, reducedMotion: boolean) {
   return {
     group,
     plume: pl.points,
-    update: (time: number) => pl.update(time),
+    update: (dt: number) => pl.update(dt),
     dispose() {
       sk.dispose();
       vo.dispose();

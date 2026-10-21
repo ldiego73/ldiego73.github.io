@@ -9,9 +9,15 @@
  *  - Shafts: two crossed tall trapezoids per shaft, additive, bright at the top and fading to nothing at the
  *    ground, tilted toward a fixed sun azimuth. On by day (strongest in the morning and afternoon), off at night.
  *    Fog fades their alpha (additive light must not add fog color).
+ * Both read the cel pintado andino style's aerial haze (`styleUniforms`): the mist cards are hazed like the
+ * terrain behind them (three's fog chunks call `cpaHaze`), and the shafts lose strength in the haze exactly as
+ * much as a surface at that distance loses its own colour, so far shafts never glow through the painted
+ * distance planes. The mist's wisps slide with the shared wind (`liveWind`): faster when a gust passes.
  */
 import * as THREE from "three";
+import { styleUniforms } from "../../style-gl";
 import { noOutline } from "../../toon";
+import { liveWind } from "../../wind";
 import type { SelvaLayout } from "../contract";
 import { rng } from "./placement";
 
@@ -53,7 +59,10 @@ export function buildAtmos(L: SelvaLayout, quality: "low" | "high"): Atmos {
     uTime: { value: 0 },
     uOpacity: { value: 0 },
     uColor: { value: new THREE.Color("#e9efe8") },
+    /** Wisp offset accumulated from the wind speed (noise units). */
+    uDrift: { value: 0 },
     ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+    ...styleUniforms(),
   };
   const mistMat = new THREE.ShaderMaterial({
     uniforms: mistU,
@@ -81,7 +90,7 @@ export function buildAtmos(L: SelvaLayout, quality: "low" | "high"): Atmos {
     fragmentShader: /* glsl */ `
       #include <common>
       #include <fog_pars_fragment>
-      uniform float uTime, uOpacity;
+      uniform float uTime, uOpacity, uDrift;
       uniform vec3 uColor;
       varying vec2 vUv;
       varying float vSeed;
@@ -95,7 +104,7 @@ export function buildAtmos(L: SelvaLayout, quality: "low" | "high"): Atmos {
         vec2 q = vUv * 2.0 - 1.0;
         // Flat-bottomed soft bank: fades fast at the top and the sides.
         float shape = (1.0 - smoothstep(0.35, 1.0, length(q * vec2(1.0, 1.35)))) * smoothstep(-1.0, -0.55, q.y);
-        float wisp = 0.55 + 0.45 * n2(vUv * vec2(4.0, 2.0) + vec2(uTime * 0.04 + vSeed * 9.0, vSeed * 3.0));
+        float wisp = 0.55 + 0.45 * n2(vUv * vec2(4.0, 2.0) + vec2(uTime * 0.04 + uDrift + vSeed * 9.0, vSeed * 3.0));
         float a = shape * wisp * uOpacity * vNear;
         if (a < 0.004) discard;
         gl_FragColor = vec4(uColor, a);
@@ -164,6 +173,7 @@ export function buildAtmos(L: SelvaLayout, quality: "low" | "high"): Atmos {
     uStrength: { value: 0 },
     uColor: { value: new THREE.Color("#fff0c4") },
     ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+    ...styleUniforms(),
   };
   const shaftMat = new THREE.ShaderMaterial({
     uniforms: shaftU,
@@ -202,6 +212,9 @@ export function buildAtmos(L: SelvaLayout, quality: "low" | "high"): Atmos {
             float fogF = smoothstep(fogNear, fogFar, vFogDepth);
           #endif
           a *= 1.0 - fogF;
+          // The style's aerial haze: keep only the share of light a surface here keeps of its own colour.
+          float hk = cpaHaze(vec3(1.0), vFogDepth, vCpaFogW.y).g - cpaHaze(vec3(0.0), vFogDepth, vCpaFogW.y).g;
+          a *= clamp(hk, 0.0, 1.0);
         #endif
         gl_FragColor = vec4(uColor * a, 1.0);
       }`,
@@ -246,6 +259,8 @@ export function buildAtmos(L: SelvaLayout, quality: "low" | "high"): Atmos {
       if (fog) mistU.uColor.value.copy(fogC.copy(fog).lerp(white, 0.45 - night * 0.3));
       mistU.uTime.value = motion ? time : 0;
       if (motion && mist.visible) {
+        // Wind over the river (sampled at the first bank: one value for the veil is plenty).
+        mistU.uDrift.value += liveWind.sample(p.x, p.z, level + 1).speed * dt * 0.12;
         for (const b of banks) b.u = (b.u + (b.speed * dt) / 1000) % 1;
         placeMist();
       }

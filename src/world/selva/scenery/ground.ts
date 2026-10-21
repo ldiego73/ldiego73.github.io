@@ -16,6 +16,7 @@
  */
 import * as THREE from "three";
 import { mergeColored } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import { canvasTex, fbm, noise2, rng } from "../../tex";
 import type { ToonCache } from "../../toon";
 import { CANOPY_T, type SelvaLayout } from "../contract";
@@ -348,6 +349,9 @@ export function buildRoad(L: SelvaLayout, toon: ToonCache, mud: Array<[number, n
     polygonOffsetUnits: -2,
     side: THREE.DoubleSide,
   });
+  // The road texture is already painted (ruts, pebbles, mud tints): half the style's blotches on top of it,
+  // so the large patches read as light and shade on the earth instead of a second, competing pattern.
+  paintStrength(mat, 0.5);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = "selva-road";
   mesh.receiveShadow = true;

@@ -16,6 +16,7 @@
  * door plaque ×1, lantern ×2 (flame + glow, night only).
  */
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { WorldEnv } from "../../contract";
 import { flattenToonGroup, vertexToon } from "../../merge-colors";
 import { DYE } from "../../palette";
@@ -31,8 +32,11 @@ import {
   onFontsReady,
   redraw,
   rng,
+  SwayKit,
   stoneWall,
+  swayPlantMaterial,
   toonMapped,
+  withFlex,
 } from "../../props";
 import { WASI } from "../../trailhead";
 import {
@@ -646,7 +650,9 @@ export function buildExterior(env: WorldEnv, terrain: (x: number, z: number) => 
         }
       }
     }
-    // Garden: bench, big clay pot (tinaja), macetas with flowers (plan.ts GARDEN holds their colliders).
+    // Garden: bench, big clay pot (tinaja), macetas with flowers (plan.ts GARDEN holds their colliders). The
+    // flowers go in a SwayKit: they nod in the shared wind and bend away from the traveler (merged below).
+    const fk = new SwayKit();
     for (const it of GARDEN) {
       const gy = floor(it.x, it.z);
       if (it.id === "bench" && it.x < 2.6) {
@@ -666,8 +672,9 @@ export function buildExterior(env: WorldEnv, terrain: (x: number, z: number) => 
           const a = (i / 5) * Math.PI * 2;
           const fx = it.x + Math.cos(a) * 0.08;
           const fz = it.z + Math.sin(a) * 0.08;
-          k.cyl(0.02, 0.02, 0.26, fx, gy + 0.22, fz, W_COL.leaf, 4);
-          k.add(sphere, i % 2 ? "#f2c230" : DYE.red, fx, gy + 0.5, fz, 0, 0, 0, 0.08, 0.07, 0.08);
+          const plant = { base: gy + 0.22, height: 0.32, bend: 0.13 };
+          fk.add(stem, W_COL.leaf, fx, gy + 0.35, fz, 0.02, 0.26, 0.02, plant);
+          fk.add(sphere, i % 2 ? "#f2c230" : DYE.red, fx, gy + 0.5, fz, 0.08, 0.07, 0.08, plant);
         }
       }
     }
@@ -679,25 +686,40 @@ export function buildExterior(env: WorldEnv, terrain: (x: number, z: number) => 
     ] as const) {
       const gy = floor(x, z);
       k.cyl(0.14, 0.1, 0.22, x, gy - 0.02, z, W_COL.clay, 7);
-      k.add(sphere, W_COL.leaf, x, gy + 0.3, z, 0, 0, 0, 0.18, 0.13, 0.18);
+      const plant = { base: gy + 0.2, height: 0.26, bend: 0.08 };
+      fk.add(sphere, W_COL.leaf, x, gy + 0.3, z, 0.18, 0.13, 0.18, plant);
       for (let i = 0; i < 3; i++)
-        k.add(
+        fk.add(
           sphere,
           i === 1 ? "#e86f9a" : DYE.red,
           x + (i - 1) * 0.08,
           gy + 0.42,
           z + (rand() - 0.5) * 0.1,
-          0,
-          0,
-          0,
           0.06,
           0.05,
           0.06,
+          plant,
         );
     }
     const gg = new THREE.Group();
     gg.name = "wasi-grounds";
     finish(gg, k, "wasi-grounds");
+    // Fold the swaying flowers into the grounds mesh (rigid parts at flex 0): same draws, one more program.
+    const grounds = gg.getObjectByName("wasi-grounds:vc") as THREE.Mesh | undefined;
+    const flowers = fk.build();
+    if (grounds && flowers) {
+      const rigid = withFlex(grounds.geometry);
+      const merged = mergeGeometries([rigid, flowers], false);
+      if (merged) {
+        rigid.dispose();
+        merged.computeBoundingSphere();
+        grounds.geometry = merged;
+        const sway = swayPlantMaterial();
+        owned.mats.push(sway);
+        grounds.material = sway;
+      }
+    }
+    flowers?.dispose();
     group.add(gg);
   }
 
@@ -745,6 +767,8 @@ export function buildExterior(env: WorldEnv, terrain: (x: number, z: number) => 
 // Shared prototypes for Kit.add (cloned per use by the Kit).
 const boxProto = new THREE.BoxGeometry(1, 1, 1);
 const sphere = new THREE.IcosahedronGeometry(1, 1);
+/** Unit flower stem (centred; SwayKit scales it). */
+const stem = new THREE.CylinderGeometry(1, 1, 1, 4);
 
 function mergeGeos(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
   // Panes share one material: fold them into one geometry (non-indexed boxes).

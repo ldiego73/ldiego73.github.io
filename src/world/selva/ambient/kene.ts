@@ -15,7 +15,8 @@
  * totem celebrates: a burst of flower petals and blue morphos springs from the crown and drifts down / away
  * (kene/logic.ts), the kené lines glow, the music plays its summit stinger, the passport gets `selva:summit`
  * and, a moment later, the reward panel opens. With prefers-reduced-motion there is no burst and the streamers
- * hang still (the glow and the panel remain). Afterwards "E · Ver tu premio" at the totem reopens the panel.
+ * and feathers only sway slowly (the shared wind's reduced state; the glow and the panel remain). Afterwards
+ * "E · Ver tu premio" at the totem reopens the panel.
  *
  * The panel ("¡Lo lograste, {name}!", the name from ../../traveler.ts, renamed live on `world:traveler`) shows
  * four true stats (kene/logic.ts statTiles: the trader's wares, the maloca's posts, the stilt houses'
@@ -23,9 +24,13 @@
  * the postcard (`world:postcard`), book 60 min (SITE.calendly), download the CV (SITE.resume), back to the
  * Qhapaq Ñan (travel.ts) and back to the site.
  *
- * Draw calls: one vertex-coloured mesh (plaza, dais, carving, feathers, poles, pennants, the anaconda's head,
- * sign posts), one atlas mesh (pole, anaconda, jars), the streamers, the sign; petals and morphos only during
- * the burst. Walkable: the clearing is one raised circular deck (../../decks.ts) at its floor height, which
+ * Wind: the streamers wave as cloth, and the macaw feathers, the poles' tufts and the pennants bend, all on
+ * the world's shared wind (style-gl.ts windSway), so a gust crossing the clearing lifts them together; the
+ * burst's petals drift downwind as they fall (liveWind).
+ *
+ * Draw calls: one vertex-coloured mesh (plaza, dais, carving, poles, cords, the anaconda's head, sign posts),
+ * one wind-swayed vertex-coloured mesh (feathers, tufts, pennants), one atlas mesh (pole, anaconda, jars), the
+ * streamers, the sign; petals and morphos only during the burst. Walkable: the clearing is one raised circular deck (../../decks.ts) at its floor height, which
  * joins the road end; dais, poles, jars and sign posts are colliders; fauna keeps out of the clearing.
  */
 import * as THREE from "three";
@@ -41,9 +46,12 @@ import { worldData } from "../../data";
 import { decks } from "../../decks";
 import { emit, on } from "../../events";
 import { FONT, glowSprite, Kit, rng } from "../../props";
+import { paintStrength, windSway } from "../../style-gl";
 import { travelTo } from "../../travel";
 import { loadTraveler } from "../../traveler";
+import { liveWind } from "../../wind";
 import type { SelvaEnv } from "../contract";
+import { GeoBuilder } from "../scenery/kit";
 import { A, bake, disposeTree, drawCarved, signBoards, stationCull, stationMaterial } from "./embarcadero/amazon";
 import { morphoModel, WingSet } from "./wild/birds";
 import "./embarcadero/panels.css";
@@ -144,9 +152,29 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   group.add(painted.mesh);
   const vmat = stationMaterial();
   const kit = new Kit(env);
-  buildFlat(kit, rand, { floorY: 0, plazaR: PLAZA_R, head: painted.head });
+  const sway = new GeoBuilder();
+  buildFlat(kit, sway, rand, { floorY: 0, plazaR: PLAZA_R, head: painted.head });
   for (const dx of [-SIGN.posts, SIGN.posts]) kit.cyl(0.06, 0.07, 1.7, SIGN.x + dx, -0.3, SIGN.z, A.woodDark, 5);
   group.add(bake(kit, "selva-kene", vmat));
+  // Feathers, tufts and pennants on the shared wind (one mesh; a little paint: they are small and bright).
+  const swayMat = paintStrength(
+    windSway(
+      new THREE.MeshToonMaterial({
+        color: "#ffffff",
+        vertexColors: true,
+        gradientMap: env.toon("#ffffff").gradientMap,
+      }),
+      { mode: "grass", flex: true, amp: 1.6 },
+    ),
+    0.4,
+  );
+  const swayMesh = new THREE.Mesh(sway.build({ flex: true }), swayMat);
+  swayMesh.name = "selva-kene:feathers";
+  swayMesh.castShadow = true;
+  swayMesh.receiveShadow = true;
+  group.add(swayMesh);
+  // Streamers: kené cloth waved by the wind (amplitude × 3: a light cotton ribbon, not a heavy banner).
+  windSway(paint.ribbon, { mode: "cloth", flex: true, amp: 3 });
   const streamers = buildStreamers(paint.ribbon, 0);
   group.add(streamers.mesh);
   const signs = signBoards(
@@ -186,6 +214,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   const petalGeo = petalGeometry();
   const petalMat = env.toon("#ffffff").clone() as THREE.MeshToonMaterial;
   petalMat.side = THREE.DoubleSide;
+  // Petals fly: world-space painted blotches would slide over them.
+  paintStrength(petalMat, 0);
   const petals = new THREE.InstancedMesh(petalGeo, petalMat, BURST.petals);
   petals.name = "selva-kene:petals";
   petals.frustumCulled = false;
@@ -296,6 +326,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   const crownY = CROWN_Y;
   // Petals land on the flat plaza (local 0) or on the dais top (coordinates are relative to the totem).
   const floor = (x: number, z: number) => (Math.hypot(x, z) < DAIS_R ? DAIS_TOP : 0);
+  const windLocal = { x: 0, z: 0 };
   const celebrate = () => {
     celebrated = true;
     const entry = CATALOG.find((s) => s.id === STAMP_ID);
@@ -324,7 +355,13 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
       morphoSet.commit(0);
       return;
     }
-    for (const p of petalState) stepPetal(p, Math.min(dt, 0.05), age, floor);
+    // This frame's wind at the clearing, turned into the plaza frame (group yaw), for the falling petals.
+    const w = liveWind.sample(spot.x, spot.z, floorY + CROWN_Y);
+    const cy = Math.cos(spot.yaw);
+    const sy = Math.sin(spot.yaw);
+    windLocal.x = w.x * cy - w.z * sy;
+    windLocal.z = w.x * sy + w.z * cy;
+    for (const p of petalState) stepPetal(p, Math.min(dt, 0.05), age, floor, windLocal);
   };
   /** Writes the petal and morpho instances for the current burst age. */
   const drawBurst = () => {
@@ -369,7 +406,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   let inside = false;
   let near = false;
   return {
-    update(dt, avatar, t) {
+    update(dt, avatar) {
       const visible = cull(env.camera);
       const d = Math.hypot(avatar.x - spot.totem.x, avatar.z - spot.totem.z);
       const onPlaza = Math.abs(avatar.y - floorY) < 2;
@@ -391,10 +428,6 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
 
       stepBurst(dt);
       if (age >= 0 && visible && !env.reducedMotion) drawBurst();
-      if (visible && !env.reducedMotion) {
-        const camD = Math.hypot(env.camera.position.x - spot.x, env.camera.position.z - spot.z);
-        if (camD < 80) streamers.update(t, 0.65 + 0.35 * Math.sin(t * 0.37));
-      }
     },
     prompt() {
       if (panel.isOpen()) return near ? T(S.close) : null;
@@ -421,6 +454,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
       panel.dispose();
       signs.dispose();
       streamers.dispose();
+      swayMat.dispose();
       painted.dispose();
       morphoSet.dispose();
       petals.dispose();

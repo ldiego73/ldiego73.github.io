@@ -42,9 +42,12 @@ export function buildStall(g: Geo, s: Stall, dye: string) {
   // Sloping reed-mat roof and its edge.
   const ang = Math.atan2(hf - hb, d);
   g.box(w + 0.5, 0.12, Math.hypot(d, hf - hb) + 0.5, x, y + (hf + hb) / 2 - 0.06, z, MAT, 0, -ang);
-  // Awning cloth along the front, in the artifact's dye, with a lighter fringe.
+  // Awning cloth along the front, in the artifact's dye, with a lighter fringe: cloth hanging from the roof's
+  // edge (flex 0 at the top → 1 at the fringe), so it ripples in the sea wind.
+  g.cloth = { axis: "y", pinned: y + hf - 0.03, free: y + hf - 0.52 };
   g.box(w + 0.4, 0.42, 0.06, x, y + hf - 0.45, z + d / 2 + 0.28, dye);
   g.box(w + 0.4, 0.07, 0.07, x, y + hf - 0.52, z + d / 2 + 0.29, "#efe6d6");
+  g.cloth = null;
   // Counter: a plank table on trestles.
   g.box(w - 0.2, 0.1, 0.9, x, y + 0.85, z + d / 2 - 0.45, WOOD);
   for (const sx of [-1, 1]) g.box(0.1, 0.85, 0.8, x + sx * (w / 2 - 0.35), y, z + d / 2 - 0.45, "#5a3b24");

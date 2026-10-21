@@ -10,6 +10,7 @@ import type { Ambient, CreateAmbient } from "../contract";
 import { type Body, creatures, PARKED, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { on } from "../events";
+import { noPaint } from "../style-gl";
 
 const TAU = Math.PI * 2;
 /** Stylised: a touch larger than life so they read from the follow camera. */
@@ -80,6 +81,8 @@ export const create: CreateAmbient = (env): Ambient => {
     m.name = name;
     m.frustumCulled = false;
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Birds move: no world-space painted blotches sliding over them (style-gl.ts).
+    noPaint(m);
     env.scene.add(m);
     return m;
   };

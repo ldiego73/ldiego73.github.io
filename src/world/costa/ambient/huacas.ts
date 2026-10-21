@@ -24,6 +24,7 @@ import { creatures } from "../../creatures";
 import { createHud } from "../../hud";
 import { vertexToon } from "../../merge-colors";
 import { canvasTex, DYE, FONT, glowSprite, offFontsReady, onFontsReady, redraw } from "../../props";
+import { windSway } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { inkMask } from "../../toon";
 import { Geo } from "../kit";
@@ -332,7 +333,9 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   // ------------------------------------------------------------------ meshes
   const mat = vertexToon();
   const geo = g.build();
-  const mesh = new THREE.Mesh(geo, mat);
+  // The market's awnings carry a cloth `flex` (the rest of the merged mesh 0): they wave, the adobe stays.
+  const clothMat = windSway(vertexToon(), { mode: "cloth", flex: true, amp: 1.6 });
+  const mesh = new THREE.Mesh(geo, geo.getAttribute("flex") ? clothMat : mat);
   mesh.name = "costa-huacas:vc";
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -352,6 +355,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     gradientMap: env.toon("#fff").gradientMap,
     side: THREE.DoubleSide,
   });
+  // The Paracas mantles hang as cloth (Quads.hanging writes their flex; every frieze and wall quad is 0).
+  windSway(quadMat, { mode: "cloth", flex: true, amp: 1.4 });
   const friezes = new THREE.Mesh(quadGeo, quadMat);
   friezes.name = "costa-huacas:friezes";
   friezes.receiveShadow = true;
@@ -545,6 +550,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       geo.dispose();
       glyphGeo.dispose();
       mat.dispose();
+      clothMat.dispose();
       quadGeo.dispose();
       quadMat.dispose();
       atlas.dispose();
@@ -566,6 +572,7 @@ function mergeAll(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const pos = new Float32Array(n * 3);
   const nrm = new Float32Array(n * 3);
   const uv = new Float32Array(n * 2);
+  const flex = new Float32Array(n);
   let o = 0;
   for (const g of list) {
     const p = g.getAttribute("position") as THREE.BufferAttribute;
@@ -574,6 +581,8 @@ function mergeAll(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
     pos.set(p.array as Float32Array, o * 3);
     nrm.set(nn.array as Float32Array, o * 3);
     uv.set(u.array as Float32Array, o * 2);
+    const fx = g.getAttribute("flex") as THREE.BufferAttribute | undefined;
+    if (fx) flex.set(fx.array as Float32Array, o);
     o += p.count;
     g.dispose();
   }
@@ -581,6 +590,7 @@ function mergeAll(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
   out.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   out.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
   out.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  out.setAttribute("flex", new THREE.BufferAttribute(flex, 1));
   out.computeBoundingSphere();
   return out;
 }

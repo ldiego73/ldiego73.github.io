@@ -4,12 +4,14 @@
  *   chorus   at night: a trilling band (crickets, katydids) plus tree-frog "tink" and "brrup" calls from
  *            random directions
  *   river    the brown water's murmur, louder near the bank (layout.riverDist), panned toward the river
+ *   rustle   the canopy overhead: a soft hiss that swells when a gust front of the shared wind passes over the
+ *            traveler (wind.ts liveWind.gust, the same wave that sways the crowns)
  *   calls    positional animal calls read from the shared `creatures` registry (no body of a kind → no sound):
  *            macaws (raucous "raa" squawks, a pair answering), toucans (croaking "rrek"), the coto's roar at
  *            dawn and dusk, the capybaras' alarm bark when the family plunges in
  *   stamps   `world:stamp` → the passport chime of the shared sfx bus (the jungle page has no other sfx hook)
  * Silent until the music player's output() is live (unlocked, not muted, tab visible); hushed inside a building
- * or while a game is open. Light: three looping noise beds, a few one-shot oscillators per second at most.
+ * or while a game is open. Light: four looping noise beds, a few one-shot oscillators per second at most.
  * Mixing rules are pure (./soundscape/mix.ts).
  */
 
@@ -20,7 +22,8 @@ import { PHONE_BEDS, smallSpeaker } from "../../../audio/speaker";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures, isParked } from "../../creatures";
 import { on } from "../../events";
-import { bedMix, callGain, callGap, howlerHour, panFor } from "./soundscape/mix";
+import { liveWind } from "../../wind";
+import { bedMix, callGain, callGap, howlerHour, panFor, rustleGain } from "./soundscape/mix";
 import { devHook, idle, selvaOf } from "./wild/kit";
 import { rng } from "./wild/logic";
 
@@ -39,6 +42,7 @@ interface Graph {
   chorusG: GainNode;
   riverG: GainNode;
   riverPan: StereoPannerNode | null;
+  rustleG: GainNode;
   nodes: AudioNode[];
   srcs: AudioScheduledSourceNode[];
 }
@@ -143,7 +147,11 @@ export const create: CreateAmbient = (env0): Ambient => {
     const lp = filter("lowpass", 650, 0.6, riverOut);
     loop(nb.brown, lp, 1.4);
     loop(nb.white, filter("bandpass", 1100, 0.8, riverOut), 0.12 * bright);
-    return { out, ctx, master, cicadaG, chorusG, riverG, riverPan, nodes, srcs };
+    // Canopy rustle: a soft, wide band of hiss overhead that swells with the gusts (liveWind.gust).
+    const rustleG = gain(0, master);
+    loop(nb.white, filter("bandpass", 1500, 0.6, filter("lowpass", 2600, 0.5, rustleG)), 0.22 * bright);
+    loop(nb.brown, filter("bandpass", 420, 0.7, rustleG), 0.5);
+    return { out, ctx, master, cicadaG, chorusG, riverG, riverPan, rustleG, nodes, srcs };
   };
 
   const teardown = () => {
@@ -339,6 +347,7 @@ export const create: CreateAmbient = (env0): Ambient => {
     cicadas: g?.cicadaG.gain.value ?? 0,
     chorus: g?.chorusG.gain.value ?? 0,
     river: g?.riverG.gain.value ?? 0,
+    rustle: g?.rustleG.gain.value ?? 0,
   }));
   const right = { x: 1, z: 0 };
 
@@ -378,6 +387,7 @@ export const create: CreateAmbient = (env0): Ambient => {
         ramp(g.cicadaG.gain, mix.cicadas * 0.32);
         ramp(g.chorusG.gain, mix.chorus * 0.4);
         ramp(g.riverG.gain, mix.river * 0.5);
+        ramp(g.rustleG.gain, rustleGain(liveWind.gust, liveWind.state.gustAmp) * 0.3, 0.6);
         if (g.riverPan) {
           // Toward the river: the road frame's river side, relative to the listener.
           const t = L.trail.nearestT(avatar.x, avatar.z);

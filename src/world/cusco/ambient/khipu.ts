@@ -15,8 +15,13 @@
  * collected / total from mergedPassport) and the summit's buttons: postcard (`world:postcard`), book 60 min
  * (SITE.calendly), download the CV (SITE.resume), back to the site. Afterwards the khipu panel offers it.
  *
- * Draw calls: frame + cords (one vertex-coloured mesh), knots (one instanced mesh), confetti (one instanced
- * mesh, only during the burst). Colliders: the frame's two posts.
+ * Wind: the pendant cords hang free and sway with the shared wind (../../style-gl.ts `windSway`, "grass"
+ * mode with a `flex` weight that is 0 on the frame and the primary cord and grows down each cord), and the
+ * traveler standing beside them parts them. The knots are baked into one merged mesh with the same weights,
+ * so they ride their cords. The finale's confetti drifts downwind (`liveWind`).
+ *
+ * Draw calls: frame + cords (one vertex-coloured mesh), knots (one merged mesh, rebuilt when a stamp
+ * arrives), confetti (one instanced mesh, only during the burst). Colliders: the frame's two posts.
  */
 import * as THREE from "three";
 import { getMusic } from "../../../audio";
@@ -32,10 +37,12 @@ import {
 import { createFieldPanel, el, linkButton } from "../../ambient/fields/panel";
 import type { Ambient, CreateAmbient, L } from "../../contract";
 import { emit, on, type WorldId } from "../../events";
-import { flattenToonGroup, vertexToon } from "../../merge-colors";
+import { flattenToonGroup, mergeColored, vertexToon } from "../../merge-colors";
 import { Kit } from "../../props";
+import { paintStrength, windSway } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { loadTraveler } from "../../traveler";
+import { liveWind } from "../../wind";
 import { GATES, type Gate, KHIPU, USNU, USNU_TOP } from "../plan";
 import "./khipu/khipu.css";
 import {
@@ -98,6 +105,10 @@ const CORDS: Array<{ id: string; gate: Gate | null; dye: string }> = [
   { id: "qusqu", gate: null, dye: "#e8b631" },
 ];
 const CORD_LEN = 1.75;
+/** World units a cord's tip bends at full wind (the `flex` weight at the tassel). */
+const CORD_SWAY = 0.4;
+/** Confetti drift: fraction of the wind speed a falling bit takes (units per second per unit of wind). */
+const CONFETTI_DRIFT = 0.9;
 const FRAME_H = 2.45;
 const PROMPT_R = 3.6;
 const ARRIVE_R = 8.5;
@@ -151,40 +162,58 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     kit.cyl(0.06, 0.02, 0.16, x, top - CORD_LEN - 0.14, 0, c.dye, 5);
   });
   const framed = kit.build("cusco-khipu-frame");
-  const frameMat = vertexToon();
-  flattenToonGroup(framed, frameMat);
+  // Sway weight in the khipu's frame: 0 on the posts, the bar and the primary cord; down a pendant cord it
+  // grows from its tie to the tassel (power > 1: the cord hangs straight under the knot and swings at the end).
+  const hang = top - 0.06;
+  const cordFlex = (x: number, y: number) =>
+    Math.abs(x) > half - 0.25 || y >= hang ? 0 : Math.min(1, (hang - y) / CORD_LEN) ** 1.3 * CORD_SWAY;
+  const writeFlex = (geo: THREE.BufferGeometry) => {
+    const p = geo.getAttribute("position");
+    const f = new Float32Array(p.count);
+    for (let i = 0; i < p.count; i++) f[i] = cordFlex(p.getX(i), p.getY(i));
+    geo.setAttribute("flex", new THREE.BufferAttribute(f, 1));
+  };
+  const frameMat = windSway(vertexToon(), { mode: "grass", flex: true });
+  const flat = flattenToonGroup(framed, frameMat);
+  if (flat) writeFlex(flat.geometry);
   group.add(framed);
 
-  const knotGeo = new THREE.IcosahedronGeometry(0.085, 0);
-  const knotMat = env.toon("#ffffff").clone();
-  const MAX_KNOTS = CORDS.length * 18;
-  const knots = new THREE.InstancedMesh(knotGeo, knotMat, MAX_KNOTS);
+  // Knots: one merged, vertex-coloured mesh (re-tied on every stamp: at most ~100 small icosahedra), on the
+  // cords' own sway so they stay on them. Painted like the cords (they do not move through the world).
+  const knotShape = new THREE.IcosahedronGeometry(0.085, 0);
+  knotShape.scale(1, 0.8, 1);
+  const knotMat = windSway(vertexToon(), { mode: "grass", flex: true });
+  const knots = new THREE.Mesh(new THREE.BufferGeometry(), knotMat);
   knots.name = "cusco-khipu:knots";
   group.add(knots);
+  let knotCount = 0;
   const dummy = new THREE.Object3D();
   const col = new THREE.Color();
   const tieKnots = () => {
-    let n = 0;
+    const parts: Array<{ geometry: THREE.BufferGeometry; color: THREE.Color; matrix: THREE.Matrix4 }> = [];
     CORDS.forEach((c, i) => {
       for (const off of knotOffsets(cordCount(c))) {
-        if (n >= MAX_KNOTS) break;
         dummy.position.set(cordX(i), top - off, 0);
-        dummy.scale.set(1, 0.8, 1);
         dummy.updateMatrix();
-        knots.setMatrixAt(n, dummy.matrix);
-        knots.setColorAt(n, col.set(c.dye).multiplyScalar(0.72));
-        n++;
+        parts.push({
+          geometry: knotShape,
+          color: col.set(c.dye).multiplyScalar(0.72).clone(),
+          matrix: dummy.matrix.clone(),
+        });
       }
     });
-    knots.count = n;
-    knots.instanceMatrix.needsUpdate = true;
-    if (knots.instanceColor) knots.instanceColor.needsUpdate = true;
+    knotCount = parts.length;
+    const geo = (parts.length && mergeColored(parts)) || new THREE.BufferGeometry();
+    if (parts.length) writeFlex(geo);
+    knots.geometry.dispose();
+    knots.geometry = geo;
+    knots.visible = parts.length > 0;
   };
   tieKnots();
 
   // Confetti (instanced, only during the burst).
   const bitGeo = new THREE.BoxGeometry(0.12, 0.012, 0.08);
-  const bitMat = env.toon("#ffffff").clone();
+  const bitMat = paintStrength(env.toon("#ffffff").clone(), 0);
   bitMat.side = THREE.DoubleSide;
   const bits = new THREE.InstancedMesh(bitGeo, bitMat, CONFETTI.n);
   bits.name = "cusco-khipu:confetti";
@@ -378,7 +407,15 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       bits.visible = false;
       return;
     }
-    for (const b of bitState) stepBit(b, Math.min(dt, 0.05), floor);
+    const h = Math.min(dt, 0.05);
+    for (const b of bitState) {
+      stepBit(b, h, floor);
+      if (b.landed) continue;
+      // Paper rides the breeze while it falls (the same gust the cords show).
+      const w = liveWind.sample(KHIPU.x + b.x, KHIPU.z + b.z, USNU_TOP + b.y);
+      b.x += w.x * h * CONFETTI_DRIFT;
+      b.z += w.z * h * CONFETTI_DRIFT;
+    }
   };
   if (import.meta.env?.DEV)
     (window as Window & { __khipu?: unknown }).__khipu = {
@@ -391,7 +428,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       },
       openPanel,
       openFinale,
-      state: () => ({ age, celebratedAt, knots: knots.count, open: panel.isOpen(), finale: finale.isOpen() }),
+      state: () => ({ age, celebratedAt, knots: knotCount, open: panel.isOpen(), finale: finale.isOpen() }),
     };
 
   let near = false;
@@ -451,9 +488,9 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
         if (m.isMesh) m.geometry.dispose();
       });
       frameMat.dispose();
-      knotGeo.dispose();
+      knotShape.dispose();
+      knots.geometry.dispose();
       knotMat.dispose();
-      knots.dispose();
       bitGeo.dispose();
       bitMat.dispose();
       bits.dispose();

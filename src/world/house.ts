@@ -17,6 +17,7 @@ import {
   glowSprite,
   hashStr,
   Kit,
+  localWind,
   makeTorch,
   offFontsReady,
   onFontsReady,
@@ -715,6 +716,7 @@ export function buildHouse(env: WorldEnv, lang: Lang, groundOuter: (x: number, z
     g.add(k.build("apacheta"));
   });
   const mk = new THREE.Group();
+  const mkWind = { x: 0, z: 0, speed: 0, gust: 0 };
   yardItem(0.2, [...SIDE_L], (g) => {
     const k = new Kit(env);
     k.box(0.12, 2.5, 0.12, 0, -0.6, 0, C.woodDark);
@@ -833,7 +835,13 @@ export function buildHouse(env: WorldEnv, lang: Lang, groundOuter: (x: number, z
     },
     update(dt, t, _dist, ctx?: PlaceCtx) {
       for (const tc of torches) tc.update(t);
-      if (!env.reducedMotion) mk.rotation.z = Math.sin(t * 1.4) * 0.03;
+      if (!env.reducedMotion) {
+        // The message khipu's cords lean downwind and swing harder in a gust (the shared wind, local frame).
+        localWind(mk, mkWind);
+        mk.rotation.z =
+          THREE.MathUtils.clamp(mkWind.x * 0.05, -0.12, 0.12) + Math.sin(t * 1.4) * (0.02 + 0.03 * mkWind.gust);
+        mk.rotation.x = THREE.MathUtils.clamp(-mkWind.z * 0.05, -0.12, 0.12) + Math.sin(t * 1.1 + 1) * 0.012;
+      }
       if (!ctx) return;
       tmp.copy(ctx.avatar);
       group.worldToLocal(tmp);

@@ -48,7 +48,7 @@ export function createSelvaScenery(layout: SelvaLayout, toon: ToonCache, quality
   const water = buildWater(layout, toon, quality);
   group.add(...water.objects);
 
-  const forest = createForest(plan, toon, { quality, phone, reducedMotion: false });
+  const forest = createForest(plan, toon, { quality, phone });
   group.add(...forest.objects);
 
   const walkway = buildWalkway(layout, toon);
@@ -65,7 +65,7 @@ export function createSelvaScenery(layout: SelvaLayout, toon: ToonCache, quality
     group,
     update(dt, time, env) {
       motion = !env.reducedMotion;
-      forest.update(motion ? time : 0, env.camera.position);
+      forest.update(env.camera.position);
       water.update(dt, time, motion);
       const fog = env.scene.fog as THREE.Fog | null;
       atmos.update(dt, time, env.sky.time(), fog?.color ?? null, motion);

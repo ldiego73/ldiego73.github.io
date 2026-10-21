@@ -2,11 +2,12 @@
  * Small builders shared by the Kuntisuyu's ambients (so each station is one vertex-coloured mesh, one draw
  * call): `VKit` collects primitives with a colour (optionally inside a local frame: position + yaw) and merges
  * them with ../merge-colors.ts; `signBoard` paints a carved wooden or stone sign on a canvas (redrawn when the
- * fonts arrive). Three.js only; no world state.
+ * fonts arrive); `unpainted` turns the painted blotches off on a moving model. Three.js only; no world state.
  */
 import * as THREE from "three";
 import { mergeColored } from "../merge-colors";
 import { canvasTex, FONT, fitFont, offFontsReady, onFontsReady } from "../props";
+import { noPaint } from "../style-gl";
 
 const tmpM = new THREE.Matrix4();
 const tmpQ = new THREE.Quaternion();
@@ -158,6 +159,12 @@ export class VKit {
     this.protos.clear();
     return merged;
   }
+}
+
+/** A model with a moving body (a mount): no painted blotches, which would slide over it. Returns the model. */
+export function unpainted<M extends { group: THREE.Object3D }>(model: M): M {
+  noPaint(model.group);
+  return model;
 }
 
 export interface SignBoard {

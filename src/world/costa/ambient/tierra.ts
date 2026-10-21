@@ -22,6 +22,7 @@ import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { CostaLayout } from "../layout";
 import { BEACHES, COMPANY_STOPS, STATION } from "../plan";
@@ -42,7 +43,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const rm = env.reducedMotion;
   const high = env.quality === "high";
   const R = prng(0x7e44a);
-  const mat = vertexToon();
+  // Animals: no world-space paint sliding over moving bodies.
+  const mat = paintStrength(vertexToon(), 0);
   const root = new THREE.Group();
   root.name = "costa-tierra";
   env.scene.add(root);

@@ -30,7 +30,7 @@ const COPY = {
     arrive:
       "Si llegas por un punku (desde la montaña, la costa, el lago o el Kuntisuyu), apareces en su calle, unos pasos antes de la plaza y mirando hacia ella; si entras directo, en el lado sur de la plaza mirando al usnu. Llevas la ropa andina de la montaña.",
     usnuTitle: "El usnu y el khipu de los suyus",
-    usnu: "En el centro de la plaza, un usnu: una plataforma ceremonial de tres gradas de piedra labrada, con escalinata al sur. Cada grada es un escalón, así que puedes subir caminando. Arriba, un marco de madera sostiene un gran khipu: una cuerda colgante por cada suyu y una por Qusqu, cada una con su color. Cada nudo es un sello de esa página del pasaporte; los suyus que aún no se abren cuelgan sin nudos.",
+    usnu: "En el centro de la plaza, un usnu: una plataforma ceremonial de tres gradas de piedra labrada, con escalinata al sur. Cada grada es un escalón, así que puedes subir caminando. Arriba, un marco de madera sostiene un gran khipu: una cuerda colgante por cada suyu y una por Qusqu, cada una con su color. Cada nudo es un sello de esa página del pasaporte; los suyus que aún no se abren cuelgan sin nudos. Las cuerdas se mecen con la brisa y se apartan si te acercas. En las cuatro esquinas del usnu, unos mástiles altos hacen ondear estandartes tejidos con los colores de los cuatro suyus.",
     khipu:
       "Junto al khipu, «E · Leer el khipu» abre un panel con tu avance por cada página del pasaporte (sellos que cuentan / sellos de la página) y lo que guarda cada suyu.",
     finale: (pages: string) =>
@@ -48,7 +48,7 @@ const COPY = {
     email: "Correo",
     gatesTitle: "Los cinco punkus",
     gates:
-      "De cada esquina de la plaza sale una calle entre muros de piedra, y otra sale al sur. Cada una termina en un punku, una portada trapezoidal de piedra con un letrero tallado y, en el vano, un vistazo de su mundo. Cerca de un punku abierto, «E · Viajar» te lleva a ese mundo.",
+      "De cada esquina de la plaza sale una calle entre muros de piedra, y otra sale al sur. Cada una termina en un punku, una portada trapezoidal de piedra con un letrero tallado, cintas de lana de su color que ondean sobre el vano y, en el vano, un vistazo de su mundo. Cerca de un punku abierto, «E · Viajar» te lleva a ese mundo.",
     gatesClosed: "Un punku cerrado tiene una tranca de troncos y un letrero «Próximamente», y no viaja.",
     selvaReturn:
       "Para volver: el punku de la selva te lleva al cruce de caminos (tinkuy) al pie del Qhapaq Ñan, no a esta plaza; desde ahí, el camino que sigue al sur te trae de nuevo a Qusqu por el punku del Qhapaq Ñan.",
@@ -75,7 +75,7 @@ const COPY = {
     arrive:
       "Coming through a punku (from the mountain, the coast, the lake or the Kuntisuyu), you appear on its street a few steps before the plaza, facing it; coming straight in, on the south side of the plaza facing the usnu. You wear the mountain's Andean clothes.",
     usnuTitle: "The usnu and the khipu of the suyus",
-    usnu: "In the middle of the plaza, an usnu: a ceremonial platform of three dressed-stone tiers with a stair on the south. Each tier is one step, so you can walk up. On top, a wooden frame holds a big khipu: one hanging cord per suyu and one for Qusqu, each in its colour. Every knot is a stamp of that passport page; suyus that are not open yet hang without knots.",
+    usnu: "In the middle of the plaza, an usnu: a ceremonial platform of three dressed-stone tiers with a stair on the south. Each tier is one step, so you can walk up. On top, a wooden frame holds a big khipu: one hanging cord per suyu and one for Qusqu, each in its colour. Every knot is a stamp of that passport page; suyus that are not open yet hang without knots. The cords sway in the breeze and part as you come close. At the usnu's four corners, tall poles fly woven banners in the colours of the four suyus.",
     khipu:
       "Next to the khipu, “E · Read the khipu” opens a panel with your progress on each passport page (stamps that count / stamps on the page) and what each suyu holds.",
     finale: (pages: string) =>
@@ -93,7 +93,7 @@ const COPY = {
     email: "Email",
     gatesTitle: "The five punkus",
     gates:
-      "A street between stone walls leaves each corner of the plaza, and another leaves to the south. Each ends at a punku, a trapezoidal stone doorway with a carved sign and, in the opening, a glimpse of its world. Near an open punku, “E · Travel” takes you to that world.",
+      "A street between stone walls leaves each corner of the plaza, and another leaves to the south. Each ends at a punku, a trapezoidal stone doorway with a carved sign, woollen streamers in its colour fluttering above the opening and, in the opening, a glimpse of its world. Near an open punku, “E · Travel” takes you to that world.",
     gatesClosed: "A closed punku has a bar of logs and a “Coming soon” sign, and does not travel.",
     selvaReturn:
       "Coming back: the jungle's punku takes you to the crossroads (tinkuy) at the foot of the Qhapaq Ñan, not to this plaza; from there, the road running on south brings you back to Qusqu through the Qhapaq Ñan punku.",

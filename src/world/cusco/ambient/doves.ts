@@ -9,6 +9,7 @@
 import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { mergeColored, vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import { FLEE_R, flightAt, flightTime, pickLanding, type Spot, shouldFlee } from "./doves/logic";
 import { isDay } from "./life/logic";
 
@@ -70,7 +71,8 @@ function wingGeometry(): THREE.BufferGeometry {
 export const create: CreateAmbient = (env): Ambient => {
   const R = rng(0xd0e);
   const n = env.quality === "high" ? 14 : 9;
-  const mat = vertexToon();
+  // Moving bodies: no world-space paint (it would slide over the plumage).
+  const mat = paintStrength(vertexToon(), 0);
   const geo = bodyGeometry() ?? new THREE.BoxGeometry(0.2, 0.2, 0.3);
   const bodies = new THREE.InstancedMesh(geo, mat, n);
   bodies.name = "cusco-doves";
@@ -78,6 +80,7 @@ export const create: CreateAmbient = (env): Ambient => {
   const wingGeo = wingGeometry();
   const wingMat = env.toon("#8e7a68").clone();
   wingMat.side = THREE.DoubleSide;
+  paintStrength(wingMat, 0);
   const wings = new THREE.InstancedMesh(wingGeo, wingMat, n * 2);
   wings.name = "cusco-doves:wings";
   wings.frustumCulled = false;

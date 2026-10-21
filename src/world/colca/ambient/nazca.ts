@@ -13,7 +13,9 @@
  *    same panel. A board at the lookout plaza asks not to walk on the lines.
  *  - Panel: kicker "Geoglifo · Colibrí", the artifact as title, its tech, its summary, every use (company,
  *    role, years, what was built) and the real figure's size; ←/→ move between the five.
- * Draw calls: lines 1, tower 1, plaza 1, signs 1, posts 1.
+ *  - Flag: a Peruvian flag on a pole at the deck's far corner, rippling on the shared wind (../cloth.ts), so
+ *    the gusts that raise dust on the pampa are seen on the tower too.
+ * Draw calls: lines 1, tower 1, flag 1, plaza 1, signs 1, posts 1.
  */
 import * as THREE from "three";
 import { createFieldPanel, el } from "../../ambient/fields/panel";
@@ -23,6 +25,7 @@ import { decks } from "../../decks";
 import { vertexToon } from "../../merge-colors";
 import { DYE, offFontsReady, onFontsReady } from "../../props";
 import type { SuyuEnv } from "../../suyu/contract";
+import { ClothKit, clothMesh } from "../cloth";
 import { artifactCompanies, artifactUses, span } from "../content";
 import { VKit } from "../kit";
 import type { ColcaLayout } from "../layout";
@@ -81,6 +84,13 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   group.add(tower);
   const removers = towerDecks(baseY).map((d) => decks.add(d));
   const deckY = baseY + TOWER.top;
+  // The flag: on the deck's far corner (tower-local +x away from the road), flying west with the wind.
+  const ck = new ClothKit();
+  const fc = towerWorld(TW.half - 0.15, TW.half - 0.15);
+  ck.tube({ x: fc.x, y: deckY, z: fc.z }, { x: fc.x, y: deckY + 4.2, z: fc.z }, 0.05, "#d8d2c4");
+  ck.flag({ x: fc.x - 0.04, y: deckY + 4.0, z: fc.z }, { x: -1, z: 0 }, 1.5, 1.0, ["#c8102e", "#f7f3ea", "#c8102e"]);
+  const flag = clothMesh(ck, "colca-nazca:flag");
+  group.add(flag.mesh);
 
   const plaza = layout.plaza("nazca");
   const pk = new VKit();
@@ -241,6 +251,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
       linesGeo.dispose();
       linesMat.dispose();
       towerGeo.dispose();
+      flag.dispose();
       plazaGeo.dispose();
       mat.dispose();
       signGeo.dispose();

@@ -6,7 +6,8 @@
  * `hide=1` (scenery hidden: sky-only baseline).
  *
  * Renders the real layout with the real engine (toon + ink outline + FXAA), the mountain sky (sun, fog,
- * shadows) and the detail-cull, so draw calls match the runtime closely. `renderer.info` is summed over every
+ * shadows), the world's cel pintado andino style and shared wind (style-runtime.ts, profile `selva`) and the
+ * detail-cull, so the look and the draw calls match the runtime closely. `renderer.info` is summed over every
  * pass of a frame (color, ink prepass, shadows, post) because the composer resets it per render call.
  * Fly: WASD / QE (up, down), Shift fast, drag to look. Screenshots drive `window.__sc` (see shots.mjs).
  */
@@ -15,6 +16,7 @@ import { createDetailCull } from "../../detail-cull";
 import { createEngine } from "../../engine";
 import { detectDevice } from "../../quality";
 import { createSky } from "../../sky";
+import { createWorldStyle } from "../../style-runtime";
 import { createToonCache } from "../../toon";
 import type { SelvaEnv } from "../contract";
 import { buildSelvaLayout } from "../layout";
@@ -58,6 +60,8 @@ const env = {
 
 // ---------------------------------------------------------------- camera
 const pos = new THREE.Vector3();
+// The style and the wind (pushers and kicks are picked around the camera here: there is no traveler).
+const style = createWorldStyle({ world: "selva", engine, sky, reducedMotion: false, focus: pos });
 let yaw = 0;
 let pitch = 0;
 const focus = new THREE.Vector3();
@@ -128,6 +132,7 @@ engine.onFrame((dt, t) => {
   sky.fog.near *= 0.75;
   sky.fog.far *= 0.8;
   engine.outline.uniforms.uInk.value.copy(sky.ink);
+  style.update(dt, t);
   scenery.setNight?.(night);
   scenery.update(dt, t, env);
   cull.update(camera.position);

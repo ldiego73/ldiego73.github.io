@@ -1,6 +1,6 @@
 /** Jungle soundscape mixing rules. */
 import { describe, expect, test } from "bun:test";
-import { bedMix, callGain, callGap, howlerHour, panFor } from "./mix";
+import { bedMix, callGain, callGap, howlerHour, panFor, rustleGain } from "./mix";
 
 describe("jungle soundscape mix", () => {
   test("cicadas by day, the night chorus after dark", () => {
@@ -44,5 +44,15 @@ describe("jungle soundscape mix", () => {
     expect(howlerHour(0.74)).toBe(true);
     expect(howlerHour(0.5)).toBe(false);
     expect(howlerHour(0)).toBe(false);
+  });
+});
+
+describe("canopy rustle", () => {
+  test("follows the gust, with a faint floor", () => {
+    expect(rustleGain(0, 0.35)).toBeCloseTo(0.08, 5);
+    expect(rustleGain(0.35, 0.35)).toBeCloseTo(1, 5);
+    expect(rustleGain(0.18, 0.35)).toBeGreaterThan(rustleGain(0.05, 0.35));
+    // No gusts (reduced motion): the floor only.
+    expect(rustleGain(0.2, 0)).toBeCloseTo(0.08, 5);
   });
 });

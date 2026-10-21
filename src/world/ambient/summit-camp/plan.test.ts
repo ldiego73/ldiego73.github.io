@@ -75,7 +75,15 @@ describe("summit camp plan", () => {
       kiteSway(t, false, o);
       expect(Math.abs(o.side)).toBeLessThan(1.5);
       expect(Math.abs(o.roll)).toBeLessThan(0.4);
+      // A strong gust lifts it and widens the sway, still bounded.
+      kiteSway(t, false, o, 1.1);
+      expect(Math.abs(o.side)).toBeLessThan(2.1);
+      expect(Math.abs(o.roll)).toBeLessThan(0.55);
     }
+    const calm = kiteSway(5, false, { side: 0, up: 0, roll: 0, pitch: 0 }, 0).up;
+    expect(kiteSway(5, false, o, 1).up).toBeGreaterThan(calm);
+    // Reduced motion ignores the gusts.
+    expect(kiteSway(9, true, o, 1)).toEqual(a);
   });
 
   test("low quality has fewer people and no steam", () => {

@@ -3,13 +3,15 @@ import type { CordSpec } from "./artifacts";
 import type { WorldEnv } from "./contract";
 import { cullDistance, deviceCullFactor } from "./detail-cull";
 import { type ColoredPart, flattenToonGroup, mergeColored, vertexToon } from "./merge-colors";
-import { C, DYE, Kit } from "./props";
+import { C, DYE, Kit, localWind } from "./props";
 
 /**
  * A company's khipu on a wooden frame: the primary cord along the bar, one pendant per stage
  * (extra stages and education hang as subsidiaries off the main pendant), knots per stage knot:
  * single knots for shipped things, long knots (stacked turns) for digits of a metric.
  * On approach the knots light up one by one (warm emissive + a small pulse).
+ * The pendants swing in the world's shared wind (props.ts `localWind`): they lean downwind and swing harder
+ * when a gust front crosses the frame; still with reduced motion.
  */
 export interface KhipuModel {
   group: THREE.Group;
@@ -230,6 +232,8 @@ export function buildKhipu(env: WorldEnv, specs: CordSpec[], seed = 1): KhipuMod
   let acc = 0;
   let first = true;
   const rm = env.reducedMotion;
+  const wind = { x: 0, z: 0, speed: 0, gust: 0 };
+  const lean = { x: 0, z: 0, k: 0 };
 
   /** Pendant pivots relative to the khipu group, then every knot instance (with its pulse). */
   const place = () => {
@@ -266,7 +270,7 @@ export function buildKhipu(env: WorldEnv, specs: CordSpec[], seed = 1): KhipuMod
           const c = im.count;
           im.count = s.knot.length;
           im.computeBoundingSphere();
-          if (im.boundingSphere) im.boundingSphere.radius += 0.12;
+          if (im.boundingSphere) im.boundingSphere.radius += 0.3;
           im.count = c;
           // Keep this sphere: a later recompute (detail-cull's scan) would see only the drawn instances,
           // or none for an unlit khipu's lit mesh, and cull the knots that light up afterwards.
@@ -305,7 +309,17 @@ export function buildKhipu(env: WorldEnv, specs: CordSpec[], seed = 1): KhipuMod
         dirty = true;
       }
       if (!rm) {
-        for (const p of pendants) p.g.rotation.z = p.base + Math.sin(t * 1.3 + p.ph) * 0.035;
+        // Lean downwind in the frame's own axes (+z swing moves a hanging tip toward +x, +x toward −z), eased so
+        // a gust reads as a push, plus a swing that grows with the gust.
+        localWind(group, wind);
+        const e = Math.min(1, dt * 2.5);
+        lean.z += (wind.x * 0.05 - lean.z) * e;
+        lean.x += (-wind.z * 0.07 - lean.x) * e;
+        lean.k += (0.025 + 0.04 * wind.gust - lean.k) * e;
+        for (const p of pendants) {
+          p.g.rotation.z = p.base + lean.z + Math.sin(t * 1.3 + p.ph) * lean.k;
+          p.g.rotation.x = lean.x + Math.sin(t * 1.1 + p.ph * 1.7) * lean.k * 0.6;
+        }
         dirty = true;
       }
       if (dirty) place();

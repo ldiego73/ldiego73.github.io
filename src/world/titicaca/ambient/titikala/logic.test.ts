@@ -53,4 +53,20 @@ describe("Titikala finale", () => {
     expect(glowAt(0.4)).toBeCloseTo(1, 6);
     expect(glowAt(BURST.life)).toBe(0);
   });
+
+  test("falling sparks drift downwind; rising ones keep their throw", () => {
+    const calm = spawnSparks(1, 1, 5, prng(7))[0];
+    const windy = spawnSparks(1, 1, 5, prng(7))[0];
+    if (!calm || !windy) return;
+    // Rising: the wind does not touch them yet.
+    stepSpark(calm, 0.05, 0.05, () => -10);
+    stepSpark(windy, 0.05, 0.05, () => -10, { x: 4, z: 0 });
+    expect(windy.x).toBeCloseTo(calm.x, 9);
+    for (let i = 0; i < 120; i++) {
+      stepSpark(calm, 1 / 60, 0.1 + i / 60, () => -10);
+      stepSpark(windy, 1 / 60, 0.1 + i / 60, () => -10, { x: 4, z: 0 });
+    }
+    expect(windy.x).toBeGreaterThan(calm.x + 0.5);
+    expect(windy.z).toBeCloseTo(calm.z, 9);
+  });
 });

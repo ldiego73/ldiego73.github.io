@@ -2,6 +2,9 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Dye } from "../data/career";
 import type { Collider, WorldEnv } from "./contract";
+import { paintStrength, windSway } from "./style-gl";
+import { gradientMap } from "./toon";
+import { liveWind } from "./wind";
 
 /** Andean diorama palette (direction contract). Content-local so core palette changes don't ripple. */
 export const C = {
@@ -465,6 +468,157 @@ export function glowSprite(env: WorldEnv, color: string, size: number) {
   return s;
 }
 
+// ---------------------------------------------------------------- cloth on the shared wind
+
+/** One hanging strip of cloth (banner, ribbon): pinned along its top edge at (x, y, z), `h` long, facing +z·ry. */
+export interface ClothStrip {
+  w: number;
+  h: number;
+  x: number;
+  y: number;
+  z: number;
+  ry?: number;
+  color: string;
+}
+
+/**
+ * Hanging strips merged into ONE non-indexed geometry with position, normal, uv, a linear vertex `color` and the
+ * cloth `flex` (0 at the top edge → 1 at the hem; style-gl.ts `windSway` mode "cloth"). Draw it with
+ * `clothMaterial()`; one draw for any number of strips.
+ */
+export function clothStripsGeometry(strips: ClothStrip[]): THREE.BufferGeometry | null {
+  const parts: THREE.BufferGeometry[] = [];
+  const col = new THREE.Color();
+  for (const s of strips) {
+    const g = new THREE.PlaneGeometry(s.w, s.h, 1, Math.max(3, Math.round(s.h / 0.12))).toNonIndexed();
+    g.translate(0, -s.h / 2, 0);
+    const pos = g.getAttribute("position");
+    const n = pos.count;
+    const flex = new Float32Array(n);
+    const c = new Float32Array(n * 3);
+    col.set(s.color);
+    for (let i = 0; i < n; i++) {
+      flex[i] = Math.min(1, Math.max(0, -pos.getY(i) / s.h));
+      c[i * 3] = col.r;
+      c[i * 3 + 1] = col.g;
+      c[i * 3 + 2] = col.b;
+    }
+    g.setAttribute("flex", new THREE.BufferAttribute(flex, 1));
+    g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+    g.rotateY(s.ry ?? 0);
+    g.translate(s.x, s.y, s.z);
+    parts.push(g);
+  }
+  const merged = parts.length ? mergeGeometries(parts, false) : null;
+  for (const g of parts) g.dispose();
+  merged?.computeBoundingSphere();
+  return merged;
+}
+
+/**
+ * Small plants built like a Kit (flowers in pots, crops, garden sprigs) that bend with the shared wind as grass
+ * (style-gl.ts `windSway` mode "grass" with `flex`): every vertex gets flex = `bend` × ((y − base) / height)²
+ * (world units of bend at full wind; 0 at the soil, most at the bloom). `build()` returns ONE non-indexed
+ * geometry with position, normal, uv, linear `color` and `flex`, ready to merge with rigid parts (`withFlex`)
+ * or to draw with `swayPlantMaterial()`.
+ */
+export class SwayKit {
+  private parts: THREE.BufferGeometry[] = [];
+  private col = new THREE.Color();
+  add(
+    geo: THREE.BufferGeometry,
+    color: string,
+    x: number,
+    y: number,
+    z: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    plant: { base: number; height: number; bend: number },
+    rx = 0,
+    ry = 0,
+    rz = 0,
+  ) {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    for (const name of Object.keys(g.attributes))
+      if (name !== "position" && name !== "normal" && name !== "uv") g.deleteAttribute(name);
+    const n = g.getAttribute("position").count;
+    if (!g.getAttribute("uv")) g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+    if (!g.getAttribute("normal")) g.computeVertexNormals();
+    tmpQ.setFromEuler(tmpE.set(rx, ry, rz));
+    g.applyMatrix4(tmpM.compose(tmpP.set(x, y, z), tmpQ, tmpS.set(sx, sy, sz)));
+    const pos = g.getAttribute("position");
+    const c = new Float32Array(n * 3);
+    const f = new Float32Array(n);
+    this.col.set(color);
+    for (let i = 0; i < n; i++) {
+      c[i * 3] = this.col.r;
+      c[i * 3 + 1] = this.col.g;
+      c[i * 3 + 2] = this.col.b;
+      const h = Math.min(1.2, Math.max(0, (pos.getY(i) - plant.base) / plant.height));
+      f[i] = plant.bend * h * h;
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+    g.setAttribute("flex", new THREE.BufferAttribute(f, 1));
+    this.parts.push(g);
+    return this;
+  }
+  build(): THREE.BufferGeometry | null {
+    const merged = this.parts.length ? mergeGeometries(this.parts, false) : null;
+    for (const g of this.parts) g.dispose();
+    this.parts = [];
+    merged?.computeBoundingSphere();
+    return merged;
+  }
+}
+
+/** Vertex-coloured toon on the shared wind as grass, reading `flex` (rigid parts at 0 never move). */
+export function swayPlantMaterial() {
+  const m = new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: gradientMap() });
+  return windSway(m, { mode: "grass", flex: true });
+}
+
+/** Adds a constant `flex` attribute (0 = pinned: never moves) so a rigid geometry can merge with cloth. */
+export function withFlex(geo: THREE.BufferGeometry, value = 0) {
+  const n = geo.getAttribute("position").count;
+  geo.setAttribute("flex", new THREE.BufferAttribute(new Float32Array(n).fill(value), 1));
+  return geo;
+}
+
+/**
+ * Vertex-coloured, double-sided toon cloth on the shared wind (`flex` attribute required; owner disposes it).
+ * No painted blotches: they are world-space and would slide over moving cloth. `map` for woven designs.
+ */
+export function clothMaterial(amp = 1, map: THREE.Texture | null = null) {
+  const m = new THREE.MeshToonMaterial({
+    color: "#ffffff",
+    vertexColors: !map,
+    map,
+    gradientMap: gradientMap(),
+    side: THREE.DoubleSide,
+  });
+  return paintStrength(windSway(m, { mode: "cloth", flex: true, amp }), 0);
+}
+
+/**
+ * The world wind turned into an object's local xz frame (static objects: cache the yaw). Writes (x, z, speed);
+ * x/z are the local direction × speed (wind.ts `liveWind.sample`).
+ */
+export function localWind(obj: THREE.Object3D, out = { x: 0, z: 0, speed: 0, gust: 0 }) {
+  obj.getWorldPosition(_wp);
+  obj.getWorldQuaternion(_wq);
+  const w = liveWind.sample(_wp.x, _wp.z);
+  _wv.set(w.x, 0, w.z).applyQuaternion(_wq.invert());
+  out.x = _wv.x;
+  out.z = _wv.z;
+  out.speed = w.speed;
+  out.gust = w.gust;
+  return out;
+}
+const _wp = new THREE.Vector3();
+const _wq = new THREE.Quaternion();
+const _wv = new THREE.Vector3();
+
 /** Torch: post + bowl + flame. Flame lights at night (flicker), embers by day. */
 export interface Torch {
   group: THREE.Group;
@@ -493,6 +647,11 @@ export function makeTorch(env: WorldEnv, height = 1.6, seed = 1): Torch {
   let night = false;
   const r = rng(seed);
   const ph = r() * 10;
+  // The flame leans downwind (the shared wind in the torch's own frame, eased so gusts read as a lean).
+  const wind = { x: 0, z: 0, speed: 0, gust: 0 };
+  const lean = { x: 0, z: 0 };
+  // Spin about its own axis first, then lean (so the spin never wobbles the lean).
+  flame.rotation.order = core.rotation.order = "XZY";
   return {
     group,
     set(n) {
@@ -504,6 +663,11 @@ export function makeTorch(env: WorldEnv, height = 1.6, seed = 1): Torch {
       const f = 1 + Math.sin(t * 13 + ph) * 0.08 + Math.sin(t * 23 + ph * 2) * 0.06;
       flame.scale.set(1, f, 1);
       flame.rotation.y = t * 2 + ph;
+      localWind(group, wind);
+      lean.x += (THREE.MathUtils.clamp(wind.z * 0.16, -0.35, 0.35) - lean.x) * 0.08;
+      lean.z += (THREE.MathUtils.clamp(-wind.x * 0.16, -0.35, 0.35) - lean.z) * 0.08;
+      flame.rotation.x = core.rotation.x = lean.x;
+      flame.rotation.z = core.rotation.z = lean.z;
       (glow.material as THREE.SpriteMaterial).opacity = 0.62 + (f - 1) * 1.6;
     },
     dispose() {

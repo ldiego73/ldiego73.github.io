@@ -11,6 +11,7 @@ import * as THREE from "three";
 import type { CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { mergeColored, vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { roadSide } from "../plan";
 import { foxHours, seenWithin } from "./wild/logic";
@@ -67,7 +68,8 @@ export const create: CreateAmbient = (baseEnv) => {
   // A loop on the plateau north of the road, west of the colcas.
   const loop = [0.3, 0.33, 0.36, 0.39, 0.36, 0.33].map((t, i) => roadSide(t, 1, i < 3 ? 22 : 38));
   const g = foxGeo();
-  const mat = vertexToon();
+  // Moving bodies take no painted blotches (they would slide over them).
+  const mat = paintStrength(vertexToon(), 0);
   const body = new THREE.InstancedMesh(g.body, mat, 1);
   const legs = new THREE.InstancedMesh(g.leg, mat, 4);
   body.name = "colca-zorro";

@@ -5,12 +5,14 @@
  * (./scenery/terraces.ts) and the ring of mountains with the Cordillera Real (./scenery/backdrop.ts).
  *
  * Draw calls: terrain, road, lake + far lake, reeds, ichu, rocks, walls, terraces, mountains: ten (plus the ink
- * pass). The water and the reeds move in their shaders (time uniform; still with prefers-reduced-motion).
+ * pass). The reeds and the ichu ride the shared wind (../style-gl.ts `windSway`); the water moves in its own
+ * shader (time uniform, still with prefers-reduced-motion) and reads the same wind for its gust patches.
  * The sun's direction for the water's glints is read from the sky's key light (its one directional light).
  *
- * Thin air at 3800 m: after the shared sky (../sky.ts) paints its dome each frame, the daytime zenith is
- * deepened toward the altiplano's intense blue and the horizon cleared a little (faded out at night). Only this
- * world's page does it, on the dome's own colour uniforms; the sky module is unchanged.
+ * Thin air at 3800 m: the style profile (../style.ts `STYLES.titicaca`) already leans the day zenith to the
+ * altiplano's deep blue and saturates the dome; after the shared sky (../sky.ts) paints it each frame, this
+ * page only clears the horizon toward a crisp pale blue (faded out at night), so the band under the
+ * Cordillera reads as clean high-altitude air rather than haze. The sky module is unchanged.
  */
 import * as THREE from "three";
 import type { Quality } from "../engine";
@@ -51,8 +53,7 @@ export function createTiticacaScenery(layout: TiticacaLayout, toon: ToonCache, q
   const sun = new THREE.Vector3(0, 1, 0);
   const sky = new THREE.Color("#cfe2f4");
   const zenith = new THREE.Color("#7fb2e6");
-  const ALTI_TOP = new THREE.Color("#1f63c9");
-  const ALTI_HORIZON = new THREE.Color("#a7cdf2");
+  const ALTI_HORIZON = new THREE.Color("#a9d2f5");
   return {
     group,
     update(_dt, time, env: SuyuEnv) {
@@ -64,16 +65,11 @@ export function createTiticacaScenery(layout: TiticacaLayout, toon: ToonCache, q
           if (!dome && u?.uTop && u.uHorizon) dome = u as unknown as typeof dome;
         });
       if (light) sun.subVectors(light.position, light.target.position).normalize();
-      if (dome) {
-        const day = 1 - night;
-        dome.uTop.value.lerp(ALTI_TOP, 0.5 * day);
-        dome.uHorizon.value.lerp(ALTI_HORIZON, 0.35 * day);
-      }
+      if (dome) dome.uHorizon.value.lerp(ALTI_HORIZON, 0.4 * (1 - night));
       // The water mirrors the sky: its horizon, a little toward the zenith.
       if (dome) sky.copy(dome.uHorizon.value).lerp(dome.uTop.value, 0.3);
       else sky.copy(zenith);
       lake.update(time, sky, sun, motion);
-      reeds.update(time, motion);
     },
     setNight(n) {
       night = n;

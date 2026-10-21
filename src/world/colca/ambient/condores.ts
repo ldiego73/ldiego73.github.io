@@ -12,6 +12,10 @@
  *    east of the Cruz del Cóndor, wings folded, heads turning; in the early morning one of each pair opens
  *    its wings to the sun. They stay there day and night (condors roost on the canyon's rocks).
  *
+ * Updrafts: each flying bird rides the shared wind's gust fronts (../../wind.ts liveWind, the same fronts that
+ * wave the ichu and the flags): a front passing under its circle lifts it a couple of units, smoothly, and it
+ * sinks back as the front goes by.
+ *
  * Passport: a good look (a condor within 45 u of the traveler, by day) stamps `colca:fauna:condor`.
  * Rendering: ./condores/model.ts, three instanced draw calls for every bird (flying and perched), plus one
  * merged mesh for the two perch rocks. Flying bodies are registered in creatures (never solid).
@@ -24,6 +28,7 @@ import { creatures } from "../../creatures";
 import { emit } from "../../events";
 import { vertexToon } from "../../merge-colors";
 import type { SuyuEnv } from "../../suyu/contract";
+import { liveWind } from "../../wind";
 import { VKit } from "../kit";
 import type { ColcaLayout } from "../layout";
 import { CANYON, rimZ } from "../plan";
@@ -57,6 +62,9 @@ export const create: CreateAmbient = (baseEnv) => {
   // Each bird blends toward its current thermal (smoothly, when the morning moves two of them).
   const cur: Thermal[] = Array.from({ length: n }, (_, i) => ({ ...thermalFor(i, 0.4, layout.cruz.x, n) }));
   const rimY = CANYON.rimY;
+  /** Each bird's current updraft lift (u), eased toward the gust under it; UPDRAFT u at a full front. */
+  const lift = new Float32Array(n);
+  const UPDRAFT = 2.6;
   let clock = Math.random() * 500;
   let stamped = false;
 
@@ -156,7 +164,9 @@ export const create: CreateAmbient = (baseEnv) => {
         }
         const p = pass?.i === i ? passAt(pass.a, pass.over, pass.b, (clock - pass.start) / pass.dur) : pose(i);
         const z = rimZ(p.x) + p.s;
-        const y = rimY + p.y;
+        const g = liveWind.sample(p.x, z).gust;
+        lift[i] = (lift[i] as number) + (g * UPDRAFT - (lift[i] as number)) * Math.min(1, dt * 0.7);
+        const y = rimY + p.y + (lift[i] as number);
         flock.set(i, { x: p.x, y, z, yaw: p.yaw, bank: p.bank, pitch: 0, wing: p.wing });
         if (body) {
           body.x = p.x;
