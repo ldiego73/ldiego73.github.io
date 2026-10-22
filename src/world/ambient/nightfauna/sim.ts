@@ -1,6 +1,6 @@
 /**
- * Pure helpers for the night fauna (no three.js): time-of-day presence, poses as flat vectors,
- * gait curves, angle math and ledge scoring. Unit-tested in sim.test.ts.
+ * Pure helpers for the night fauna (no three.js): time-of-day presence, angle math and ledge scoring
+ * (the gaits and postures are the shared animals' own, characters/animals). Unit-tested in sim.test.ts.
  */
 
 export const TAU = Math.PI * 2;
@@ -42,69 +42,6 @@ export function turnToward(from: number, to: number, maxStep: number) {
 
 /** Exponential approach factor for a rate (per second) and a frame dt. */
 export const ease = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
-
-// ---------------------------------------------------------------- poses
-/** Indices into a pose vector. Leg angles are pitch about X (positive swings the foot back). */
-export const P = {
-  drop: 0,
-  pitch: 1,
-  /** Upper/lower angles for front-left, front-right, hind-left, hind-right. */
-  legs: 2,
-  headLift: 10,
-  headPitch: 11,
-  tailPitch: 12,
-  tailCurl: 13,
-  size: 14,
-} as const;
-
-export type Pose = Float32Array;
-export const makePose = (vals: number[]): Pose => {
-  const p = new Float32Array(P.size);
-  p.set(vals.slice(0, P.size));
-  return p;
-};
-
-/** out = a + (b − a)·k (component-wise). */
-export function lerpPose(out: Pose, a: Pose, b: Pose, k: number): Pose {
-  for (let i = 0; i < P.size; i++) out[i] = a[i]! + (b[i]! - a[i]!) * k;
-  return out;
-}
-
-/** out += (b − out)·k (blend a posture in). */
-export function blendInto(out: Pose, b: Pose, k: number): Pose {
-  if (k <= 0) return out;
-  for (let i = 0; i < P.size; i++) out[i] = out[i]! + (b[i]! - out[i]!) * k;
-  return out;
-}
-
-/** Gait phase offsets (fraction of a cycle) per leg FL, FR, HL, HR. */
-export const WALK = [0.25, 0.75, 0, 0.5] as const;
-export const TROT = [0, 0.5, 0.5, 0] as const;
-
-/**
- * Add a gait to the leg angles: the upper leg swings ±swing, the lower bends during the forward swing
- * (when the foot travels forward, off the ground). `amp` 0..1 fades the gait in and out.
- */
-export function addGait(
-  out: Pose,
-  phase: number,
-  offsets: readonly number[],
-  amp: number,
-  swing: number,
-  bend: number,
-) {
-  if (amp <= 0) return out;
-  for (let k = 0; k < 4; k++) {
-    const a = (phase + offsets[k]!) * TAU;
-    const s = Math.sin(a);
-    // Foot forward (negative pitch) while cos > 0 = the recovery half: lift the paw by bending.
-    const lift = Math.max(0, Math.cos(a));
-    const hind = k >= 2;
-    out[P.legs + k * 2] = out[P.legs + k * 2]! - s * swing * amp;
-    out[P.legs + k * 2 + 1] = out[P.legs + k * 2 + 1]! + lift * bend * amp * (hind ? 0.9 : 1.15);
-  }
-  return out;
-}
 
 // ---------------------------------------------------------------- lookout scoring
 /**
