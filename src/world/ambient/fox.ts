@@ -5,26 +5,21 @@
  * the ground or sits for a moment. Closer than ~5 u it flees in a quick trot. Foxes left far behind are
  * moved ahead along the trail while unseen.
  *
- * Draw calls: 6 for the whole pool (2 foxes on high quality, 1 on low). Stamp `fauna:zorro` within 12 u.
+ * Rendering: the shared fox (characters/animals: one herd, a skinned instanced draw per LOD) driven from this sim
+ * (nightfauna/rig.ts) with eyeshine glints at night; 2 foxes on high quality, 1 on low. Stamp `fauna:zorro`
+ * within 12 u.
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../contract";
 import { creatures } from "../creatures";
 import { emit, on } from "../events";
-import { foxParts } from "./nightfauna/models";
-import { makeQuadState, QuadSet, type QuadState, rimToon, rng, TrailTracker, View } from "./nightfauna/rig";
-import { addGait, blendInto, ease, foxPresence, makePose, nightAmount, P, TROT, wrapAngle } from "./nightfauna/sim";
+import { makeQuadState, QuadSet, type QuadState, rng, TrailTracker, View } from "./nightfauna/rig";
+import { ease, foxPresence, nightAmount, wrapAngle } from "./nightfauna/sim";
 import { ground, settle, walkToward } from "./nightfauna/walk";
 
-const SCALE = 1.05;
 const FLEE_R = 5;
 const STAMP_R = 12;
 const HALF = 0.32;
-
-//                         drop  pitch  FLu   FLl   FRu   FRl   HLu    HLl   HRu    HRl  hLift hPitch tPitch tCurl
-const STAND = makePose([0, 0, 0.02, -0.02, 0.02, -0.02, -0.2, 0.36, -0.2, 0.36, 0, 0.12, -0.72, 0.1]);
-const SIT = makePose([0.09, -0.45, 0.45, 0, 0.45, 0, -0.75, 2.7, -0.75, 2.7, 0.03, 0.38, -0.55, 0.12]);
-const SNIFF = makePose([0.03, 0.12, -0.1, 0.1, -0.1, 0.1, -0.25, 0.4, -0.25, 0.4, -0.06, 0.85, -0.55, 0.15]);
 
 type State = "away" | "trot" | "pause" | "flee";
 type Act = "look" | "sniff" | "sit";
@@ -42,8 +37,6 @@ interface Fox {
   cool: number;
   sit: number;
   sniff: number;
-  amp: number;
-  phase: number;
   speed: number;
   unseen: number;
   /** Which side of the trail it is on (+1 / -1). */
@@ -57,12 +50,9 @@ export const create: CreateAmbient = (env): Ambient => {
   const R = rng(9127);
   const g = ground(env);
   const trail = env.trail;
-  const rim = rimToon("#a9b8ff");
-  const set = new QuadSet(env, foxParts(), n, "zorro", rim.material, SCALE, {
-    tailTip: "#262220",
-    tipFrom: 3,
-    eyeDark: "#2a1d10",
+  const set = new QuadSet(env, "fox", n, "zorro", {
     eyeGlow: "#f3e7a0",
+    eyes: { y: 0.4, z: 0.42, gap: 0.035 },
     shadow: high,
     body: { kind: "fox", r: 0.4, give: 1, ok: (x, z) => !g.water(x, z) && !creatures.inKeepOut(x, z) },
   });
@@ -79,7 +69,7 @@ export const create: CreateAmbient = (env): Ambient => {
   });
 
   const foxes: Fox[] = Array.from({ length: n }, (_, i) => ({
-    st: makeQuadState(makePose([])),
+    st: makeQuadState(),
     state: "away" as State,
     act: "look" as Act,
     tx: 0,
@@ -90,8 +80,6 @@ export const create: CreateAmbient = (env): Ambient => {
     cool: 2 + i * 9,
     sit: 0,
     sniff: 0,
-    amp: 0,
-    phase: R(),
     speed: 0,
     unseen: 0,
     side: 1,
@@ -185,7 +173,6 @@ export const create: CreateAmbient = (env): Ambient => {
       clock += dt;
       const time = env.sky.time();
       const nightK = nightAmount(time);
-      rim.rim.value = nightK;
       tracker.update(dt, avatar.x, avatar.z);
       view.update();
       camPos.copy(env.camera.position);
@@ -305,31 +292,18 @@ export const create: CreateAmbient = (env): Ambient => {
 
         const k = ease(5, dt);
         f.sit += (wantSit - f.sit) * k;
+        // Sniffing: the nose goes down to work along the ground (the species' head-down idle).
+        if (wantSniff > 0.5 && f.sniff < 0.1) set.play(i, "graze", 1.6);
         f.sniff += (wantSniff - f.sniff) * k;
         f.speed += (speed - f.speed) * ease(8, dt);
-        f.amp += ((f.speed > 0.05 ? 1 : 0) - f.amp) * ease(8, dt);
-        f.phase = (f.phase + (f.speed * dt) / (0.62 * SCALE)) % 1;
-        const pose = st.pose;
-        pose.set(STAND);
-        blendInto(pose, SIT, f.sit);
-        blendInto(pose, SNIFF, f.sniff);
-        const run = Math.min(1, Math.max(0, (f.speed - 2.5) / 2.5));
-        addGait(pose, f.phase, TROT, f.amp, (0.5 + run * 0.2) * (rm ? 0.7 : 1), 0.8);
-        // Running: the tail streams out level, the head drops a little.
-        pose[P.tailPitch] = pose[P.tailPitch]! + run * 0.45;
-        pose[P.headPitch] = pose[P.headPitch]! + run * 0.15;
-        // Sniffing: the nose works along the ground.
-        if (f.sniff > 0.1) pose[P.headPitch] = pose[P.headPitch]! + Math.sin(clock * 7) * 0.06 * f.sniff * mot;
+        st.speed = f.speed;
+        st.mode = f.sit > 0.5 ? "sit" : "auto";
         const rel = lookTarget !== null ? Math.max(-1.5, Math.min(1.5, wrapAngle(lookTarget - st.yaw))) : 0;
         st.headYaw += (rel - st.headYaw) * ease(rm ? 3 : 6, dt);
-        st.tailYaw = f.sit * 1.1 + Math.sin(clock * (1.2 + f.amp * 4) + i) * (0.08 + f.amp * 0.06) * mot;
-        st.breathe = Math.sin(clock * 2.6 + i * 2) * 0.012 * mot;
-        // Trot bob.
         settle(st, g, dt, HALF);
-        st.y += Math.abs(Math.sin(f.phase * Math.PI * 2)) * 0.02 * f.amp * mot;
         st.slope *= 1 - f.sit * 0.5;
 
-        set.draw(i, st);
+        set.draw(i, st, rm);
 
         const hp = set.headPos[i]!;
         toCam.subVectors(camPos, hp);
@@ -347,13 +321,12 @@ export const create: CreateAmbient = (env): Ambient => {
           });
         }
       }
-      set.flush();
+      set.flush(dt, clock, env.camera);
     },
     dispose() {
       offInterior();
       offMount();
       set.dispose(env.scene);
-      rim.dispose();
       if (import.meta.env?.DEV) {
         const w = window as unknown as { __foxes?: unknown; __foxPlace?: unknown };
         delete w.__foxes;

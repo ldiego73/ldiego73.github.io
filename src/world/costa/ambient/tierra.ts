@@ -301,6 +301,12 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     return n * (CYC - HOLD) + c - Math.min(Math.max(c - DIVE.glide, 0), HOLD);
   };
 
+  // Dev hook (screenshots): where the lizards bask.
+  if (import.meta.env?.DEV)
+    (window as Window & { __costaFauna?: unknown }).__costaFauna = {
+      lizards: () => lizards.map((l) => ({ x: l.hx, z: l.hz })),
+    };
+
   // ------------------------------------------------------------------ frame
   const near = (x: number, z: number, r = VIEW) => Math.hypot(x - cam.x, z - cam.z) < r;
   return {
@@ -471,6 +477,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       }
     },
     dispose() {
+      if (import.meta.env?.DEV) delete (window as Window & { __costaFauna?: unknown }).__costaFauna;
       for (const g of groups) {
         for (const a of g.list) creatures.remove(a.body);
         g.herd?.dispose();

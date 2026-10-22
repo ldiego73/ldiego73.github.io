@@ -334,6 +334,20 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     }
   };
 
+  // Dev hook (screenshots): where everyone is and what they are doing.
+  if (import.meta.env?.DEV)
+    (window as Window & { __costaPeople?: unknown }).__costaPeople = () =>
+      people.map((w) => ({
+        role: w.role,
+        x: w.p.x,
+        z: w.p.z,
+        yaw: w.p.yaw,
+        active: w.p.active,
+        drawn: w.drawn,
+        lod: w.p.member.lod,
+        action: w.p.anim.action,
+      }));
+
   return {
     update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
@@ -500,6 +514,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       shared.frame(env.camera);
     },
     dispose() {
+      if (import.meta.env?.DEV) delete (window as Window & { __costaPeople?: unknown }).__costaPeople;
       for (const w of people) w.p.dispose();
       shared.release();
       boards.removeFromParent();

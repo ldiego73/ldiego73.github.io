@@ -5,8 +5,9 @@
  * one crosses the path ahead at a distance. They arrive at dusk (walking in to their lookout, never popping
  * in view) and leave at dawn the same way; a lookout left far behind is moved ahead while unseen.
  *
- * Night read: rim-lit toon (moonlight fresnel, see nightfauna/rig.ts), eyeshine when facing the camera.
- * Draw calls: 6 (body, head, upper legs, lower legs, tail segments, eyes) for the whole pool.
+ * Rendering: the shared puma (characters/animals, one herd: a skinned instanced draw per LOD for the pool), its
+ * gait, sitting and idles driven from this sim (nightfauna/rig.ts), plus eyeshine glints when the head faces
+ * the camera at night (one Points draw).
  * Stamp `fauna:puma` when one is in view within ~18 u (the cat leaves at 14 u, so the stamp radius is
  * a little wider than the 12 u used by the other animals).
  */
@@ -14,34 +15,14 @@ import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../contract";
 import { creatures } from "../creatures";
 import { emit, on } from "../events";
-import { pumaParts } from "./nightfauna/models";
-import { makeQuadState, QuadSet, type QuadState, rimToon, rng, TrailTracker, View } from "./nightfauna/rig";
-import {
-  addGait,
-  blendInto,
-  ease,
-  lookoutScore,
-  makePose,
-  nightAmount,
-  P,
-  TAU,
-  turnToward,
-  WALK,
-  wrapAngle,
-} from "./nightfauna/sim";
+import { makeQuadState, QuadSet, type QuadState, rng, TrailTracker, View } from "./nightfauna/rig";
+import { ease, lookoutScore, nightAmount, turnToward, wrapAngle } from "./nightfauna/sim";
 import { ground, settle, walkToward } from "./nightfauna/walk";
 
-const SCALE = 1.1;
 const ALERT_R = 14;
 const STAMP_R = 18;
 /** Half body length in world units (slope sampling, water look-ahead). */
 const HALF = 0.85;
-
-//                         drop  pitch  FLu   FLl   FRu   FRl   HLu    HLl   HRu    HRl  hLift hPitch tPitch tCurl
-const STAND = makePose([0, 0, 0.02, -0.02, 0.02, -0.02, -0.25, 0.45, -0.25, 0.45, 0, 0.12, -1.15, 0.3]);
-const SIT = makePose([0.14, -0.38, 0.38, 0, 0.38, 0, -0.82, 2.7, -0.82, 2.7, 0.05, 0.3, -0.75, 0.18]);
-const LIE = makePose([0.28, 0, -1.0, -0.45, -1.0, -0.45, -1.25, 2.75, -1.25, 2.75, 0.13, -0.05, -1.3, 0.12]);
-const CROUCH = makePose([0.1, 0.04, -0.22, 0.42, -0.22, 0.42, -0.45, 0.78, -0.45, 0.78, -0.07, 0.28, -0.85, 0.12]);
 
 type State = "away" | "arrive" | "watch" | "alert" | "slink" | "cross";
 interface Cat {
@@ -61,13 +42,9 @@ interface Cat {
   /** Posture weights (eased). */
   sit: number;
   lie: number;
-  crouch: number;
-  amp: number;
-  phase: number;
   speed: number;
   look: number;
   lookT: number;
-  flick: number;
   unseen: number;
   walked: number;
 }
@@ -79,12 +56,9 @@ export const create: CreateAmbient = (env): Ambient => {
   const R = rng(4411);
   const g = ground(env);
   const trail = env.trail;
-  const rim = rimToon("#a9b8ff");
-  const set = new QuadSet(env, pumaParts(), n, "puma", rim.material, SCALE, {
-    tailTip: "#3a332e",
-    tipFrom: 4,
-    eyeDark: "#3a2a12",
+  const set = new QuadSet(env, "puma", n, "puma", {
     eyeGlow: "#e8f7a8",
+    eyes: { y: 0.62, z: 0.66, gap: 0.05 },
     shadow: high,
     // A big cat holds its ground: it yields little when pressed (the traveler slides around it).
     body: { kind: "puma", r: 0.62, give: 0.3, ok: (x, z) => !g.water(x, z) },
@@ -98,7 +72,7 @@ export const create: CreateAmbient = (env): Ambient => {
   });
 
   const cats: Cat[] = Array.from({ length: n }, (_, i) => ({
-    st: makeQuadState(makePose([])),
+    st: makeQuadState(),
     state: "away" as State,
     sx: 0,
     sz: 0,
@@ -111,13 +85,9 @@ export const create: CreateAmbient = (env): Ambient => {
     rest: "lie" as const,
     sit: 0,
     lie: 0,
-    crouch: 0,
-    amp: 0,
-    phase: R(),
     speed: 0,
     look: 0,
     lookT: 0,
-    flick: 2,
     unseen: 0,
     walked: 0,
   }));
@@ -225,7 +195,6 @@ export const create: CreateAmbient = (env): Ambient => {
           c.sx = c.fx = tp.x;
           c.sz = c.fz = tp.z;
           c.sit = c.lie = 0;
-          c.crouch = 0.3;
           return true;
         }
       }
@@ -245,7 +214,6 @@ export const create: CreateAmbient = (env): Ambient => {
     c.state = "arrive";
     c.rest = R() < 0.55 ? "lie" : "sit";
     c.sit = c.lie = 0;
-    c.crouch = 0;
     return true;
   };
 
@@ -307,7 +275,6 @@ export const create: CreateAmbient = (env): Ambient => {
       clock += dt;
       const time = env.sky.time();
       const nightK = nightAmount(time);
-      rim.rim.value = nightK;
       const night = env.sky.isNight();
       tracker.update(dt, avatar.x, avatar.z);
       view.update();
@@ -342,14 +309,12 @@ export const create: CreateAmbient = (env): Ambient => {
         let speed = 0;
         let wantSit = 0;
         let wantLie = 0;
-        let wantCrouch = 0;
         let lookTarget: number | null = null;
 
         const frozen = import.meta.env?.DEV ? (window as unknown as { __nfFreeze?: string }).__nfFreeze : undefined;
         if (frozen) {
           wantSit = frozen === "sit" ? 1 : 0;
           wantLie = frozen === "lie" ? 1 : 0;
-          wantCrouch = frozen === "crouch" ? 1 : 0;
           speed = frozen === "walk" ? 1.3 : 0;
           if (speed) st.yaw += dt * 0.3;
         } else
@@ -388,7 +353,6 @@ export const create: CreateAmbient = (env): Ambient => {
             }
             case "slink": {
               speed = (d < 9 ? 3.4 : 2.3) * mot;
-              wantCrouch = 1;
               const left = walkToward(st, g, c.tx, c.tz, speed, 2.2, dt, HALF);
               c.walked += speed * dt;
               if (c.unseen > 1.2 && (night ? d > 18 : true)) goAway(c, night ? 8 + R() * 10 : 1 + i * 6);
@@ -405,7 +369,6 @@ export const create: CreateAmbient = (env): Ambient => {
             case "cross": {
               // Crossing the path well ahead; if the traveler closes in, stop and look, then slip away.
               speed = 2.3 * mot;
-              wantCrouch = 0.3;
               if (d < ALERT_R) {
                 c.state = "alert";
                 c.timer = 0.6;
@@ -427,20 +390,14 @@ export const create: CreateAmbient = (env): Ambient => {
           continue;
         }
 
-        // Postures and gait.
+        // Postures (sitting or lying at a lookout) and speed: the species animator does the gait and idles.
         const k = ease(3, dt);
         c.sit += (wantSit - c.sit) * k;
         c.lie += (wantLie - c.lie) * k;
-        c.crouch += (wantCrouch - c.crouch) * k;
         c.speed += (speed - c.speed) * ease(6, dt);
-        c.amp += ((c.speed > 0.05 ? 1 : 0) - c.amp) * ease(6, dt);
-        c.phase = (c.phase + (c.speed * dt) / (1.25 * SCALE)) % 1;
-        const pose = st.pose;
-        pose.set(STAND);
-        blendInto(pose, CROUCH, c.crouch);
-        blendInto(pose, SIT, c.sit);
-        blendInto(pose, LIE, c.lie);
-        addGait(pose, c.phase, WALK, c.amp, 0.42 * (rm ? 0.7 : 1), 0.65);
+        st.speed = c.speed;
+        // Lying at a lookout reads as a low sit (the head stays up, eyes open).
+        st.mode = c.sit + c.lie > 0.5 ? "sit" : "auto";
         // Head: track the traveler (clamped), otherwise scan slowly.
         c.lookT -= dt;
         if (lookTarget === null && c.lookT <= 0) {
@@ -449,19 +406,11 @@ export const create: CreateAmbient = (env): Ambient => {
         }
         const rel = lookTarget !== null ? Math.max(-1.2, Math.min(1.2, wrapAngle(lookTarget - st.yaw))) : c.look;
         st.headYaw += (rel - st.headYaw) * ease(rm ? 2 : 4, dt);
-        // Tail: slow sway, and the occasional flick of the tip while resting.
-        c.flick -= dt;
-        if (c.flick < 0) c.flick = 3 + R() * 5;
-        const flick = c.flick < 0.6 ? Math.sin((c.flick / 0.6) * TAU) * 0.5 : 0;
-        const restSway = (c.sit + c.lie) * 0.9;
-        st.tailYaw = restSway + Math.sin(clock * 0.9 + i) * 0.12 * mot + flick * mot;
-        pose[P.tailCurl] = pose[P.tailCurl]! + Math.abs(flick) * 0.2;
-        st.breathe = Math.sin(clock * 1.7 + i * 2) * 0.012 * mot;
         settle(st, g, dt, HALF);
-        // Lying down flattens the slope a bit (the cat sits on its tread).
+        // Resting flattens the slope a bit (the cat sits on its tread).
         st.slope *= 1 - (c.sit + c.lie) * 0.5;
 
-        set.draw(i, st);
+        set.draw(i, st, rm);
 
         // Eyeshine: at night, when the head faces the camera.
         const hp = set.headPos[i]!;
@@ -477,12 +426,11 @@ export const create: CreateAmbient = (env): Ambient => {
           emit("world:stamp", { id: "fauna:puma", kind: "fauna", label: { es: "Puma", en: "Puma" } });
         }
       }
-      set.flush();
+      set.flush(dt, clock, env.camera);
     },
     dispose() {
       offInterior();
       set.dispose(env.scene);
-      rim.dispose();
       if (import.meta.env?.DEV) {
         const w = window as unknown as { __pumas?: unknown; __pumaPlace?: unknown };
         delete w.__pumas;

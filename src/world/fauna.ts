@@ -966,7 +966,8 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     c.body.z = z;
     c.look = rm ? 0 : Math.sin(time * 0.4 + c.seed) * 0.3;
     // Soaring on the thermal (the animator's soarer style: soar, glide in the swoops, flap out of them).
-    rC.set(c.id, x, y, z, yaw, {
+    // The animal's origin is at its feet: the body (the old flight point) rides ~0.64 u above them.
+    rC.set(c.id, x, y - 0.64, z, yaw, {
       speed: v,
       rm,
       look: c.look,

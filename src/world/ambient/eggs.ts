@@ -14,7 +14,9 @@ import type { Ambient, CreateAmbient, L } from "../contract";
 import { type Body, creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
-import { createEggKit, type Vizcacha } from "./eggs/models";
+import { createHerd } from "../characters/animals/crowd";
+import { noPaint } from "../style-gl";
+import { createEggKit } from "./eggs/models";
 import { khipuNiche, type Nook, type PlaceEnv, vizcachaNooks } from "./eggs/placement";
 
 const GREET = 2.5;
@@ -52,8 +54,16 @@ const PANEL = {
   close: { es: "Cerrar", en: "Close" },
 };
 
+/** Where a hidden vizcacha sits (its feet) and faces. */
+interface Spot {
+  position: THREE.Vector3;
+  yaw: number;
+}
+
 interface Egg {
-  v: Vizcacha;
+  v: Spot;
+  /** Instance in the vizcacha herd renderer. */
+  id: number;
   /** Shared collision body (kind "vizcacha"): solid while it's up, not while it ducks into the burrow. */
   body: Body;
   nook: Nook;
@@ -85,22 +95,28 @@ export const create: CreateAmbient = (env, hudRoot) => {
 
   // ---------------------------------------------------------------- vizcachas
   const nooks = vizcachaNooks(placeEnv);
+  // The shared vizcacha (characters/animals): the five are one herd, one instanced draw per LOD.
+  const herd = createHerd("vizcacha", { max: Math.max(1, nooks.length) });
+  herd.group.name = "egg-vizcachas";
+  herd.group.traverse((o) => {
+    // They pop up and turn: no world-space painted blotches sliding over the coat (style-gl.ts).
+    if ((o as THREE.Mesh).isMesh) noPaint(o as THREE.Mesh);
+  });
+  root.add(herd.group);
   const eggs: Egg[] = nooks.map((nook, i) => {
-    const v = kit.vizcacha(i);
-    v.group.position.set(nook.x, nook.y, nook.z);
     // Mostly facing the path, a little askew so they read as animals, not props.
-    v.group.rotation.y = nook.yaw + (i % 2 ? 0.5 : -0.4);
-    root.add(v.group);
+    const v: Spot = { position: new THREE.Vector3(nook.x, nook.y, nook.z), yaw: nook.yaw + (i % 2 ? 0.5 : -0.4) };
     if (i === 0) {
       // The first one hides behind a few boulders (between it and the trail).
       const r = kit.rocks(97);
-      r.position.copy(v.group.position);
+      r.position.copy(v.position);
       r.position.y -= 0.1;
       r.rotation.y = nook.yaw;
       root.add(r);
     }
     const body = creatures.add("vizcacha", 0.3, { give: 0, x: nook.x, z: nook.z });
-    return { v, nook, body, hide: 0, greeted: false, hop: 0, look: 0, dist: Infinity };
+    const id = herd.add({ seed: 31 + i * 7 });
+    return { v, id, nook, body, hide: 0, greeted: false, hop: 0, look: 0, dist: Infinity };
   });
 
   // Squeak bubble (one shared sprite).
@@ -217,7 +233,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
       target = null;
       let best = GREET;
       for (const e of eggs) {
-        const g = e.v.group.position;
+        const g = e.v.position;
         const dx = avatar.x - g.x;
         const dz = avatar.z - g.z;
         e.dist = Math.hypot(dx, dz);
@@ -232,21 +248,25 @@ export const create: CreateAmbient = (env, hudRoot) => {
         e.hide = rm ? want : e.hide + (want - e.hide) * (1 - Math.exp(-dt * rate));
         e.hop = Math.max(0, e.hop - dt * 1.8);
         const hopY = rm ? 0 : Math.sin(e.hop * Math.PI * 2) * 0.12 * e.hop;
-        e.v.body.position.y = -0.46 * e.hide + Math.max(0, hopY);
         e.body.solid = e.hide < 0.5;
         // Head follows the traveler when close; otherwise a slow idle glance.
         let lookT = Math.sin(t * 0.6 + e.nook.x) * 0.4;
         if (e.dist < 9) {
-          let rel = Math.atan2(dx, dz) - e.v.group.rotation.y;
+          let rel = Math.atan2(dx, dz) - e.v.yaw;
           while (rel > Math.PI) rel -= Math.PI * 2;
           while (rel < -Math.PI) rel += Math.PI * 2;
           lookT = THREE.MathUtils.clamp(rel, -1, 1);
         }
         e.look += (lookT - e.look) * (1 - Math.exp(-dt * 4));
-        e.v.head.rotation.y = e.look;
-        e.v.head.rotation.x = rm ? 0 : Math.sin(t * 3 + e.nook.z) * 0.04;
-        e.v.tail.rotation.x = rm ? 0 : Math.sin(t * 1.4 + e.nook.x) * 0.12 + e.hop * 0.4;
+        // Sinks into the burrow when hiding (crouched), pops up with a hop when greeted.
+        herd.set(e.id, g.x, g.y - 0.46 * e.hide + Math.max(0, hopY), g.z, e.v.yaw, {
+          speed: 0,
+          mode: e.hide > 0.6 ? "sit" : "auto",
+          look: e.look,
+          rm,
+        });
       }
+      herd.update(dt, t, env.camera);
 
       // Squeak bubble: rises and fades above the greeted vizcacha.
       if (bubbleT > 0) {
@@ -296,7 +316,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
         const n = eggs.indexOf(e) + 1;
         e.greeted = true;
         e.hop = 1;
-        bubbleAt.copy(e.v.group.position);
+        bubbleAt.copy(e.v.position);
         bubbleT = 1.8;
         bubble.visible = true;
         emit("world:stamp", { id: `egg:vizcacha-${n}`, kind: "egg", label: VIZ_LABEL(n) });
@@ -324,6 +344,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
       panel.removeEventListener("keydown", onPanelKey);
       layer.remove();
       root.removeFromParent();
+      herd.dispose();
       kit.dispose();
     },
   };
