@@ -1,3 +1,21 @@
+/**
+ * Sajinos (collared peccaries, Pecari tajacu): a small herd that crosses the road ahead of the traveler.
+ * Every so often (the first time after ~20 s of walking the road, then every minute or so; less often once
+ * the passport has the stamp) a herd trots out of the undergrowth ≈ 25–35 u ahead, on a quiet stretch away
+ * from the stations and the canopy walkway, and crosses in single file: the leader picks the way, the others
+ * walk exactly in its tracks one body length apart (wild/crossing.ts Trail). They snuffle as they go, heads
+ * low and nodding, and now and then the leader stops to root at the verge and the file bunches up behind it.
+ * On the far side they melt into the forest. By day and in the twilight; not in deep night.
+ * Running at them (within ≈ 16 u) or walking right up (≈ 6 u) breaks the file: every peccary bolts at a
+ * gallop for the nearest side of the road and is gone. With reduced motion they trot slower, never stop to
+ * root, and scatter at a canter instead of a gallop.
+ *
+ * Rendering: the shared animal core (species "sajino", wild/beasts.ts): one instanced herd, its gaits from
+ * the speed (walk, trot, a gallop when they bolt), this year's young drawn smaller; a stop to root plays
+ * "graze". 1 draw per LOD in use while a herd is out, 0 otherwise.
+ * Bodies ("sajino"): solid while out (give 0.5), parked while away.
+ * Stamp `selva:fauna:sajino` after a ~1.5 s good look within 30 u while one is on the road.
+ */
 import { loadPassport } from "../../../lib/passport";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, park } from "../../creatures";
@@ -18,6 +36,7 @@ interface Pig {
   speed: number;
   /** Set once it has stopped to root (the "graze" idle plays once per stop). */
   rooted: boolean;
+  scale: number;
   headYaw: number;
   /** Bolt target (the nearest forest edge) and whether it is gone from view. */
   tx: number;
@@ -53,6 +72,8 @@ export const create: CreateAmbient = (env0): Ambient => {
       yaw: 0,
       speed: 0,
       rooted: false,
+      // The last ones are this year's young, smaller.
+      scale: i >= n - (high ? 2 : 1) ? 0.78 + R() * 0.06 : 1.05 + R() * 0.1,
       headYaw: 0,
       tx: 0,
       tz: 0,
@@ -284,11 +305,19 @@ export const create: CreateAmbient = (env0): Ambient => {
             p.rooted = true;
           } else if (!still) p.rooted = false;
           if (inside || spot.view.dist(p.x, p.y, p.z) > FAUNA_FAR) continue;
-          set.put(i, p.x, p.y, p.z, p.yaw, {
-            speed: p.speed,
-            rm,
-            look: state === "file" && d < 14 ? p.headYaw : undefined,
-          });
+          set.put(
+            i,
+            p.x,
+            p.y,
+            p.z,
+            p.yaw,
+            {
+              speed: p.speed,
+              rm,
+              look: state === "file" && d < 14 ? p.headYaw : undefined,
+            },
+            { scale: p.scale },
+          );
           if (L.trailQuery(p.x, p.z).d < 5) spot.see(p.x, p.y + 0.4, p.z, avatar.x, avatar.z, 0.7);
         }
       }

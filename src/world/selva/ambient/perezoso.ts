@@ -8,9 +8,9 @@
  *
  * The cecropias are brought by this module (wild/trees.ts) so the sloth hangs from a real branch: one static
  * merged mesh per site, drawn only within ~170 u of the camera (wild/kit.ts SiteProps). Rendering: the near
- * site's tree + the sloths on the shared animal core (species "sloth", one skinned animal each, wild/beasts.ts
- * solo: the "hang" mode turns it upside down under the limb, the group pitches it along the limb) → 1 draw
- * call per sloth in view plus the tree. Bodies ("perezoso"): listed for queries, never solid (up in the tree).
+ * site's tree + the sloths as one instanced herd on the shared animal core (species "sloth", wild/beasts.ts:
+ * the "hang" mode turns it upside down under the limb, the herd pose pitches it along the limb) → 1–2 draw
+ * calls. Bodies ("perezoso"): listed for queries, never solid (up in the tree).
  * Stamp `selva:fauna:perezoso` after a ~1.5 s good look within 14 u.
  */
 import type { Ambient, CreateAmbient } from "../../contract";
@@ -110,7 +110,7 @@ export const create: CreateAmbient = (env0): Ambient => {
   );
   if (high) plant(0.66, 0.7, 1, 7.5, 10, () => 3.8, 4.8);
 
-  const set = createBeasts(env, "sloth", sloths.length, { solo: true });
+  const set = createBeasts(env, "sloth", sloths.length, { scale: SCALE });
   const root = set.group;
   root.add(props.group);
   env.scene.add(root);

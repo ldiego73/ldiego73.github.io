@@ -11,12 +11,12 @@
  * roost away at night.
  *
  * Bars come from the scenery's placement plan (wild/kit.ts `sandbars`), so the animals stand on the sand the
- * scenery draws. Rendering: the shared animal core (wild/beasts.ts): the adult capybaras as one instanced herd
- * (species "capybara": walk from the speed, "graze", lying down to rest as "sleep", the "swim" mode paddling),
- * the pups as a second herd drawn at half size, the egrets as a flock (species
- * "heron", white "egret" coat: the flight state machine flaps, glides and lands from the world's flight
- * path, a stab at a fish is the "graze" peck) and a ripple pool. Bodies ("ronsoco", "garza"): capybaras solid on the sand (moderate
- * give), not solid while swimming; egrets never solid.
+ * scenery draws. Rendering: the shared animal core (wild/beasts.ts): the capybara family as one instanced herd
+ * (species "capybara", each at its own size, the pups about half: walk from the speed, "graze", lying down to
+ * rest as "sleep", the "swim" mode paddling), the egrets as a flock (species "heron", white "egret" coat: the
+ * flight state machine flaps, glides and lands from the world's flight path, a stab at a fish is the "graze"
+ * peck) and a ripple pool. Bodies ("ronsoco", "garza"): capybaras solid on the sand (moderate give), not solid
+ * while swimming; egrets never solid.
  * Stamp `selva:fauna:ronsoco` after a ~1.5 s good look within 36 u (the bars lie across the water from the
  * landings; from the canoe they are much closer).
  */
@@ -206,17 +206,16 @@ export const create: CreateAmbient = (env0): Ambient => {
     e.timer = 1 + R() * 3;
   }
 
-  let na = 0;
-  let np = 0;
-  for (const c of capys) c.k = c.pup ? np++ : na++;
-  const capySet = createBeasts(env, "capybara", na);
-  // The pups: a second herd drawn at about half size (a herd has no per-animal scale).
-  const pupSet = createBeasts(env, "capybara", np, { scale: 0.54 });
+  capys.forEach((c, i) => {
+    c.k = i;
+  });
+  // The whole family in one herd, each at its own size (the pups about half).
+  const capySet = createBeasts(env, "capybara", capys.length);
   const egretSet = createBeasts(env, "heron", egrets.length, { variants: ["egret"], shadows: false });
   const ripples = new Ripples(env, "selva-fauna-ronsoco-ripples", high ? 14 : 8, lv, 1.8);
   const root = new THREE.Group();
   root.name = "selva-fauna-ronsoco";
-  root.add(capySet.group, pupSet.group, egretSet.group, ripples.mesh);
+  root.add(capySet.group, egretSet.group, ripples.mesh);
   env.scene.add(root);
 
   const spot = new Spotter(env, "ronsoco", 36);
@@ -308,7 +307,6 @@ export const create: CreateAmbient = (env0): Ambient => {
 
       // ---- capybaras
       capySet.begin();
-      pupSet.begin();
       for (const c of capys) {
         const g = c.g;
         const bar = g.bar;
@@ -445,20 +443,27 @@ export const create: CreateAmbient = (env0): Ambient => {
 
         if (inside || spot.view.dist(c.x, c.y, c.z) > FAUNA_FAR) continue;
         // Pose: heads turned to a watched traveler, a mouthful of grass now and then, lying down to rest.
-        const set = c.pup ? pupSet : capySet;
+        const set = capySet;
         const relYaw = look ? Math.max(-1, Math.min(1, wrapAngle(toAv - c.yaw))) : 0;
         c.headYaw = damp(c.headYaw, relYaw, 3, dt);
         if (pitchT > 0.6 && c.speed < 0.2 && R() < dt * 0.5) set.play(c.k, "graze", 1.5 + R() * 2.5);
-        set.put(c.k, c.x, c.y, c.z, c.yaw, {
-          speed: c.speed,
-          rm,
-          mode: c.wet > 0.5 ? "swim" : c.rest > 0.5 ? "sleep" : "auto",
-          look: look ? c.headYaw : undefined,
-        });
+        set.put(
+          c.k,
+          c.x,
+          c.y,
+          c.z,
+          c.yaw,
+          {
+            speed: c.speed,
+            rm,
+            mode: c.wet > 0.5 ? "swim" : c.rest > 0.5 ? "sleep" : "auto",
+            look: look ? c.headYaw : undefined,
+          },
+          { scale: c.scale, pitch: c.wet > 0.5 ? -0.12 : 0 },
+        );
         spot.see(c.x, c.y + 0.5, c.z, avatar.x, avatar.z, 0.7);
       }
       capySet.end(dt, clock, env.camera);
-      pupSet.end(dt, clock, env.camera);
 
       // ---- egrets
       egretSet.begin();
@@ -576,7 +581,6 @@ export const create: CreateAmbient = (env0): Ambient => {
       for (const c of capys) creatures.remove(c.body);
       for (const e of egrets) creatures.remove(e.body);
       capySet.dispose();
-      pupSet.dispose();
       egretSet.dispose();
       ripples.dispose();
       root.removeFromParent();

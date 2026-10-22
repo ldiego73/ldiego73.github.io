@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CRAB, type Crab, circle, DIVE, dive, nightAmount, seen, stepCrab } from "./logic";
+import { CRAB, type Crab, circle, DIVE, dive, seen, stepCrab } from "./logic";
 
 describe("coast fauna", () => {
   test("seen once within range of any of them", () => {
@@ -41,16 +41,5 @@ describe("coast fauna", () => {
     c = stepCrab(c, 30, 0, 0.1);
     expect(c.state).toBe("idle");
     expect(c.x).toBe(0);
-  });
-});
-
-describe("nightAmount", () => {
-  test("full at midnight, none at noon, a ramp through dusk and dawn", () => {
-    expect(nightAmount(0)).toBe(1);
-    expect(nightAmount(0.5)).toBe(0);
-    expect(nightAmount(0.9)).toBe(1);
-    expect(nightAmount(0.75)).toBeGreaterThan(0);
-    expect(nightAmount(0.75)).toBeLessThan(1);
-    expect(nightAmount(0.24)).toBeCloseTo(nightAmount(0.76), 6);
   });
 });

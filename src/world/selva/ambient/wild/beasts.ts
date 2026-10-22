@@ -11,13 +11,11 @@
  *   pigs.end(dt, clock, env.camera);                     // the others hide; poses, LOD
  *
  * Two ways to draw a species:
- *  - a herd (default): one InstancedMesh per LOD for all of them (`createHerd`), yaw only; `scale` draws the
- *    whole herd larger or smaller than life (a capybara family's pups, the turtles): the herd's group is
- *    scaled and the positions and the camera handed to it are divided by the scale, so its LOD distances
- *    stay right (a herd has no per-animal scale);
- *  - `solo`: one skinned animal each (`loadAnimal`), for the few animals whose pose needs a full transform:
- *    a sloth along a sloping limb, a dolphin's arc, a hopping agouti, the big howler (scale), the jaguar.
- *    Each solo costs its own draw (+ ink and shadow), so only species with one to three animals use it.
+ *  - a herd (default): one InstancedMesh per LOD for all of them (`createHerd`), each with its own pose
+ *    (`HerdPose`: scale, pitch, roll); `scale` is the set's default size (a bigger-than-life troop);
+ *  - `solo`: one skinned animal each (`loadAnimal`), for the few animals whose bones the world reads (the
+ *    eyeshine of the jaguar and the caimans, the agouti's nut) or that come alone (the tapir). Each solo costs
+ *    its own draw (+ ink and shadow), so only species with one to a few animals use it.
  * Geometry is built off the main thread (`prefetchAnimals`): the set shows nothing until its far LOD is in,
  * then sharpens as the finer builds land. Nothing here blocks a frame.
  */
@@ -31,7 +29,7 @@ import type { WorldEnv } from "../../../contract";
 export type BeastState = AnimalState & Partial<BirdState>;
 
 export interface Pose3 {
-  /** Body pitch (+ = nose down) and roll (radians), uniform scale: solo sets only. */
+  /** Body pitch (+ = nose down) and roll (radians), uniform scale (the set's `scale` by default). */
   pitch?: number;
   roll?: number;
   scale?: number;
@@ -46,7 +44,7 @@ export interface BeastsOpts {
   shadows?: boolean;
   /** LOD distance multiplier (phones < 1). */
   lodScale?: number;
-  /** Herds: uniform scale of every animal of the set. */
+  /** Default uniform scale of every animal of the set (a `put` pose overrides it). */
   scale?: number;
 }
 
@@ -85,6 +83,7 @@ export function createBeasts(env: WorldEnv, key: string, n: number, o: BeastsOpt
   const variantOf = o.variantOf ?? (() => 0);
   let alive = true;
   let count = 0;
+  const k = o.scale ?? 1;
 
   if (o.solo) {
     const slots: SoloSlot[] = Array.from({ length: n }, () => ({
@@ -123,12 +122,13 @@ export function createBeasts(env: WorldEnv, key: string, n: number, o: BeastsOpt
         if (!slot?.a) return;
         slot.on = true;
         // Speeds in the animal's own units, so a scaled animal's stride still matches the ground.
-        if (p?.scale) s.speed /= p.scale;
+        const scale = p?.scale ?? k;
+        if (scale !== 1) s.speed /= scale;
         slot.s = s;
         const g = slot.a.group;
         g.position.set(x, y, z);
         g.rotation.set(p?.pitch ?? 0, yaw, p?.roll ?? 0);
-        g.scale.setScalar(p?.scale ?? 1);
+        g.scale.setScalar(scale);
       },
       play(i, a, seconds) {
         const slot = slots[i];
@@ -190,11 +190,6 @@ export function createBeasts(env: WorldEnv, key: string, n: number, o: BeastsOpt
 
   // ---------------------------------------------------------------- herd
   let herd: Herd | null = null;
-  const k = o.scale ?? 1;
-  group.scale.setScalar(k);
-  // The camera as the scaled herd sees it (its group's frame), for its LOD distances.
-  const proxy = new THREE.Object3D();
-  const camW = new THREE.Vector3();
   const ids: number[] = [];
   const on = new Array<boolean>(n).fill(false);
   void prefetchAnimals([key], [2]).then(() => {
@@ -218,12 +213,13 @@ export function createBeasts(env: WorldEnv, key: string, n: number, o: BeastsOpt
     begin() {
       on.fill(false);
     },
-    put(i, x, y, z, yaw, s) {
+    put(i, x, y, z, yaw, s, p) {
       if (!herd || i >= n) return;
       on[i] = true;
-      // Speeds in the herd's own units, so a scaled animal's stride still matches the ground.
-      if (k !== 1) s.speed /= k;
-      herd.set(ids[i] as number, x / k, y / k, z / k, yaw, s);
+      const scale = p?.scale ?? k;
+      // Speeds in the animal's own units, so a scaled animal's stride still matches the ground.
+      if (scale !== 1) s.speed /= scale;
+      herd.set(ids[i] as number, x, y, z, yaw, s, { scale, pitch: p?.pitch ?? 0, roll: p?.roll ?? 0 });
     },
     play(i, a, seconds) {
       if (herd) herd.play(ids[i] as number, a, seconds);
@@ -241,13 +237,7 @@ export function createBeasts(env: WorldEnv, key: string, n: number, o: BeastsOpt
         else herd.hide(ids[i] as number);
       }
       herd.group.visible = count > 0;
-      if (count === 0) return;
-      if (k === 1) herd.update(dt, t, camera);
-      else {
-        proxy.position.copy(camera.getWorldPosition(camW)).divideScalar(k);
-        proxy.updateMatrixWorld();
-        herd.update(dt, t, proxy as THREE.Camera);
-      }
+      if (count > 0) herd.update(dt, t, camera);
     },
     shown: () => count,
     dispose() {

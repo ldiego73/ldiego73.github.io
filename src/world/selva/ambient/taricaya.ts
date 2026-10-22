@@ -8,10 +8,11 @@
  * shells come up beside the log, drift a moment and climb back onto it, one by one. At dusk they slip into
  * the river for the night and only surface now and then, back on the log after sunrise.
  *
- * Rendering: the turtles as one instanced herd on the shared animal core (species "taricaya", drawn 1.35×
- * life so the row reads from the road, wild/beasts.ts; a crawl up the log, the "swim" mode with the legs
- * sculling), the logs merged per cluster (the ones along the canoe route
- * are one mesh) and shown only within 110 u of the camera (wild/kit.ts SiteProps), and a ripple pool → 2–3
+ * Rendering: the turtles as one instanced herd on the shared animal core (species "taricaya", wild/beasts.ts:
+ * drawn about 1.35× life so the row reads from the road, each at its own size and pitched along the sloping
+ * log; a crawl up the log, the "swim" mode with the legs sculling), the logs merged per cluster (the ones
+ * along the canoe route are one mesh) and shown only within 110 u of the camera (wild/kit.ts SiteProps), and
+ * a ripple pool → 2–3
  * draw calls (plus their ink and shadow passes) near the logs, none elsewhere.
  * Bodies: none (they never leave the log and the water, where the traveler cannot walk).
  * Stamp `selva:fauna:taricaya` after a ~1.5 s good look within 30 u (from the pier or the canoe).
@@ -387,14 +388,23 @@ export const create: CreateAmbient = (env0): Ambient => {
         tt.headYaw = damp(tt.headYaw, Math.max(-1, Math.min(1, lookT)), 2, dt);
         tt.headPitch = damp(tt.headPitch, headT, 3, dt);
         if (inside || spot.view.dist(tt.x, tt.y, tt.z) > FAUNA_FAR) continue;
-        set.put(i, tt.x, tt.y, tt.z, tt.yaw, {
+        set.put(
+          i,
+          tt.x,
+          tt.y,
+          tt.z,
+          tt.yaw,
+          {
           speed: tt.swing > 0.1 ? 0.12 + tt.swing * 0.2 : 0,
           rm,
           mode: swimming ? "swim" : "auto",
           look: tt.headYaw,
           // Basking in the sun: dozing allowed while nobody is near.
           quiet: tt.state === "bask" && !log.alarm,
-        });
+          },
+          // Along the sloping log (or level while swimming), each at its own size.
+          { scale: tt.scale, pitch: swimming ? -0.1 : tt.pitch },
+        );
         spot.see(tt.x, tt.y + 0.1, tt.z, avatar.x, avatar.z, 0.5);
       }
       set.end(dt, clock, env.camera);

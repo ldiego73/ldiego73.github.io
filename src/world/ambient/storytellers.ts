@@ -515,6 +515,7 @@ export const create: CreateAmbient = (envIn): Ambient => {
       role: a.role,
       state: a.p.state,
       action: a.p.anim.action,
+      mix: JSON.stringify((a.p.anim as unknown as { mixer: unknown }).mixer),
       hipsY: +(a.p.member.bones.hips?.position.y ?? 0).toFixed(2),
       lod: a.p.member.lod,
       shown: a.p.member.shown,

@@ -1,3 +1,20 @@
+/**
+ * Sachavaca (lowland tapir, Tapirus terrestris): the biggest animal of the Antisuyu, out from dusk to dawn
+ * on the quiet sandbars no other animal uses: the one along the canoe route between the embarcadero and the
+ * palafitos and, on high quality, the one across the river from the regatón.
+ * At dusk (≈ 17 h) a tapir walks out of the bank vegetation onto the bar. It ambles over the sand, nose to
+ * the ground, the short trunk working; drinks at the water's edge; now and then wades out belly-deep and
+ * stands soaking before it climbs back onto the sand. When the traveler comes close (≈ 9 u, ≈ 13 u running
+ * or paddling) it trots into the river and swims off with only its back and head above the water, as tapirs
+ * do when startled, and comes back once the traveler has been well away for a while. At dawn it walks back
+ * into the forest. By day there is no tapir (it rests deep in the forest).
+ *
+ * Rendering: the shared animal core (species "tapir", one skinned animal each, wild/beasts.ts solo: walk and
+ * trot from the speed, nose to the sand as "graze", the "swim" mode paddling in the river; the moonlit rim of
+ * the animal materials at night) and a ripple pool → 2–3 draw calls near a bar, 0 by day. Body ("sachavaca"): solid on the sand (give 0.3: it barely budges), not solid in the water,
+ * parked while away.
+ * Stamp `selva:fauna:sachavaca` after a ~1.5 s good look within 34 u (from the canoe or a landing).
+ */
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, park } from "../../creatures";
 import { on } from "../../events";

@@ -1,3 +1,18 @@
+/**
+ * Bufeos colorados (Amazon river dolphins, Inia geoffrensis): small pods patrolling stretches of the river,
+ * mostly unseen under the brown water. Every few seconds one surfaces in a slow low arc (the pink back and
+ * the low dorsal ridge roll out of the water, a puff and a ring), then dives again with a flick of the
+ * flukes. Pods live along the canoe route between the embarcadero and the palafitos, off the regatón and
+ * (high quality) below the collpa. While the traveler paddles the canoe (world:mount, vehicle "canoe"), the
+ * nearest pod comes over and surfaces around the canoe more often, the way curious bufeos follow boats.
+ * Day and night alike.
+ *
+ * Rendering: one instanced herd on the shared animal core (species "bufeo", pink or grey, wild/beasts.ts: the
+ * arc's pitch is the world's, the spine wave and the flukes are the swim animator's with its own porpoise
+ * arcs off; an animal is drawn only while it is near the surface) + a ripple pool → 2 draw calls.
+ * Bodies ("bufeo"): never solid (in the water), parked while submerged; listed for queries.
+ * Stamp `selva:fauna:bufeo` after a ~1.5 s good look within 30 u (they surface out on the river).
+ */
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, PARKED, park } from "../../creatures";
 import { on } from "../../events";
@@ -111,7 +126,6 @@ export const create: CreateAmbient = (env0): Ambient => {
 
   // Mostly pink, a younger one greyer.
   const set = createBeasts(env, "bufeo", dolphins.length, {
-    solo: true,
     variants: ["pink", "grey"],
     variantOf: (i) => ((dolphins[i]?.scale ?? 1) < 1 ? 1 : 0),
   });
@@ -209,11 +223,19 @@ export const create: CreateAmbient = (env0): Ambient => {
           continue;
         }
         // Pose: pitch follows the world's arc; the swim animator beats the flukes. Its own porpoise arcs are
-        // switched off (they come with `rm`): the surfacing here is timed with the ripples.
+        // switched off: the surfacing here is timed with the ripples.
         d.body.x = d.x;
         d.body.z = d.z;
         if (spot.view.dist(d.x, d.y, d.z) > FAUNA_FAR * 1.4) continue;
-        set.put(i, d.x, d.y, d.z, d.yaw, { speed: d.speed, rm: true }, { pitch: -arc.pitch, scale: d.scale });
+        set.put(
+          i,
+          d.x,
+          d.y,
+          d.z,
+          d.yaw,
+          { speed: d.speed, rm: env.reducedMotion, porpoise: false },
+          { pitch: -arc.pitch, scale: d.scale },
+        );
         if (u > 0.2 && u < 0.8) spot.see(d.x, lv + 0.2, d.z, avatar.x, avatar.z, 1.2);
       }
       set.end(dt, clock, env.camera);

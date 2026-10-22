@@ -14,14 +14,12 @@
  * the camera), so every monkey sits and lands on a real limb. Two limbs of every tree reach out low over the
  * road edge, where the troop is in sight. Rendering: the grove + the shared animal core (wild/beasts.ts): the
  * squirrel monkeys as one instanced herd drawn larger than life (species "squirrel-monkey": "sit" on the limbs,
- * a bound through the air, "sleep" huddled at night) and the coto as one skinned animal (no howler species
- * yet: the squirrel monkey's body at 2.2× in the howler's red-brown coat; its roar is the "yawn", head
- * thrown back) → ≤ 3–4 draw calls.
+ * a bound through the air, "sleep" huddled at night) and the coto (species "howler-monkey"; its roar is the
+ * "yawn", head thrown back) → ≤ 3 draw calls per LOD in use.
  * Bodies ("mono", "coto"): listed for queries, never solid (up in the trees).
  * Stamp `selva:fauna:mono` after a ~1.5 s good look within 16 u.
  */
 import * as THREE from "three";
-import { qpal } from "../../characters/animals/species/mammals";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { on } from "../../events";
@@ -77,17 +75,8 @@ interface Monkey {
 /** Squirrel monkeys are small (≈ 0.3 u body): drawn a little larger so they read up in the trees. */
 /** Squirrel monkeys drawn larger than life so the troop reads from the road. */
 const SCALE = 1.5;
-/** The coto: the red howler's coat on the shared monkey body, at a howler's size. */
-const HOWLER_COAT = qpal({
-  coat: "#8e3a1c",
-  hair: "#7a2e16",
-  belly: "#6a2814",
-  nose: "#1e1614",
-  points: "#3a1a10",
-  hoof: "#2e1c14",
-  inner: "#6a2814",
-});
-const HOWLER_SCALE = 2.2;
+/** The coto, a little larger than life like the troop, so it reads high in its tree. */
+const HOWLER_SCALE = 1.2;
 
 /** Horizontal span of a monkey's current leap (from perch to perch). */
 function leapSpan(troop: Troop, m: Monkey): [number, number] {
@@ -204,9 +193,7 @@ export const create: CreateAmbient = (env0): Ambient => {
   let total = 0;
   for (const t of troops) for (const m of t.members) m.k = total++;
   const set = createBeasts(env, "squirrel-monkey", total, { scale: SCALE, shadows: false });
-  const hset = howler
-    ? createBeasts(env, "squirrel-monkey", 1, { solo: true, variants: [HOWLER_COAT], shadows: false })
-    : null;
+  const hset = howler ? createBeasts(env, "howler-monkey", 1, { scale: HOWLER_SCALE, shadows: false }) : null;
   const root = new THREE.Group();
   root.name = "selva-fauna-mono";
   root.add(set.group);
@@ -359,15 +346,7 @@ export const create: CreateAmbient = (env0): Ambient => {
         howler.headYaw = damp(howler.headYaw, Math.max(-1.2, Math.min(1.2, hy)), 2, dt);
         hset.begin();
         if (!inside)
-          hset.put(
-            0,
-            howler.x,
-            howler.y,
-            howler.z,
-            howler.yaw,
-            { speed: 0, rm, mode: "sit", look: howler.headYaw },
-            { scale: HOWLER_SCALE },
-          );
+          hset.put(0, howler.x, howler.y, howler.z, howler.yaw, { speed: 0, rm, mode: "sit", look: howler.headYaw });
         hset.end(dt, clock, env.camera);
         spot.see(howler.x, howler.y, howler.z, avatar.x, avatar.z, 0.8);
       }
