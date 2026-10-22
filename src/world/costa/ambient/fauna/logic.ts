@@ -95,3 +95,14 @@ export function stepCrab(c: Crab, ax: number, az: number, dt: number): Crab {
     return { ...c, x: c.hx, z: c.hz, state: "idle", timer: 0 };
   return { ...c, timer };
 }
+
+/**
+ * How much it is night (0 by day … 1 from a little after dusk to a little before dawn) at sky time `time`
+ * (0 midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset): drives the shared animals' moonlit rim.
+ */
+export function nightAmount(time: number): number {
+  const t = ((time % 1) + 1) % 1;
+  const d = Math.min(t, 1 - t);
+  const x = Math.min(1, Math.max(0, (d - 0.2) / 0.08));
+  return 1 - x * x * (3 - 2 * x);
+}

@@ -130,8 +130,8 @@ export const COSTA_WILDLIFE: readonly Species[] = [
     },
     when: ALWAYS,
     does: {
-      es: "Perros esbeltos de piel gris pizarra sin pelo, con manchas rosadas, orejas paradas y un mechón claro en la cabeza. Trotan por la plaza, se detienen a olfatear el suelo y giran la cabeza hacia ti cuando estás cerca.",
-      en: "Slender dogs with bare slate-grey skin, pink blotches, upright ears and a pale tuft on the head. They trot about the plaza, stop to sniff the ground and turn their heads to you when you are near.",
+      es: "Perros esbeltos de piel gris pizarra sin pelo, con manchas rosadas y orejas alzadas. Trotan por la plaza, se detienen a olfatear el suelo y giran la cabeza hacia ti cuando estás cerca.",
+      en: "Slender dogs with bare slate-grey skin, pink blotches and pricked ears. They trot about the plaza, stop to sniff the ground and turn their heads to you when you are near.",
     },
   },
   {
@@ -172,8 +172,8 @@ export const COSTA_WILDLIFE: readonly Species[] = [
     },
     when: ALWAYS,
     does: {
-      es: "Lagartijas arenosas de manchas claras y cola larga que toman sol quietas, mirando a su alrededor. Si te acercas corren a su madriguera y desaparecen en la arena; vuelven a salir cuando ya te alejaste.",
-      en: "Sandy lizards with pale spots and long tails that bask, still, looking about. Come close and they dash to their burrow and vanish into the sand; they come back out once you have moved off.",
+      es: "Lagartijas arenosas de manchas claras y cola larga que toman sol y a ratos hacen flexiones. Si te acercas corren a su madriguera y desaparecen en la arena; vuelven a salir cuando ya te alejaste.",
+      en: "Sandy lizards with pale spots and long tails that bask and now and then do push-ups. Come close and they dash to their burrow and vanish into the sand; they come back out once you have moved off.",
     },
   },
   {

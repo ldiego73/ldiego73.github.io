@@ -3,13 +3,11 @@
  * at y 0 (Geo.cyl takes its base y, then rotates about the cylinder's centre). The four-legged ones come in three parts so one InstancedMesh per part can animate them (./herd.ts):
  * the body (with the tail), the head (origin at the neck's base, carried up and forward) and one leg (origin at
  * the hip, hanging down). Leg pivots and the neck pivot are listed with each model.
- *  - perro viringo (Peruvian hairless dog): slender, slate-grey bare skin with pink blotches, big upright ears,
- *    a pale tuft on the crown and the tail tip;
  *  - goat: a light coat (tinted per animal), short horns swept back, a beard, floppy ears, a short upturned tail;
  *  - sanderling: a small pale wader, white below, black bill and legs;
  *  - Peruvian booby (piquero): white head and underparts, brown wings, a grey-blue dagger bill, gliding.
- * These are the coast's animals the shared animals (../../../characters/animals) do not have yet; the burros
- * and the cañanes are the shared donkey and lizard.
+ * These are the coast's animals the shared animals (../../../characters/animals) do not have yet; the viringos,
+ * burros and cañanes are the shared dog, donkey and lizard.
  */
 import type * as THREE from "three";
 import { Geo } from "../../kit";
@@ -30,45 +28,6 @@ const quadHips = (x: number, y: number, zf: number, zb: number): Array<[number, 
   [-x, y, zb],
 ];
 
-// ---------------------------------------------------------------- perro viringo
-const SKIN = "#4a4643";
-const SKIN_D = "#3a3634";
-const PINK = "#9a7466";
-
-export function viringo(): QuadModel {
-  const b = new Geo();
-  b.blob(0.13, 0.13, 0.27, 0, 0.42, 0, SKIN, 1);
-  b.blob(0.13, 0.14, 0.12, 0, 0.44, 0.17, SKIN, 1);
-  b.blob(0.1, 0.09, 0.1, 0, 0.36, 0.0, SKIN_D, 1);
-  b.blob(0.05, 0.03, 0.08, 0.08, 0.47, -0.06, PINK, 0);
-  b.blob(0.04, 0.03, 0.06, -0.09, 0.44, 0.1, PINK, 0);
-  b.stick({ x: 0, y: 0.46, z: -0.25 }, { x: 0, y: 0.5, z: -0.45 }, 0.025, SKIN, 5);
-  b.stick({ x: 0, y: 0.5, z: -0.45 }, { x: 0, y: 0.6, z: -0.52 }, 0.02, SKIN, 5);
-  b.blob(0.035, 0.05, 0.035, 0, 0.62, -0.53, "#d9d0c4", 0);
-  const h = new Geo();
-  h.stick({ x: 0, y: 0, z: 0 }, { x: 0, y: 0.14, z: 0.08 }, 0.055, SKIN, 6);
-  h.blob(0.075, 0.07, 0.09, 0, 0.17, 0.11, SKIN, 1);
-  h.cyl(0.03, 0.05, 0.14, 0, 0.08, 0.24, SKIN_D, 6, Math.PI / 2);
-  h.blob(0.022, 0.02, 0.02, 0, 0.16, 0.32, "#1a1514", 0);
-  for (const s of [-1, 1]) {
-    h.cyl(0.0, 0.035, 0.12, s * 0.045, 0.22, 0.08, SKIN, 4, -0.15, s * -0.25);
-    h.blob(0.012, 0.012, 0.012, s * 0.045, 0.19, 0.18, "#d8b04a", 0);
-  }
-  // The tuft on the crown.
-  h.blob(0.045, 0.03, 0.05, 0, 0.245, 0.09, "#d9d0c4", 0);
-  const l = new Geo();
-  l.cyl(0.022, 0.03, 0.34, 0, -0.34, 0, SKIN, 5);
-  l.blob(0.03, 0.02, 0.04, 0, -0.33, 0.015, SKIN_D, 0);
-  return {
-    body: b.build(),
-    head: h.build(),
-    leg: l.build(),
-    hips: quadHips(0.075, 0.36, 0.17, -0.19),
-    neck: [0, 0.48, 0.24],
-  };
-}
-
-// ---------------------------------------------------------------- burro
 export function goat(): QuadModel {
   const b = new Geo();
   b.blob(0.17, 0.18, 0.32, 0, 0.55, 0, "#f2efe8", 1);

@@ -4,7 +4,7 @@
  *    huaca, stopping to sniff the ground and turning their heads to a traveler close by;
  *  - burros grazing in the green river valleys (two by the Santa, one by the Lurín), ambling from patch to patch;
  *  - a herd of goats browsing the lomas inland of the road, before the Caral pyramid;
- *  - cañanes, the desert lizards, basking on the sand beside the road, looking about; when the traveler comes
+ *  - cañanes, the desert lizards, basking on the sand beside the road (now and then a push-up); when the traveler comes
  *    close they dash to their burrow and vanish, coming back out once the traveler has gone (./fauna/logic.ts
  *    stepCrab, the ghost crabs' rule);
  *  - sanderlings running up and down the edge of the water on both caballito beaches, keeping just above the
@@ -15,12 +15,12 @@
  * spots outside keep-out zones (station grounds). No passport stamps; field guide: ../wildlife.ts.
  * Reduced motion: the walkers stand (grazing, looking round), the sanderlings stay put, the boobies hold still
  * in the air; the lizards still hide, without running.
- * The burros and the cañanes are the shared animals (../../characters/animals: continuous skinned bodies, a
- * herd each; their gait follows the real speed, their idles graze, chew and look about). The viringos, goats,
- * sanderlings and boobies keep their own small instanced models (./fauna/land-models.ts, ./fauna/herd.ts)
- * until the shared animals have those species.
- * Draw calls: the burros and the cañanes (one instanced mesh per LOD in use each), three per remaining
- * four-legged species (bodies, heads, legs), one each for the sanderlings, the boobies and their splashes; a
+ * The viringos, burros and cañanes are the shared animals (../../characters/animals: continuous skinned bodies,
+ * a herd each; their gait follows the real speed, their idles sniff, graze, chew and look about; the viringo is
+ * the shared dog in bare slate-grey skin). The goats, sanderlings and boobies keep their own small instanced
+ * models (./fauna/land-models.ts, ./fauna/herd.ts) until the shared animals have those species.
+ * Draw calls: the viringos, burros and cañanes (one instanced mesh per LOD in use each), three for the goats
+ * (bodies, heads, legs), one each for the sanderlings, the boobies and their splashes; a
  * group far from the camera is not drawn.
  */
 import * as THREE from "three";
@@ -38,12 +38,24 @@ import { BEACHES, COMPANY_STOPS, STATION } from "../plan";
 import { seaHeight } from "../scenery/waves";
 import { Herd } from "./fauna/herd";
 import { chase, stepWander, turnToward, type Wanderer, type WanderOpts, wanderer, waterEdge } from "./fauna/land-logic";
-import { boobyGlide, goat, sanderling, viringo } from "./fauna/land-models";
+import { boobyGlide, goat, type QuadModel, sanderling } from "./fauna/land-models";
 import { type Crab, circle, DIVE, dive, prng, stepCrab } from "./fauna/logic";
 import { splash } from "./fauna/models";
 
 /** The cañán's coat on the shared lizard: sandy, with pale spots and a pale belly (Dicrodon guttulatum). */
 const CANAN = qpal({ coat: "#b89a6a", belly: "#efe2c4", spot: "#f2e8d2", hoof: "#7a6446", nose: "#7a6446" });
+
+/** The viringo on the shared dog: bare slate-grey skin with pink blotches (the dog's piebald patches). */
+const VIRINGO = qpal({
+  coat: "#4a4643",
+  hair: "#4a4643",
+  belly: "#57504c",
+  nose: "#1e1614",
+  spot: "#9a7466",
+  inner: "#9a7466",
+});
+/** The cañán is about 1.6× the shared lizard (a Liolaemus): up to a hand and a half long, tail included. */
+const CANAN_SCALE = 1.6;
 
 /** Beyond this distance from the camera a group is not drawn (nor animated). */
 const VIEW = 160;
@@ -119,7 +131,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   }
   const groups: Group[] = [];
   const addGroup = (
-    model: ReturnType<typeof viringo> | SpeciesKey,
+    model: QuadModel | SpeciesKey,
     name: string,
     kind: string,
     radius: number,
@@ -132,7 +144,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     let herd: Herd | undefined;
     let animals: Group["animals"];
     if (typeof model === "string") {
-      const h = createHerd(model, { max: homes.length });
+      const h = createHerd(model, { max: homes.length, variants: model === "dog" ? [VIRINGO] : undefined });
       h.group.name = `costa-tierra:${name}`;
       root.add(h.group);
       animals = { herd: h, ids: homes.map((_, i) => h.add({ seed: 17 + i * 11 })) };
@@ -163,7 +175,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       { x: market.x - 2.5, z: market.z + 2, range: 7 },
       { x: first.x, z: first.z, range: 5.5 },
     ];
-    addGroup(viringo(), "viringos", "perro-viringo", 0.32, homes, { pace: 1.7, graze: 0.4, rest: [2, 6] }, okDog, {
+    addGroup("dog", "viringos", "perro-viringo", 0.32, homes, { pace: 1.7, graze: 0.4, rest: [2, 6] }, okDog, {
       swing: 0.28,
       stride: 7,
       graze: 0.75,
@@ -251,7 +263,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       }
     }
   }
-  prefetchAnimals(["donkey", "lizard"]);
+  prefetchAnimals(["dog", "donkey", "lizard"]);
   const lizHerd = createHerd("lizard", { max: Math.max(1, lizards.length), variants: [CANAN], shadows: false });
   lizHerd.group.name = "costa-tierra:canan";
   root.add(lizHerd.group);
@@ -391,12 +403,21 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
             return;
           }
           const run = l.state === "run";
-          // Basking: still in the sun, looking about (its idles); the dash to the burrow at full tilt.
-          lizHerd.set(id, l.x, S.groundAt(l.x, l.z), l.z, l.yaw, {
-            speed: run ? lizHerd.spec.speeds.max : 0,
-            rm,
-            look: !run && !rm ? Math.sin(t * 0.4 + l.ph) * 0.5 : undefined,
-          });
+          // Basking with the odd push-up (the body lifts and tips back); the dash to the burrow at full tilt.
+          const push = !rm && !run ? Math.max(0, Math.sin(t * 2.2 + l.ph)) ** 8 * 0.03 : 0;
+          lizHerd.set(
+            id,
+            l.x,
+            S.groundAt(l.x, l.z) + push,
+            l.z,
+            l.yaw,
+            {
+              speed: run ? lizHerd.spec.speeds.max : 0,
+              rm,
+              look: !run && !rm ? Math.sin(t * 0.4 + l.ph) * 0.5 : undefined,
+            },
+            { scale: CANAN_SCALE, pitch: -push * 4 },
+          );
         });
       }
 

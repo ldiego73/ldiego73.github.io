@@ -14,12 +14,14 @@
  * The birds are the shared animals (../../characters/animals: continuous skinned bodies with feathered wings),
  * one flock per species; this module moves them and the flight state machine poses them from the motion
  * (soaring, gliding, flapping, taking off from the water, swimming, perching and preening).
+ * The shared animals' night rim (characters/animals/night.ts) is set here once per frame for the whole coast.
  * Draw calls: pelicans, gulls and guanays (one instanced mesh per LOD in use each) and the splash.
  */
 import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
 import { prefetchAnimals } from "../../characters/animals/assets";
 import { createHerd } from "../../characters/animals/crowd";
+import { setAnimalNight } from "../../characters/animals/night";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit } from "../../events";
@@ -29,7 +31,7 @@ import type { SuyuEnv } from "../../suyu/contract";
 import type { CostaLayout } from "../layout";
 import { BEACHES, STATION } from "../plan";
 import { seaHeight } from "../scenery/waves";
-import { circle, dive, prng, seen } from "./fauna/logic";
+import { circle, dive, nightAmount, prng, seen } from "./fauna/logic";
 import { splash } from "./fauna/models";
 import { toWorld } from "./huacas/logic";
 import { STALLS } from "./huacas/market";
@@ -167,6 +169,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     update(dtIn, avatar, t) {
       const dt = Math.min(dtIn, 0.05);
       const tt = rm ? 0 : t;
+      // The shared animals' moonlit rim (one uniform for every animal of the coast, set once per frame here).
+      setAnimalNight(nightAmount(env.sky.time()));
       // Pelican files on their long loops, low over the swell.
       pelicanPts.length = 0;
       let k = 0;
@@ -200,16 +204,24 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       const dz = diver.z + Math.sin(a) * (dv.phase === "glide" ? 8 : 0);
       const seaY = sea(dx, dz, tt);
       const dy = seaY + dv.y;
-      pelicans.set(diverId, dx, dv.phase === "float" ? seaY - 0.05 : dy, dz, a + Math.PI / 2, {
-        speed: dv.phase === "glide" && !rm ? 2 : dv.phase === "float" ? 0 : 3,
-        rm,
-        grounded: false,
-        water: dv.phase === "float",
-        // The flight state machine has no plunge: the folded "dive" pose reads as one (wings swept back).
-        under: dv.phase === "plunge",
-        vy: vyOf(pelicanY, fileIds.length, dy, dt),
-        height: dv.y,
-      });
+      pelicans.set(
+        diverId,
+        dx,
+        dv.phase === "float" ? seaY - 0.05 : dy,
+        dz,
+        a + Math.PI / 2,
+        {
+          speed: dv.phase === "glide" && !rm ? 2 : dv.phase === "float" ? 0 : 3,
+          rm,
+          grounded: false,
+          water: dv.phase === "float",
+          // The flight state machine has no plunge: the folded "dive" pose (wings swept back), pitched nose down.
+          under: dv.phase === "plunge",
+          vy: vyOf(pelicanY, fileIds.length, dy, dt),
+          height: dv.y,
+        },
+        { pitch: dv.phase === "plunge" ? 1.3 : dv.phase === "rise" ? -0.3 * (1 - dv.u) : 0 },
+      );
       pelicanPts.push({ x: dx, z: dz });
       const splashing = dv.phase === "float" && dv.u < 0.25;
       splashMesh.visible = splashing;
@@ -262,7 +274,13 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       if (isle) {
         if (first)
           colony.forEach((c, i) => {
-            guanays.set(colonyIds[i] as number, c.x, c.y - 0.05, c.z, c.yaw, { speed: 0, rm, grounded: true });
+            guanays.set(colonyIds[i] as number, c.x, c.y - 0.05, c.z, c.yaw, {
+              speed: 0,
+              rm,
+              grounded: true,
+              // One in eight holds its wings open to dry in the sun, as cormorants do.
+              spread: i % 8 === 0 ? 1 : 0,
+            });
           });
         let j = 0;
         for (let l = 0; l < LINES; l++) {

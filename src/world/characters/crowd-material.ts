@@ -17,6 +17,7 @@
 import * as THREE from "three";
 import { inkAwareMaterial, paintStrength, windSway } from "../style-gl";
 import { gradientMap } from "../toon";
+import { withNightRim } from "./animals/night";
 import { PALETTE_SIZE } from "./slots";
 
 export const MAX_BONES = 32;

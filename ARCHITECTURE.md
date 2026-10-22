@@ -264,7 +264,7 @@ People are continuous skinned bodies built procedurally at load time, never fetc
 | Off the main thread | `pipeline.ts` + `worker.ts` | `requestHuman(spec, lod)` queues a build in one or two Web Workers (`new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })`), far LODs first; results are cached per (spec, LOD) for the page. Without workers the queue drains on the main thread, one archetype per idle slot. `buildHumanNow` builds synchronously (tests, the traveler's first frame at the far LOD). |
 | One character | `hero.ts` (`createHuman`) | SkinnedMesh (body + cloth, 1–2 draws). Starts with whatever LOD is ready and swaps in the wanted one when the worker delivers it (same skeleton at every LOD). |
 | Crowds | `crowd.ts` (`HumanCrowd`) + `crowd-material.ts` | Every person of every archetype and LOD in two BatchedMeshes (bodies, cloth) = 2 draw calls per pass. GPU skinning from a bone DataTexture (row = instance id), per-person palette row and face cell in a palette texture. LOD by camera distance with hysteresis (default 9 / 26 u), falling back to any built LOD. |
-| Held props | `props.ts` (`HeldProps`) | Tools and loads that follow a bone (chakitaqlla, staff, baskets, q'ipi, pañuelo, cup, ladle, spindle, knitting, paddle, pole, net, bananas, board, cooler, brush, pot, ball…): one InstancedMesh per kind in use, a per-instance tint. |
+| Held props | `props.ts` (`HeldProps`) | Tools and loads that follow a bone (chakitaqlla, staff, baskets, q'ipi, pañuelo, cup, ladle, spindle, knitting, paddle, pole, net, bananas, board, cooler, brush, pot, ball, camera, phone, whip…): one InstancedMesh per kind in use, a per-instance tint. A world adds its own kind with `HeldProps.define(kind, { bone, pos, rot?, build: () => BufferGeometry, color?, spin? })` (`PropKit` helps build it); `spin` turns the prop about a local axis (the whip's circle), slowed under reduced motion (`props.rm`). |
 
 **LODs** (`wear/ctx.ts` `LOD_Q`, `LOD_H`): 0 near (voxel 0.02, full grids, ≈ 20–27k triangles), 1 mid (×1.7 voxel, 0.6 grids, ≈ 6–10k), 2 far (×2.9 voxel, 0.36 grids, small pieces dropped, cloth folded into the body draw in its base colour: ≈ 2–3.5k, one draw). The silhouette and the palette stay at every LOD.
 
@@ -276,14 +276,18 @@ const spec: HumanSpec = {
   hair: "braids",                                    // locks, parted, crop, braids, long, bun, ponytail, none
   hat: "montera",                                    // chullo, montera(-fiesta), felt, explorer, straw, altiplano,
                                                      // sunhat, bowler, cabana, collagua, cap, trek-cap,
-                                                     // feather-crown, headband
+                                                     // feather-crown, headband, headband-plume, head-shawl
   top: "jobona",                                     // or { kind, sleeves, hem, belt }: sweater, chompa, shirt,
-                                                     // polo, tee, blouse, jobona, jacket, windbreaker, cushma, bare
+                                                     // polo, tee, blouse, jobona, jacket, windbreaker, cushma,
+                                                     // unku (tunic with its own skirt), bare
   bottom: "bare",                                    // trousers, knee-trousers, shorts, board-shorts, cargo, bare
   feet: "ojotas",                                    // boots, shoes, ojotas, sandals, bare
   layers: [{ kind: "pollera" }, { kind: "lliclla" }],// poncho, pollera, skirt (kené…), cushma, lliclla, apron, vest
   worn: ["tupu"],                                    // backpack, daypack, chalina, bandana, beads, tupu, sunglasses,
-                                                     // collar-ring, shirt-collar (+ zip, placket, buckle, pockets)
+                                                     // collar-ring, shirt-collar, chumpi (+ zip, placket, buckle, pockets)
+  beard: "short",                                    // optional: short, full (hair slot)
+  hideFace: false,                                   // true: no face decal (a mask or costume head)
+  extra: [],                                         // world shapes: { bone, shape, slot, blend?, carve?, wool? }
 };
 ```
 
@@ -292,12 +296,14 @@ Colours never live in a spec: every piece paints slots of the shared table `HS` 
 **Animation controller** (`anim-human.ts` `HumanAnimator`, on any `Rig`: a crowd member or a single character):
 
 - Locomotion from the real ground speed: cadence and stride from `gait.ts` (`cadence`, `strideHalf`; feet planted at a person's natural speeds, the cadence clamped at the traveler's game speeds), two-bone leg IK, pelvis bounce/sway/drop/yaw, counter-swinging arms, a tuck in the air, `feetY` for slopes (the lower foot pulls the hips down).
-- Actions (`poses.ts`, pure; crossfaded by `actions.ts` `ActionMixer`, pure): `anim.act("wave", { fade, side, seat, next })`, `act("none")` to return to locomotion. Idle variants (hands-clasp, hands-back, hands-hips, arms-crossed); sit-bench, sit-stool, sit-ground, sit-cross, kneel, crouch; wave, greet, talk, point, giggle; carry-back, carry-shoulder, carry-hand, carry-head; dance, hop, kick, jump, swim; weave, spin, knit, paint, stir, drink, tend-fire, plough, sow, herd, fish-cast, paddle, row, pole; type and ride for the traveler. Actions that own the legs replace the walk cycle; the others layer over it (wave while walking). One-shots (kick, jump, greet) hand over to `next`.
+- Actions (`poses.ts`, pure; crossfaded by `actions.ts` `ActionMixer`, pure): `anim.act("wave", { fade, side, seat, next })`, `act("none")` to return to locomotion. Idle variants (hands-clasp, hands-back, hands-hips, arms-crossed); sit-bench, sit-stool, sit-ground, sit-cross, kneel, crouch; wave, greet, talk, point, giggle; carry-back, carry-shoulder, carry-hand, carry-head; dance, hop, kick, jump, swim; weave, spin, knit, paint, stir, drink, tend-fire, plough, sow, herd, fish-cast, paddle, row, pole; type and ride for the traveler. Actions that own the legs replace the walk cycle; the others layer over it (wave while walking). One-shots (kick, jump, greet) hand over to `next`. More gestures: photo, cheer, balance, play-arcade, raise-hand, read-cord, hold-front, hold-up, stretch, place, tug, point-up, pray, whip-circle; kneeling bind and kneel-offer.
+- Arms layer: `anim.actArms("photo")` plays a second action on the arm bones only (head and neck too when the pose owns the head) over whatever owns the legs, so a seated or kneeling person can photograph, knit or raise a hand; `actArms("none")` releases it.
 - `anim.look(localPoint)` turns neck and head toward a point (the traveler), clamped, skipped by actions that own the head.
 - Springs (`spring.ts`) for the chullo's tip and tassels, braids, long hair, ponytail, backpack and the cloth hems' bones (`archetype.ts` `hangsOf`); face blinks or the expression an action asks for.
 - Reduced motion: no bounce, smaller swings, calmer actions, stiffer springs.
+- Night: every human and animal material carries the same moonlit rim; the world calls `setNightRim(sky.night)` (`characters/index.ts`, from `animals/night.ts`) once per frame.
 
-**Shared people system** (`src/world/ambient/people/`). `npc.ts` `Npc` is a person on the new characters: a crowd member + `HumanAnimator` + a creatures Body, with the old `Person` locomotion API (`seek`, `resolve`, `face`, `place`, `setActive`, `hide`, `x/z/y/yaw/speed/state/timer/u/v/tx/tz`), `hold(props, kind)` for a prop and `commit(ctx)` once per frame (it also glances at the traveler within `lookRange`). The mountain's people (terraces, feria, kids, dancers) run on it: one `HumanCrowd` and one `HeldProps` in `ambient/people.ts`. The legacy rig (`rig.ts` `Crowd`/`Part`, `person.ts` `Person`, `models.ts` parts) stays for the worlds that have not migrated yet.
+**Shared people system** (`src/world/ambient/people/`). `npc.ts` `Npc` is a person on the new characters: a crowd member + `HumanAnimator` + a creatures Body, with the old `Person` locomotion API (`seek`, `resolve`, `face`, `place`, `setActive`, `hide`, `x/z/y/yaw/speed/state/timer/u/v/tx/tz`), `hold(props, kind)` for a prop and `commit(ctx)` once per frame (it also glances at the traveler within `lookRange`, or at `npc.lookAt` when set). `hide()` takes a person out of view while active; `show()` or the next `commit` brings them back. The mountain's people (terraces, feria, kids, dancers) run on it: one `HumanCrowd` and one `HeldProps` in `ambient/people.ts`. The legacy rig (`rig.ts` `Crowd`/`Part`, `person.ts` `Person`, `models.ts` parts) stays for the worlds that have not migrated yet.
 
 **Traveler** (`avatar.ts`): `createHuman(TRAVELER[outfit], dress(TRAVELER_DRESS[outfit]))` behind the unchanged `Avatar` contract. Riding (`world:mount`): astride ("ride") for the road mounts, paddling for the canoe and the caballito, poling on the balsa; seated (`world:sit`): "sit-bench" or "type" at `SIT_HIP`, the backpack folds away. `RIDER_SEAT` (0.56, the mounts' convention: `seatHeight` = saddle top − 0.56) is where a rider's thighs rest above the feet origin. Landing squash and dust as before.
 
