@@ -10,29 +10,9 @@
  * The cell is drawn in a 256 px square; ./archetypes place it on the head so 256 px ≈ the decal's `w` units.
  */
 import * as THREE from "three";
+import { FACE_STYLES, type FaceStyle } from "./faces";
 
-export interface FaceStyle {
-  /** Iris (dark) and its warm lower gradient. */
-  iris: string;
-  irisLow: string;
-  lash: string;
-  brow: string;
-  mouth: string;
-  blush: string;
-  /** Blush opacity (0..1). */
-  blushK: number;
-  /** Eye centres (px from the cell centre) and size (px). */
-  eyeX: number;
-  eyeY: number;
-  eyeW: number;
-  eyeH: number;
-  /** Outer-corner lash flicks (0 none … 2). */
-  flicks: number;
-  /** Mouth centre y (px from the cell centre, down positive). */
-  mouthY: number;
-  /** Brow lift above the eye (px). */
-  browUp: number;
-}
+export type { FaceStyle };
 
 export const CELL = 256;
 export const CELLS = 4;
@@ -126,7 +106,7 @@ function brows(c: Ctx, s: FaceStyle, lift: number) {
   c.save();
   c.strokeStyle = s.brow;
   c.lineCap = "round";
-  c.lineWidth = 5;
+  c.lineWidth = s.browW ?? 5;
   for (const side of [-1, 1] as const) {
     const cx = CELL / 2 + s.eyeX * side;
     const y = CELL / 2 + s.eyeY - s.eyeH / 2 - s.browUp - lift;
@@ -199,6 +179,33 @@ function humanCell(c: Ctx, ox: number, s: FaceStyle, expr: number) {
     else eyeClosed(c, cx, cy, s, side, expr === 2);
   }
   mouth(c, s, expr === 2);
+  if (s.lines) smileLines(c, s);
+  c.restore();
+}
+
+/** Soft lines at the outer eye corners and beside the mouth (elders). */
+function smileLines(c: Ctx, s: FaceStyle) {
+  c.save();
+  c.strokeStyle = s.lash;
+  c.globalAlpha = 0.28 * (s.lines ?? 0);
+  c.lineCap = "round";
+  c.lineWidth = 2.5;
+  for (const side of [-1, 1] as const) {
+    const ex = CELL / 2 + (s.eyeX + s.eyeW / 2 + 8) * side;
+    const ey = CELL / 2 + s.eyeY;
+    for (const dy of [-6, 4]) {
+      c.beginPath();
+      c.moveTo(ex, ey + dy);
+      c.lineTo(ex + 9 * side, ey + dy * 1.6);
+      c.stroke();
+    }
+    const mx = CELL / 2 + 26 * side;
+    const my = CELL / 2 + s.mouthY - 14;
+    c.beginPath();
+    c.moveTo(mx, my);
+    c.quadraticCurveTo(mx + 6 * side, my + 10, mx + 2 * side, my + 20);
+    c.stroke();
+  }
   c.restore();
 }
 
@@ -226,6 +233,28 @@ function texture(el: HTMLCanvasElement) {
 export function humanFace(s: FaceStyle): THREE.CanvasTexture {
   const { el, c } = canvas(CELL * CELLS, CELL);
   for (let e = 0; e < CELLS; e++) humanCell(c, e * CELL, s, e);
+  return texture(el);
+}
+
+/** Crowd cell size (px): faces in a crowd are small on screen, so the shared atlas uses half-size cells. */
+export const CROWD_CELL = 128;
+
+/**
+ * The crowd's face atlas: one row per face style (./faces.ts `FACE_STYLES`, rows top → bottom), four expression
+ * cells per row. ./crowd.ts picks (row, cell) per person.
+ */
+export function crowdFaceAtlas(styles: readonly FaceStyle[] = FACE_STYLES): THREE.CanvasTexture {
+  const { el, c } = canvas(CROWD_CELL * CELLS, CROWD_CELL * styles.length);
+  const k = CROWD_CELL / CELL;
+  styles.forEach((st, row) => {
+    for (let e = 0; e < CELLS; e++) {
+      c.save();
+      c.translate(e * CROWD_CELL, row * CROWD_CELL);
+      c.scale(k, k);
+      humanCell(c, 0, st, e);
+      c.restore();
+    }
+  });
   return texture(el);
 }
 

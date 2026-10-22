@@ -251,6 +251,112 @@ All shared uniforms at zero mean three's own look. That is the state before the 
 
 **Camera occluders.** `camera.ts` raycasts against named occluders (waterfall cliff, cave, the Antisuyu punku) and per-area occluders, so the camera never ends up inside rock.
 
+### Characters (`src/world/characters/`)
+
+People are continuous skinned bodies built procedurally at load time, never fetched. A body is ONE signed distance field (`sdf.ts`: tapered capsules, ellipsoids, rounded boxes, smooth-unioned) polygonised with surface nets (`surface-nets.ts`), skinned from the same field (`weights.ts`), coloured by palette slots with crisp per-pixel cuts (`paint.ts`) and a painted face decal (`face.ts`, `faces.ts`). Hair locks, braids, hats and small worn pieces are lofted grids (`loft.ts`, `drape.ts`); cloth (poncho, pollera, lliclla, cushma, apron, open shirt) is a double-sided layer on the shared wind, patterned from one mask atlas (`patterns.ts`, `regions.ts`). Animals live in `characters/animals/`.
+
+**Pipeline.**
+
+| Step | File | Notes |
+| --- | --- | --- |
+| Spec → pieces | `archetype.ts` (`composeHuman`, `rigOf`) + `wear/` | Pure. `rigOf` gives the skeleton, springs, gait style and face row instantly (no geometry). |
+| Pieces → geometry | `build.ts` (`buildArchetype`) | Pure, typed arrays only. |
+| Off the main thread | `pipeline.ts` + `worker.ts` | `requestHuman(spec, lod)` queues a build in one or two Web Workers (`new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })`), far LODs first; results are cached per (spec, LOD) for the page. Without workers the queue drains on the main thread, one archetype per idle slot. `buildHumanNow` builds synchronously (tests, the traveler's first frame at the far LOD). |
+| One character | `hero.ts` (`createHuman`) | SkinnedMesh (body + cloth, 1–2 draws). Starts with whatever LOD is ready and swaps in the wanted one when the worker delivers it (same skeleton at every LOD). |
+| Crowds | `crowd.ts` (`HumanCrowd`) + `crowd-material.ts` | Every person of every archetype and LOD in two BatchedMeshes (bodies, cloth) = 2 draw calls per pass. GPU skinning from a bone DataTexture (row = instance id), per-person palette row and face cell in a palette texture. LOD by camera distance with hysteresis (default 9 / 26 u), falling back to any built LOD. |
+| Held props | `props.ts` (`HeldProps`) | Tools and loads that follow a bone (chakitaqlla, staff, baskets, q'ipi, pañuelo, cup, ladle, spindle, knitting, paddle, pole, net, bananas, board, cooler, brush, pot, ball…): one InstancedMesh per kind in use, a per-instance tint. |
+
+**LODs** (`wear/ctx.ts` `LOD_Q`, `LOD_H`): 0 near (voxel 0.02, full grids, ≈ 20–27k triangles), 1 mid (×1.7 voxel, 0.6 grids, ≈ 6–10k), 2 far (×2.9 voxel, 0.36 grids, small pieces dropped, cloth folded into the body draw in its base colour: ≈ 2–3.5k, one draw). The silhouette and the palette stay at every LOD.
+
+**The archetype API.** A person is data (`HumanSpec`), so a spec travels to the worker and names its cache entry (`specKey`):
+
+```ts
+const spec: HumanSpec = {
+  sex: "f", age: "adult", build: "average",          // child / elder, slim / sturdy / heavy, height
+  hair: "braids",                                    // locks, parted, crop, braids, long, bun, ponytail, none
+  hat: "montera",                                    // chullo, montera(-fiesta), felt, explorer, straw, altiplano,
+                                                     // sunhat, bowler, cabana, collagua, cap, trek-cap,
+                                                     // feather-crown, headband
+  top: "jobona",                                     // or { kind, sleeves, hem, belt }: sweater, chompa, shirt,
+                                                     // polo, tee, blouse, jobona, jacket, windbreaker, cushma, bare
+  bottom: "bare",                                    // trousers, knee-trousers, shorts, board-shorts, cargo, bare
+  feet: "ojotas",                                    // boots, shoes, ojotas, sandals, bare
+  layers: [{ kind: "pollera" }, { kind: "lliclla" }],// poncho, pollera, skirt (kené…), cushma, lliclla, apron, vest
+  worn: ["tupu"],                                    // backpack, daypack, chalina, bandana, beads, tupu, sunglasses,
+                                                     // collar-ring, shirt-collar (+ zip, placket, buckle, pockets)
+};
+```
+
+Colours never live in a spec: every piece paints slots of the shared table `HS` (`slots.ts`: skin, hair, top, trim, legs, shoe, sole, sock, hat, hatBand, hatTrim, three cloth groups of five — base + R/G/B/white pattern dyes — wrap, skirt, shawl, plus metal, tie, pack, accents, beads, feathers, white, dark). A person's palette is `dress({ skin: "#a86a42", skirt: "#c2456b", … })` over `DEFAULT_DRESS`. `presets.ts` has `PEOPLE` (highland campesinos and campesinas with felt-hat variants, wawas, festival dancers, an amauta and an elder woman; the Antisuyu cushma, kené skirt, river children and a swimmer; coast fishermen, a market woman with an apron, a surfer; an Aymara woman with her bombín and a Taquile man with his vest; Cabanaconde and Collagua women in bordado polleras, valley men, hikers), the wardrobes that pick palettes per region (`wardrobe.andeanMan(rng, festive?, felt?)`, `andeanWoman`, `amazonMan`, `amazonWoman`, `coastMan`, `coastWoman`, `traveller`) and the traveler's five outfits (`TRAVELER`, `TRAVELER_DRESS`).
+
+**Animation controller** (`anim-human.ts` `HumanAnimator`, on any `Rig`: a crowd member or a single character):
+
+- Locomotion from the real ground speed: cadence and stride from `gait.ts` (`cadence`, `strideHalf`; feet planted at a person's natural speeds, the cadence clamped at the traveler's game speeds), two-bone leg IK, pelvis bounce/sway/drop/yaw, counter-swinging arms, a tuck in the air, `feetY` for slopes (the lower foot pulls the hips down).
+- Actions (`poses.ts`, pure; crossfaded by `actions.ts` `ActionMixer`, pure): `anim.act("wave", { fade, side, seat, next })`, `act("none")` to return to locomotion. Idle variants (hands-clasp, hands-back, hands-hips, arms-crossed); sit-bench, sit-stool, sit-ground, sit-cross, kneel, crouch; wave, greet, talk, point, giggle; carry-back, carry-shoulder, carry-hand, carry-head; dance, hop, kick, jump, swim; weave, spin, knit, paint, stir, drink, tend-fire, plough, sow, herd, fish-cast, paddle, row, pole; type and ride for the traveler. Actions that own the legs replace the walk cycle; the others layer over it (wave while walking). One-shots (kick, jump, greet) hand over to `next`.
+- `anim.look(localPoint)` turns neck and head toward a point (the traveler), clamped, skipped by actions that own the head.
+- Springs (`spring.ts`) for the chullo's tip and tassels, braids, long hair, ponytail, backpack and the cloth hems' bones (`archetype.ts` `hangsOf`); face blinks or the expression an action asks for.
+- Reduced motion: no bounce, smaller swings, calmer actions, stiffer springs.
+
+**Shared people system** (`src/world/ambient/people/`). `npc.ts` `Npc` is a person on the new characters: a crowd member + `HumanAnimator` + a creatures Body, with the old `Person` locomotion API (`seek`, `resolve`, `face`, `place`, `setActive`, `hide`, `x/z/y/yaw/speed/state/timer/u/v/tx/tz`), `hold(props, kind)` for a prop and `commit(ctx)` once per frame (it also glances at the traveler within `lookRange`). The mountain's people (terraces, feria, kids, dancers) run on it: one `HumanCrowd` and one `HeldProps` in `ambient/people.ts`. The legacy rig (`rig.ts` `Crowd`/`Part`, `person.ts` `Person`, `models.ts` parts) stays for the worlds that have not migrated yet.
+
+**Traveler** (`avatar.ts`): `createHuman(TRAVELER[outfit], dress(TRAVELER_DRESS[outfit]))` behind the unchanged `Avatar` contract. Riding (`world:mount`): astride ("ride") for the road mounts, paddling for the canoe and the caballito, poling on the balsa; seated (`world:sit`): "sit-bench" or "type" at `SIT_HIP`, the backpack folds away. `RIDER_SEAT` (0.5) is where a rider's pelvis rests above the feet origin. Landing squash and dust as before.
+
+**Migrating a world's people** (phase B recipe):
+
+1. Pick or add specs in `presets.ts` (`PEOPLE.x`, or `{ ...PEOPLE.x, hat: "…" }`); add a wardrobe if the region needs one. Garments missing? Add a builder in `wear/` and a field to `HumanSpec`, never per-world geometry.
+2. Replace `new Crowd(partSpecs(...), n, paletteMaterial(...), SHADOW_PARTS)` with `new HumanCrowd({ capacity: n })` (+ `new HeldProps()` for tools), and call `crowd.update(env.camera)` and `props.update()` once per frame after the people commit.
+3. Replace `new Person({ crowd, idx: crowd.alloc(), wear, palette, scale, girth })` with `new Npc({ kind, crowd, spec, palette: wardrobe.x(rng), scale, radius, seed })`; keep the behaviour's locomotion code as is.
+4. Replace bone writes (`p.bones.armR.rotation.set(…)`, `p.rest()`, `p.gait()`, `p.sit()`) with actions (`p.anim.act("wave")`), and `p.commit()` with `p.commit(ctx)`. A pose the catalogue lacks goes into `poses.ts` (pure, tested), not into the world.
+5. `prefetchHumans([...specs])` at load so the builds start before the traveler arrives.
+6. Delete the world's part builders (`*/gente/parts.ts`, `clothes.ts`, `garments.ts`, `comunidad/models.ts` people parts) once nothing uses them; when every world has migrated, delete `ambient/people/rig.ts`, `person.ts` and the part half of `models.ts`.
+
+**Harness.** `bunx vite --config src/world/characters/dev/vite.config.ts --port 5261`: `?view=lineup` (every preset), `outfits` (the traveler's five), `actions` (one person per action, crowd renderer, props), `crowd&n=60` (stress test with stats), `lod&who=campesina` (LOD 0 / 1 / 2 side by side). `dev/shots.mjs` screenshots each view; `dev/world-shots.mjs <url> <out> <prefix> [vehicle]` checks the traveler (idle, walk, run, jump, ride, sit) in any world harness.
+
+#### Animals (`src/world/characters/animals/`)
+
+Every animal is built like the people: one continuous surface per body (a smooth union of primitives polygonised by surface nets, `../sdf.ts`, `../surface-nets.ts`), skinned to a small skeleton (≤ 26 bones), coloured from palette slots with crisp cuts (`../paint.ts`), with a painted eye decal and procedural motion. A species is data (`spec.ts`): a body plan that fills a `Kit` (`kit.ts`), a palette with coat variants, an eye style and a motion profile. Forty-four species are registered in `species/index.ts` (`SPECIES`, keys below).
+
+| Family | Plan | Animator | Species keys |
+| --- | --- | --- | --- |
+| Quadrupeds | `plan-quad.ts` (`QuadPlan`), most presets through `species/shape.ts` proportions | `anim-quad.ts` | `llama`, `alpaca`, `vicuna`, `guanaco`, `horse`, `mule`, `donkey`, `puma`, `jaguar`, `fox`, `bear`, `vizcacha`, `capybara`, `agouti`, `cuy`, `sajino`, `tapir`, `taruca`, `squirrel-monkey`, `sloth`, `caiman`, `taricaya`, `iguana`, `lizard`, `frog` |
+| Birds | `plan-bird.ts` (field body, lofted airfoil wings with scalloped feathers and fingered primaries, a folded-wing piece, fine legs) | `anim-bird.ts` | `condor`, `macaw`, `toucan`, `hummingbird`, `hoatzin`, `pelican`, `guanay`, `gull`, `penguin`, `heron`, `flamingo`, `grebe`, `duck`, `dove`, `sparrow`, `tinamou` |
+| Swimmers | `plan-swim.ts` (spine sections, fins, fluke, countershading) | `anim-swim.ts` | `sea-lion`, `bufeo`, `trout` |
+
+**Using them.**
+
+```ts
+import { createAnimal } from "../characters/animals/animal";     // one animal (1 draw call + ink + shadow)
+import { loadAnimal, prefetchAnimals } from "../characters/animals/assets"; // the same, built off the main thread
+import { createHerd } from "../characters/animals/crowd";        // a herd or flock: 1 instanced draw per LOD
+
+const fox = await loadAnimal("fox", { variant: "default", seed: 3 });
+scene.add(fox.group);
+// every frame, after the world moved fox.group (feet at its origin, facing +Z):
+fox.update(dt, t, { speed, rm, look, windX, quiet });            // quiet: sleep allowed (night, nobody near)
+fox.autoLod(camera);                                             // a few times a second
+
+const herd = createHerd("vicuna", { max: 30, variants: ["default"] });
+scene.add(herd.group);
+const id = herd.add({ seed: 7, variant: 0 });
+herd.set(id, x, y, z, yaw, { speed, rm });                       // from the world's own sim, every frame
+herd.update(dt, t, camera);                                      // poses, LOD, uploads the bone texture
+```
+
+- **State.** `AnimalState`: `speed` (units/s; the gait follows it, the stride matches it so feet do not slide), `mode` (`"auto"`, `"sit"`, `"sleep"`, `"swim"`, `"climb"`, `"hang"`), `look` (head turn, radians; undefined lets the idles look around), `rm`, `windX`, `quiet`, `turn`. Birds add `BirdState`: `grounded`, `vy`, `height`, `water`, `under`; the flight state machine (`flight.ts`) reads perch, walk/hop, takeoff, flap, glide, soar, hover, land, swim and dive from them. One-shots: `anim.play("graze" | "yawn" | …)`, `anim.lunge()` (caiman snap, cat pounce).
+- **Speeds.** `spec.speeds` gives the walk, run and top speed the gaits were tuned for; feed the world's sim with them.
+- **Optional parts.** Bones scaled to zero hide parts: the llama's `tika` (shown by default) and `pack` (hidden). Pass `features: { pack: true }` to `createAnimal` / `createHerd` / `herd.add`.
+- **Coats.** `spec.variants` (llama: white, brown, black, spotted, cafe; alpaca, horse, mule, macaw, caiman…). `animal.setVariant(name)`; a herd takes a list and each member picks one by index.
+
+**Pure modules (tested).** `gaits.ts` (footfall tables: walk, paso, pace, trot, canter, gallop, bound, hop, stalk, crawl; `pickGait` blends by speed), `behaviour.ts` (seeded idle scheduler: graze, chew, look, groom, scratch, yawn, shake, sit, sleep; reduced motion keeps the calm ones), `flight.ts`, `swim.ts` (spine wave, porpoising, the sea lion's lollop), `lod.ts`, `kit.ts`, the plans and the species.
+
+**Cost.** Builds run in a Web Worker (`worker.ts`, `assets.ts`; idle callbacks without workers) and are cached per (species, LOD). LOD 0 is the full voxel, LOD 1 twice it, LOD 2 3.5× without small extras; `lod.ts` picks by distance in body sizes. A herd is one `InstancedMesh` per LOD (plus ink and shadow) skinned from a bone `DataTexture` (`crowd-material.ts`); far members are re-posed every 2nd or 4th frame.
+
+**Shared mounts and fauna parts.** `ambient/mount/horse.ts`, `mule.ts` and `model.ts` (llama) put the tack on a shared animal through `ambient/mount/animal.ts` (`mountAnimal`: tack holders in model coordinates that ride the bones). Their public APIs are unchanged (`MountModel`, `LlamaModel`; `../llama-mount.ts` still writes its pivots, the llama reads its own speed). `fauna-models.ts` keeps its rigid parts API (`camelidParts`, `vizcachaParts`, `condorParts`) but builds the parts from the same field construction.
+
+**Harness.** `bunx vite --config src/world/characters/animals/dev/vite.config.ts --port 5262`, then `?view=lineup&group=<camelids|equids|carnivores|rodents|forest|reptiles|birds|seabirds|waterbirds|smallbirds|marine>` (old model behind each new one where it exists), `?view=strip&species=horse&mode=run`, `?view=lod&species=llama`, `?view=crowd&species=vicuna&n=40&mode=walk`, `?view=ride` (legacy and new mounts), `?view=parts` (fauna-models.ts before and after). `&amode=sleep|sit|climb|hang|swim`, `&mode=idle|walk|run|fly`. Screenshots: `dev/shots.mjs`; world mount checks: `dev/ride-world.mjs <harness url> ride-mule <out> <prefix>`.
+
+**Adding a species.** Write its proportions (`species/shape.ts` for quadrupeds, `BirdShape` in `species/birds.ts`, a `SwimPlan`), a palette (`qpal`, `bpal`), an eye (`EyeStyle`: gentle, round pupils) and a motion profile (gaits by speed, idle weights), add it to `SPECIES`, and check it in the lineup at LOD 0 and 2. `species.test.ts` builds every species.
+
 ### Dev hook
 
 In dev builds only (`import.meta.env.DEV`), the world host element exposes `__kw`. It provides `setTime`, `setDate`, `teleport(t, side)`, `orbit`, `face`, `walk`, `tour`, `state()`, `creatures`, `scene`, `engine`, `style` (live style and wind tuning) and `drawCalls()`. The screenshot scripts in `src/world/dev/`, `fauna-dev/` and `npc-dev/` drive the world harness through it.

@@ -35,10 +35,13 @@ export interface CharacterInstance {
   uniforms: CharacterUniforms;
   /** Show face atlas cell 0..3 (neutral, blink, smile, half-lidded). */
   setFace(cell: number): void;
+  /** Swap in another build of the same skeleton (a finer LOD that just arrived). */
+  setAsset(asset: CharacterAsset): void;
   dispose(): void;
 }
 
-function toGeometry(d: GeoData): THREE.BufferGeometry {
+/** Wraps a built geometry blob as a BufferGeometry (attributes share the blob's arrays). */
+export function toGeometry(d: GeoData): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(d.position, 3));
   g.setAttribute("normal", new THREE.BufferAttribute(d.normal, 3));
@@ -61,15 +64,19 @@ function toGeometry(d: GeoData): THREE.BufferGeometry {
 
 const assets = new Map<string, CharacterAsset>();
 
-/** Build (once) and cache an archetype's geometry. */
+/** Build (once, on this thread) and cache an archetype's geometry. Humans go through ./pipeline.ts instead. */
 export function characterAsset(key: string, build: () => Built): CharacterAsset {
   let a = assets.get(key);
   if (!a) {
-    const built = build();
-    a = { built, body: toGeometry(built.body), cloth: built.cloth ? toGeometry(built.cloth) : null };
+    a = assetFromBuilt(build());
     assets.set(key, a);
   }
   return a;
+}
+
+/** Geometry for an already built archetype (not cached here). */
+export function assetFromBuilt(built: Built): CharacterAsset {
+  return { built, body: toGeometry(built.body), cloth: built.cloth ? toGeometry(built.cloth) : null };
 }
 
 export interface InstanceOpts {
@@ -107,27 +114,39 @@ export function createCharacter(asset: CharacterAsset, o: InstanceOpts): Charact
   body.receiveShadow = true;
   body.bind(skeleton, new THREE.Matrix4());
   group.add(body);
-  let cloth: THREE.SkinnedMesh | null = null;
   let clothMat: THREE.Material | null = null;
-  if (asset.cloth && o.pattern) {
-    clothMat = clothMaterial(uniforms, o.pattern, o.clothAmp ?? 0.35);
-    cloth = new THREE.SkinnedMesh(asset.cloth, clothMat);
-    cloth.name = "character:cloth";
-    cloth.castShadow = true;
-    cloth.receiveShadow = true;
-    cloth.bind(skeleton, new THREE.Matrix4());
-    group.add(cloth);
-  }
-  return {
+  const makeCloth = (geo: THREE.BufferGeometry) => {
+    if (!o.pattern) return null;
+    clothMat ??= clothMaterial(uniforms, o.pattern, o.clothAmp ?? 0.35);
+    const m = new THREE.SkinnedMesh(geo, clothMat);
+    m.name = "character:cloth";
+    m.castShadow = true;
+    m.receiveShadow = true;
+    m.bind(skeleton, new THREE.Matrix4());
+    group.add(m);
+    return m;
+  };
+  const inst: CharacterInstance = {
     group,
     body,
-    cloth,
+    cloth: asset.cloth ? makeCloth(asset.cloth) : null,
     skeleton,
     bones,
     rest,
     uniforms,
     setFace(cell) {
       uniforms.chFaceCell.value.x = cell * uniforms.chFaceCell.value.y;
+    },
+    setAsset(a) {
+      body.geometry = a.body;
+      (body as { boundingSphere: THREE.Sphere | null }).boundingSphere = null;
+      if (a.cloth) {
+        if (inst.cloth) {
+          inst.cloth.geometry = a.cloth;
+          (inst.cloth as { boundingSphere: THREE.Sphere | null }).boundingSphere = null;
+          inst.cloth.visible = true;
+        } else inst.cloth = makeCloth(a.cloth);
+      } else if (inst.cloth) inst.cloth.visible = false;
     },
     dispose() {
       bodyMat.dispose();
@@ -136,4 +155,5 @@ export function createCharacter(asset: CharacterAsset, o: InstanceOpts): Charact
       group.removeFromParent();
     },
   };
+  return inst;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { advancePhase, footPath, LLAMA_WALK, legFK, legIK, legPhase, pelvis } from "./gait";
+import { advancePhase, cadence, footPath, LLAMA_WALK, legFK, legIK, legPhase, pelvis, strideHalf } from "./gait";
 
 describe("gait phase", () => {
   test("advances by distance over cycle length and wraps into [0, 1)", () => {
@@ -72,5 +72,21 @@ describe("leg IK", () => {
     const a = legIK(hip, [0.1, -1, 0.2], 0.33, 0.34);
     expect(a.clamped).toBe(true);
     expect(Math.abs(a.knee)).toBeLessThan(0.1);
+  });
+});
+
+describe("cadence and stride", () => {
+  test("natural speeds keep planted feet: cadence follows the cycle length", () => {
+    const c = cadence(1.2, 0.95, 0);
+    expect(c).toBeCloseTo(1.2 / 0.95);
+    // Foot travel during stance = speed × stance time.
+    const half = strideHalf(1.2, c, 0.6, 1);
+    expect(2 * half).toBeCloseTo((1.2 * 0.6) / c);
+  });
+  test("game speeds clamp the cadence and the stride to what reads well", () => {
+    expect(cadence(3.6, 0.95, 0)).toBeCloseTo(1.45);
+    expect(cadence(7.4, 2.0, 1)).toBeCloseTo(2.1);
+    expect(strideHalf(7.4, 2.1, 0.36, 0.29)).toBe(0.29);
+    expect(cadence(0, 1, 0)).toBe(0);
   });
 });

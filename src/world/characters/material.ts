@@ -16,8 +16,9 @@
 import * as THREE from "three";
 import { paintStrength, windSway } from "../style-gl";
 import { gradientMap } from "../toon";
+import { PALETTE_SIZE } from "./slots";
 
-export const PALETTE_SIZE = 32;
+export { PALETTE_SIZE };
 
 export interface CharacterUniforms {
   chPal: { value: THREE.Color[] };

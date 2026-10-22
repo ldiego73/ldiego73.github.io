@@ -7,18 +7,24 @@
  * appearing / leaving at the far end of the terrace while unseen. At night a couple sits by a small fire.
  */
 import * as THREE from "three";
+import type { HumanSpec } from "../../characters/archetype";
+import type { HumanCrowd } from "../../characters/crowd";
+import { PEOPLE, wardrobe } from "../../characters/presets";
+import type { HeldProps, PropHandle } from "../../characters/props";
 import { RISER_FROM, TERRACE_STEP } from "../../layout";
 import { glowSprite } from "../../props";
 import { alongTread, findTread, jumped, type Tread, WORK, within } from "./logic";
-import { DARKS, hearth, MAN, type PartName, POLLERAS, PONCHOS, rng, SKINS, Static, WEAVES, WOMAN } from "./models";
-import { damp, Person } from "./person";
-import type { Crowd, Palette } from "./rig";
+import { hearth, rng, Static } from "./models";
+import { Npc } from "./npc";
+import { damp } from "./person";
 import type { Ctx, Group } from "./types";
 
 type Role = "plough" | "sow" | "carry";
 
 interface Worker {
-  p: Person;
+  p: Npc;
+  /** The plough (on the shoulder walking, in the hands working), the seed pouch, the q'ipi. */
+  tool: PropHandle | null;
   role: Role;
   /** Arc position on the tread and working direction. */
   s: number;
@@ -29,7 +35,6 @@ interface Worker {
   wait: number;
 }
 
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
 const pt = { x: 0, z: 0, dx: 1, dz: 0 };
 const scratch = new THREE.Vector3();
 
@@ -75,7 +80,8 @@ export function findSite(env: Ctx["env"], t: number, side: 1 | -1): Tread | null
 
 export function createTerraceSite(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
+  props: HeldProps,
   staticMat: THREE.Material,
   tread: Tread,
   n: number,
@@ -85,38 +91,39 @@ export function createTerraceSite(
   const R = rng(seed);
   const roles: Role[] =
     n >= 4 ? ["plough", "sow", "plough", "carry"] : n === 3 ? ["plough", "sow", "carry"] : ["plough", "sow"];
-  const wears: PartName[][] = roles.map((role, i) => {
-    const man = role === "plough";
-    const hat: PartName = man ? (R() < 0.75 ? "chullo" : "sombrero") : i % 2 ? "montera" : "sombrero";
-    const extra: PartName[] = role === "plough" ? ["chakitaqlla"] : role === "sow" ? ["pouch"] : ["bundle"];
-    return [...(man ? MAN : WOMAN), hat, ...extra];
-  });
   const mid = new THREE.Vector3();
   alongTread(tread, tread.length / 2, pt);
   mid.set(pt.x, tread.y, pt.z);
 
   const workers: Worker[] = roles.map((role, i) => {
     const man = role === "plough";
-    const palette: Palette = [
-      pick(R, SKINS),
-      man ? pick(R, PONCHOS) : pick(R, POLLERAS),
-      pick(R, WEAVES),
-      pick(R, DARKS),
-    ];
-    const p = new Person({
+    const felt = man ? R() >= 0.75 : i % 2 === 0;
+    const spec: HumanSpec = man
+      ? felt
+        ? PEOPLE.campesinoFelt
+        : PEOPLE.campesino
+      : felt
+        ? PEOPLE.campesinaFelt
+        : PEOPLE.campesina;
+    const p = new Npc({
       kind: "campesino",
       crowd,
-      idx: crowd.alloc(),
-      wear: wears[i] as PartName[],
-      palette,
-      scale: man ? 1.0 + R() * 0.06 : 0.93 + R() * 0.05,
-      girth: man ? 1.05 : 1,
+      spec,
+      palette: man ? wardrobe.andeanMan(R, false, felt) : wardrobe.andeanWoman(R, false, felt),
+      scale: man ? 0.97 + R() * 0.06 : 0.96 + R() * 0.06,
       radius: 0.36,
       seed: seed * 7 + i * 13.7,
     });
+    const tool =
+      role === "plough"
+        ? p.hold(props, "chakitaqlla")
+        : role === "sow"
+          ? p.hold(props, "pouch", "#c4383f")
+          : p.hold(props, "qipi", ["#c4383f", "#3446a6", "#2a9d8f"][i % 3] as string);
     const span = tread.length - 1.6;
     return {
       p,
+      tool,
       role,
       s: 0.8 + (span * (i + 0.5)) / roles.length,
       dir: i % 2 ? -1 : 1,
@@ -210,7 +217,6 @@ export function createTerraceSite(
   const stepWorker = (w: Worker, c: Ctx) => {
     const p = w.p;
     const dt = c.dt;
-    const b = p.bones;
     const work = within(c.time, WORK[0], WORK[1]);
     p.timer -= dt;
     switch (p.state) {
@@ -327,67 +333,22 @@ export function createTerraceSite(
       }
     }
     p.y = env.extra.groundAt(p.x, p.z);
-    animate(w, c, b);
+    animate(w, c);
   };
 
-  const animate = (w: Worker, c: Ctx, b: Person["bones"]) => {
+  const animate = (w: Worker, c: Ctx) => {
     const p = w.p;
-    const rm = c.rm;
-    p.rest(c.clock, rm);
     const st = p.state;
-    if (st === "fire") {
-      p.sit(c.clock, rm, 0.05);
-      b.armL.rotation.set(-0.9, 0, 0.3);
-      b.armR.rotation.set(-0.9, 0, -0.3);
-      p.commit();
-      return;
-    }
-    if (st === "rest") {
+    const a = p.anim;
+    if (st === "fire") a.act("sit-ground");
+    else if (st === "rest") {
       p.yaw = Math.atan2(Math.sin(p.v), Math.cos(p.v));
-      p.sit(c.clock, rm);
-      p.commit();
-      return;
-    }
-    p.gait(c.dt, rm, w.role === "carry" ? 0.5 : 1);
-    if (w.role === "carry" && p.state !== "home") {
-      // Hands at the knot on the chest, leaning into the load.
-      b.armL.rotation.set(-1.25, 0, -0.35);
-      b.armR.rotation.set(-1.25, 0, 0.35);
-      b.torso.rotation.x += 0.22;
-      if (p.timer > 0 && !rm) b.torso.rotation.x += Math.sin(c.clock * 2 + p.seed) * 0.05;
-    }
-    if (st === "work" && w.role === "plough") {
-      const k = rm ? 0.5 : (c.clock * 0.4 + p.seed) % 1;
-      const plunge = k < 0.35 ? Math.sin((k / 0.35) * Math.PI) : 0;
-      const lever = k >= 0.35 && k < 0.65 ? Math.sin(((k - 0.35) / 0.3) * Math.PI) : 0;
-      const stepK = k >= 0.65 ? (k - 0.65) / 0.35 : 0;
-      b.tool.position.set(-0.1, 0, 0.5 + lever * 0.05);
-      b.tool.rotation.x = -0.32 + plunge * 0.12 - lever * 0.32;
-      // Right foot on the peg pushes down; the body levers back on the handle.
-      b.legR.rotation.x = -0.55 * plunge + Math.sin(stepK * Math.PI) * 0.35;
-      b.legL.rotation.x = -Math.sin(stepK * Math.PI) * 0.3;
-      b.hips.position.y = plunge * 0.04;
-      b.torso.rotation.x = 0.28 - lever * 0.32 + plunge * 0.08;
-      b.armR.rotation.set(-0.95 - lever * 0.2, 0, 0.12);
-      b.armL.rotation.set(-1.15 - lever * 0.15, 0, -0.18);
-      b.head.rotation.x = 0.2;
-    } else if (w.role === "plough") {
-      // Shaft over the shoulder when walking to / from the terrace.
-      b.tool.position.set(-0.32, 0.95, -0.35);
-      b.tool.rotation.set(-0.55, 0, 0.15);
-      b.armR.rotation.set(-2.35, 0, 0.2);
-    }
-    if (st === "work" && w.role === "sow" && p.speed < 0.2) {
-      const k = rm ? 0.3 : (c.clock * 0.55 + p.seed) % 1;
-      b.torso.rotation.x = 0.55 + Math.sin(k * Math.PI * 2) * 0.06;
-      b.head.rotation.x = -0.15;
-      b.armL.rotation.set(-0.7, 0, 0.1);
-      // Dip into the pouch, then cast the seed in an arc low over the furrow.
-      b.armR.rotation.set(k < 0.4 ? -0.4 - k * 0.8 : -0.72 + Math.sin(((k - 0.4) / 0.6) * Math.PI) * -0.75, 0, -0.25);
-      b.legL.rotation.x = -0.25;
-      b.legR.rotation.x = 0.2;
-    }
-    p.commit();
+      a.act(w.role === "carry" ? "sit-ground" : "sit-cross");
+    } else if (w.role === "carry") a.act("carry-back");
+    else if (st === "work" && w.role === "plough") a.act("plough");
+    else if (st === "work" && w.role === "sow" && p.speed < 0.2) a.act("sow");
+    else a.act(w.role === "plough" ? "carry-shoulder" : "none", { side: 1 });
+    p.commit(c);
   };
 
   let visibleNow = true;

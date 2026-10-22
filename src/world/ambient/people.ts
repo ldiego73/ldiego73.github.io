@@ -10,13 +10,20 @@
  *    when the festival starts mid-session and leave when it ends.
  *
  * Every person registers a Body in `creatures` (kinds "campesino", "vendor", "shopper", "child", "dancer"),
- * steers around bodies ahead and resolves overlaps. Rendering: per site, one InstancedMesh per body part
- * with per-instance palette colors (people/rig.ts) — about 8–15 draw calls per visible site, hidden by distance.
+ * steers around bodies ahead and resolves overlaps. Rendering: the new characters (../characters): everyone
+ * is a member of ONE crowd (skinned on the GPU, LOD by distance, two draw calls for all bodies and cloth) and
+ * is animated by the human animation controller (people/npc.ts: walk cycle from the speed, actions such as
+ * "plough", "sow", "carry-back", "sit-cross", "wave", "dance", "hop", "kick", a glance at the traveler).
+ * Tools and loads (chakitaqlla, q'ipi, baskets, handkerchiefs) are held props, one instanced draw per kind.
  * Low quality: fewer sites and people, shorter view distance.
  */
 import "./people/people.css";
 import * as THREE from "three";
 import { festivalOf } from "../calendar";
+import { HumanCrowd } from "../characters/crowd";
+import { prefetchHumans } from "../characters/pipeline";
+import { PEOPLE } from "../characters/presets";
+import { HeldProps } from "../characters/props";
 import type { Ambient, CreateAmbient } from "../contract";
 import type { WorldEnvExtra } from "../env";
 import { on } from "../events";
@@ -25,8 +32,6 @@ import { createDancers, DANCE_RING, type DancerGroup } from "./people/dancers";
 import { createFeria, type FeriaFrame } from "./people/feria";
 import { createKids } from "./people/kids";
 import { headcount, jumped } from "./people/logic";
-import { ALL_PARTS, partSpecs, SHADOW_PARTS } from "./people/models";
-import { Crowd, paletteMaterial } from "./people/rig";
 import { createTerraceSite, findSite } from "./people/terraces";
 import type { Ctx, Group } from "./people/types";
 
@@ -47,7 +52,6 @@ export const create: CreateAmbient = (envIn, hudRoot): Ambient => {
   });
 
   const ramp = env.toon("#ffffff").gradientMap;
-  const mat = paletteMaterial(ramp);
   const staticMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp });
 
   // ------------------------------------------------------------ bubble (vendor greetings)
@@ -92,18 +96,29 @@ export const create: CreateAmbient = (envIn, hudRoot): Ambient => {
   // ------------------------------------------------------------ groups
   const groups: Group[] = [];
   const festival = dateWatch(() => festivalOf() === "inti-raymi");
-  // Dancer slots are always reserved: hidden instances cost nothing, and the festival can start mid-session.
+  // Room for the dancers is always kept: hidden people cost nothing, and the festival can start mid-session.
   const total = n.sites * n.perSite + n.stalls + n.shoppers + n.children + n.dancers;
-  const crowd = new Crowd(partSpecs(ALL_PARTS), total, mat, SHADOW_PARTS);
-  const danceSlots = Array.from({ length: n.dancers }, () => crowd.alloc());
+  const crowd = new HumanCrowd({ capacity: total, name: "people:crowd", lodDist: low ? [7, 20] : [9, 26] });
   env.scene.add(crowd.group);
+  const props = new HeldProps(Math.max(8, total));
+  env.scene.add(props.group);
+  // Start the builds now (worker, far LODs first) so the people are ready by the time the traveler arrives.
+  prefetchHumans([
+    PEOPLE.campesino,
+    PEOPLE.campesinoFelt,
+    PEOPLE.campesina,
+    PEOPLE.campesinaFelt,
+    PEOPLE.wawaBoy,
+    PEOPLE.wawaGirl,
+    ...(festival.on ? [PEOPLE.dancerMan, PEOPLE.dancerWoman] : []),
+  ]);
   const trail = env.trail;
   const hw = trail.halfWidth;
 
   // Andenes.
   TERRACE_SEEDS.slice(0, n.sites).forEach((s, i) => {
     const tread = findSite(env, s.t, s.side);
-    if (tread) groups.push(createTerraceSite(env, crowd, staticMat, tread, n.perSite, 17 + i * 31, i === 0));
+    if (tread) groups.push(createTerraceSite(env, crowd, props, staticMat, tread, n.perSite, 17 + i * 31, i === 0));
   });
 
   // Children by the trailhead, on open grass across from the gate.
@@ -146,7 +161,7 @@ export const create: CreateAmbient = (envIn, hudRoot): Ambient => {
       const center = p1.clone().addScaledVector(dir, 3.5);
       center.y = env.heightAt(center.x, center.z);
       const yaw = Math.atan2(p1.x - center.x, p1.z - center.z);
-      dancers = createDancers(env, crowd, center, yaw, n.dancers, danceSlots);
+      dancers = createDancers(env, crowd, props, center, yaw, n.dancers);
       groups.push(dancers);
     } else dancers?.enable(festival.on);
   };
@@ -172,7 +187,7 @@ export const create: CreateAmbient = (envIn, hudRoot): Ambient => {
       yaw,
       side,
     };
-    feria = createFeria(env, crowd, staticMat, frame, n.stalls, n.shoppers, showBubble);
+    feria = createFeria(env, crowd, props, staticMat, frame, n.stalls, n.shoppers, showBubble);
     groups.push(feria);
   };
 
@@ -219,7 +234,8 @@ export const create: CreateAmbient = (envIn, hudRoot): Ambient => {
         const da = Math.hypot(g.center.x - avatar.x, g.center.z - avatar.z) - g.radius;
         g.update(ctx, Math.min(d, da) < view);
       }
-      crowd.flush();
+      crowd.update(env.camera);
+      props.update();
       if (bubbleT > 0) {
         bubbleT -= dt;
         placeBubble();
@@ -247,7 +263,7 @@ export const create: CreateAmbient = (envIn, hudRoot): Ambient => {
       for (const g of groups) g.dispose();
       groups.length = 0;
       crowd.dispose();
-      mat.dispose();
+      props.dispose();
       staticMat.dispose();
       layer.remove();
     },
@@ -267,7 +283,8 @@ export const create: CreateAmbient = (envIn, hudRoot): Ambient => {
           points: g.points?.() ?? [],
         })),
       ring: DANCE_RING,
-      drawCalls: () => crowd.drawCalls(),
+      drawCalls: () => crowd.drawCalls() + props.drawCalls(),
+      crowd: () => crowd.stats(),
     };
     (window as unknown as { __people?: typeof debug }).__people = debug;
   }

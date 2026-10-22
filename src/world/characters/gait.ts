@@ -123,12 +123,35 @@ export function pelvis(phase: number, walk: number, run: number): PelvisPose {
   // Two bounces per cycle.
   const walkBob = -Math.cos(2 * a - 0.6) * 0.5 + 0.5;
   const runBob = Math.cos(2 * a - 0.3) * 0.5 + 0.5;
+  // The run's bounce is kept small: a big one reads as hopping at these proportions.
   return {
-    y: walk * 0.022 * walkBob + run * 0.05 * runBob,
+    y: walk * 0.022 * walkBob + run * 0.026 * runBob,
     x: Math.sin(a + 0.4) * (0.022 * walk + 0.008 * run),
     roll: -Math.sin(a + 0.4) * (0.05 * walk + 0.03 * run),
-    yaw: Math.cos(a) * (0.11 * walk + 0.16 * run),
+    yaw: Math.cos(a) * (0.11 * walk + 0.14 * run),
   };
+}
+
+/**
+ * Step cadence (cycles per second) for a ground speed. At a person's natural speeds the cadence follows the
+ * cycle length (`speed / cycleLen`, feet planted); the world's traveler walks and runs much faster than a body
+ * this size could stride, so the cadence is clamped to what still reads as a brisk walk or a run (the stance
+ * foot then slides a little, as in most games, instead of the legs spinning).
+ */
+export function cadence(speed: number, cycleLen: number, run: number) {
+  const max = 1.45 + 0.65 * run;
+  const min = 0.55 + 0.45 * run;
+  if (cycleLen <= 0 || speed <= 0) return 0;
+  return Math.min(max, Math.max(min, speed / cycleLen));
+}
+
+/**
+ * Half of the stance foot's travel for a speed and cadence (the foot slides back at `speed` while it bears
+ * weight, `duty` of the cycle), never more than a leg can reach (`maxHalf`).
+ */
+export function strideHalf(speed: number, cad: number, duty: number, maxHalf: number) {
+  if (cad <= 0) return 0;
+  return Math.min(maxHalf, (speed * duty) / (2 * cad));
 }
 
 /** Phase offsets of the llama's lateral-sequence walk (LH, LF, RH, RF fall in turn). */
