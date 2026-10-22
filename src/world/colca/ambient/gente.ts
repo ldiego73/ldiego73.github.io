@@ -58,6 +58,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const crowd = new HumanCrowd({ capacity: nVillagers + nKids + 1, name: "colca-gente:crowd" });
   env.scene.add(crowd.group);
   const props = new HeldProps(2);
+  props.rm = env.reducedMotion;
   env.scene.add(props.group);
 
   // ------------------------------------------------------------------ village frame
@@ -295,7 +296,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       if (caravanNear) farmer.commit(f);
       herd.update(dt, t, env.camera);
       crowd.update(env.camera);
-      props.update();
+      props.update(t);
     },
     dispose() {
       for (const w of walkers) w.p.dispose();

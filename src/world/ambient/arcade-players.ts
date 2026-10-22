@@ -15,8 +15,8 @@
  * Every person registers a Body in `creatures` ("player", "child") through the shared Npc (people/npc.ts).
  * Rendering: the shared characters, one HumanCrowd (two draws per pass for every body and cloth) while the
  * hall is in view, none when it is more than ~60 u from both camera and traveler (45 on low quality; low also
- * has fewer people: 2 players + 1 child by day, 1 at night). The hands-on-the-controls, cheering and peeking
- * gestures are written over the animator's pose (gente/overlay.ts) until the catalogue has them.
+ * has fewer people: 2 players + 1 child by day, 1 at night). Gestures: "play-arcade", "hop" with the "cheer"
+ * arms layer, "hands-clasp" for the children watching.
  */
 import * as THREE from "three";
 import type { HumanSpec } from "../characters/archetype";
@@ -28,7 +28,7 @@ import type { Ambient, CreateAmbient } from "../contract";
 import type { WorldEnvExtra } from "../env";
 import { on } from "../events";
 import { cabsFor, LOOK_AHEAD, nextCheer, type Roster, roster, shouldYield } from "./arcade-players/logic";
-import { arcadePlay, cheer, overlay, peek, play } from "./gente/overlay";
+import { play, playArms } from "./gente/overlay";
 import { jumped } from "./people/logic";
 import { rng } from "./people/models";
 import { Npc, type NpcFrame } from "./people/npc";
@@ -368,14 +368,15 @@ export const create: CreateAmbient = (envIn): Ambient => {
           const of = w.of;
           ex = of && of.state === "play" && of.cheer > 0 ? Math.sin((1 - of.cheer / CHEER_S) * Math.PI) : 0;
         }
-        const hopping = !rm && ((playing && !w.kid && w.cheer > 0) || ex > 0.3);
-        play(p, hopping ? "hop" : "none", { fade: 0.25 });
+        // Players: hands on the controls, or a hop with both arms up for a win. Kids: hands clasped behind
+        // the player, hopping and cheering along with a win.
+        const cheering = (playing && !w.kid && w.cheer > 0) || ex > 0.3;
+        if (playing && !w.kid) play(p, cheering && !rm ? "hop" : cheering ? "none" : "play-arcade", { fade: 0.25 });
+        else if (playing) play(p, cheering && !rm ? "hop" : "hands-clasp", { fade: 0.3 });
+        else play(p, "none", { fade: 0.3 });
+        playArms(p, cheering ? "cheer" : "none", { fade: 0.2 });
         p.lookRange = w.state === "aside" ? 6 : 0;
         p.commit(nf);
-        if (playing && !w.kid) {
-          const k = w.cheer > 0 ? 1 - w.cheer / CHEER_S : -1;
-          overlay(p.member, (b) => (k >= 0 ? cheer(b, clock, k, rm) : arcadePlay(b, clock, p.seed, rm)));
-        } else if (playing && w.kid) overlay(p.member, (b) => peek(b, w.side, ex, clock, rm));
       }
       crowd.update(env.camera);
     },

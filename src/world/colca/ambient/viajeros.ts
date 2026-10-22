@@ -85,6 +85,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const crowd = new HumanCrowd({ capacity: roadSpecs.length + gatherSpecs.length, name: "colca-viajeros:crowd" });
   env.scene.add(crowd.group);
   const props = new HeldProps(8);
+  props.rm = env.reducedMotion;
   env.scene.add(props.group);
 
   const woman = (spec: HumanSpec, prop?: Outfit["prop"]): Outfit => ({
@@ -199,7 +200,16 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const sn = Math.sin(C.yaw);
   const W = (lx: number, lz: number) => ({ x: C.x + lx * cs + lz * sn, z: C.z - lx * sn + lz * cs });
   const floorY = env.heightAt(C.x, C.z) + 0.05;
-  const gatherers = gatherSpecs.map((g, i) => ({ g, ...person(outfitFor(g.role, i), 101 + i * 5.3) }));
+  const gatherers = gatherSpecs.map((g, i) => {
+    const o = { g, ...person(outfitFor(g.role, i), 101 + i * 5.3) };
+    if (g.pose === "photo") o.p.hold(props, "camera");
+    // Watchers follow the condors: a point out over the canyon, above the parapet (platform-local +z).
+    if (g.pose === "watch" || g.pose === "photo") {
+      const sky = W(g.x * 1.6, 26);
+      o.p.lookAt = new THREE.Vector3(sky.x, floorY + 14, sky.z);
+    }
+    return o;
+  });
   prefetchHumans(outfits);
   // The vendor's cloth: a striped manta with folded textiles, a few small wares and a stool.
   const stallPos = W(STALL.x, STALL.z);
@@ -349,13 +359,13 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     const k = rm ? 0 : Math.sin(f.clock * 0.21 + i * 1.3);
     switch (g.pose) {
       case "watch":
-        p.lookRange = 3;
-        p.anim.act(i % 2 === 0 && k > 0.55 ? "point" : i % 2 ? "hands-back" : "arms-crossed", { fade: 0.6 });
+        // Head up after the condors; one points them out now and then.
+        p.anim.act(i % 2 ? "hands-back" : "arms-crossed", { fade: 0.6 });
+        p.anim.actArms(i % 2 === 0 && k > 0.55 ? "point-up" : "none", { fade: 0.5 });
         break;
       case "photo":
-        // Phone up toward the condors (no "photo" pose in the catalogue yet: pointing it at them).
-        p.lookRange = 0;
-        p.anim.act(k > -0.3 ? "point" : "hands-clasp", { fade: 0.5 });
+        // The camera up to the eye, lowered now and then to look.
+        p.anim.act(k > -0.3 ? "photo" : "none", { fade: 0.5 });
         break;
       case "sit":
         p.lookRange = 4;
@@ -396,7 +406,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         updateGatherer(gatherers[i] as (typeof gatherers)[number], i, dayNow, flipped, near);
       herd.update(dt, t, env.camera);
       crowd.update(env.camera);
-      props.update();
+      props.update(t);
     },
     dispose() {
       for (const w of walkers) w.p.dispose();

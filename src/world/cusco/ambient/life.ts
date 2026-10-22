@@ -5,7 +5,7 @@
  *    usnu rather than over it (routeAround), pausing at each stop; they steer round every body through the
  *    shared creatures registry (the traveler included), so they step out of the way. Out by day only: at
  *    dusk they go home (switched off while unseen), at dawn they come back. One woman carries a q'ipi.
- *  - The chasqui sits on the bench of the post (./chasqui.ts builds it) day and night.
+ *  - The chasqui (a runner of the royal road: unku, chumpi, plumed headband) sits on the bench of the post (./chasqui.ts builds it) day and night.
  *  - The caravan follows a loop inside the plaza (LOOP), the llamas in file behind the herder (staff in hand),
  *    and waits while the traveler stands in the herder's way: the llamas graze while they wait. At night it
  *    rests at NIGHT_CAMP: the llamas lie down, the herder sits by them.
@@ -13,7 +13,8 @@
  * and campesinas (ponchos and chullos or felt hats; jobonas, polleras, llicllas and monteras) with the
  * Andean wardrobes, all in ONE HumanCrowd (two draw calls per pass) with their held props (staff, q'ipi: one
  * instanced draw per kind). The llamas are ONE herd of the shared llama (../../characters/animals: one instanced
- * draw per LOD) wearing their pack saddlebags. Builds are prefetched at load (worker, far LODs first).
+ * draw per LOD) wearing their pack saddlebags. Builds are prefetched at load (worker, far LODs first). This
+ * ambient also sets the characters' shared night rim from the sky (setNightRim) once per frame.
  */
 import * as THREE from "three";
 import { Npc } from "../../ambient/people/npc";
@@ -21,6 +22,7 @@ import { prefetchAnimals } from "../../characters/animals/assets";
 import { createHerd } from "../../characters/animals/crowd";
 import type { HumanSpec } from "../../characters/archetype";
 import { HumanCrowd } from "../../characters/crowd";
+import { setNightRim } from "../../characters/index";
 import { prefetchHumans } from "../../characters/pipeline";
 import { PEOPLE, wardrobe } from "../../characters/presets";
 import { HeldProps } from "../../characters/props";
@@ -37,6 +39,7 @@ import {
   loopAt,
   loopLength,
   NIGHT_CAMP,
+  nightAmount,
   type P,
   routeAround,
 } from "./life/logic";
@@ -86,7 +89,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         : PEOPLE.campesina,
   );
   // Start the builds now (worker, far LODs first) so the plaza is peopled by the time the traveler looks.
-  prefetchHumans([PEOPLE.campesino, PEOPLE.campesinoFelt, PEOPLE.campesina, PEOPLE.campesinaFelt]);
+  prefetchHumans([PEOPLE.campesino, PEOPLE.campesinoFelt, PEOPLE.campesina, PEOPLE.campesinaFelt, PEOPLE.chasqui]);
   prefetchAnimals(["llama"], [2, 1, 0]);
 
   const crowd = new HumanCrowd({ capacity: nWalkers + 2, name: "cusco-people", lodDist: high ? [9, 26] : [7, 20] });
@@ -130,7 +133,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   };
 
   // ------------------------------------------------------------------ chasqui (seated at the post)
-  const chasqui = person(PEOPLE.campesino, 99);
+  // A runner of the royal road: the core's chasqui (unku tunic, woven chumpi, plumed headband).
+  const chasqui = person(PEOPLE.chasqui, 99);
   // The bench is at the back of the shelter (local z −d/2 + 0.85; the shelter faces north, so world +z).
   const benchZ = CHASQUI.z + CHASQUI.d / 2 - 0.85;
   chasqui.place(CHASQUI.x + 0.2, benchZ, CHASQUI.yaw);
@@ -178,6 +182,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       frame.clock += dt;
       frame.avatar.copy(avatar);
       env.camera.getWorldPosition(camPos);
+      // The moonlit rim of every person and animal in the hub (one shared uniform of the characters).
+      setNightRim(0 * nightAmount(env.sky.time()));
       const isDayNow = isDay(env.sky.time());
       const flipped = day !== isDayNow;
       day = isDayNow;
@@ -280,6 +286,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       props.update();
     },
     dispose() {
+      setNightRim(0);
       for (const w of walkers) w.p.dispose();
       chasqui.dispose();
       herder.dispose();

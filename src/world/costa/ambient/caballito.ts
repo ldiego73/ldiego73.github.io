@@ -420,7 +420,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         const near = Math.hypot(x - cam.x, z - cam.z) < FISHER_VIEW;
         if (near !== f.drawn) {
           f.drawn = near;
-          m.member.show(near);
+          if (near) m.show();
+          else m.hide();
         }
         if (!near) return;
         m.place(x + Math.sin(yaw) * SEAT_Z, z + Math.cos(yaw) * SEAT_Z, yaw);

@@ -22,7 +22,7 @@ import { CUSHMAS, RIBBONS, SHORTS, SKINS, SKIRTS, TEES } from "./dress";
 import { castAt, isOut, netShape, riverLane } from "./logic";
 import { fishingCanoe, netMesh, pequePeque } from "./models";
 import type { Ctx, Group } from "./types";
-import { give, reveal, villager } from "./villager";
+import { villager } from "./villager";
 
 type Person = Npc;
 /**
@@ -258,7 +258,7 @@ export function createRiver(
       radius: 0.35,
       seed: 67,
     });
-    give(mate, props, "paddle");
+    mate.hold(props, "paddle");
     const net = netMesh();
     env.noOutline(net);
     net.visible = false;
@@ -357,13 +357,11 @@ export function createRiver(
     if (stage === "swing" && fa.action !== "fish-cast") fa.act("fish-cast", { fade: 0.15, restart: true });
     else if (stage === "coil") fa.act("hands-clasp", { fade: 0.4 });
     else if (stage === "rest") fa.act("hands-hips", { fade: 0.5 });
-    reveal(f.man);
     f.man.commit(c);
     // The mate holds the canoe steady with small paddle strokes, sitting at the stern.
     seat(f.mate, f.boat, 0, -1.45, level + bob + FLOOR, 0);
     f.mate.yaw = f.boat.yaw + Math.PI / 2;
     f.mate.anim.act("paddle");
-    reveal(f.mate);
     f.mate.commit(c);
     // The net: from the fisherman's hands to the landing spot.
     const sh = netShape(stage, u);
@@ -434,6 +432,8 @@ export function createRiver(
     // Driver at the stern by the tiller; passenger under the shade, sitting across the hull.
     seat(m.driver, m.boat, 0, -2.6, level + bob + FLOOR, 0);
     m.driver.anim.act("sit-bench", { seat: 0.3 });
+    // One hand back on the motor's tiller.
+    m.driver.anim.actArms("hold-front", { side: 1 });
     m.driver.commit(c);
     seat(m.rider, m.boat, 0.1, -0.4, level + bob + FLOOR, Math.PI / 2);
     m.rider.anim.act("sit-bench", { seat: 0.3 });

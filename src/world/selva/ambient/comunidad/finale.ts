@@ -27,7 +27,7 @@ import { CUSHMAS, NATURAL, SHORTS, SKINS, SKIRTS, TEES } from "./dress";
 import { greeting, isOut, type Role } from "./logic";
 import { frameMatrix, mat, stool } from "./models";
 import type { Ctx, Greeter, Group } from "./types";
-import { give, reveal, villager } from "./villager";
+import { villager } from "./villager";
 
 type Kind = "painter" | "traveller" | "kid" | "elder";
 
@@ -128,7 +128,7 @@ export function createFinale(
         radius: 0.4,
       });
       // The brush that draws the kené lines on the cloth.
-      give(p, held, "brush");
+      p.hold(held, "brush");
     } else if (kind === "traveller") {
       p = villager(crowd, {
         ...base,
@@ -275,15 +275,14 @@ export function createFinale(
     p.speed = 0;
     const sits = w.kind === "traveller" || w.kind === "elder";
     if (w.wave > 0) {
-      // Those on the log and the stool get up to wave back; the painters answer with a look and a smile.
+      // Greeted: a wave back from where they sit or kneel, looking at the traveler.
       w.wave -= c.dt;
       p.lookRange = 6;
-      if (sits) {
-        a.act("wave", { fade: 0.45, side: w.k ? -1 : 1 });
-        p.commit(c);
-        return;
-      }
-    } else p.lookRange = sits ? 4 : 0;
+      a.actArms("wave", { fade: 0.3, side: w.k ? -1 : 1 });
+    } else {
+      p.lookRange = sits ? 4 : 0;
+      a.actArms(w.kind === "painter" ? "paint" : "none", { fade: 0.4 });
+    }
     if (w.kind === "painter") {
       // Kneeling at the cloth's edge, the brush low over it.
       a.act("kneel", { fade: 0.5 });
@@ -314,10 +313,7 @@ export function createFinale(
       if (visible !== shown) {
         shown = visible;
         props.visible = visible;
-        for (const w of people) {
-          if (!visible) w.p.hide();
-          else reveal(w.p);
-        }
+        if (!visible) for (const w of people) w.p.hide();
       }
       const fireOn = isOut("fire", c.time);
       fl.visible = visible && fireOn && has("traveller");

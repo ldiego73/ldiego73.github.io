@@ -78,7 +78,7 @@ describe("ukuku: dance", () => {
       expect(Math.hypot(s.dx, s.dz)).toBeLessThanOrEqual(WANDER);
       expect(s.side).toBe(1);
     }
-    expect([...actions].sort()).toEqual(["dance", "hop", "wave"]);
+    expect([...actions].sort()).toEqual(["dance", "hop", "whip-circle"]);
     expect(danceStep(0.1, false).action).toBe("hop");
   });
   test("it spins whole turns in a spin step", () => {

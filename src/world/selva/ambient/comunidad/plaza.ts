@@ -12,7 +12,7 @@ import { damp } from "../../../ambient/people/person";
 import type { HumanCrowd } from "../../../characters/crowd";
 import { isOut } from "./logic";
 import type { Ctx, Group } from "./types";
-import { reveal, villager } from "./villager";
+import { villager } from "./villager";
 
 type Game = "ball" | "tag";
 type Person = Npc;
@@ -96,10 +96,7 @@ export function createPlazaKids(
       for (const k of kids) anyone ||= k.active;
       if (visible !== visibleNow) {
         visibleNow = visible;
-        for (const k of kids) {
-          if (!visible) k.hide();
-          else reveal(k);
-        }
+        if (!visible) for (const k of kids) k.hide();
       }
       ball.visible = visible && anyone;
       if (!visible || !anyone) return;

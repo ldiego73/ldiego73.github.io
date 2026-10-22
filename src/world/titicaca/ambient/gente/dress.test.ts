@@ -19,10 +19,10 @@ describe("the lake's people: who they are", () => {
   });
 
   test("Taquile's dress only on Taquile's weavers", () => {
-    expect(specOf("knit", 59).spec).toBe(PEOPLE.taquile);
+    expect(specOf("knit", 59).spec.worn).toContain("chumpi");
     expect(specOf("knit", 59).palette(r).hat).toBe("#b8282f");
-    // A Taquile spinner (seed < 100) has no hat; the shepherdess (seed ≥ 100) wears the bombín.
-    expect(specOf("spin", 80).spec.hat).toBeUndefined();
+    // A Taquile spinner (seed < 100) wears the head shawl; the shepherdess (seed ≥ 100) wears the bombín.
+    expect(specOf("spin", 80).spec).toBe(PEOPLE.taquileWoman);
     expect(specOf("spin", 80).palette(r).skirt).toBe("#b8282f");
     expect(specOf("spin", 398).spec.hat).toBe("bowler");
   });

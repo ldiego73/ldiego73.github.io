@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { CHASQUI, PLAZA, QORI_STELE, USNU } from "../../plan";
-import { blocked, destinations, isDay, LOOP, loopAt, loopLength, routeAround, USNU_CLEAR } from "./logic";
+import { blocked, destinations, isDay, LOOP, loopAt, loopLength, nightAmount, routeAround, USNU_CLEAR } from "./logic";
 
 const segDist = (a: { x: number; z: number }, b: { x: number; z: number }, p: { x: number; z: number }) => {
   const dx = b.x - a.x;
@@ -68,5 +68,19 @@ describe("hub life", () => {
     expect(blocked(h, { x: 0, z: 1.5 })).toBe(true);
     expect(blocked(h, { x: 0, z: -1.5 })).toBe(false);
     expect(blocked(h, { x: 0, z: 4 })).toBe(false);
+  });
+});
+
+describe("night amount", () => {
+  test("0 at noon, 1 at midnight, in between at dusk, never out of range", () => {
+    expect(nightAmount(0.5)).toBe(0);
+    expect(nightAmount(0)).toBe(1);
+    const dusk = nightAmount(0.76);
+    expect(dusk).toBeGreaterThan(0);
+    expect(dusk).toBeLessThan(1);
+    for (let t = 0; t <= 1; t += 0.01) {
+      expect(nightAmount(t)).toBeGreaterThanOrEqual(0);
+      expect(nightAmount(t)).toBeLessThanOrEqual(1);
+    }
   });
 });

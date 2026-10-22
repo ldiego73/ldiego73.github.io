@@ -25,7 +25,7 @@ import { cabPose, RAFT } from "../arcade/logic";
 import { type Frame, lxOf, lzOf, wx, wz } from "../embarcadero/station";
 import { BLOUSES, SHORTS, SKINS, SKIRTS, TEES } from "./dress";
 import type { Ctx, Group } from "./types";
-import { reveal, villager } from "./villager";
+import { villager } from "./villager";
 
 type Role = "player" | "kid" | "watcher";
 
@@ -216,18 +216,17 @@ export function createRaftPlayers(
     } else {
       p.yaw = damp(p.yaw, w.hyaw, 6, dt);
       if (w.role === "player") {
-        // Hands on the controls before the chest; a hop with the arms up for a win.
-        a.act(w.cheer > 0 ? "hop" : "knit", { fade: 0.25 });
+        // Hands on the controls; a hop with the arms up for a win.
+        a.act(w.cheer > 0 ? "hop" : "play-arcade", { fade: 0.25 });
       } else if (w.role === "kid") {
         const excited = lead && lead.cheer > 0;
-        a.act(excited ? "hop" : "hands-clasp", { fade: 0.25 });
+        a.act(excited ? "cheer" : "hands-clasp", { fade: 0.25 });
       } else {
         // The teenager leaning on the rail, arms folded, looking round now and then.
         a.act("arms-crossed", { fade: 0.4 });
         p.lookRange = 10;
       }
     }
-    reveal(p);
     p.commit(c);
   };
 

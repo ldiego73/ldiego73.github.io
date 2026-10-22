@@ -27,7 +27,7 @@ import { on } from "../events";
 import { DYE } from "../palette";
 import { glowSprite } from "../props";
 import { lxOf, lzOf, stationFrame, wx, wz } from "./fields/geo";
-import { commitLooking, overlay, play, raiseHand, traceCord } from "./gente/overlay";
+import { play, playArms } from "./gente/overlay";
 import { jumped, within } from "./people/logic";
 import { rng } from "./people/models";
 import { Npc, type NpcFrame } from "./people/npc";
@@ -386,6 +386,11 @@ export const create: CreateAmbient = (envIn): Ambient => {
   };
 
   const nf: NpcFrame = { dt: 0, clock: 0, rm: false, avatar: new THREE.Vector3() };
+  /** Animate and draw, the head turned toward `at` (the storyteller, the cords, the fire) or straight ahead. */
+  const commitLooking = (p: Npc, at: THREE.Vector3 | null) => {
+    p.lookAt = at;
+    p.commit(nf);
+  };
   const lookV = new THREE.Vector3();
   const headAt = (p: Npc, out: THREE.Vector3) => out.set(p.x, p.y + 1.2 * p.scale, p.z);
 
@@ -397,8 +402,9 @@ export const create: CreateAmbient = (envIn): Ambient => {
     nf.rm = rm;
     if (st === "walk") {
       play(p, "none");
+      playArms(p, "none");
       if (a.role === "elder") staff.show(true);
-      commitLooking(p, nf, null);
+      commitLooking(p, null);
       return;
     }
     p.speed = damp(p.speed, 0, 6, dt);
@@ -409,12 +415,12 @@ export const create: CreateAmbient = (envIn): Ambient => {
       a.gaze.copy(hearthW);
       a.gaze.y += 0.3;
       if (!rm) a.gaze.x += Math.sin(clock * 0.25 + p.seed) * 1.5;
-      commitLooking(p, nf, a.gaze);
+      commitLooking(p, a.gaze);
       return;
     }
     if (a.role === "elder") poseElder(a, dt, rm);
     else if (a.role === "kid") poseKid(a, dt, rm);
-    else poseReader(a, dt, rm);
+    else poseReader(a, dt);
   };
 
   const poseElder = (a: Actor, dt: number, rm: boolean) => {
@@ -432,7 +438,7 @@ export const create: CreateAmbient = (envIn): Ambient => {
     if (ask) headAt(ask, a.gaze);
     else if (w >= 0.5) a.gaze.copy(cordsW);
     else a.gaze.set(center.x, center.y + 0.6, center.z);
-    commitLooking(p, nf, a.gaze);
+    commitLooking(p, a.gaze);
   };
 
   const poseKid = (a: Actor, dt: number, rm: boolean) => {
@@ -444,31 +450,26 @@ export const create: CreateAmbient = (envIn): Ambient => {
     if (w > 0.5) lookV.copy(cordsW);
     else headAt(elder.p, lookV);
     a.gaze.lerp(lookV, 1 - Math.exp(-(2.2 + a.who * 0.4) * dt));
-    commitLooking(p, nf, a.gaze);
-    // One child at a time raises a hand to ask.
-    if (a.timer < 0) {
-      const k = rm ? 0 : Math.sin(clock * 7 + a.who);
-      overlay(p.member, (b) => raiseHand(b, "R", k));
-    }
+    commitLooking(p, a.gaze);
+    // One child at a time raises a hand to ask (the arms layer over the seated pose).
+    playArms(p, a.timer < 0 ? "raise-hand" : "none", { fade: 0.25 });
   };
 
-  const poseReader = (a: Actor, dt: number, rm: boolean) => {
+  const poseReader = (a: Actor, dt: number) => {
     const p = a.p;
     const spot = a.seat;
     if (Math.hypot(spot.x - p.x, spot.z - p.z) > 0.12) {
       // Stepping to another cord.
       p.seek(spot.x, spot.z, 0.7, dt);
-      play(p, "none");
-      commitLooking(p, nf, null);
+      play(p, "none", { fade: 0.4 });
+      commitLooking(p, null);
       return;
     }
     p.speed = 0;
     p.yaw = angleDamp(p.yaw, f.yaw, 4, dt);
-    play(p, "none");
-    commitLooking(p, nf, null);
-    // A hand traces down the cord from the year knots to the month knots and back up.
-    const k = rm ? 0.4 : 0.5 + 0.5 * Math.cos(clock * 0.32 + p.seed);
-    overlay(p.member, (b) => traceCord(b, a.who === 0 ? "L" : "R", k));
+    // A hand traces down the cord from the year knots to the month knots and back up (the cord-side hand).
+    play(p, "read-cord", { side: a.who === 0 ? -1 : 1, fade: 0.5 });
+    commitLooking(p, null);
   };
 
   const stepKids = (dt: number) => {

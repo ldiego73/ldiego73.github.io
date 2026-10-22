@@ -3,9 +3,9 @@
  * (../../../characters/presets.ts specs), the palette that keeps each community's everyday dress, the prop in
  * their hands or on their back, and how far they glance at the traveler.
  *  - Uros and Aymara women: pollera, lliclla and the bombín (bowler hat), in bright bayeta colours.
- *  - Taquile: the men in a white shirt, black vest and trousers, the red chullo of married men, knitting a
- *    chullo; the women in a red pollera (a green under-tier), a white blouse and a black shawl, spinning with
- *    the pushka. Only Taquile's own weavers wear Taquile's dress (the shepherdess spins in a pollera and bombín).
+ *  - Taquile: the men in a white shirt, black vest and trousers, the woven chumpi belt and the red chullo of
+ *    married men, knitting a chullo; the women in the black head shawl, a white or red blouse, a red pollera
+ *    (a green under-tier) and the chumpi, spinning with the pushka. Only Taquile's own weavers wear Taquile's dress (the shepherdess spins in a pollera and bombín).
  *  - Men on the islands, the boats and the road: chullo (or felt hat) and poncho; the paqo, an elder.
  *  - Children: the highland wawas.
  * Pure (no DOM, no Three): tested in dress.test.ts.
@@ -16,20 +16,15 @@ import type { PropKind } from "../../../characters/props";
 import type { Dress } from "../../../characters/slots";
 import type { Role } from "./logic";
 
-/** Taquile's women: no hat (their black shawl is the lliclla), a white blouse over a red pollera. */
-const TAQUILE_WOMAN: HumanSpec = {
-  sex: "f",
-  hair: "braids",
-  top: "blouse",
-  bottom: "bare",
-  feet: "ojotas",
-  layers: [{ kind: "pollera" }, { kind: "lliclla" }],
-};
+/** Taquile's men wear the chumpi, the woven belt, over the white shirt. */
+const TAQUILE_MAN: HumanSpec = { ...PEOPLE.taquile, worn: ["chumpi"] };
+/** Taquile's women: the black head shawl (chukoo), a white or red blouse, the red pollera and the chumpi. */
+const TAQUILE_WOMAN: HumanSpec = PEOPLE.taquileWoman;
 
 /** Every archetype the lake uses (for prefetching at load). */
 export const LAKE_SPECS: readonly HumanSpec[] = [
   PEOPLE.aymara,
-  PEOPLE.taquile,
+  TAQUILE_MAN,
   TAQUILE_WOMAN,
   PEOPLE.campesino,
   PEOPLE.campesinoFelt,
@@ -66,6 +61,10 @@ const taquileMan = (r: () => number): Dress => ({
   wrapG: "#1f1a17",
   wrapB: "#1f1a17",
   wrapW: "#1f1a17",
+  // The chumpi's checker.
+  accent: "#b8282f",
+  accent2: "#dda63c",
+  white: "#efe6d6",
 });
 
 const taquileWoman = (r: () => number): Dress => ({
@@ -83,6 +82,8 @@ const taquileWoman = (r: () => number): Dress => ({
   shawlG: "#b8282f",
   shawlB: "#2a2420",
   shawlW: "#3b3330",
+  accent: "#b8282f",
+  white: "#efe6d6",
 });
 
 export interface Who {
@@ -102,7 +103,7 @@ export function specOf(role: Role, seed: number): Who {
     return seed % 2 === 1
       ? { spec: PEOPLE.wawaBoy, palette: (r) => wardrobe.andeanMan(r), kid }
       : { spec: PEOPLE.wawaGirl, palette: (r) => wardrobe.andeanWoman(r), kid };
-  if (role === "knit") return { spec: PEOPLE.taquile, palette: taquileMan, kid };
+  if (role === "knit") return { spec: TAQUILE_MAN, palette: taquileMan, kid };
   if (role === "spin" && seed < 100) return { spec: TAQUILE_WOMAN, palette: taquileWoman, kid };
   if (role === "paqo") return { spec: PEOPLE.amauta, palette: (r) => wardrobe.andeanMan(r), kid };
   const man =

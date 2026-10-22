@@ -20,7 +20,7 @@ import { NATURAL, SKINS, SKIRTS, type Who } from "./dress";
 import { greeting, isOut, type Role } from "./logic";
 import { frameMatrix, loom, mat, pots, stool } from "./models";
 import type { Ctx, Greeter, Group } from "./types";
-import { give, reveal, villager } from "./villager";
+import { villager } from "./villager";
 
 export interface CraftSpot {
   /** Weaver (hips), potter and elder positions (world) and the direction they face (yaw). */
@@ -83,8 +83,8 @@ export function createCrafts(
     p.y = ground(d.home.x, d.home.z);
     // The potter paints a pot held in her lap.
     if (d.role === "potter") {
-      give(p, held, "pot", "#b5653b");
-      give(p, held, "brush");
+      p.hold(held, "pot", "#b5653b");
+      p.hold(held, "brush");
     }
     return { p, role: d.role, home: d.home, greetN: Math.floor(R() * 4), wave: 0, night: d.role === "elder" };
   });
@@ -169,19 +169,20 @@ export function createCrafts(
     const p = k.p;
     const a = p.anim;
     p.speed = 0;
+    // The weaver at the backstrap loom (leaning back on the strap, passing and beating the weft), the potter
+    // cross-legged painting a pot in her lap, the elder on his stool.
+    if (k.role === "weaver") a.act("weave", { fade: 0.5 });
+    else if (k.role === "potter") a.act("sit-cross", { fade: 0.5 });
+    else a.act("sit-stool", { fade: 0.5, seat: STOOL_SEAT });
     if (k.wave > 0) {
-      // The elder gets up from his stool to wave back; the women at work answer from their mats (a smile and a
-      // look: one action at a time, and a seated wave is not in the catalogue).
+      // Greeted: the elder and the potter wave back from where they sit, looking at the traveler; the weaver,
+      // her hands on the loom, answers with a look.
       k.wave -= c.dt;
-      if (k.role === "elder") a.act("wave", { fade: 0.45, side: -1 });
+      if (k.role !== "weaver") a.actArms("wave", { fade: 0.3, side: -1 });
       p.lookRange = 6;
-    } else p.lookRange = k.role === "elder" ? 4 : 0;
-    if (k.wave <= 0 || k.role !== "elder") {
-      // The weaver at the backstrap loom (leaning back on the strap, passing and beating the weft), the potter
-      // cross-legged painting a pot in her lap, the elder on his stool.
-      if (k.role === "weaver") a.act("weave", { fade: 0.5 });
-      else if (k.role === "potter") a.act("sit-cross", { fade: 0.5 });
-      else a.act("sit-stool", { fade: 0.5, seat: STOOL_SEAT });
+    } else {
+      a.actArms(k.role === "potter" ? "paint" : "none", { fade: 0.4 });
+      p.lookRange = k.role === "elder" ? 4 : 0;
     }
     p.commit(c);
   };
@@ -204,10 +205,7 @@ export function createCrafts(
       if (visible !== shown) {
         shown = visible;
         props.visible = visible;
-        for (const k of workers) {
-          if (!visible) k.p.hide();
-          else reveal(k.p);
-        }
+        if (!visible) for (const k of workers) k.p.hide();
       }
       fl.visible = visible && fireOn;
       if (fl.visible && !c.rm)

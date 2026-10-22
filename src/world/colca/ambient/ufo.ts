@@ -22,14 +22,15 @@
  * live (unlocked, not muted), hushed while a game is open, built only during a pass.
  *
  * Draw calls: hull 1 + dome 1 + two light sets + belly glow, beam 1, ground spot 1, rings 3 (only with the
- * beam), alpaca 1 (the shared animals' alpaca, a skinned body; built off the main thread at load), stars 3
+ * beam), alpaca 1 (the shared animals' alpaca as a herd of one: lifted, spun, tumbled and shrunk through the
+ * herd pose; built off the main thread at load), stars 3
  * (only while dizzy).
  */
 import * as THREE from "three";
 import type { AudioOutput } from "../../../audio/contract";
 import { getMusic } from "../../../audio/player";
-import { type Animal, createAnimal } from "../../characters/animals/animal";
 import { prefetchAnimals } from "../../characters/animals/assets";
+import { createHerd } from "../../characters/animals/crowd";
 import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit, on } from "../../events";
@@ -92,18 +93,16 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const baseYaw = 0.35;
   alpaca.rotation.order = "YXZ";
   alpaca.rotation.y = baseYaw;
-  let animal: Animal | null = null;
-  let disposed = false;
-  /** Head in the alpaca's own frame, where the dizzy stars circle (its bind position, read once built). */
-  const headLocal = new THREE.Vector3(0, 1.35, 0.55);
-  void prefetchAnimals(["alpaca"]).then(() => {
-    if (disposed) return;
-    animal = createAnimal("alpaca", { variant: "white", seed: 17, lod: 1 });
-    animal.group.name = "colca-ufo:alpaca";
-    const head = animal.inst.rest.head;
-    if (head) headLocal.copy(head);
-    alpaca.add(animal.group);
-  });
+  // The alpaca itself is a herd of one in world space; `alpaca` is only the frame it is posed in (and that the
+  // dizzy stars ride), copied into the herd pose every frame.
+  prefetchAnimals(["alpaca"]);
+  const herd = createHerd("alpaca", { max: 1, variants: ["white"] });
+  herd.group.name = "colca-ufo:alpaca";
+  const alpacaId = herd.add({ seed: 17 });
+  env.scene.add(herd.group);
+  const herdPose = { scale: 1, pitch: 0, roll: 0 };
+  /** Head in the alpaca's own frame (feet at the origin, facing +z), where the dizzy stars circle. */
+  const headLocal = new THREE.Vector3(0, 1.3, 0.5);
   const body = creatures.add("alpaca", 0.5, { x: SPOT.x, z: SPOT.z });
   const keep = creatures.keepOut(SPOT.x, SPOT.z, 4);
 
@@ -290,10 +289,13 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       gait.look = undefined;
     }
     gait.rm = rm;
-    if (animal) {
-      animal.update(dt, t, gait);
-      animal.autoLod(env.camera);
-    }
+    if (alpaca.visible) {
+      herdPose.scale = alpaca.scale.x;
+      herdPose.pitch = alpaca.rotation.x;
+      herdPose.roll = alpaca.rotation.z;
+      herd.set(alpacaId, alpaca.position.x, alpaca.position.y, alpaca.position.z, alpaca.rotation.y, gait, herdPose);
+    } else herd.hide(alpacaId);
+    herd.update(dt, t, env.camera);
     const dizzy = !rm && phase === "dizzy" && u < 0.92;
     for (let i = 0; i < M.stars.length; i++) {
       const s = M.stars[i] as THREE.Sprite;
@@ -404,8 +406,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       creatures.remove(body);
       creatures.removeKeepOut(keep);
       group.removeFromParent();
-      disposed = true;
-      animal?.dispose();
+      herd.dispose();
       M.dispose();
     },
   };

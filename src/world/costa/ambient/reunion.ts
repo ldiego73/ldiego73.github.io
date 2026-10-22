@@ -21,7 +21,6 @@
 import * as THREE from "three";
 import { Npc, type NpcFrame } from "../../ambient/people/npc";
 import { arcDir } from "../../ambient/sky/moon";
-import type { PropHandle } from "../../characters/props";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { vertexToon } from "../../merge-colors";
 import type { SuyuEnv } from "../../suyu/contract";
@@ -168,7 +167,6 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     s: Spot;
     home: { x: number; z: number; yaw: number };
     ph: number;
-    props: PropHandle[];
     drawn: boolean;
   }
   const people: Who[] = spots.map((s, i) => {
@@ -192,19 +190,18 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     });
     // The children are busy with their game; the others glance at the traveler walking among them.
     p.lookRange = s.role === "kid" ? 0 : 5;
-    const props: PropHandle[] = [];
     // The vendor's ladle for the chicha.
-    if (s.role === "vendor") props.push(p.hold(shared.props, "ladle"));
+    if (s.role === "vendor") p.hold(shared.props, "ladle");
     const w = W(s);
-    return { p, s, home: { x: w.x, z: w.z, yaw: f.yaw + s.yaw }, ph: i * 1.3, props, drawn: true };
+    return { p, s, home: { x: w.x, z: w.z, yaw: f.yaw + s.yaw }, ph: i * 1.3, drawn: true };
   });
   const kidsC = W(KIDS);
   const frame: NpcFrame = { dt: 0, clock: 0, rm, avatar: new THREE.Vector3() };
   const draw = (w: Who, on: boolean) => {
     if (w.drawn === on) return;
     w.drawn = on;
-    w.p.member.show(on);
-    for (const h of w.props) h.show(on);
+    if (on) w.p.show();
+    else w.p.hide();
   };
 
   // ------------------------------------------------------------------ frame

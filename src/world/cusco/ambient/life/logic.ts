@@ -142,3 +142,14 @@ export function blocked(herder: { x: number; z: number; yaw: number }, traveler:
   if (d > r) return false;
   return dx * Math.sin(herder.yaw) + dz * Math.cos(herder.yaw) > -0.4;
 }
+
+/**
+ * How much it is night (0 day … 1 night) on the sky clock, from the sun's height: 0 while the sun is above
+ * the horizon (+0.05), 1 once it is well below (−0.2), eased. Drives the people's and animals' moonlit rim
+ * (characters setNightRim).
+ */
+export function nightAmount(time: number): number {
+  const sun = Math.sin((time - 0.25) * Math.PI * 2);
+  const k = Math.min(1, Math.max(0, (0.05 - sun) / 0.25));
+  return k * k * (3 - 2 * k);
+}

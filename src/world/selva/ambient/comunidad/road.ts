@@ -28,7 +28,7 @@ import type { HeldProps } from "../../../characters/props";
 import { BLOUSES, pick, SKIRTS, type Who } from "./dress";
 import { asideOf, atSpanEnd, greeting, isOut, laneOf, partiesFor, respawnT, shouldGiveWay, spanAt } from "./logic";
 import type { Ctx, Greeter, Group } from "./types";
-import { give, reveal, villager } from "./villager";
+import { villager } from "./villager";
 
 interface Party {
   /** Road t of the party, walking direction, the stretch it walks (logic.ts ROAD_SPANS index). */
@@ -111,8 +111,8 @@ export function createWalkers(env: Ctx["env"], crowd: HumanCrowd, props: HeldPro
         radius: child ? 0.26 : 0.34,
         seed: 41 + i * 7.9,
       });
-      if (load === "bananas") give(p, props, "bananas");
-      if (load === "basket") give(p, props, "basket-back", pick(R, ["#8a6633", "#c4383f", "#2a9d8f"]));
+      if (load === "bananas") p.hold(props, "bananas");
+      if (load === "basket") p.hold(props, "basket-back", pick(R, ["#8a6633", "#c4383f", "#2a9d8f"]));
       const w: Walker = { p, party, k, child, load, yielding: false, wave: 0, greetN: i };
       party.members.push(w);
       walkers.push(w);
@@ -185,7 +185,6 @@ export function createWalkers(env: Ctx["env"], crowd: HumanCrowd, props: HeldPro
       else if (a.action !== "greet" && a.action !== "hands-clasp") a.act("greet", { next: "hands-clasp" });
     } else a.act("none");
     p.lookRange = w.yielding ? 7 : 4;
-    reveal(p);
     p.commit(c);
   };
 

@@ -76,10 +76,11 @@ export function stepAt(t: number): { move: Move; i: number; u: number } {
 
 /**
  * The human animation controller's actions the ukuku dances with (../../../characters/poses.ts): "hop"
- * (foot to foot, arms out), "dance" (the huayno step-hop, one arm high: its spins), "wave" (an arm raised high:
- * the whip circling overhead in the right hand, or the greeting with the left), "hands-hips" (reduced motion).
+ * (foot to foot, arms out), "dance" (the huayno step-hop, one arm high: its spins), "whip-circle" (the right
+ * arm overhead circling the whip on a bouncing step), "wave" (the greeting, with the left hand), "hands-hips"
+ * (reduced motion).
  */
-export type UkukuAction = "hop" | "dance" | "wave" | "hands-hips";
+export type UkukuAction = "hop" | "dance" | "whip-circle" | "wave" | "hands-hips";
 
 /** What the body does at a moment: the action (and its hand) plus the root's turn and offset on its spot. */
 export interface Step {
@@ -91,8 +92,6 @@ export interface Step {
   /** Small offset of the whole body on its spot (the spot's own frame: x right, z forward). */
   dx: number;
   dz: number;
-  /** Spin rate of the whip's lash about the right hand (radians/s). */
-  whip: number;
 }
 
 /**
@@ -105,14 +104,13 @@ const smooth = (u: number) => u * u * (3 - 2 * u);
 
 /** The dance at time t (seconds of dancing). Reduced motion: hands on the hips, a slow sway in place. */
 export function danceStep(t: number, reduced: boolean, out?: Step): Step {
-  const o = out ?? { action: "hop", side: 1, turn: 0, dx: 0, dz: 0, whip: 0 };
+  const o = out ?? { action: "hop", side: 1, turn: 0, dx: 0, dz: 0 };
   o.side = 1;
   o.dx = 0;
   o.dz = 0;
   if (reduced) {
     o.action = "hands-hips";
     o.turn = Math.sin(t * 0.65) * 0.18;
-    o.whip = 0.6;
     return o;
   }
   const { move, u } = stepAt(t);
@@ -122,30 +120,26 @@ export function danceStep(t: number, reduced: boolean, out?: Step): Step {
     o.turn = Math.sin(t * 0.7) * 0.35;
     o.dx = Math.sin(t * 0.9) * WANDER * 0.6;
     o.dz = Math.sin(t * 0.55) * WANDER * 0.4;
-    o.whip = 3;
   } else if (move === "spin") {
     // Two whole turns, eased, on the huayno step.
     o.action = "dance";
     o.turn = smooth(u) * TAU * 2;
-    o.whip = 6;
   } else {
     // The right arm raised, the lash circling overhead; a slow sway of the body.
-    o.action = "wave";
+    o.action = "whip-circle";
     o.turn = Math.sin(t * 1.1) * 0.25;
-    o.whip = 9;
   }
   return o;
 }
 
 /** The greeting: still, facing the traveler, the left arm waving high. */
 export function greetStep(out?: Step): Step {
-  const o = out ?? { action: "wave", side: -1, turn: 0, dx: 0, dz: 0, whip: 0 };
+  const o = out ?? { action: "wave", side: -1, turn: 0, dx: 0, dz: 0 };
   o.action = "wave";
   o.side = -1;
   o.turn = 0;
   o.dx = 0;
   o.dz = 0;
-  o.whip = 0.8;
   return o;
 }
 

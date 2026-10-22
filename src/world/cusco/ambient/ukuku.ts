@@ -15,25 +15,23 @@
  * (silent beyond logic.ts BELL_FAR) and panned to its side; hushed while a game is open.
  *
  * The dancer is a person on the shared characters (../../characters: `createHuman`, one skinned body moved by
- * the human animation controller: the "hop", "dance" and "wave" actions, ./ukuku/logic.ts danceStep) dressed in
- * a world-local costume that rides the same skeleton (./ukuku/model.ts: the fleece suit, the knitted mask, the
- * doll and the bell in one skinned mesh, the whip on the right hand). Four draw calls (body, suit, whip and the
- * body's cloth slot when built), ink-outlined; built at load (far LOD at once, the near one from the worker).
+ * the human animation controller: the "hop", "dance" and "whip-circle" actions, ./ukuku/logic.ts danceStep)
+ * whose spec carries the costume in the core's generic hook (./ukuku/costume.ts: the fleece suit, the knitted
+ * mask, the doll and the bell as `extra` primitives, built with the body off the main thread, no painted face).
+ * The whip is the core's held prop, spinning in the right hand. Two draw calls (body, whip), ink-outlined.
  */
 import "../../ambient/people/people.css";
 import * as THREE from "three";
 import type { AudioOutput } from "../../../audio/contract";
 import { getMusic } from "../../../audio/player";
-import type { HumanSpec } from "../../characters/archetype";
 import { createHuman } from "../../characters/hero";
 import { prefetchHumans } from "../../characters/pipeline";
-import { dress } from "../../characters/slots";
+import { HeldProps } from "../../characters/props";
 import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures, park } from "../../creatures";
 import { emit, on } from "../../events";
-import { vertexToon } from "../../merge-colors";
-import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
+import { DANCER_DRESS, ukukuSpec } from "./ukuku/costume";
 import {
   BELL_FAR,
   beat,
@@ -53,30 +51,9 @@ import {
   stepAt,
   yawTo,
 } from "./ukuku/logic";
-import { dressUkuku, FLEECE, GLOVE, SHOE } from "./ukuku/model";
 
-/**
- * The person inside the suit: a sturdy dancer with no hair (the mask covers the head), a plain top and trousers
- * the costume's brown (seen between the tufts) and dark boots; the skin slot is the woollen gloves.
- */
-const DANCER: HumanSpec = {
-  sex: "m",
-  build: "sturdy",
-  hair: "none",
-  top: "sweater",
-  bottom: "trousers",
-  feet: "boots",
-};
-const DANCER_DRESS = dress({
-  skin: GLOVE,
-  hair: FLEECE[2],
-  top: FLEECE[0],
-  trim: FLEECE[2],
-  legs: FLEECE[0],
-  shoe: SHOE,
-  sole: SHOE,
-  sock: FLEECE[2],
-});
+/** The dancer in costume (pure data: it keys the build cache and travels to the worker). */
+const DANCER = ukukuSpec();
 
 const S = {
   prompt: { es: "E · Saludar", en: "E · Say hi" },
@@ -96,12 +73,28 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   const music = getMusic();
 
   // ------------------------------------------------------------------ model
-  // A dancing body: no world-space paint on the costume (it would slide over the fleece).
-  const mat = paintStrength(vertexToon(), 0);
   // The near and mid builds go to the worker now; the far one is built at once (a few ms) so it is there.
   prefetchHumans([DANCER], [1, 0]);
   const human = createHuman(DANCER, DANCER_DRESS, { lod: 2, seed: 0 });
-  const costume = dressUkuku(human, mat);
+  // The whip: the core's held prop on the right hand (it spins about the hand; calmer with reduced motion).
+  const props = new HeldProps(1);
+  props.rm = rm;
+  env.scene.add(props.group);
+  props.attach(
+    {
+      boneWorld(name, out) {
+        const b = human.inst.bones[name];
+        if (!b) return out.copy(human.group.matrixWorld);
+        b.updateWorldMatrix(true, false);
+        return out.copy(b.matrixWorld);
+      },
+      get shown() {
+        return human.group.visible;
+      },
+    },
+    "whip",
+    "#efe6d6",
+  );
   const root = human.group;
   root.name = "cusco-ukuku";
   const groundY = env.suyu.groundAt(SPOT.x, SPOT.z);
@@ -279,7 +272,6 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   let stepI = -1;
   let dx = 0;
   let dz = 0;
-  let whipA = 0;
   let clock = 0;
   const camPos = new THREE.Vector3();
   const seenV = new THREE.Vector3();
@@ -343,6 +335,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       }
       if (!shown) {
         near = false;
+        props.update(clock);
         return;
       }
       clock += dt;
@@ -391,10 +384,9 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       const z = SPOT.z - dx * s + dz * c;
       root.position.set(x, env.suyu.groundAt(x, z), z);
       root.rotation.y = facing + step.turn;
-      whipA += step.whip * dt * (rm ? 0.3 : 1);
-      costume.whip.rotation.y = whipA;
       human.anim.look(null);
       human.update(dt, clock, { speed: 0, rm, expression: "auto" });
+      props.update(clock);
       // Near LOD only up close (it dances alone; the far LOD is a few thousand triangles).
       const want = dist < 14 ? 0 : dist < 36 ? 1 : 2;
       if (want !== lod) {
@@ -421,9 +413,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     dispose() {
       offGame();
       creatures.remove(body);
-      costume.dispose();
+      props.dispose();
       human.dispose();
-      mat.dispose();
       layer.remove();
     },
   };

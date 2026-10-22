@@ -3,9 +3,19 @@
  * prop, vertex-colored) and `mergeNear`, which merges nearby static props into one mesh per cluster. The
  * animals themselves are the shared animal core's (./beasts.ts).
  */
-import type * as THREE from "three";
+import * as THREE from "three";
 import { GeoBuilder } from "../../../flora/geom";
 import { egg, tube } from "./kit";
+
+type ColorFn = (p: THREE.Vector3, n: THREE.Vector3) => THREE.Color;
+const _c = new THREE.Color();
+const _d = new THREE.Color();
+
+/** Deterministic 3D hash (0..1) for the grain of the wood. */
+const hash3 = (x: number, y: number, z: number) => {
+  const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return h - Math.floor(h);
+};
 
 /** A Brazil-nut-like seed (brown, ribbed ovoid), ≈ 6 cm; scaled by the ambient so it reads. */
 export function nutGeometry() {

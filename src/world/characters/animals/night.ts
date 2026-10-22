@@ -29,14 +29,17 @@ uniform vec3 chNightRim;
 
 const RIM = /* glsl */ `
 if (chNight > 0.001) {
+  // three.js vViewPosition = -mvPosition: it already points from the fragment toward the camera.
   vec3 chV = normalize(vViewPosition);
-  float chF = 1.0 - clamp(dot(normal, -chV), 0.0, 1.0);
+  float chF = 1.0 - clamp(dot(normal, chV), 0.0, 1.0);
   outgoingLight += chNightRim * pow(chF, 3.0) * 0.45 * chNight;
 }
 `;
 
 /** Patch a MeshToonMaterial's shader (call inside its onBeforeCompile) with the night rim. */
 export function injectNightRim(sh: THREE.WebGLProgramParametersWithUniforms) {
+  // Idempotent: a material wrapped twice (e.g. a shared body material) must not redeclare the uniforms.
+  if (sh.fragmentShader.includes("uniform float chNight;")) return;
   Object.assign(sh.uniforms, NIGHT_RIM);
   sh.fragmentShader = sh.fragmentShader
     .replace("#include <common>", `#include <common>\n${PARS}`)
@@ -45,6 +48,8 @@ export function injectNightRim(sh: THREE.WebGLProgramParametersWithUniforms) {
 
 /** Chain the night rim onto a toon material that may already have its own onBeforeCompile. */
 export function withNightRim<M extends THREE.Material>(m: M, cacheKey: string): M {
+  if (m.userData.nightRim) return m;
+  m.userData.nightRim = true;
   const prev = m.onBeforeCompile.bind(m);
   const prevKey = m.customProgramCacheKey.bind(m);
   m.onBeforeCompile = (sh, r) => {

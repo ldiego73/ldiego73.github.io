@@ -15,7 +15,7 @@ import { type Bar, barF, barPoint, barY, type Ripples } from "../wild/kit";
 import { isOut, jumpArc, nextStage, SWIM_SPEED, SWIM_TIMES, type SwimStage } from "./logic";
 import { jumpLog } from "./models";
 import type { Ctx, Group } from "./types";
-import { reveal, villager } from "./villager";
+import { villager } from "./villager";
 
 /** Feet origin below the river level while swimming (the "swim" pose lays the body flat at the root). */
 const SWIM_SINK = 0.08;
@@ -239,10 +239,7 @@ export function createSwimmers(
       if (visible !== shown) {
         shown = visible;
         log.visible = visible;
-        for (const k of kids) {
-          if (!visible) k.p.hide();
-          else reveal(k.p);
-        }
+        if (!visible) for (const k of kids) k.p.hide();
       }
       if (!anyone) return;
       // The traveler's canoe near the landing spot: nobody jumps.
@@ -281,8 +278,12 @@ export function createSwimmers(
         if (k.stage === "log" || k.stage === "climb") {
           p.speed = k.stage === "log" ? SWIM_SPEED.log : SWIM_SPEED.climb;
           a.act("none");
-        } else if (k.stage === "tip") a.act("crouch", { fade: 0.4 });
-        else if (k.stage === "jump") a.act("jump", { fade: 0.1 });
+          // Arms out for balance along the trunk.
+          a.actArms(k.stage === "log" ? "balance" : "none");
+        } else if (k.stage === "tip") {
+          a.actArms("none");
+          a.act("crouch", { fade: 0.4 });
+        } else if (k.stage === "jump") a.act("jump", { fade: 0.1 });
         else if (k.stage === "swim") {
           a.act("swim", { fade: 0.35 });
           k.splash -= dt;
@@ -292,10 +293,7 @@ export function createSwimmers(
           }
         } else if (k.stage === "wait") a.act(i % 2 ? "hands-hips" : "hands-back", { fade: 0.4 });
         if (k.stage === "under") p.hide();
-        else {
-          reveal(p);
-          p.commit(c);
-        }
+        else p.commit(c);
       }
     },
     dev: {

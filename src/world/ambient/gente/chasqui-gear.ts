@@ -1,6 +1,6 @@
 /**
  * What the mountain's chasquis carry beyond the shared catalogue (characters/props.ts has the staff and the
- * q'ipi): a khipu in the hand or at the hip, the white plume of the chasqui, the pututo conch, a tiny server
+ * q'ipi): a khipu in the hand or at the hip, the pututo conch, a tiny server
  * rack on the back, a laptop satchel, and tablets. Shapes in their bone's frame (./bone-batch.ts: Y up,
  * +Z forward, +X the person's left, origin at the joint; traveler body units), built once per kind and drawn
  * as instances of one BatchedMesh (plus one unlit batch for the LEDs and screens).
@@ -9,13 +9,12 @@ import type * as THREE from "three";
 import { DYE } from "../../palette";
 import type { GearKit } from "./bone-batch";
 
-export type Gear = "plume" | "khipuHand" | "khipuHip" | "pututo" | "rack" | "satchel" | "strap" | "tablet" | "tabletL";
+export type Gear = "khipuHand" | "khipuHip" | "pututo" | "rack" | "satchel" | "strap" | "tablet" | "tabletL";
 /** Lit pieces drawn by the unlit batch. */
 export type Glow = "leds" | "screen" | "screenL";
 
 /** The bone each piece rides. */
 export const GEAR_BONE: Record<Gear | Glow, string> = {
-  plume: "head",
   khipuHand: "handL",
   khipuHip: "hips",
   pututo: "hips",
@@ -46,13 +45,6 @@ function khipu(k: GearKit, x: number, y: number, z: number, colors: string[], s 
 /** Merged geometry of one piece. */
 export function buildGear(k: GearKit, g: Gear | Glow): THREE.BufferGeometry {
   switch (g) {
-    case "plume":
-      // Three white feathers fanning up and back from the knot of the llawt'u, a dyed bead at the base.
-      // Slim feathers rising from the back of the head, swept back (a crest, not a cap).
-      for (let i = -1; i <= 1; i++)
-        k.add("cone", "#f4efe6", i * 0.03, 0.4, -0.26, -1.05, 0, i * 0.28, 0.018, 0.22, 0.012);
-      k.add("ico", DYE.red, 0, 0.33, -0.2, 0, 0, 0, 0.032, 0.032, 0.032);
-      break;
     case "khipuHand":
     case "khipuHip": {
       // In the hand: held by the top cord at the palm. At the hip: tied to the belt on the right side.

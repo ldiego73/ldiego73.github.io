@@ -10,7 +10,7 @@
  * home that way at dusk (plan.ts ROUTE, never on the trail band); they appear / vanish only out of sight
  * (behind the brow or off screen), or after a short fallback wait. Every person is a creatures Body
  * ("traveler-npc", "vendor", "child"). Gestures the action catalogue lacks (sipping while seated, warming the
- * hands, a stretch, setting the stone, tugging the kite string) are written over the pose (gente/overlay.ts).
+ * hands, a stretch, setting the stone, tugging the kite string) use the actions and the arms layer.
  */
 import * as THREE from "three";
 import type { HumanSpec } from "../../characters/archetype";
@@ -18,18 +18,7 @@ import type { HumanCrowd } from "../../characters/crowd";
 import { PEOPLE, wardrobe } from "../../characters/presets";
 import type { HeldProps, PropHandle } from "../../characters/props";
 import type { Dress } from "../../characters/slots";
-import {
-  armsUp,
-  commitLooking,
-  kiteTug,
-  overlay,
-  placeStone,
-  play,
-  pointUp,
-  sipSeated,
-  stretch,
-  warmHands,
-} from "../gente/overlay";
+import { play, playArms } from "../gente/overlay";
 import { rng } from "../people/models";
 import { Npc, type NpcFrame } from "../people/npc";
 import { angleDamp, damp } from "../people/person";
@@ -187,20 +176,10 @@ export function createFolk(
     // Eyes drift between the fire and the view.
     look.set(spots.fire.x, p.y + 0.4, spots.fire.z);
     if (!c.rm) look.x += Math.sin(c.clock * 0.27 + p.seed) * 2.5;
-    nf.dt = c.dt;
-    nf.clock = c.clock;
-    nf.rm = c.rm;
-    commitLooking(p, nf, look);
-    if (t.role === "sip") {
-      // Hold the cup at the chest; every few seconds lift it to drink.
-      const k = (c.clock + p.seed * 3) % 7.5;
-      const lift = c.rm ? 0 : k < 0.6 ? k / 0.6 : k < 2.6 ? 1 : k < 3.2 ? 1 - (k - 2.6) / 0.6 : 0;
-      const e = lift * lift * (3 - 2 * lift);
-      overlay(p.member, (b) => sipSeated(b, e));
-    } else if (t.role === "warm" || night) {
-      const w = c.rm ? 0 : Math.sin(c.clock * 0.9 + p.seed) * 0.06;
-      overlay(p.member, (b) => warmHands(b, w));
-    }
+    // Arms over the seated pose: sipping api from the cup now and then, or hands held out to the fire.
+    playArms(p, t.role === "sip" ? "drink" : t.role === "warm" || night ? "hold-front" : "none", { fade: 0.5 });
+    p.lookAt = look;
+    commit(p, c);
   };
 
   const stepTraveller = (t: Traveller, c: FolkCtx, i: number) => {
@@ -274,17 +253,13 @@ export function createFolk(
       }
     }
     p.y = c.groundAt(p.x, p.z);
-    play(p, t.carrying && p.state !== "place" ? "carry-hand" : "none", { fade: 0.3 });
+    // Standing up to stretch, stooping to set the stone on the cairn, the stone carried in the hand.
+    play(p, p.state === "stretch" ? "stretch" : p.state === "place" ? "place" : t.carrying ? "carry-hand" : "none", {
+      fade: 0.35,
+    });
+    playArms(p, t.role === "sip" && p.state !== "sit" ? "carry-hand" : "none");
+    p.lookAt = null;
     commit(p, c);
-    if (p.state === "stretch") {
-      // Rise onto the toes, arms overhead, a slow lean back and a twist.
-      const k = 1 - Math.max(0, p.timer) / 5.5;
-      overlay(p.member, (b) => stretch(b, k, c.rm));
-    } else if (p.state === "place") {
-      // Stoop and set the stone on the cairn.
-      const k = 1 - Math.max(0, p.timer) / 2.6;
-      overlay(p.member, (b) => placeStone(b, k));
-    }
   };
 
   // ---------------------------------------------------------------- route (vendor and children)
@@ -549,15 +524,10 @@ export function createFolk(
     const pointing = k.state === "play" && i === 1 && k.timer <= 0 && !c.rm;
     const sitting = k.state === "play" && i >= 2 && k.timer > 0;
     const cheering = k.state === "play" && i >= 2 && k.timer <= 0;
-    play(k, sitting ? "sit-ground" : (pointing || cheering) && !c.rm ? "hop" : "none", { fade: 0.3 });
+    const holding = k.state === "play" && i === 0;
+    play(k, holding ? "tug" : sitting ? "sit-ground" : (pointing || cheering) && !c.rm ? "hop" : "none", { fade: 0.3 });
+    playArms(k, pointing ? "point-up" : cheering ? "cheer" : "none", { fade: 0.25 });
     commit(k, c);
-    if (k.state === "play") {
-      if (i === 0) {
-        const tug = c.rm ? 0 : Math.max(0, Math.sin(c.clock * 1.7)) * 0.25;
-        overlay(k.member, (b) => kiteTug(b, tug));
-      } else if (pointing) overlay(k.member, pointUp);
-      else if (cheering) overlay(k.member, armsUp);
-    }
   };
 
   // ---------------------------------------------------------------- group driver

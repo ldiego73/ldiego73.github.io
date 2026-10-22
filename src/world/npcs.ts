@@ -20,7 +20,6 @@ import {
 } from "./ambient/errand/state";
 import { BoneBatch, type GearHandle, GearKit } from "./ambient/gente/bone-batch";
 import { buildGear, GEAR_BONE, type Gear, type Glow } from "./ambient/gente/chasqui-gear";
-import { holdFront, holdUp, overlay } from "./ambient/gente/overlay";
 import { HumanAnimator } from "./characters/anim-human";
 import type { Animal } from "./characters/animals/animal";
 import { loadAnimal, prefetchAnimals } from "./characters/animals/assets";
@@ -243,11 +242,13 @@ export function chasquiSpec(look: Look, elder: boolean): HumanSpec {
     age: elder ? "elder" : "adult",
     build: look.girth > 1.15 ? "sturdy" : look.girth < 0.93 ? "slim" : "average",
     hair: look.braids ? "braids" : look.ponytail ? "ponytail" : "crop",
-    hat: look.hat ?? "headband",
-    top: { kind: "tee", sleeves: "none", hem: 0.86 },
+    // The llawt'u with the chasqui's white plume (Chaska wears her montera, Sisa a plain band).
+    hat: look.hat ?? (look.plume ? "headband-plume" : "headband"),
+    top: "unku",
     bottom: "bare",
     feet: "ojotas",
-    layers: [{ kind: "skirt", region: "pollera", group: "wrap", hem: 0.46, flare: 0.08, pleats: 4 }],
+    worn: ["chumpi"],
+    ...(look.beard ? { beard: "short" as const } : {}),
   };
 }
 
@@ -271,14 +272,15 @@ export function chasquiDress(look: Look): Dress {
     wrapG: b,
     wrapB: a,
     wrapW: DYE.cotton,
+    accent: a,
     accent2: b,
+    white: look.plume ?? DYE.cotton,
   };
 }
 
 /** Gear pieces of a look (the staff and the q'ipi are shared props, see `propsOf`). */
 export function gearOf(look: Look): Gear[] {
   const g: Gear[] = [];
-  if (look.plume) g.push("plume");
   for (const c of look.carry) {
     if (c === "khipuHand") g.push("khipuHand");
     else if (c === "khipuHip") g.push("khipuHip");
@@ -1152,6 +1154,10 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
       n.action = want;
       n.anim.act(want, { fade: 0.4 });
     }
+    // Tablets: held in front with both hands (Inti, the lookout), or up in the left hand (Chaska), over
+    // whatever the legs do (the arms layer).
+    const arms = L.carry.includes("tablet") ? "hold-front" : L.carry.includes("tabletL") ? "hold-up" : "none";
+    if (n.anim.armsAction !== arms) n.anim.actArms(arms, { side: -1 });
     const m = n.member;
     m.place(n.pos.x, n.pos.y, n.pos.z, n.yaw);
     if (n.mode === "talk" || n.mode === "attend") {
@@ -1170,9 +1176,6 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
     });
     m.commit();
     // Tablets: held in front with both hands (Inti, the lookout), or up in the left hand (Chaska).
-    if (L.carry.includes("tablet"))
-      overlay(m, (b) => holdFront(b, rm ? 0 : Math.sin(clock * 1.3 + n.seed) * 0.04 * (1 - Math.min(1, n.gs))));
-    else if (L.carry.includes("tabletL")) overlay(m, (b) => holdUp(b, "L"));
 
     if (n.leds && !rm) {
       n.ledT -= dt;

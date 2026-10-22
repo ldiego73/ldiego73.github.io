@@ -6,11 +6,11 @@
  * draw per kind.
  *  - Uros families on the islands: a woman in a pollera and bowler hat greeting visitors at the hub island's
  *    arrival (she waves when the traveler comes close), another crouched by the hearth, two children running
- *    round the hub island, and on the other islands women weaving at a backstrap loom and men kneeling at
- *    their reed bundles.
- *  - Taquile: men knitting chullos on their feet at the edge of the plaza, and women spinning wool with the
- *    pushka by the loom (Taquile's dress: white shirts, black vests and red chullos for the men; red polleras
- *    and black shawls for the women).
+ *    round the hub island, and on the other islands women weaving at a backstrap loom and men kneeling to
+ *    bind their reed bundles.
+ *  - Taquile: men knitting chullos seated at the edge of the plaza, and women spinning wool with the pushka by
+ *    the loom (Taquile's dress: white shirts, black vests, woven belts and red chullos for the men; red
+ *    polleras, belts and black head shawls for the women).
  *  - Fishermen standing in small reed boats that go round their loops on open water, casting a net now and then.
  *  - A herder sitting by her alpacas, a shepherdess spinning by her sheep, and two walkers going up and down
  *    the road between the Uros landing and Taquile.
@@ -19,9 +19,9 @@
  *    At either end of the road they turn back; when out of sight there they reappear elsewhere on the road,
  *    also out of sight (./gente/logic.ts stepTraveller), so nobody pops in or out on screen.
  *  - At Titikala, the end of the road, an offering to the Pachamama (8 people, 5 on low): a paqo kneeling at
- *    the cloth, bending now and then to lay out coca leaves, pilgrims seated cross-legged round it, a woman
- *    standing toward the rock with her hands joined who bows now and then, and a mother with her bundle
- *    watching her children play (two, one on low). The cloth and its brazier are part of ../titikala.ts.
+ *    the cloth, bending to lay out coca leaves and lifting a k'intu to his lips, pilgrims seated cross-legged
+ *    round it, a woman standing with raised hands toward the rock, and a mother with her bundle watching her
+ *    children play (two, one on low). The cloth and its brazier are part of ../titikala.ts.
  * By day only, except the woman at the hearth, the herder, and the paqo with one pilgrim by the brazier, who stay
  * at night (the boats rest on the water then, their fishermen home). People are solid bodies in the creatures
  * registry, so the traveler walks round them.
@@ -30,6 +30,7 @@
  */
 import * as THREE from "three";
 import { Npc, type NpcFrame } from "../../ambient/people/npc";
+import { setAnimalNight as setNightRim } from "../../characters/animals/night";
 import { HumanCrowd } from "../../characters/crowd";
 import { prefetchHumans } from "../../characters/pipeline";
 import { HeldProps } from "../../characters/props";
@@ -38,6 +39,7 @@ import { vertexToon } from "../../merge-colors";
 import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { LEVEL } from "../plan";
+import { daylight } from "./fauna/logic";
 import { LAKE_SPECS, lookOf, propOf, specOf } from "./gente/dress";
 import {
   gathering,
@@ -151,6 +153,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     if (act === "carry") {
       if (propOf(a.role, a.p.seed)) a.p.anim.act("carry-back", { fade: 0 });
     } else if (act) a.p.anim.act(act, { fade: 0 });
+    // Taquile's knitters sit on the ground at the plaza's edge, the needles going in their hands.
+    if (a.role === "knit") a.p.anim.actArms("knit", { fade: 0 });
   }
 
   // Fishermen's boats: one instanced small balsa.
@@ -196,7 +200,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       frame.avatar.copy(avatar);
       const clock = frame.clock;
       env.camera.getWorldPosition(camPos);
-      const day = isDay(env.sky.time());
+      const time = env.sky.time();
+      const day = isDay(time);
+      // The moon-blue rim people and animals share (the same uniform the fauna ambients set).
+      setNightRim(1 - daylight(time));
       for (const a of actors) {
         const p = a.p;
         const out = day || (a.home?.night ?? false);
@@ -288,28 +295,22 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
             break;
           }
           case "paqo": {
-            // Kneeling at the cloth; bends over it now and then to lay out the coca leaves, then sits up again.
+            // Kneeling at the cloth: bends over it to lay out the coca leaves, then lifts a k'intu to his lips.
             p.place(h.x, h.z, h.yaw);
             p.y = floor;
             a.next -= dt;
             if (a.next <= 0) {
               const bend = p.anim.action !== "crouch";
-              p.anim.act(bend ? "crouch" : "kneel", { fade: 0.8 });
+              p.anim.act(bend ? "crouch" : "kneel-offer", { fade: 0.8 });
               a.next = rm ? 30 : bend ? 4 + R() * 3 : 3 + R() * 2;
             }
             p.resolve(0.2);
             break;
           }
           case "pray": {
-            // Standing toward the rock, hands joined; a slow bow now and then.
+            // Standing toward the rock, both hands raised, palms up (the action set once above).
             p.place(h.x, h.z, h.yaw);
             p.y = floor;
-            a.next -= dt;
-            if (p.anim.action === "none") p.anim.act("hands-clasp", { fade: 0.6 });
-            if (a.next <= 0) {
-              if (!rm) p.anim.act("greet", { fade: 0.5, restart: true, next: "hands-clasp" });
-              a.next = 9 + R() * 6;
-            }
             p.resolve(0.2);
             break;
           }
@@ -364,9 +365,9 @@ const STEADY: Record<Role, Parameters<Npc["anim"]["act"]>[0] | "carry" | null> =
   wave: null,
   hearth: "tend-fire",
   sitWeave: "weave",
-  work: "kneel",
+  work: "bind",
   kid: null,
-  knit: "knit",
+  knit: "sit-ground",
   spin: "spin",
   herd: "sit-ground",
   fisher: "fish-cast",
@@ -374,6 +375,6 @@ const STEADY: Record<Role, Parameters<Npc["anim"]["act"]>[0] | "carry" | null> =
   travel: "carry",
   paqo: null,
   pilgrim: "sit-cross",
-  pray: null,
+  pray: "pray",
   mother: "carry-back",
 };

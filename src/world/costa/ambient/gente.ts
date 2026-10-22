@@ -24,7 +24,7 @@
  */
 import * as THREE from "three";
 import { Npc, type NpcFrame } from "../../ambient/people/npc";
-import type { PropHandle, PropKind } from "../../characters/props";
+import type { PropKind } from "../../characters/props";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { vertexToon } from "../../merge-colors";
 import { paintStrength } from "../../style-gl";
@@ -54,8 +54,7 @@ interface Who {
   u: number;
   /** A fisherman mending a net (head down, hands working). */
   mend?: boolean;
-  /** What they carry (props shown while they are drawn) and how they hold it. */
-  props: PropHandle[];
+  /** How they hold what they carry. */
   carry: "none" | "carry-back" | "carry-hand";
   /** Drawn this frame (near the camera). */
   drawn: boolean;
@@ -115,13 +114,12 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     pause: 0,
     home: { x: 0, z: 0, yaw: 0 },
     u: 0,
-    props: [],
     carry: "none",
     drawn: true,
     ...o,
   });
   const hold = (w: Who, kind: PropKind, tint?: string) => {
-    w.props.push(w.p.hold(props, kind, tint));
+    w.p.hold(props, kind, tint);
     return w;
   };
 
@@ -285,8 +283,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const draw = (w: Who, on: boolean) => {
     if (w.drawn === on) return;
     w.drawn = on;
-    w.p.member.show(on);
-    for (const h of w.props) h.show(on);
+    if (on) w.p.show();
+    else w.p.hide();
   };
   /** Puts a road walker at road t in their lane. */
   const toLane = (w: Who) => {
