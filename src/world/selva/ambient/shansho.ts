@@ -9,7 +9,9 @@
  * there, restless, until the traveler has gone. At night they roost still, heads sunk into the shoulders.
  * With reduced motion they change branch less often and flap slower.
  *
- * Rendering: one bird-rig InstancedMesh (wild/birds.ts WingSet) and the thickets merged per cluster (the ones
+ * Rendering: one instanced flock on the shared animal core (species "hoatzin", wild/beasts.ts: the flight
+ * state machine flutters them from branch to branch from the world's paths; preening is the "groom" idle,
+ * sunning a "shake" of the wings, asleep at night) and the thickets merged per cluster (the ones
  * by the embarcadero and the canoe route are one mesh), shown only within 110 u of the camera (wild/kit.ts
  * SiteProps) → 2 draw calls (plus their ink and shadow passes) near the thickets, none elsewhere.
  * Bodies: none (they stay in the branches over the water).
@@ -19,12 +21,12 @@ import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { on } from "../../events";
 import { inStationFootprint, stationFootprints } from "./embarcadero/footprints";
-import { FOLDED, WingSet } from "./wild/birds";
+import { createBeasts } from "./wild/beasts";
 import { mergeNear } from "./wild/critters";
 import { SpeedMeter } from "./wild/crossing";
 import { devHook, FAUNA_FAR, faunaDt, idle, SiteProps, Spotter, selvaOf } from "./wild/kit";
-import { clamp01, damp, diurnal, leapPoint, rng, roadFrame, TAU, turnToward, wrapAngle } from "./wild/logic";
-import { hoatzinModel, type Perch, thicketGeometry } from "./wild/riverbirds";
+import { clamp01, damp, diurnal, leapPoint, rng, roadFrame, turnToward, wrapAngle } from "./wild/logic";
+import { type Perch, thicketGeometry } from "./wild/riverbirds";
 
 type State = "perch" | "fly";
 
@@ -52,11 +54,9 @@ interface Bird {
   b: { x: number; y: number; z: number };
   u: number;
   dur: number;
-  flap: number;
-  wing: number;
-  fold: number;
+  /** Vertical speed (for the flight state machine). */
+  vy: number;
   headYaw: number;
-  headPitch: number;
   /** 0..1 sunning (wings held half open). */
   sun: number;
   look: number;
@@ -67,7 +67,7 @@ interface Bird {
 /** Road t of the thickets (the first two on every quality). */
 const SITES = [0.432, 0.54, 0.475, 0.11];
 /** Hoatzins are ≈ 0.65 m; drawn larger so they read in the leaves from the pier and the canoe. */
-const SCALE = 1.4;
+const SCALE = 1.2;
 
 export const create: CreateAmbient = (env0): Ambient => {
   const env = selvaOf(env0);
@@ -124,11 +124,8 @@ export const create: CreateAmbient = (env0): Ambient => {
         b: { x: 0, y: 0, z: 0 },
         u: 0,
         dur: 1,
-        flap: R() * TAU,
-        wing: FOLDED,
-        fold: 1,
+        vy: 0,
         headYaw: 0,
-        headPitch: 0,
         sun: 0,
         look: 0,
         preen: 0,
@@ -136,10 +133,10 @@ export const create: CreateAmbient = (env0): Ambient => {
     }
   }
 
-  const set = new WingSet(env, "selva-fauna-shansho", hoatzinModel(), birds.length);
+  const set = createBeasts(env, "hoatzin", birds.length, { scale: SCALE, shadows: false });
   const root = new THREE.Group();
   root.name = "selva-fauna-shansho";
-  root.add(props.group, set.mesh);
+  root.add(props.group, set.group);
   env.scene.add(root);
 
   const spot = new Spotter(env, "shansho", 28);
@@ -214,14 +211,12 @@ export const create: CreateAmbient = (env0): Ambient => {
         }
       }
 
-      let k = 0;
-      for (const b of birds) {
+      set.begin();
+      for (let i = 0; i < birds.length; i++) {
+        const b = birds[i] as Bird;
         const th = b.th;
-        let wingT = FOLDED;
-        let foldT = 1;
-        let pitchT = 0;
+        const y0 = b.y;
         let lookT = b.look;
-        let sunT = 0;
         if (b.state === "perch") {
           const q = th.perches[b.perch] as Perch;
           b.x = q.x;
@@ -229,12 +224,10 @@ export const create: CreateAmbient = (env0): Ambient => {
           b.z = q.z;
           b.timer -= dt;
           if (!awake) {
-            // Roosting: head sunk, still.
-            pitchT = 0.55;
-            lookT = 0;
+            // Roosting: head sunk, still (asleep).
+            lookT = Number.NaN;
           } else if (th.alarm) {
             // Agitated: necks stretched up, looking at the traveler; one more flutter away when its turn comes.
-            pitchT = -0.4;
             lookT = wrapAngle(Math.atan2(avatar.x - b.x, avatar.z - b.z) - b.yaw);
             if (b.timer <= 0) {
               hop(b, avatar.x, avatar.z);
@@ -245,21 +238,21 @@ export const create: CreateAmbient = (env0): Ambient => {
               const r = R();
               if (r < (rm ? 0.2 : 0.35)) hop(b, avatar.x, avatar.z);
               else if (r < 0.55) b.look = (R() - 0.5) * 2.2;
-              else if (r < 0.75) b.sun = b.sun > 0.5 ? 0 : 1;
-              else b.preen = 1.5 + R() * 2;
+              else if (r < 0.75) {
+                // Sunning: the wings held out a moment.
+                b.sun = 1;
+                if (!rm) set.play(i, "shake", 1.6);
+              } else {
+                b.preen = 1.5 + R() * 2;
+                set.play(i, "groom", b.preen);
+              }
               b.timer = 2.5 + R() * 5;
             }
-            sunT = b.sun;
             const d = Math.hypot(b.x - avatar.x, b.z - avatar.z);
             if (b.preen > 0) {
               b.preen -= dt;
-              pitchT = 0.9;
-              lookT = 1.2 + Math.sin(clock * 3) * 0.3;
+              lookT = Number.NaN;
             } else if (d < 22) lookT = wrapAngle(Math.atan2(avatar.x - b.x, avatar.z - b.z) - b.yaw);
-          }
-          if (sunT > 0.5) {
-            wingT = 0.25;
-            foldT = 0.35;
           }
         }
         if (b.state === "fly") {
@@ -272,11 +265,6 @@ export const create: CreateAmbient = (env0): Ambient => {
           b.x = tmp.x;
           b.y = tmp.y;
           b.z = tmp.z;
-          // Heavy, fast, laboured beats with the tail fanned; a stall onto the branch at the end.
-          b.flap += dt * (rm ? 9 : 15);
-          wingT = Math.sin(b.flap) * 0.95 + 0.2;
-          foldT = u > 0.85 ? 0.5 : 0;
-          pitchT = -0.2;
           if (u >= 1) {
             b.state = "perch";
             b.sun = 0;
@@ -284,17 +272,24 @@ export const create: CreateAmbient = (env0): Ambient => {
             b.preen = 0;
           }
         }
-        b.wing = b.state === "fly" ? wingT : damp(b.wing, wingT, 6, dt);
-        b.fold = damp(b.fold, foldT, 8, dt);
-        const lk = Math.max(-1.3, Math.min(1.3, lookT));
-        b.headYaw = damp(b.headYaw, lk, 4, dt);
-        b.headPitch = damp(b.headPitch, pitchT, 4, dt);
-        if (spot.view.dist(b.x, b.y, b.z) > FAUNA_FAR) continue;
-        const bodyPitch = b.state === "fly" ? -0.25 : 0.12;
-        set.set(k++, b.x, b.y, b.z, b.yaw, bodyPitch, 0, SCALE, b.wing, b.headYaw, b.headPitch, b.fold);
+        if (!Number.isNaN(lookT)) b.headYaw = damp(b.headYaw, Math.max(-1.3, Math.min(1.3, lookT)), 4, dt);
+        b.vy = dt > 0 ? damp(b.vy, (b.y - y0) / dt, 10, dt) : b.vy;
+        if (inside || spot.view.dist(b.x, b.y, b.z) > FAUNA_FAR) continue;
+        // Heavy, laboured flutters from branch to branch (the hoatzin's flight profile), height above the
+        // lower branch so it stalls onto the perch.
+        const fly = b.state === "fly";
+        set.put(i, b.x, b.y, b.z, b.yaw, {
+          speed: fly ? Math.hypot(b.b.x - b.a.x, b.b.z - b.a.z) / b.dur : 0,
+          rm,
+          look: Number.isNaN(lookT) ? undefined : b.headYaw,
+          quiet: !awake,
+          grounded: !fly,
+          vy: fly ? b.vy : 0,
+          height: fly ? Math.max(0, b.y - Math.min(b.a.y, b.b.y)) : 0,
+        });
         spot.see(b.x, b.y + 0.3, b.z, avatar.x, avatar.z, 0.6);
       }
-      set.commit(inside ? 0 : k);
+      set.end(dt, clock, env.camera);
       spot.end(dt);
     },
     dispose() {

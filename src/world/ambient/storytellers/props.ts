@@ -1,29 +1,14 @@
 /**
- * Props of the storytelling circle: the amauta's walking staff (a crowd part on the tool bone) and the
- * static hearth with flat seat stones (vertex-colored, merged into one mesh).
+ * Props of the storytelling circle: the static hearth with flat seat stones and a few spare logs
+ * (vertex-colored, merged into one mesh). The amauta's staff is a shared held prop (characters/props.ts).
  */
 import * as THREE from "three";
 import { DYE } from "../../palette";
 import { hearth, Static } from "../people/models";
-import { Part, type PartSpec, protos, S_ACC, S_MAIN } from "../people/rig";
 import type { P2 } from "./logic";
 
 const WOOD = "#6e4a2e";
 const WOOD_D = "#4f331f";
-
-/** Walking staff (tool bone, origin on the ground): a carved knob and a small woven tassel under it. */
-export function staffSpec(): PartSpec {
-  const P = protos();
-  const p = new Part();
-  p.add(P.cyl6, WOOD, 0, 0.74, 0, 0, 0, 0.03, 0.026, 1.5, 0.026);
-  p.add(P.lowSph, WOOD_D, 0.02, 1.52, 0, 0, 0, 0, 0.05, 0.065, 0.05);
-  p.add(P.cyl, S_ACC, 0.018, 1.38, 0, 0, 0, 0, 0.034, 0.05, 0.034);
-  p.add(P.cyl6, S_MAIN, 0.05, 1.27, 0.0, 0, 0, 0.2, 0.01, 0.18, 0.01);
-  p.add(P.lowSph, S_ACC, 0.068, 1.17, 0, 0, 0, 0, 0.022, 0.03, 0.022);
-  const geo = p.build();
-  for (const g of Object.values(P)) g.dispose();
-  return { name: "staff", bone: "tool", geo };
-}
 
 /**
  * Hearth ring + flat seat stones under the children and the fire sitters (world positions), and a small

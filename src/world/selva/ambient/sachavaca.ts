@@ -1,24 +1,7 @@
-/**
- * Sachavaca (lowland tapir, Tapirus terrestris): the biggest animal of the Antisuyu, out from dusk to dawn
- * on the quiet sandbars no other animal uses: the one along the canoe route between the embarcadero and the
- * palafitos and, on high quality, the one across the river from the regatón.
- * At dusk (≈ 17 h) a tapir walks out of the bank vegetation onto the bar. It ambles over the sand, nose to
- * the ground, the short trunk working; drinks at the water's edge; now and then wades out belly-deep and
- * stands soaking before it climbs back onto the sand. When the traveler comes close (≈ 9 u, ≈ 13 u running
- * or paddling) it trots into the river and swims off with only its back and head above the water, as tapirs
- * do when startled, and comes back once the traveler has been well away for a while. At dawn it walks back
- * into the forest. By day there is no tapir (it rests deep in the forest).
- *
- * Rendering: one rig InstancedMesh (wild/rig.ts, moonlit rim at night) and a ripple pool → 2 draw calls near
- * a bar, 0 by day. Body ("sachavaca"): solid on the sand (give 0.3: it barely budges), not solid in the water,
- * parked while away.
- * Stamp `selva:fauna:sachavaca` after a ~1.5 s good look within 34 u (from the canoe or a landing).
- */
-import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, park } from "../../creatures";
 import { on } from "../../events";
-import { tapirModel } from "./wild/critters";
+import { createBeasts } from "./wild/beasts";
 import { duskToDawn, SpeedMeter } from "./wild/crossing";
 import {
   type Bar,
@@ -31,13 +14,10 @@ import {
   faunaDt,
   idle,
   Ripples,
-  ramp,
-  rootMatrix,
   Spotter,
   selvaOf,
 } from "./wild/kit";
-import { damp, nightAmount, rng, turnToward, wrapAngle } from "./wild/logic";
-import { RigSet } from "./wild/rig";
+import { damp, rng, turnToward, wrapAngle } from "./wild/logic";
 
 type State = "away" | "browse" | "pause" | "wade" | "flee" | "swim" | "return" | "leave";
 
@@ -54,7 +34,6 @@ interface Tapir {
   speed: number;
   phase: number;
   headYaw: number;
-  headPitch: number;
   wet: number;
   calm: number;
   /** Which end of the bar meets the bank vegetation (where it comes and goes), as barPoint u. */
@@ -102,7 +81,6 @@ export const create: CreateAmbient = (env0): Ambient => {
       speed: 0,
       phase: R(),
       headYaw: 0,
-      headPitch: 0.4,
       wet: 0,
       calm: 0,
       endU,
@@ -111,15 +89,10 @@ export const create: CreateAmbient = (env0): Ambient => {
   }
   for (const tp of tapirs) park(tp.body);
 
-  const model = tapirModel();
-  const set = new RigSet("selva-fauna-sachavaca-body", model.geo, model.spec, tapirs.length, ramp(env), {
-    shadow: high,
-    rimColor: "#a9b8ff",
-  });
+  const set = createBeasts(env, "tapir", tapirs.length, { solo: true });
   const ripples = new Ripples(env, "selva-fauna-sachavaca-ripples", 8, lv, 2.2);
-  const root = new THREE.Group();
-  root.name = "selva-fauna-sachavaca";
-  root.add(set.mesh, ripples.mesh);
+  const root = set.group;
+  root.add(ripples.mesh);
   env.scene.add(root);
 
   const spot = new Spotter(env, "sachavaca", 34);
@@ -135,7 +108,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   const offDev = devHook("sachavaca", () =>
     tapirs.map((tp) => ({ s: tp.state, x: +tp.x.toFixed(1), z: +tp.z.toFixed(1), bx: tp.bar.x, bz: tp.bar.z })),
   );
-  const m4 = new THREE.Matrix4();
   const want = { x: 0, z: 0 };
   let clock = 0;
 
@@ -191,12 +163,12 @@ export const create: CreateAmbient = (env0): Ambient => {
       meter.update(avatar.x, avatar.z, dt);
       const time = env.sky.time();
       const out = duskToDawn(time) > 0.5;
-      set.rim.value = nightAmount(time) * 0.85;
       spot.begin();
       const mot = rm ? 0.65 : 1;
       const scareR = meter.running || paddling ? 13 : 9;
-      let k = 0;
-      for (const tp of tapirs) {
+      set.begin();
+      for (let i = 0; i < tapirs.length; i++) {
+        const tp = tapirs[i] as Tapir;
         const b = tp.bar;
         const d = Math.hypot(tp.x - avatar.x, tp.z - avatar.z);
         if (tp.state === "away") {
@@ -348,21 +320,26 @@ export const create: CreateAmbient = (env0): Ambient => {
           tp.z = tp.body.z;
         }
 
-        if (spot.view.dist(tp.x, tp.y, tp.z) > FAUNA_FAR * 1.2) continue;
-        tp.phase = (tp.phase + (tp.speed * dt) / 1.3) % 1;
-        const swing = Math.min(0.5, tp.speed * 0.3) * (tp.wet > 0.5 ? 0.8 : 1);
+        if (inside || spot.view.dist(tp.x, tp.y, tp.z) > FAUNA_FAR * 1.2) continue;
         const rel = look
           ? Math.max(-0.9, Math.min(0.9, wrapAngle(Math.atan2(avatar.x - tp.x, avatar.z - tp.z) - tp.yaw)))
           : 0;
-        // The trunk works the ground: small quick side-to-side sweeps of the head.
+        // The trunk works the ground: small quick side-to-side sweeps of the head; nose down to sniff and drink.
         const sweep = sniff ? Math.sin(clock * 2.3 + tp.phase * 7) * 0.18 * mot : 0;
         tp.headYaw = damp(tp.headYaw, rel + sweep, 3, dt);
-        tp.headPitch = damp(tp.headPitch, pitchT, 2.5, dt);
-        rootMatrix(m4, tp.x, tp.y, tp.z, tp.yaw, tp.wet > 0.5 ? -0.12 : 0, 0, 1);
-        set.set(k++, m4, tp.phase, swing, tp.headYaw, tp.headPitch, Math.sin(clock * 1.7) * 0.2, 0);
+        if (pitchT > 0.6 && tp.speed < 0.4 && tp.wet < 0.5 && R() < dt * 0.6) set.play(i, "graze", 1.5 + R() * 2);
+        set.put(
+          i,
+          tp.x,
+          tp.y,
+          tp.z,
+          tp.yaw,
+          { speed: tp.speed, rm, mode: tp.wet > 0.5 ? "swim" : "auto", look: look || sniff ? tp.headYaw : undefined },
+          { pitch: tp.wet > 0.5 ? -0.12 : 0 },
+        );
         spot.see(tp.x, Math.max(tp.y, lv) + 0.7, tp.z, avatar.x, avatar.z, 1.2);
       }
-      set.commit(inside ? 0 : k);
+      set.end(dt, clock, env.camera);
       ripples.update(dt);
       spot.end(dt);
     },

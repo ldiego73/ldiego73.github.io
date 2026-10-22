@@ -299,7 +299,7 @@ Colours never live in a spec: every piece paints slots of the shared table `HS` 
 
 **Shared people system** (`src/world/ambient/people/`). `npc.ts` `Npc` is a person on the new characters: a crowd member + `HumanAnimator` + a creatures Body, with the old `Person` locomotion API (`seek`, `resolve`, `face`, `place`, `setActive`, `hide`, `x/z/y/yaw/speed/state/timer/u/v/tx/tz`), `hold(props, kind)` for a prop and `commit(ctx)` once per frame (it also glances at the traveler within `lookRange`). The mountain's people (terraces, feria, kids, dancers) run on it: one `HumanCrowd` and one `HeldProps` in `ambient/people.ts`. The legacy rig (`rig.ts` `Crowd`/`Part`, `person.ts` `Person`, `models.ts` parts) stays for the worlds that have not migrated yet.
 
-**Traveler** (`avatar.ts`): `createHuman(TRAVELER[outfit], dress(TRAVELER_DRESS[outfit]))` behind the unchanged `Avatar` contract. Riding (`world:mount`): astride ("ride") for the road mounts, paddling for the canoe and the caballito, poling on the balsa; seated (`world:sit`): "sit-bench" or "type" at `SIT_HIP`, the backpack folds away. `RIDER_SEAT` (0.5) is where a rider's pelvis rests above the feet origin. Landing squash and dust as before.
+**Traveler** (`avatar.ts`): `createHuman(TRAVELER[outfit], dress(TRAVELER_DRESS[outfit]))` behind the unchanged `Avatar` contract. Riding (`world:mount`): astride ("ride") for the road mounts, paddling for the canoe and the caballito, poling on the balsa; seated (`world:sit`): "sit-bench" or "type" at `SIT_HIP`, the backpack folds away. `RIDER_SEAT` (0.56, the mounts' convention: `seatHeight` = saddle top − 0.56) is where a rider's thighs rest above the feet origin. Landing squash and dust as before.
 
 **Migrating a world's people** (phase B recipe):
 

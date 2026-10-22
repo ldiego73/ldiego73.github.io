@@ -2,7 +2,8 @@
  * The gathering at the road's end (the coast's counterpart of the mountain's summit camp): people of the coast
  * come out to the Mamacocha headland round the finale's platform (./finale.ts) to see the sun go down:
  *  - two fishermen at the seaward flank make an offering to the Mamacocha, the mother sea: one stands with his
- *    arms raised to the sea, one sits by a cloth laid with shells, yellow amancae flowers and a gourd;
+ *    arms raised over his head to the sea, one kneels by a cloth laid with shells, yellow amancae flowers and a
+ *    gourd;
  *  - a family (father, mother and their child) stands on the land side watching the sunset;
  *  - a woman sells chicha and ceviche from a stall under a reed-mat awning (clay jars, bowls, gourds), serving
  *    and looking out at whoever comes up the road;
@@ -12,26 +13,37 @@
  * it) and go home at night; arriving and leaving only happen out of sight (or on the first frame).
  * The traveler can walk among them (walkable discs over the flat cliff-top); the stall and the offering cloth are
  * colliders, the people are creature bodies (they step round the traveler).
- * Rendering: its own instanced crowd on the shared people rig (one InstancedMesh per body part, drawn only
- * within VIEW of the camera) and one merged vertex-coloured mesh for the props.
+ * Rendering: the coast's crowd of continuous skinned people (./gente/crowd.ts, shared with ./gente.ts; drawn and
+ * animated only within VIEW of the camera), dressed from ./gente/dress.ts, posed by actions (./reunion/plan.ts
+ * reunionAction: arms raised over the head, kneeling, ladling, hands clasped or behind the back), the vendor's
+ * ladle a held prop; one merged vertex-coloured mesh for the stall and the offering.
  */
 import * as THREE from "three";
-import { type PartName, partSpecs, SHADOW_PARTS } from "../../ambient/people/models";
-import { Person } from "../../ambient/people/person";
-import { Crowd, type Palette, paletteMaterial } from "../../ambient/people/rig";
+import { Npc, type NpcFrame } from "../../ambient/people/npc";
 import { arcDir } from "../../ambient/sky/moon";
+import type { PropHandle } from "../../characters/props";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { vertexToon } from "../../merge-colors";
 import type { SuyuEnv } from "../../suyu/contract";
 import { Geo, rng } from "../kit";
 import { FINALE_T } from "../plan";
 import { finaleFrame, SUNSET } from "./finale/logic";
-import { APRONS, BLOUSES, COAST_SKINS, type CoastPart, coastSpecs, SHIRTS, SKIRTS, TROUSERS } from "./gente/clothes";
+import { coastCrowd } from "./gente/crowd";
+import { adult, COAST_PEOPLE, type CoastWho, coastDress } from "./gente/dress";
 import { type Frame, toWorld } from "./huacas/logic";
-import { HOURS, KIDS, OFFERING, reunionSpots, SOLIDS, type Spot, STALL, WALK, within } from "./reunion/plan";
+import {
+  HOURS,
+  KIDS,
+  OFFERING,
+  reunionAction as pose,
+  reunionSpots,
+  SOLIDS,
+  type Spot,
+  STALL,
+  WALK,
+  within,
+} from "./reunion/plan";
 
-const MAN: Array<PartName | CoastPart> = ["leg", "c:shirt", "c:arm", "m:head"];
-const WOMAN: Array<PartName | CoastPart> = ["leg", "w:skirt", "c:blouse", "c:arm", "w:head"];
 /** Beyond this distance from the camera nobody is drawn. */
 const VIEW = 130;
 
@@ -47,7 +59,6 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   );
   const W = (p: { x: number; z: number }) => toWorld(f, p.x, p.z);
   const R = rng(0x3e0a);
-  const pick = <T>(a: readonly T[]) => a[Math.floor(R() * a.length) % a.length] as T;
 
   // ------------------------------------------------------------------ props: the stall and the offering
   const g = new Geo();
@@ -151,44 +162,53 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
 
   // ------------------------------------------------------------------ people
   const spots = reunionSpots(env.quality);
-  const ramp = env.toon("#ffffff").gradientMap;
-  const mat = paletteMaterial(ramp);
-  const specs = [...partSpecs(["leg", "m:head", "w:head", "w:skirt"]), ...coastSpecs()];
-  const crowd = new Crowd(specs, spots.length, mat, new Set([...SHADOW_PARTS, "c:shirt", "c:blouse"]));
-  env.scene.add(crowd.group);
+  const shared = coastCrowd(env.scene, env.quality === "low");
   interface Who {
-    p: Person;
+    p: Npc;
     s: Spot;
     home: { x: number; z: number; yaw: number };
     ph: number;
+    props: PropHandle[];
+    drawn: boolean;
   }
   const people: Who[] = spots.map((s, i) => {
     const kid = s.role === "kid" || s.role === "family-kid";
-    const hat = !kid && (s.role === "offer" || s.role === "sit-offer" || s.role === "vendor" || R() < 0.5);
-    const wear = [...(s.man ? MAN : WOMAN), ...(hat ? (["c:hat"] as const) : [])];
-    const palette: Palette = s.man
-      ? [pick(COAST_SKINS), pick(SHIRTS), pick(APRONS), pick(TROUSERS)]
-      : [pick(COAST_SKINS), pick(BLOUSES), pick(APRONS), pick(SKIRTS)];
-    const p = new Person({
+    const hat = s.role === "offer" || s.role === "sit-offer" || s.role === "vendor" || R() < 0.5;
+    const who: CoastWho = kid
+      ? s.man
+        ? "boy"
+        : "girl"
+      : s.role === "offer" || s.role === "sit-offer"
+        ? "fisher"
+        : adult(s.man, hat);
+    const p = new Npc({
       kind: kid ? "costa-kid" : "costa-person",
-      crowd,
-      idx: crowd.alloc(),
-      // The rig's types list the mountain's parts; the coast's crowd also has its own (same Crowd API).
-      wear: wear as unknown as PartName[],
-      palette,
-      scale: kid ? 0.6 + R() * 0.08 : s.man ? 0.98 + R() * 0.05 : 0.93 + R() * 0.05,
-      headScale: kid ? 1.3 : 1,
+      crowd: shared.crowd,
+      spec: COAST_PEOPLE[who],
+      palette: coastDress(who, R),
+      scale: kid ? 0.94 + R() * 0.1 : s.man ? 0.98 + R() * 0.05 : 0.97 + R() * 0.04,
       radius: kid ? 0.26 : 0.34,
       seed: 31 + i * 5.7,
     });
+    // The children are busy with their game; the others glance at the traveler walking among them.
+    p.lookRange = s.role === "kid" ? 0 : 5;
+    const props: PropHandle[] = [];
+    // The vendor's ladle for the chicha.
+    if (s.role === "vendor") props.push(p.hold(shared.props, "ladle"));
     const w = W(s);
-    return { p, s, home: { x: w.x, z: w.z, yaw: f.yaw + s.yaw }, ph: i * 1.3 };
+    return { p, s, home: { x: w.x, z: w.z, yaw: f.yaw + s.yaw }, ph: i * 1.3, props, drawn: true };
   });
   const kidsC = W(KIDS);
+  const frame: NpcFrame = { dt: 0, clock: 0, rm, avatar: new THREE.Vector3() };
+  const draw = (w: Who, on: boolean) => {
+    if (w.drawn === on) return;
+    w.drawn = on;
+    w.p.member.show(on);
+    for (const h of w.props) h.show(on);
+  };
 
   // ------------------------------------------------------------------ frame
   let first = true;
-  let clock = 0;
   const cam = new THREE.Vector3();
   const seenV = new THREE.Vector3();
   const seen = (x: number, z: number) => {
@@ -198,9 +218,12 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   };
 
   return {
-    update(dtIn) {
+    update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
-      clock += dt;
+      frame.dt = dt;
+      frame.clock += dt;
+      frame.avatar.copy(avatar);
+      const clock = frame.clock;
       env.camera.getWorldPosition(cam);
       const out = within(env.sky.time(), HOURS);
       const near = Math.hypot(f.x - cam.x, f.z - cam.z) < VIEW + 20;
@@ -210,6 +233,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         // Come and go only out of sight (or on the first frame).
         if (p.active !== out && (first || !seen(p.x, p.z))) {
           p.setActive(out);
+          w.drawn = out;
           if (out) p.place(w.home.x, w.home.z, w.home.yaw);
         }
         if (!p.active) continue;
@@ -228,52 +252,17 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           }
         }
         p.y = ground(p.x, p.z);
-        if (!near) {
-          p.hide();
-          continue;
-        }
-        p.rest(clock, rm);
-        const b = p.bones;
-        const moving = p.speed > 0.2;
-        const sway = rm ? 0 : 1;
-        if (moving || w.s.role === "kid") p.gait(dt, rm);
-        else if (w.s.role === "offer") {
-          // Arms raised to the sea, swaying slowly; face lifted.
-          const k = Math.sin(clock * 0.7 + w.ph) * 0.12 * sway;
-          b.armL.rotation.set(-2.55 + k, 0, 0.35);
-          b.armR.rotation.set(-2.55 - k, 0, -0.35);
-          b.head.rotation.x = -0.28;
-          b.torso.rotation.x = -0.06;
-        } else if (w.s.role === "sit-offer") {
-          // Sitting on the sand by the offering, facing the sea, bowing now and then.
-          p.sit(clock, rm, 0.05);
-          b.armL.rotation.set(-0.9, 0, 0.2);
-          b.armR.rotation.set(-0.9, 0, -0.2);
-          b.head.rotation.y = 0;
-          b.torso.rotation.x = Math.max(0, Math.sin(clock * 0.35 + w.ph)) * 0.4 * sway;
-        } else if (w.s.role === "vendor") {
-          // Ladling chicha into cups, glancing out at the road.
-          const c = (clock * 0.5 + w.ph) % 4;
-          b.torso.rotation.x = 0.12;
-          b.armR.rotation.x = c < 1.5 ? -0.9 + Math.sin(clock * 3) * 0.25 * sway : -0.2;
-          b.armL.rotation.x = -0.5;
-          b.head.rotation.y = c < 1.5 ? 0 : Math.sin(clock * 0.4 + w.ph) * 0.6 * sway;
-        } else {
-          // The family looks out to sea; the child turns about and tugs at a hand.
-          b.head.rotation.y = Math.sin(clock * 0.25 + w.ph) * 0.35 * sway;
-          b.head.rotation.x = -0.05;
-          if (w.s.role === "family-kid") b.armL.rotation.set(-0.3 + Math.sin(clock * 1.3) * 0.15 * sway, 0, 0.5);
-          else if (w.s.man) b.armR.rotation.set(-0.15, 0, -0.35);
-        }
-        p.commit();
+        draw(w, near);
+        if (!near) continue;
+        p.anim.act(pose(w.s, p.speed > 0.2, (clock * 0.5 + w.ph) % 4), { fade: 0.5 });
+        p.commit(frame);
       }
       first = false;
-      crowd.flush();
+      shared.frame(env.camera);
     },
     dispose() {
       for (const w of people) w.p.dispose();
-      crowd.dispose();
-      mat.dispose();
+      shared.release();
       props.removeFromParent();
       propGeo.dispose();
       propMat.dispose();

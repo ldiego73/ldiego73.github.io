@@ -12,19 +12,23 @@
  *
  * The trees come with this module (wild/trees.ts broadTree; one merged static mesh per grove, drawn only near
  * the camera), so every monkey sits and lands on a real limb. Two limbs of every tree reach out low over the
- * road edge, where the troop is in sight. Rendering: grove + squirrel-monkey rig + howler rig → ≤ 3 draw calls.
+ * road edge, where the troop is in sight. Rendering: the grove + the shared animal core (wild/beasts.ts): the
+ * squirrel monkeys as one instanced herd drawn larger than life (species "squirrel-monkey": "sit" on the limbs,
+ * a bound through the air, "sleep" huddled at night) and the coto as one skinned animal (no howler species
+ * yet: the squirrel monkey's body at 2.2× in the howler's red-brown coat; its roar is the "yawn", head
+ * thrown back) → ≤ 3–4 draw calls.
  * Bodies ("mono", "coto"): listed for queries, never solid (up in the trees).
  * Stamp `selva:fauna:mono` after a ~1.5 s good look within 16 u.
  */
 import * as THREE from "three";
+import { qpal } from "../../characters/animals/species/mammals";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { on } from "../../events";
 import { GeoBuilder } from "../../flora/geom";
-import { devHook, FAUNA_FAR, idle, ramp, rootMatrix, SiteProps, Spotter, selvaOf } from "./wild/kit";
-import { damp, diurnal, howlerHour, leapPoint, nightAmount, rng, treeSites, turnToward, wrapAngle } from "./wild/logic";
-import { howlerModel, squirrelMonkeyModel } from "./wild/mammals";
-import { RigSet } from "./wild/rig";
+import { createBeasts } from "./wild/beasts";
+import { devHook, FAUNA_FAR, idle, SiteProps, Spotter, selvaOf } from "./wild/kit";
+import { damp, diurnal, howlerHour, leapPoint, rng, treeSites, turnToward, wrapAngle } from "./wild/logic";
 import { broadTree, type HostTree, limbPoint } from "./wild/trees";
 
 interface Perch {
@@ -64,14 +68,33 @@ interface Monkey {
   look: number;
   lookT: number;
   phase: number;
-  /** Pose blend: 0 sitting up, 1 stretched in a leap. */
-  stretch: number;
+  /** Index in the troop herd. */
+  k: number;
   tail: number;
   body: Body;
 }
 
 /** Squirrel monkeys are small (≈ 0.3 u body): drawn a little larger so they read up in the trees. */
-const SCALE = 1.7;
+/** Squirrel monkeys drawn larger than life so the troop reads from the road. */
+const SCALE = 1.5;
+/** The coto: the red howler's coat on the shared monkey body, at a howler's size. */
+const HOWLER_COAT = qpal({
+  coat: "#8e3a1c",
+  hair: "#7a2e16",
+  belly: "#6a2814",
+  nose: "#1e1614",
+  points: "#3a1a10",
+  hoof: "#2e1c14",
+  inner: "#6a2814",
+});
+const HOWLER_SCALE = 2.2;
+
+/** Horizontal span of a monkey's current leap (from perch to perch). */
+function leapSpan(troop: Troop, m: Monkey): [number, number] {
+  const a = troop.perches[m.from] as Perch;
+  const b = troop.perches[m.perch] as Perch;
+  return [b.x - a.x, b.z - a.z];
+}
 
 export const create: CreateAmbient = (env0): Ambient => {
   const env = selvaOf(env0);
@@ -144,7 +167,7 @@ export const create: CreateAmbient = (env0): Ambient => {
         look: 0,
         lookT: 0,
         phase: R(),
-        stretch: 0,
+        k: 0,
         tail: 0,
         body: creatures.add("mono", 0.25, { solid: false, x: p.x, z: p.z }),
       });
@@ -178,15 +201,16 @@ export const create: CreateAmbient = (env0): Ambient => {
         })()
       : null;
 
-  const total = troops.reduce((a, t) => a + t.members.length, 0);
-  const sm = squirrelMonkeyModel();
-  const set = new RigSet("selva-fauna-mono-body", sm.geo, sm.spec, total, ramp(env));
-  const hm = howlerModel();
-  const hset = howler ? new RigSet("selva-fauna-coto-body", hm.geo, hm.spec, 1, ramp(env)) : null;
+  let total = 0;
+  for (const t of troops) for (const m of t.members) m.k = total++;
+  const set = createBeasts(env, "squirrel-monkey", total, { scale: SCALE, shadows: false });
+  const hset = howler
+    ? createBeasts(env, "squirrel-monkey", 1, { solo: true, variants: [HOWLER_COAT], shadows: false })
+    : null;
   const root = new THREE.Group();
   root.name = "selva-fauna-mono";
-  root.add(set.mesh);
-  if (hset) root.add(hset.mesh);
+  root.add(set.group);
+  if (hset) root.add(hset.group);
   root.add(props.group);
   env.scene.add(root);
 
@@ -200,7 +224,6 @@ export const create: CreateAmbient = (env0): Ambient => {
     monkeys: troops.flatMap((t) => t.members.map((m) => [m.state, +m.x.toFixed(1), +m.y.toFixed(1), +m.z.toFixed(1)])),
     howler: howler ? [howler.x, howler.y, howler.z] : null,
   }));
-  const m4 = new THREE.Matrix4();
   const p3 = { x: 0, y: 0, z: 0 };
   let clock = 0;
 
@@ -210,13 +233,10 @@ export const create: CreateAmbient = (env0): Ambient => {
       clock += dt;
       const time = env.sky.time();
       const awake = diurnal(time) > 0.3;
-      const night = nightAmount(time);
-      set.rim.value = night * 0.6;
-      if (hset) hset.rim.value = night * 0.6;
       const mot = rm ? 0.6 : 1;
       spot.begin();
       props.update(spot.view.cam);
-      let n = 0;
+      set.begin();
       for (const [ti, troop] of troops.entries()) {
         const K = troop.trees.length;
         // The troop's goal tree drifts along the row; away from a traveler under it.
@@ -294,53 +314,41 @@ export const create: CreateAmbient = (env0): Ambient => {
               m.timer = 0.3 + R() * 1.5;
             }
           }
-          // Head: quick jerky looks; at the traveler when close; tucked down asleep.
+          // Head: quick jerky looks; at the traveler when close; asleep at night.
           m.lookT -= dt;
           if (m.lookT <= 0) {
             m.lookT = 0.4 + R() * 1.4;
             m.look = (R() - 0.5) * 2;
           }
           let hy = m.look;
-          let hp = (R() - 0.5) * 0.2;
-          if (!awake) {
-            hy = 0;
-            hp = 0.9;
-          } else if (d < 14 && m.state === "sit") {
+          if (!awake) hy = 0;
+          else if (d < 14 && m.state === "sit") {
             hy = Math.max(-1.3, Math.min(1.3, wrapAngle(Math.atan2(avatar.x - m.x, avatar.z - m.z) - m.yaw)));
-            hp = -0.3;
             if (Math.abs(wrapAngle(Math.atan2(avatar.x - m.x, avatar.z - m.z) - m.yaw)) > 1.2)
               m.yaw = turnToward(m.yaw, Math.atan2(avatar.x - m.x, avatar.z - m.z), 1.5 * dt);
           }
           m.headYaw = damp(m.headYaw, hy, rm ? 4 : 14, dt);
-          m.headPitch = damp(m.headPitch, hp, rm ? 4 : 12, dt);
           const leaping = m.state === "leap";
-          m.stretch = damp(m.stretch, leaping ? 1 : 0, 14, dt);
-          if (!leaping) m.pitch = damp(m.pitch, 0, 8, dt);
-          m.phase = (m.phase + dt * (leaping ? 2.5 : 0)) % 1;
-          const k = m.stretch;
-          // Sitting up (body raised, legs folded under, tail hanging) ↔ stretched leap (arms forward).
-          // (Sitting, the body leans back 0.95 rad: the arms swing +0.75 to hang down to the branch and the
-          // head pitches forward to look level.)
-          const bodyPitch = -0.95 * (1 - k) + m.pitch * k;
-          const front = 0.75 * (1 - k) - 1.25 * k;
-          const hind = -0.25 * (1 - k) + 1.1 * k;
-          const tailP = -1.3 * (1 - k) + 0.25 * k;
-          const tailY = Math.sin(clock * 0.9 + m.phase * 9) * 0.35 * mot * (1 - k);
           m.body.x = m.x;
           m.body.z = m.z;
-          if (spot.view.dist(m.x, m.y, m.z) > FAUNA_FAR) continue;
-          rootMatrix(m4, m.x, m.y, m.z, m.yaw, bodyPitch, 0, SCALE);
-          set.set(n, m4, m.phase, 0, m.headYaw, m.headPitch + 0.85 * (1 - k), tailY, tailP, front, hind);
-          n++;
+          if (inside || spot.view.dist(m.x, m.y, m.z) > FAUNA_FAR) continue;
+          // Sitting up on the limb, tail hanging; a bound through the air between perches; asleep at night.
+          const leapSpeed = leaping ? Math.hypot(...leapSpan(troop, m)) / m.dur : 0;
+          set.put(m.k, m.x, m.y, m.z, m.yaw, {
+            speed: leapSpeed,
+            rm,
+            mode: leaping ? "auto" : awake ? "sit" : "sleep",
+            look: awake ? m.headYaw : undefined,
+          });
           spot.see(m.x, m.y + 0.3, m.z, avatar.x, avatar.z, 0.5);
         }
       }
-      set.commit(inside ? 0 : n);
+      set.end(dt, clock, env.camera);
 
       if (howler && hset) {
-        // Roars around dawn and dusk: head thrown back, the body bobbing with each bellow.
+        // Roars around dawn and dusk: head thrown back (the "yawn"), every few seconds.
         const roar = howlerHour(time);
-        const bellow = roar ? Math.max(0, Math.sin(clock * 1.6)) : 0;
+        if (roar && !rm && R() < dt * 0.35) hset.play(0, "yawn", 2.2);
         howler.lookT -= dt;
         if (howler.lookT <= 0) {
           howler.lookT = 2 + R() * 4;
@@ -348,11 +356,19 @@ export const create: CreateAmbient = (env0): Ambient => {
         }
         const d = Math.hypot(howler.x - avatar.x, howler.z - avatar.z);
         const hy = d < 18 ? wrapAngle(Math.atan2(avatar.x - howler.x, avatar.z - howler.z) - howler.yaw) : howler.look;
-        howler.headYaw = damp(howler.headYaw, Math.max(-1.2, Math.min(1.2, hy)) * (1 - bellow), 2, dt);
-        howler.headPitch = damp(howler.headPitch, roar ? -0.7 * bellow : 0.1, 5, dt);
-        rootMatrix(m4, howler.x, howler.y + bellow * 0.03, howler.z, howler.yaw, -0.9, 0, 1.3);
-        hset.set(0, m4, 0, 0, howler.headYaw, howler.headPitch + 0.8, 0.3, -1.4, 0.7, -0.2);
-        hset.commit(inside ? 0 : 1);
+        howler.headYaw = damp(howler.headYaw, Math.max(-1.2, Math.min(1.2, hy)), 2, dt);
+        hset.begin();
+        if (!inside)
+          hset.put(
+            0,
+            howler.x,
+            howler.y,
+            howler.z,
+            howler.yaw,
+            { speed: 0, rm, mode: "sit", look: howler.headYaw },
+            { scale: HOWLER_SCALE },
+          );
+        hset.end(dt, clock, env.camera);
         spot.see(howler.x, howler.y, howler.z, avatar.x, avatar.z, 0.8);
       }
       spot.end(dt);

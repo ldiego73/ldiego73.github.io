@@ -9,14 +9,21 @@
  *  - Trout leaping now and then out of open water off the Uros islands and the Taquile pier (a splash ring
  *    where they fall back), when the traveler is within sight.
  *  - Guinea pigs (cuyes) scurrying about a low stone pen on Taquile's plaza.
- * By day; at night the birds rest (the geese sit, the ibises and teals stand still), the cuyes huddle and no
- * trout jumps. With prefers-reduced-motion the gaits are smaller and the trout jump less often. These animals
- * earn no passport stamp. They keep off the road (they live on open ground, on the water or in their pen), so
- * they need no bodies in the creatures registry. Groups far from the camera are neither updated nor drawn.
- * Draw calls: geese 2, ibises 2, teals 1, sheep 3, dog 3, cuyes 1 + their pen 1, trout 1 + splash rings 1.
- * Pure rules: ./fauna/logic.ts; models: ./fauna/puna-models.ts.
+ * By day; at night the birds rest (the geese and teals asleep on the ground or the water, the ibises standing
+ * still), the cuyes huddle and no trout jumps. With prefers-reduced-motion the gaits are smaller and the trout
+ * jump less often. These animals earn no passport stamp. They keep off the road (they live on open ground, on
+ * the water or in their pen), so they need no bodies in the creatures registry. Groups far from the camera are
+ * neither updated nor drawn.
+ * The geese, teals, cuyes and trout are the shared animal core's (../../characters/animals, loaded off the main
+ * thread by ./fauna/herds.ts): the geese and the teals share one duck-shaped flock in their own colours, the
+ * cuyes are a herd, each trout a single animal drawn only while it leaps. The core has no sheep, dog or puna
+ * ibis yet: those stay on this world's instanced part models (./fauna/puna-models.ts) until it does.
+ * Draw calls: geese and teals 1 per LOD in use, cuyes 1 per LOD + their pen 1, a leaping trout 1 + splash rings
+ * 1, ibises 2, sheep 3, dog 3. Pure rules: ./fauna/logic.ts.
  */
 import * as THREE from "three";
+import type { Animal } from "../../characters/animals/animal";
+import { bpal } from "../../characters/animals/species/birds";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { vertexToon } from "../../merge-colors";
@@ -25,28 +32,53 @@ import type { SuyuEnv } from "../../suyu/contract";
 import type { TiticacaLayout } from "../layout";
 import { CUY_PEN, DUCKS, GEESE, IBIS, LEVEL, SHEEP, TROUT } from "../plan";
 import { reedFree } from "../scenery/placement";
+import { lazyHerds } from "./fauna/herds";
 import { damp, daylight, orbitPoint, rng, TAU, troutArc, turnToward, wanderTarget } from "./fauna/logic";
 import {
-  cuyGeometry,
   dogBodyGeometry,
   dogHeadGeometry,
   dogLegGeometry,
-  gooseBodyGeometry,
-  gooseNeckGeometry,
   ibisBodyGeometry,
   ibisNeckGeometry,
   sheepBodyGeometry,
   sheepHeadGeometry,
   sheepLegGeometry,
-  tealGeometry,
-  troutGeometry,
 } from "./fauna/puna-models";
 import { Build } from "./kit/build";
 
 /** Groups farther than this from the camera are skipped. */
 const FAR = 190;
 const SHEEP_COATS = ["#ffffff", "#f1e8d6", "#ffffff", "#9b7a5c", "#ffffff", "#e8dcc6", "#4a403a", "#ffffff", "#f1e8d6"];
-const CUY_COATS = ["#ffffff", "#e9c7a0", "#c7865a", "#ffffff", "#8a5a3a", "#f3e2c8"];
+const CUY_COATS = ["tricolor", "cream", "brown", "piebald"];
+/**
+ * The core's duck in the huallata's colours (Andean goose, Oressochen melanopterus: white body, head and
+ * neck, black wings and tail, pink bill and legs) and in the puna teal's (Spatula puna: barred brown flanks, a
+ * black cap over white cheeks, the pale blue bill).
+ */
+const HUALLATA = bpal({
+  back: "#f4f1ea",
+  head: "#f4f1ea",
+  face: "#f4f1ea",
+  bill: "#e07f86",
+  legs: "#e79a8f",
+  belly: "#f4f1ea",
+  coverts: "#1f1d1c",
+  flight: "#2c3a36",
+  tail: "#1f1d1c",
+});
+/** Teals float this far below the surface line (their feet origin sits under the water). */
+const TEAL_SINK = 0.05;
+const PUNA_TEAL = bpal({
+  back: "#8f7352",
+  head: "#f2efe6",
+  face: "#1f1d1c",
+  bill: "#7fb2df",
+  legs: "#5a5048",
+  belly: "#a7865f",
+  coverts: "#6e5a43",
+  flight: "#2a6a5a",
+  tail: "#5a4836",
+});
 
 interface Walker {
   x: number;
@@ -156,15 +188,25 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   };
 
   // ------------------------------------------------------------------ meshes
+  const herds = lazyHerds(group);
   const geese = flock(GEESE, high ? 6 : 4, shore);
-  const gBody = inst(gooseBodyGeometry(), geese.length, "goose");
-  const gNeck = inst(gooseNeckGeometry(), geese.length, "goose-neck");
   const ibises = flock(IBIS, high ? 6 : 4, wet);
   const iBody = inst(ibisBodyGeometry(), ibises.length, "ibis");
   const iNeck = inst(ibisNeckGeometry(), ibises.length, "ibis-neck");
   const perDuck = high ? 5 : 3;
   const teals = DUCKS.flatMap((home, k) => flock(home, perDuck, reeds).map((w) => ({ w, home, k })));
-  const tMesh = inst(tealGeometry(), teals.length, "teal", false);
+  // Geese (variant 0) and teals (variant 1) are one duck-shaped flock: ids by member.
+  const gooseIds: number[] = [];
+  const tealIds: number[] = [];
+  herds.herd(
+    "duck",
+    { max: geese.length + teals.length, variants: [HUALLATA, PUNA_TEAL] },
+    (h) => {
+      for (let i = 0; i < geese.length; i++) gooseIds.push(h.add({ seed: 3 + i * 5, variant: 0 }));
+      for (let i = 0; i < teals.length; i++) tealIds.push(h.add({ seed: 41 + i * 3, variant: 1 }));
+    },
+    "ducks",
+  );
   const sheep = flock(SHEEP, high ? 9 : 6, puna);
   const sBody = inst(sheepBodyGeometry(), sheep.length, "sheep");
   const sHead = inst(sheepHeadGeometry(), sheep.length, "sheep-head");
@@ -177,9 +219,17 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const dLeg = inst(dogLegGeometry(), 4, "dog-leg", false);
   const nCuy = high ? 6 : 4;
   const cuyes = flock({ x: CUY_PEN.x, z: CUY_PEN.z, r: CUY_PEN.r - 0.25 }, nCuy, () => true);
-  const cMesh = inst(cuyGeometry(), nCuy, "cuy", false);
-  tint(cMesh, CUY_COATS);
-  const fish = inst(troutGeometry(), TROUT.length, "trout", false);
+  const cuyIds: number[] = [];
+  herds.herd("cuy", { max: nCuy, variants: CUY_COATS, shadows: false }, (h) => {
+    for (let i = 0; i < nCuy; i++) cuyIds.push(h.add({ seed: 9 + i * 7, variant: i % CUY_COATS.length }));
+  });
+  const fish: Array<Animal | null> = TROUT.map(() => null);
+  for (let i = 0; i < TROUT.length; i++)
+    herds.one("trout", { lod: 1, seed: 21 + i, shadows: false }, (a) => {
+      a.group.visible = false;
+      a.group.rotation.order = "YXZ";
+      fish[i] = a;
+    });
   const ringMat = new THREE.MeshBasicMaterial({
     color: "#f4f8fb",
     transparent: true,
@@ -189,7 +239,6 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   });
   const rings = inst(new THREE.RingGeometry(0.82, 1, 24).rotateX(-Math.PI / 2), TROUT.length, "splash", false, ringMat);
   env.noOutline(rings);
-  env.noOutline(fish);
 
   // The cuy pen: a low ring of fieldstones with a little alfalfa strewn inside.
   const pb = new Build();
@@ -293,6 +342,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   let clock = 0;
   const far = (x: number, z: number) => Math.hypot(x - camPos.x, z - camPos.z) > FAR;
 
+  if (import.meta.env?.DEV)
+    (window as unknown as { __puna?: unknown }).__puna = {
+      drawCalls: () => herds.drawCalls() + meshes.filter((m) => m.visible).length,
+    };
   return {
     update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
@@ -300,23 +353,28 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       env.camera.getWorldPosition(camPos);
       const day = daylight(env.sky.time()) > 0.3;
 
-      // ----- geese
-      const gFar = far(GEESE.x, GEESE.z);
-      gBody.visible = gNeck.visible = !gFar;
-      if (!gFar) {
+      // ----- geese: a few steps, heads down grazing the short grass; asleep on the ground at night
+      const dh = herds.get("ducks");
+      if (dh && !far(GEESE.x, GEESE.z)) {
         geese.forEach((w, i) => {
+          const id = gooseIds[i] as number;
           const moving = day && wander(w, GEESE, shore, 0.45, 3, dt);
-          w.graze = damp(w.graze, day && !moving ? 1 : 0, 1.5, dt);
-          const sit = day ? 0 : 0.2;
-          const bob = moving && !rmo ? Math.abs(Math.sin(w.phase)) * 0.02 : 0;
-          setRoot(w.x, L.heightAt(w.x, w.z) - sit + bob, w.z, w.yaw, 0, moving && !rmo ? Math.sin(w.phase) * 0.06 : 0);
-          gBody.setMatrixAt(i, root);
-          const nod = rmo ? 0 : Math.sin(clock * 3 + i) * 0.08 * w.graze;
-          pivot(gNeck, i, 0, 0.45, 0.2, day ? w.graze * 1.25 + nod : -0.25);
+          // Grazing bouts while standing by day; asleep at night (`graze` doubles as the bout timer).
+          w.graze -= dt;
+          if (w.graze <= 0 && !moving && w.walk < 0.1) {
+            dh.play(id, day ? "graze" : "sleep", day ? 3 + (i % 3) : 25);
+            w.graze = day ? 5 + (i % 4) : 22;
+          }
+          dh.set(id, w.x, L.heightAt(w.x, w.z), w.z, w.yaw, {
+            speed: 0.45 * w.walk,
+            rm: rmo,
+            grounded: true,
+            vy: 0,
+            height: 0,
+            quiet: !day,
+          });
         });
-        gBody.instanceMatrix.needsUpdate = true;
-        gNeck.instanceMatrix.needsUpdate = true;
-      }
+      } else if (dh) for (const id of gooseIds) dh.hide(id);
 
       // ----- ibises: slow steps and quick probes into the wet grass
       const iFar = far(IBIS.x, IBIS.z);
@@ -334,19 +392,24 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         iNeck.instanceMatrix.needsUpdate = true;
       }
 
-      // ----- teals: paddle about the reeds, tip up to feed
-      const tFar = DUCKS.every((d) => far(d.x, d.z));
-      tMesh.visible = !tFar;
-      if (!tFar) {
+      // ----- teals: paddle about the reeds, dabbling now and then
+      if (dh && DUCKS.some((d) => !far(d.x, d.z))) {
         teals.forEach(({ w, home }, i) => {
+          const id = tealIds[i] as number;
           if (day) wander(w, home, reeds, 0.3, 2.5, dt);
-          const tip = day && !rmo ? Math.max(0, Math.sin(clock * 0.45 + i * 2.3) - 0.85) / 0.15 : 0;
+          if (day && !rmo && Math.sin(clock * 0.45 + i * 2.3) > 0.97) dh.play(id, "graze", 1.5);
           const bob = rmo ? 0 : Math.sin(clock * 1.7 + i) * 0.015;
-          setRoot(w.x, LEVEL - 0.01 + bob, w.z, w.yaw, tip * 1.25);
-          tMesh.setMatrixAt(i, root);
+          dh.set(id, w.x, LEVEL - TEAL_SINK + bob, w.z, w.yaw, {
+            speed: 0.3 * w.walk,
+            rm: rmo,
+            grounded: false,
+            water: true,
+            vy: 0,
+            height: 0,
+            quiet: !day,
+          });
         });
-        tMesh.instanceMatrix.needsUpdate = true;
-      }
+      } else if (dh) for (const id of tealIds) dh.hide(id);
 
       // ----- sheep and the dog
       const sFar = far(SHEEP.x, SHEEP.z);
@@ -406,30 +469,29 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       }
 
       // ----- cuyes
-      const cFar = far(CUY_PEN.x, CUY_PEN.z);
-      cMesh.visible = !cFar;
-      if (!cFar) {
+      const ch = herds.get("cuy");
+      if (ch && !far(CUY_PEN.x, CUY_PEN.z)) {
         const home = { x: CUY_PEN.x, z: CUY_PEN.z, r: CUY_PEN.r - 0.25 };
+        const sp = rmo ? 0.4 : 1.1;
         cuyes.forEach((w, i) => {
+          const id = cuyIds[i] as number;
           if (day) {
             w.pause = Math.min(w.pause, 3);
-            wander(w, home, () => true, rmo ? 0.4 : 1.1, 0.8, dt);
+            wander(w, home, () => true, sp, 0.8, dt);
           } else {
             // Huddled together at the centre.
             const a = (i / cuyes.length) * TAU;
             w.x = damp(w.x, home.x + Math.cos(a) * 0.22, 1, dt);
             w.z = damp(w.z, home.z + Math.sin(a) * 0.22, 1, dt);
           }
-          const nib = day && !rmo && w.walk < 0.2 ? Math.abs(Math.sin(clock * 9 + i)) * 0.012 : 0;
-          setRoot(w.x, py + nib, w.z, w.yaw);
-          cMesh.setMatrixAt(i, root);
+          ch.set(id, w.x, py, w.z, w.yaw, { speed: day ? sp * w.walk : 0, rm: rmo, mode: day ? "auto" : "sleep" });
         });
-        cMesh.instanceMatrix.needsUpdate = true;
-      }
+      } else if (ch) for (const id of cuyIds) ch.hide(id);
 
       // ----- trout
       jumps.forEach((j, i) => {
         const s = TROUT[i] as (typeof TROUT)[number];
+        const f = fish[i];
         const near = Math.hypot(avatar.x - s.x, avatar.z - s.z) < 110;
         if (j.u < 0) {
           j.timer -= dt;
@@ -441,14 +503,20 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
             j.yaw = R() * TAU;
           }
           if (j.timer <= 0 && j.u < 0) j.timer = 2 + R() * 4;
-          fish.setMatrixAt(i, ZERO);
+          if (f) f.group.visible = false;
         } else {
           j.u += dt / 0.9;
           const a = troutArc(j.u);
           const x = j.x + Math.sin(j.yaw) * a.along;
           const z = j.z + Math.cos(j.yaw) * a.along;
-          setRoot(x, LEVEL + a.y, z, j.yaw, -a.pitch);
-          fish.setMatrixAt(i, a.y > -0.2 ? root : ZERO);
+          if (f) {
+            // Out of the water nose first, arcing over and back in (the swim animator flexes the spine).
+            f.group.position.set(x, LEVEL + a.y, z);
+            f.group.rotation.set(-a.pitch, j.yaw, 0);
+            f.autoLod(env.camera);
+            f.group.visible = f.group.visible && a.y > -0.2;
+            f.update(dt, clock, { speed: 1.5, rm: rmo });
+          }
           if (j.u >= 1) {
             j.u = -1;
             j.timer = (rmo ? 18 : 6) + R() * 10;
@@ -464,10 +532,11 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           if (j.ring >= 1) j.ring = -1;
         } else rings.setMatrixAt(i, ZERO);
       });
-      fish.instanceMatrix.needsUpdate = true;
       rings.instanceMatrix.needsUpdate = true;
+      herds.update(dt, clock, env.camera);
     },
     dispose() {
+      herds.dispose();
       for (const m of meshes) m.dispose();
       for (const g of geos) g.dispose();
       mat.dispose();

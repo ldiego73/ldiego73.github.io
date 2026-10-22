@@ -9,8 +9,9 @@
  * into the water and a floating one slips under with a ring; it comes back up near its spot once the
  * traveler has moved on. They never approach the traveler.
  *
- * Rendering: one rig InstancedMesh (wild/rig.ts: legs paddle, the tail sweeps), the eyeshine dots and a
- * ripple pool → 3 draw calls. Bodies ("caiman"): solid only while basking on the sand (give 0.2: it does not
+ * Rendering: the shared animal core (species "caiman", black coat, one skinned animal each at its own size,
+ * wild/beasts.ts solo: the crawl on the sand, the "swim" mode in the water with the legs folded back and the
+ * tail driving, a yawn now and then while basking), the eyeshine dots at the head bone and a ripple pool. Bodies ("caiman"): solid only while basking on the sand (give 0.2: it does not
  * budge), not solid in the water, parked while under.
  * Stamp `selva:fauna:caiman` after a ~1.5 s good look within 20 u.
  */
@@ -18,6 +19,7 @@ import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, park } from "../../creatures";
 import { on } from "../../events";
+import { createBeasts } from "./wild/beasts";
 import {
   type Bar,
   barF,
@@ -29,14 +31,16 @@ import {
   FAUNA_FAR,
   idle,
   Ripples,
-  ramp,
-  rootMatrix,
   Spotter,
   selvaOf,
 } from "./wild/kit";
 import { damp, nightAmount, rng, roadFrame, TAU, turnToward } from "./wild/logic";
-import { caimanModel } from "./wild/mammals";
-import { headPoint, RigSet } from "./wild/rig";
+
+/** Eye bumps: their top above the feet origin (species "caiman" at size 1), their place in the head bone's
+ * frame (bind frame: +Z forward, +Y up) and the eyeshine dot radius. */
+const EYE_TOP = 0.26;
+const EYES = [new THREE.Vector3(0.042, 0.05, 0.06), new THREE.Vector3(-0.042, 0.05, 0.06)];
+const EYE_R = 0.02;
 
 type State = "float" | "bask" | "slide" | "sink" | "under" | "rise";
 
@@ -56,7 +60,6 @@ interface Caiman {
   yawT: number;
   timer: number;
   scale: number;
-  phase: number;
   speed: number;
   sink: number;
   body: Body;
@@ -74,9 +77,8 @@ export const create: CreateAmbient = (env0): Ambient => {
   const high = env.quality === "high";
   const rm = env.reducedMotion;
   const R = rng(3313);
-  const model = caimanModel();
   /** Floating: the root sits so the eye bumps just clear the surface. */
-  const floatY = (s: number) => lv + 0.035 - (model.eyes[0].y + model.eyeR) * s;
+  const floatY = (s: number) => lv + 0.035 - EYE_TOP * s;
 
   /** Calm water along the river bank near road t: walks out from the road until the bed is ~1.2 deep. */
   const bankWater = (t: number, along: number) => {
@@ -119,7 +121,6 @@ export const create: CreateAmbient = (env0): Ambient => {
       yawT: hyaw,
       timer: R() * 5,
       scale,
-      phase: R(),
       speed: 0,
       sink: 0,
       body: creatures.add("caiman", 0.5 * scale, { solid: false, give: 0.2, x: hx, z: hz }),
@@ -136,14 +137,12 @@ export const create: CreateAmbient = (env0): Ambient => {
     add(p.x, p.z, bar.yaw + (R() < 0.5 ? 0 : Math.PI) + Math.PI / 2 + (R() - 0.5) * 0.6, bar);
   }
 
-  const set = new RigSet("selva-fauna-caiman-body", model.geo, model.spec, caimans.length, ramp(env), {
-    rimColor: "#9fb4ff",
-  });
+  // Black caimans (Melanosuchus niger): the species' dark coat.
+  const set = createBeasts(env, "caiman", caimans.length, { solo: true, variants: ["black"] });
   const eyes = new Eyes(env, "selva-fauna-caiman-eyes", caimans.length * 2, "#2a2a12", "#ff9a3c");
   const ripples = new Ripples(env, "selva-fauna-caiman-ripples", 8, lv, 1.8);
-  const root = new THREE.Group();
-  root.name = "selva-fauna-caiman";
-  root.add(set.mesh, eyes.mesh, ripples.mesh);
+  const root = set.group;
+  root.add(eyes.mesh, ripples.mesh);
   env.scene.add(root);
 
   const spot = new Spotter(env, "caiman", 20);
@@ -178,7 +177,6 @@ export const create: CreateAmbient = (env0): Ambient => {
       clock += dt;
       const time = env.sky.time();
       const night = nightAmount(time);
-      set.rim.value = night * 0.7;
       if (!Number.isNaN(lastAx) && dt > 0)
         avSpeed = damp(avSpeed, Math.hypot(avatar.x - lastAx, avatar.z - lastAz) / dt, 6, dt);
       lastAx = avatar.x;
@@ -187,16 +185,19 @@ export const create: CreateAmbient = (env0): Ambient => {
       spot.begin();
       const view = spot.view;
       const mot = rm ? 0.6 : 1;
-      let n = 0;
-      for (const c of caimans) {
+      let ne = 0;
+      set.begin();
+      const shown: number[] = [];
+      for (let i = 0; i < caimans.length; i++) {
+        const c = caimans[i] as Caiman;
         const d = Math.hypot(c.x - avatar.x, c.z - avatar.z);
         const scared = d < scareR && !inside;
         let speed = 0;
-        let jaw = 0;
         switch (c.state) {
           case "bask": {
             // Lying on the sand by day; at dusk it goes back into the water to float the night.
-            jaw = -0.14 + Math.sin(clock * 0.3 + c.phase * 6) * 0.03; // snout raised, basking
+            // Jaws open to cool off now and then.
+            if (!rm && R() < dt * 0.08) set.play(i, "yawn", 2.5 + R() * 2);
             if (scared || night > 0.5) {
               c.state = "slide";
               c.yawT = Math.atan2(c.wx - c.x, c.wz - c.z);
@@ -291,41 +292,45 @@ export const create: CreateAmbient = (env0): Ambient => {
         const onLand = c.state === "bask" || (c.state === "slide" && g > fy);
         c.y = damp(c.y, onLand ? g : fy, 6, dt);
         c.speed = damp(c.speed, speed, 6, dt);
-        c.phase = (c.phase + (c.speed * dt) / (1.1 * c.scale)) % 1;
-        // Tail: a slow sweep in the water, still on the sand; legs paddle only while moving.
-        const sweep = onLand ? 0.05 : Math.sin(clock * 0.8 * mot + c.phase * 7) * 0.22 * mot;
-        const tailYaw = sweep + (c.state === "slide" ? Math.sin(clock * 4) * 0.25 : 0);
-        const legs = Math.min(0.5, c.speed * 0.4);
-        // Floating, the legs trail back along the flanks.
-        const trail = onLand ? 0 : 0.9;
         c.body.solid = onLand && c.state === "bask";
         c.body.x = c.x;
         c.body.z = c.z;
         // Farther than small fauna: a pair of shining eyes still reads across the dark water.
-        if (view.dist(c.x, c.y, c.z) > FAUNA_FAR * 1.4) continue;
-        rootMatrix(m4, c.x, c.y, c.z, c.yaw, 0, 0, c.scale);
-        set.set(n, m4, c.phase, legs, 0, jaw, tailYaw, 0, -trail * 0.6, trail);
-
-        // Eyeshine: a pair of dots on the eye bumps, bright at night when the head faces the camera.
-        toCam.subVectors(view.cam, headPoint(eye, m4, model.spec.head, 0, jaw, model.eyes[0]));
+        if (inside || view.dist(c.x, c.y, c.z) > FAUNA_FAR * 1.4) continue;
+        set.put(
+          i,
+          c.x,
+          c.y,
+          c.z,
+          c.yaw,
+          { speed: c.speed, rm, mode: onLand ? "auto" : "swim", quiet: night > 0.5 && c.state === "float" },
+          { scale: c.scale },
+        );
+        shown.push(i);
+        if (c.sink < 0.5) spot.see(c.x, lv + 0.2, c.z, avatar.x, avatar.z, 1.2);
+      }
+      set.end(dt, clock, env.camera);
+      // Eyeshine: a pair of dots on the eye bumps, bright at night when the head faces the camera.
+      for (const i of shown) {
+        const c = caimans[i] as Caiman;
+        if (night < 0.05 || !set.boneMatrix(i, "head", m4)) continue;
+        toCam.subVectors(view.cam, eye.copy(EYES[0] as THREE.Vector3).applyMatrix4(m4));
         const dc = toCam.length();
         const fwdX = Math.sin(c.yaw);
         const fwdZ = Math.cos(c.yaw);
         const facing = dc > 0 ? (fwdX * toCam.x + fwdZ * toCam.z) / dc : 0;
         // Some moonlight always comes back off the eyes at night; full shine when they face the viewer.
         const glint = night * Math.max(0.55, THREE.MathUtils.smoothstep(facing, -0.6, 0.2)) * (1 - c.sink);
+        if (glint < 0.05) continue;
         // A far glint is drawn a little larger so the pair of red dots still reads across the river.
-        const size = model.eyeR * c.scale * (1 + glint * Math.min(3, Math.max(0, (dc - 6) / 8)));
-        for (let e = 0; e < 2; e++) {
-          headPoint(eye, m4, model.spec.head, 0, jaw, model.eyes[e]!);
-          eye.y += model.eyeR * c.scale * 0.5;
-          eyes.set(n * 2 + e, eye, size, glint);
+        const size = EYE_R * c.scale * (1 + glint * Math.min(3, Math.max(0, (dc - 6) / 8)));
+        for (const e of EYES) {
+          eye.copy(e).applyMatrix4(m4);
+          eye.y += EYE_R * c.scale * 0.5;
+          eyes.set(ne++, eye, size, glint);
         }
-        n++;
-        if (c.sink < 0.5) spot.see(c.x, lv + 0.2, c.z, avatar.x, avatar.z, 1.2);
       }
-      set.commit(inside ? 0 : n);
-      eyes.commit(inside ? 0 : n * 2);
+      eyes.commit(inside ? 0 : ne);
       ripples.update(dt);
       spot.end(dt);
     },

@@ -14,11 +14,14 @@
  * barely moves them, a gust nudges them downwind). The moving bodies (frogs, ants, their leaf bits) opt out of
  * the style's painted blotches, which are fixed in world space and would slide over them.
  *
- * Rendering: morphos (bird rig), fireflies (additive dots), leaves, frogs, ants, leaf bits: one InstancedMesh
- * each → 6 draw calls at most; a pool with nothing to show sets its count to 0. Bodies: none (too small to
+ * Rendering: morphos (bird rig), fireflies (additive dots), leaves, ants, leaf bits: one InstancedMesh each;
+ * the frogs are a small herd on the shared animal core (species "frog" in the poison dart frogs' colours with
+ * dark spots, wild/beasts.ts: sitting folded, the throat-pulse breath, a jump off the leaf) → 7 draw calls at
+ * most; a pool with nothing to show sets its count to 0. Bodies: none (too small to
  * block anyone).
  */
 import * as THREE from "three";
+import { qpal } from "../../characters/animals/species/mammals";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { on } from "../../events";
@@ -26,6 +29,7 @@ import { GeoBuilder } from "../../flora/geom";
 import { paintStrength } from "../../style-gl";
 import { liveWind } from "../../wind";
 import { CANOPY_T, SELVA_STATIONS } from "../contract";
+import { createBeasts } from "./wild/beasts";
 import { morphoModel, WingSet } from "./wild/birds";
 import { col, devHook, egg, idle, ramp, rootMatrix, selvaOf, View } from "./wild/kit";
 import { damp, morphoHours, nightAmount, quietT, rng, roadFrame, TAU } from "./wild/logic";
@@ -49,23 +53,6 @@ function leafGeometry() {
   return b.build();
 }
 
-/** Poison dart frog, ~0.12 u (stylized ×3): white body pattern areas take the instance tint; dark spots stay. */
-function frogGeometry() {
-  const b = new GeoBuilder();
-  const spots = (p: THREE.Vector3) => {
-    const h = Math.sin(p.x * 91 + p.z * 57) * Math.cos(p.z * 73 - p.y * 39);
-    return h > 0.55 ? col("#141414") : col("#ffffff");
-  };
-  b.add(egg(0.045, 1, 0.7, 1.25, 0, 0.035, 0, -0.2, 8), { color: spots });
-  b.add(egg(0.032, 1.05, 0.75, 1, 0, 0.05, 0.05, 0, 8), { color: "#ffffff" });
-  for (const s of [-1, 1]) {
-    b.add(egg(0.012, 1, 1, 1, s * 0.022, 0.07, 0.065, 0, 5), { color: "#101010" });
-    b.add(egg(0.014, 1.6, 0.6, 1, s * 0.045, 0.015, 0.035, 0, 5), { color: "#202020" });
-    b.add(egg(0.018, 1.8, 0.6, 1.4, s * 0.05, 0.015, -0.04, 0, 5), { color: "#202020" });
-  }
-  return b.build();
-}
-
 /** Leafcutter ant (stylized ×2): head, thorax, gaster in dark red-brown. */
 function antGeometry() {
   const b = new GeoBuilder();
@@ -84,6 +71,12 @@ function bitGeometry() {
 }
 
 const FROG_TINTS = ["#e8322a", "#ffd21f", "#2a7fff", "#7ee03a", "#ff7a1a"];
+/** Poison dart frogs: a bright coat with black spots and a darker belly (palettes for the shared frog). */
+const FROG_COATS = FROG_TINTS.map((c) =>
+  qpal({ coat: c, belly: "#1a1a1a", spot: "#141414", spot2: "#141414", hoof: c, nose: "#141414" }),
+);
+/** Drawn a little larger than life so a frog on a leaf reads from the road. */
+const FROG_SCALE = 1.2;
 
 export const create: CreateAmbient = (env0): Ambient => {
   const env = selvaOf(env0);
@@ -159,8 +152,13 @@ export const create: CreateAmbient = (env0): Ambient => {
     nL,
     "selva-fauna-frog-leaves",
   );
-  const frogMesh = mk(frogGeometry(), paintStrength(vtoon(), 0), nL, "selva-fauna-frogs");
-  const leaves = Array.from({ length: nL }, (_, i) => ({
+  const frogs = createBeasts(env, "frog", nL, {
+    variants: FROG_COATS,
+    variantOf: (i) => i % FROG_COATS.length,
+    scale: FROG_SCALE,
+    shadows: false,
+  });
+  const leaves = Array.from({ length: nL }, () => ({
     x: 0,
     y: 0,
     z: 0,
@@ -169,10 +167,9 @@ export const create: CreateAmbient = (env0): Ambient => {
     live: false,
     frog: true,
     hop: 0,
-    tint: new THREE.Color(FROG_TINTS[i % FROG_TINTS.length]),
     ph: R() * TAU,
   }));
-  for (let i = 0; i < nL; i++) frogMesh.setColorAt(i, leaves[i]!.tint);
+  root.add(frogs.group);
 
   // ---------------------------------------------------------------- leafcutter ant trails
   const trailT = [0.205, 0.468, 0.705, 0.93].filter((t) => quietT(t, STATION_T, CANOPY_T, 0.04));
@@ -219,11 +216,8 @@ export const create: CreateAmbient = (env0): Ambient => {
     trails: trails.map((t) => [+t.x.toFixed(1), +t.z.toFixed(1)]),
   }));
   const m4 = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const e = new THREE.Euler();
   const v = new THREE.Vector3();
   const tan = new THREE.Vector3();
-  const sc = new THREE.Vector3();
   const c = new THREE.Color();
   let trackT = 0;
   let trackLast = -1;
@@ -254,7 +248,9 @@ export const create: CreateAmbient = (env0): Ambient => {
       const night = nightAmount(time);
       const mot = rm ? 0.5 : 1;
       if (inside) {
-        for (const m of [morphoSet.mesh, ffMesh, leafMesh, frogMesh, antMesh, bitMesh]) m.count = 0;
+        for (const m of [morphoSet.mesh, ffMesh, leafMesh, antMesh, bitMesh]) m.count = 0;
+        frogs.begin();
+        frogs.end(dt, clock, env.camera);
         return;
       }
 
@@ -341,6 +337,7 @@ export const create: CreateAmbient = (env0): Ambient => {
 
       // ---- frogs on leaves (road edge, ahead of the traveler)
       let nl = 0;
+      frogs.begin();
       for (let i = 0; i < nL; i++) {
         const l = leaves[i]!;
         const dAv = Math.hypot(l.x - avatar.x, l.z - avatar.z);
@@ -375,25 +372,23 @@ export const create: CreateAmbient = (env0): Ambient => {
         const fz = l.z + Math.cos(l.yaw) * 0.24 * l.s;
         const fy = l.y + 0.86 * l.s;
         if (l.frog) {
+          // Sitting folded on the blade, facing out over the road; brushed, it jumps off and away.
           const h = l.hop;
           const jump = h > 0 ? Math.sin(Math.PI * h) * 0.45 : 0;
           const away = h * 1.4;
-          const pulse = 1 + Math.max(0, Math.sin(clock * 5 + l.ph)) * 0.06 * mot;
-          e.set(h > 0 ? -0.5 : -0.12, l.yaw + Math.PI, 0, "YXZ");
-          q.setFromEuler(e);
-          v.set(fx - Math.sin(l.yaw) * away, fy + jump, fz - Math.cos(l.yaw) * away);
-          m4.compose(v, q, sc.set(1, pulse, 1));
-        } else m4.makeScale(0, 0, 0);
-        frogMesh.setMatrixAt(nl, m4);
-        frogMesh.setColorAt(nl, l.tint);
+          frogs.put(i, fx - Math.sin(l.yaw) * away, fy + jump, fz - Math.cos(l.yaw) * away, l.yaw + Math.PI, {
+            speed: h > 0 ? 2.8 : 0,
+            rm,
+          });
+        }
         nl++;
       }
-      for (const m of [leafMesh, frogMesh]) {
+      for (const m of [leafMesh]) {
         m.count = nl;
         m.visible = nl > 0;
         m.instanceMatrix.needsUpdate = true;
       }
-      if (frogMesh.instanceColor) frogMesh.instanceColor.needsUpdate = true;
+      frogs.end(dt, clock, env.camera);
 
       // ---- leafcutter ants (only trails near the traveler)
       let na = 0;
@@ -425,7 +420,8 @@ export const create: CreateAmbient = (env0): Ambient => {
       offInterior();
       offDev();
       morphoSet.dispose();
-      for (const m of [ffMesh, leafMesh, frogMesh, antMesh, bitMesh]) {
+      frogs.dispose();
+      for (const m of [ffMesh, leafMesh, antMesh, bitMesh]) {
         m.geometry.dispose();
         (m.material as THREE.Material).dispose();
         m.dispose();

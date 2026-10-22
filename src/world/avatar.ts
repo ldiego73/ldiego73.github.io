@@ -33,7 +33,7 @@ export type { Outfit };
  */
 
 /** Height of a rider's seat above the feet origin (the pelvis rests here; mounts set `seatHeight` from it). */
-export const RIDER_SEAT = 0.5;
+export const RIDER_SEAT = 0.56;
 
 /**
  * `outfit` is an optional extra argument (still assignable to CreateAvatar): the mountain loader calls

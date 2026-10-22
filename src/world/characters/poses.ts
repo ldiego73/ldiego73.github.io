@@ -629,7 +629,8 @@ export function actionPose(a: Action, c: PoseCtx, p: Pose): Pose {
     }
     case "ride": {
       // Astride a saddle: thighs forward and out, shins down, hands low on the reins.
-      hips(p, -0.2, 0, -0.02);
+      // The thighs rest on the saddle at RIDER_SEAT (0.56 above the feet origin, where the mounts put it).
+      hips(p, -0.12, 0, -0.02);
       leg(p, "L", -0.95, 0.45, 1.15, -0.2);
       leg(p, "R", -0.95, 0.45, 1.15, -0.2);
       set(p, "spine", r(0.06, 0, 0));

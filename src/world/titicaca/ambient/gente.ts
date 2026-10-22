@@ -1,12 +1,17 @@
 /**
- * The lake's people, all on one instanced crowd (the mountain's people rig, ../../ambient/people, with three
- * additive parts of our own: the bowler hat, the pushka and the knitting, ./gente/parts.ts):
+ * The lake's people, on the shared characters (../../characters): every person is a member of ONE crowd
+ * (skinned on the GPU, LOD by distance: two draw calls for all bodies and cloth) driven by the human animation
+ * controller through ../../ambient/people/npc.ts (walk cycle from the real ground speed, actions, a glance at
+ * the traveler). Their tools and loads (knitting, pushka, q'ipi, net, ch'uspa) are held props, one instanced
+ * draw per kind.
  *  - Uros families on the islands: a woman in a pollera and bowler hat greeting visitors at the hub island's
- *    arrival (she waves when the traveler comes close), another by the hearth, two children running round the
- *    hub island, and on the other islands people weaving and mending reed bundles.
- *  - Taquile: men knitting chullos, seated at the edge of the plaza, and women spinning wool with the pushka by
- *    the loom (Taquile's dress: black vests and red chullos, red skirts and black shawls).
- *  - Fishermen standing in small reed boats that go round their loops on open water.
+ *    arrival (she waves when the traveler comes close), another crouched by the hearth, two children running
+ *    round the hub island, and on the other islands women weaving at a backstrap loom and men kneeling at
+ *    their reed bundles.
+ *  - Taquile: men knitting chullos on their feet at the edge of the plaza, and women spinning wool with the
+ *    pushka by the loom (Taquile's dress: white shirts, black vests and red chullos for the men; red polleras
+ *    and black shawls for the women).
+ *  - Fishermen standing in small reed boats that go round their loops on open water, casting a net now and then.
  *  - A herder sitting by her alpacas, a shepherdess spinning by her sheep, and two walkers going up and down
  *    the road between the Uros landing and Taquile.
  *  - Travellers coming and going along the whole road, both ways (8, 5 on low quality): women in polleras and
@@ -14,34 +19,26 @@
  *    At either end of the road they turn back; when out of sight there they reappear elsewhere on the road,
  *    also out of sight (./gente/logic.ts stepTraveller), so nobody pops in or out on screen.
  *  - At Titikala, the end of the road, an offering to the Pachamama (8 people, 5 on low): a paqo kneeling at
- *    the cloth laying out coca leaves and lifting a k'intu to his lips, pilgrims seated round it, a woman with
- *    raised hands toward the rock, and a mother with her bundle watching her children play (two, one on low). The cloth and its
- *    brazier are part of ../titikala.ts.
+ *    the cloth, bending now and then to lay out coca leaves, pilgrims seated cross-legged round it, a woman
+ *    standing toward the rock with her hands joined who bows now and then, and a mother with her bundle
+ *    watching her children play (two, one on low). The cloth and its brazier are part of ../titikala.ts.
  * By day only, except the woman at the hearth, the herder, and the paqo with one pilgrim by the brazier, who stay
  * at night (the boats rest on the water then, their fishermen home). People are solid bodies in the creatures
  * registry, so the traveler walks round them.
- * Placement and timing: ./gente/logic.ts. Draw calls: one per worn part (about 17) plus the boats (one).
+ * Placement and timing: ./gente/logic.ts (roles → specs, palettes, actions and props: ./gente/dress.ts).
+ * Draw calls: the crowd (2), the props in use (one per kind: about 5) and the boats (1).
  */
 import * as THREE from "three";
-import {
-  DARKS,
-  MAN,
-  type PartName,
-  POLLERAS,
-  PONCHOS,
-  partSpecs,
-  SHADOW_PARTS,
-  SKINS,
-  WEAVES,
-  WOMAN,
-} from "../../ambient/people/models";
-import { Person } from "../../ambient/people/person";
-import { Crowd, type Palette, paletteMaterial } from "../../ambient/people/rig";
+import { Npc, type NpcFrame } from "../../ambient/people/npc";
+import { HumanCrowd } from "../../characters/crowd";
+import { prefetchHumans } from "../../characters/pipeline";
+import { HeldProps } from "../../characters/props";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { vertexToon } from "../../merge-colors";
 import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { LEVEL } from "../plan";
+import { LAKE_SPECS, lookOf, propOf, specOf } from "./gente/dress";
 import {
   gathering,
   isDay,
@@ -57,11 +54,9 @@ import {
   travellers,
   WALK_T,
 } from "./gente/logic";
-import { lakePartSpecs } from "./gente/parts";
 import { Build } from "./kit/build";
 import { balsaBoat } from "./kit/totora";
 
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
 function rng(seed: number) {
   let a = seed | 0;
   return () => {
@@ -73,7 +68,7 @@ function rng(seed: number) {
 }
 
 interface Actor {
-  p: Person;
+  p: Npc;
   role: Role;
   home: Spot | null;
   /** Kids: angle round their circle; walkers: road t and direction; fishermen: loop index and arc. */
@@ -83,7 +78,12 @@ interface Actor {
   /** Travellers: their road state and pace (u/s). */
   trip?: Traveller;
   pace?: number;
+  /** Seconds to the next change of a cycling action (the paqo, the woman at the rock). */
+  next: number;
 }
+
+/** People farther than this from the camera are not drawn nor posed (they keep moving). */
+const FAR = 170;
 
 export const create: CreateAmbient = (baseEnv): Ambient => {
   const env = baseEnv as SuyuEnv;
@@ -93,71 +93,46 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const list = [...spots(), ...gathering(high)];
   const trips = travellers(high ? 8 : 5);
   const n = list.length + LOOPS.length + 2 + trips.length;
-  const ramp = env.toon("#ffffff").gradientMap;
-  const mat = paletteMaterial(ramp);
-  const crowd = new Crowd(
-    [...partSpecs([...MAN, ...WOMAN, "chullo", "sombrero", "bundle", "pouch"]), ...lakePartSpecs()],
-    n,
-    mat,
-    SHADOW_PARTS,
-  );
+  // Start the builds now (worker, far LODs first) so the people are ready by the time the traveler arrives.
+  prefetchHumans(LAKE_SPECS);
+  const crowd = new HumanCrowd({ capacity: n, name: "titicaca-gente:crowd", lodDist: high ? [9, 26] : [7, 20] });
   env.scene.add(crowd.group);
+  const props = new HeldProps(n);
+  env.scene.add(props.group);
 
-  const make = (role: Role, seed: number): Person => {
-    const kid = role === "kid";
-    const man =
-      role === "knit" ||
-      role === "work" ||
-      role === "fisher" ||
-      role === "paqo" ||
-      ((role === "walk" || role === "travel" || role === "pilgrim") && seed % 2 === 0) ||
-      (kid && seed % 2 === 1);
-    // Only Taquile's own weavers wear Taquile's dress (the shepherdess spins too, in a pollera).
-    const taquile = role === "knit" || (role === "spin" && seed < 100);
-    const wear: string[] = man ? [...MAN] : [...WOMAN];
-    if (role === "knit") wear.push("chullo", "knitting");
-    else if (role === "spin") wear.push("pushka", ...(taquile ? [] : ["bombin"]));
-    else if (role === "paqo") wear.push("chullo", "pouch");
-    else if (role === "travel" && man)
-      wear.push(seed % 3 === 0 ? "sombrero" : "chullo", ...(seed % 4 === 0 ? ["bundle"] : []));
-    else if (role === "travel" || role === "mother") wear.push("bombin", "bundle");
-    else if (man) wear.push("chullo");
-    else if (!kid) wear.push("bombin");
-    let palette: Palette;
-    if (taquile && man) palette = [pick(R, SKINS), "#2a2420", "#b8282f", "#1f1a17"];
-    else if (taquile) palette = [pick(R, SKINS), "#b8282f", "#2f7a46", "#1f1a17"];
-    else if (man) palette = [pick(R, SKINS), pick(R, PONCHOS), pick(R, WEAVES), pick(R, DARKS)];
-    else palette = [pick(R, SKINS), pick(R, POLLERAS), pick(R, WEAVES), pick(R, PONCHOS)];
-    return new Person({
+  const make = (role: Role, seed: number): Npc => {
+    const who = specOf(role, seed);
+    const p = new Npc({
       kind: "titicaca-person",
       crowd,
-      idx: crowd.alloc(),
-      // The lake parts (./gente/parts.ts) live in the same crowd; the rig wears parts by name.
-      wear: wear as unknown as PartName[],
-      palette,
-      scale: kid ? 0.62 : man ? 0.97 + R() * 0.06 : 0.9 + R() * 0.06,
-      headScale: kid ? 1.3 : 1,
-      radius: kid ? 0.26 : 0.34,
+      spec: who.spec,
+      palette: who.palette(R),
+      scale: who.kid ? 0.92 + R() * 0.12 : 0.96 + R() * 0.07,
+      radius: who.kid ? 0.26 : 0.34,
       seed,
     });
+    const prop = propOf(role, seed);
+    if (prop) p.hold(props, prop.kind, prop.tint);
+    p.lookRange = lookOf(role);
+    return p;
   };
 
   const actors: Actor[] = list.map((s, i) => {
     // Seeds below 100 for the fixed spots, except the ones after Taquile's (the shepherdess and the offering).
     const p = make(s.role, i < 14 ? 3 + i * 7 : 300 + i * 7);
     p.place(s.x, s.z, s.yaw);
-    return { p, role: s.role, home: s, u: (i * 1.7) % (Math.PI * 2), dir: i % 2 ? 1 : -1, loop: -1 };
+    return { p, role: s.role, home: s, u: (i * 1.7) % (Math.PI * 2), dir: i % 2 ? 1 : -1, loop: -1, next: 0 };
   });
   LOOPS.forEach((_, k) => {
     const p = make("fisher", 101 + k * 2);
-    actors.push({ p, role: "fisher", home: null, u: 0, dir: 1, loop: k });
+    actors.push({ p, role: "fisher", home: null, u: 0, dir: 1, loop: k, next: 0 });
   });
   for (let k = 0; k < 2; k++) {
     const p = make("walk", 200 + k);
     const u = WALK_T[0] + (k + 0.3) * 0.08;
     const w0 = env.trail.pointAt(u);
     p.place(w0.x, w0.z);
-    actors.push({ p, role: "walk", home: null, u, dir: k ? -1 : 1, loop: -1 });
+    actors.push({ p, role: "walk", home: null, u, dir: k ? -1 : 1, loop: -1, next: 0 });
   }
   trips.forEach((trip, k) => {
     const p = make("travel", 500 + k * 3);
@@ -168,8 +143,15 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       tp0.z + tg0.x * 1.1 * trip.dir,
       Math.atan2(tg0.x * trip.dir, tg0.z * trip.dir),
     );
-    actors.push({ p, role: "travel", home: null, u: 0, dir: 1, loop: -1, trip, pace: 0.95 + R() * 0.3 });
+    actors.push({ p, role: "travel", home: null, u: 0, dir: 1, loop: -1, trip, pace: 0.95 + R() * 0.3, next: 0 });
   });
+  // The actions that do not change: sitting, working, carrying (the cycling ones are set in the frame loop).
+  for (const a of actors) {
+    const act = STEADY[a.role];
+    if (act === "carry") {
+      if (propOf(a.role, a.p.seed)) a.p.anim.act("carry-back", { fade: 0 });
+    } else if (act) a.p.anim.act(act, { fade: 0 });
+  }
 
   // Fishermen's boats: one instanced small balsa.
   const bb = new Build();
@@ -203,22 +185,25 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   };
   const tp = new THREE.Vector3();
   const tg = new THREE.Vector3();
-  let clock = 0;
+  const frame: NpcFrame = { dt: 0, clock: 0, rm: env.reducedMotion, avatar: new THREE.Vector3() };
   const rm = env.reducedMotion;
 
-  return {
+  const ambient: Ambient = {
     update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
-      clock += dt;
+      frame.dt = dt;
+      frame.clock += dt;
+      frame.avatar.copy(avatar);
+      const clock = frame.clock;
       env.camera.getWorldPosition(camPos);
       const day = isDay(env.sky.time());
       for (const a of actors) {
         const p = a.p;
         const out = day || (a.home?.night ?? false);
-        if (p.active !== out) p.setActive(out);
-        if (!p.active) continue;
-        // Far from the camera: in the world (solid) but not drawn, no posing.
-        const far = Math.hypot(p.x - camPos.x, p.z - camPos.z) > 170;
+        // Far from the camera: still moving along (travellers, walkers, boats) but not drawn nor posed.
+        const far = Math.hypot(p.x - camPos.x, p.z - camPos.z) > FAR;
+        if (p.active !== (out && !far)) p.setActive(out && !far);
+        if (!out) continue;
         if (a.role === "fisher") {
           const l = LOOPS[a.loop] as (typeof LOOPS)[number];
           a.u += loopRate(l) * dt;
@@ -228,18 +213,11 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           q.setFromAxisAngle(up, b.yaw);
           m4.compose(bp, q, one);
           boats.setMatrixAt(a.loop, m4);
+          // Standing on the deck behind the bow, turned a little to the side the net goes out.
           p.place(b.x - Math.sin(b.yaw) * 0.5, b.z - Math.cos(b.yaw) * 0.5, b.yaw + 0.6);
-          p.y = LEVEL + 0.42 + bob;
-          if (far) {
-            p.hide();
-            continue;
-          }
-          p.rest(clock, rm);
-          // Hauling a line now and then.
-          const pull = rm ? 0 : Math.max(0, Math.sin(clock * 0.7 + a.loop * 2)) * 0.9;
-          p.bones.armR.rotation.x = -0.6 - pull;
-          p.bones.armL.rotation.x = -0.4 - pull * 0.6;
-          p.commit();
+          p.y = LEVEL + 0.18 + bob;
+          p.speed = 0;
+          if (!far) p.commit(frame);
           continue;
         }
         if (a.role === "travel" && a.trip) {
@@ -255,13 +233,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           if (Math.abs(tr.u - prevU) > 0.01) p.place(ox, oz, Math.atan2(tg.x * tr.dir, tg.z * tr.dir));
           p.seek(ox, oz, a.pace ?? 1, dt, 3);
           p.y = ground(p.x, p.z);
-          if (far) {
-            p.hide();
-            continue;
-          }
-          p.rest(clock, rm);
-          p.gait(dt, rm);
-          p.commit();
+          if (!far) p.commit(frame);
           continue;
         }
         if (a.role === "walk") {
@@ -275,159 +247,133 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           const side = a.dir;
           p.seek(tp.x - tg.z * 1.1 * side, tp.z + tg.x * 1.1 * side, 1.05, dt, 3);
           p.y = ground(p.x, p.z);
-          if (far) {
-            p.hide();
-            continue;
-          }
-          p.rest(clock, rm);
-          p.gait(dt, rm);
-          p.commit();
+          if (!far) p.commit(frame);
           continue;
         }
         const h = a.home as Spot;
         if (far) {
           p.resolve(0.5);
-          p.hide();
           continue;
         }
-        p.rest(clock, rm);
-        const b = p.bones;
+        const floor = h.y ?? ground(h.x, h.z);
         switch (a.role) {
           case "kid": {
-            // Round and round a little circle on the hub island, each child its own way.
+            // Round and round a little circle, each child its own way.
             a.u += dt * (rm ? 0.25 : 0.62) * a.dir;
             p.seek(h.x + Math.cos(a.u) * 1.4, h.z + Math.sin(a.u) * 1.4, rm ? 0.8 : 2.2, dt, 6);
             p.y = h.y ?? ground(p.x, p.z);
-            p.gait(dt, rm);
             break;
           }
           case "wave": {
+            // Greets whoever comes to the island: turns to the traveler and waves; otherwise hands joined.
             p.place(h.x, h.z);
-            p.y = h.y ?? ground(h.x, h.z);
+            p.y = floor;
             const d = Math.hypot(avatar.x - h.x, avatar.z - h.z);
             if (d < 10) {
               p.face(avatar.x, avatar.z, dt, 3);
-              b.armR.rotation.z = -2.4 + (rm ? 0 : Math.sin(clock * 7) * 0.35);
-            } else p.yaw += (h.yaw - p.yaw) * Math.min(1, dt * 2);
+              p.anim.act("wave", { side: 1 });
+            } else {
+              p.yaw += (h.yaw - p.yaw) * Math.min(1, dt * 2);
+              p.anim.act("hands-clasp", { fade: 0.6 });
+            }
             p.resolve(0.3);
             break;
           }
-          case "hearth":
-          case "sitWeave":
-          case "herd":
-          case "knit": {
-            p.place(h.x, h.z, h.yaw);
-            p.y = (h.y ?? ground(h.x, h.z)) + 0.02;
-            p.sit(clock, rm, a.role === "knit" ? 0.2 : 0.12);
-            if (a.role === "knit" || a.role === "sitWeave") {
-              // Hands forward and together, needles (or a small loom) moving.
-              const k = rm ? 0 : Math.sin(clock * 6 + p.seed) * 0.08;
-              b.armL.rotation.set(-1.05 + k, 0, -0.35);
-              b.armR.rotation.set(-1.05 - k, 0, 0.35);
-              b.head.rotation.x = 0.35;
-            } else if (a.role === "hearth") {
-              b.armL.rotation.set(-0.9, 0, 0.1);
-              b.armR.rotation.set(-0.9, 0, -0.1);
-            }
-            p.resolve(0.2);
-            break;
-          }
-          case "work": {
-            // Kneeling over a bundle, binding it: bent over, arms working.
-            p.place(h.x, h.z, h.yaw);
-            p.y = (h.y ?? ground(h.x, h.z)) - 0.3;
-            b.legL.rotation.x = -1.2;
-            b.legR.rotation.x = -0.2;
-            b.torso.rotation.x = 0.55;
-            const k = rm ? 0 : Math.sin(clock * 3 + p.seed);
-            b.armL.rotation.set(-0.9 + k * 0.25, 0, 0.2);
-            b.armR.rotation.set(-0.9 - k * 0.25, 0, -0.2);
+          case "mother": {
+            // Standing with her bundle on her back, keeping an eye on the children.
+            p.place(h.x, h.z);
+            p.y = floor;
+            p.face(h.x + 0.2, h.z + 2.7, dt, 1.5);
             p.resolve(0.2);
             break;
           }
           case "paqo": {
-            // Kneeling at the cloth: lays out coca leaves, then lifts a k'intu to his lips and blows on it.
+            // Kneeling at the cloth; bends over it now and then to lay out the coca leaves, then sits up again.
             p.place(h.x, h.z, h.yaw);
-            p.y = ground(h.x, h.z) - 0.3;
-            b.legL.rotation.x = -1.25;
-            b.legR.rotation.x = -1.25;
-            const cyc = rm ? 0 : (clock * 0.25 + p.seed * 0.1) % 1;
-            if (cyc < 0.6) {
-              // Bent over the cloth, placing leaves one by one.
-              const k = rm ? 0 : Math.sin(clock * 2.2);
-              b.torso.rotation.x = 0.45;
-              b.armR.rotation.set(-1.1 + k * 0.2, 0, -0.15);
-              b.armL.rotation.set(-0.8, 0, 0.25);
-              b.head.rotation.x = 0.3;
-            } else {
-              // Upright, the k'intu held before his mouth.
-              b.torso.rotation.x = 0.05;
-              b.armR.rotation.set(-2.1, 0, 0.35);
-              b.armL.rotation.set(-0.6, 0, 0.2);
-              b.head.rotation.x = -0.1;
+            p.y = floor;
+            a.next -= dt;
+            if (a.next <= 0) {
+              const bend = p.anim.action !== "crouch";
+              p.anim.act(bend ? "crouch" : "kneel", { fade: 0.8 });
+              a.next = rm ? 30 : bend ? 4 + R() * 3 : 3 + R() * 2;
             }
             p.resolve(0.2);
             break;
           }
-          case "pilgrim": {
-            // Seated round the cloth, hands in the lap, head a little bowed.
-            p.place(h.x, h.z, h.yaw);
-            p.y = ground(h.x, h.z) + 0.02;
-            p.sit(clock, rm, -0.05);
-            b.armL.rotation.set(-0.7, 0, 0.35);
-            b.armR.rotation.set(-0.7, 0, -0.35);
-            b.head.rotation.x = 0.25;
-            p.resolve(0.2);
-            break;
-          }
           case "pray": {
-            // Standing toward the rock; now and then both hands rise, palms up.
+            // Standing toward the rock, hands joined; a slow bow now and then.
             p.place(h.x, h.z, h.yaw);
-            p.y = ground(h.x, h.z);
-            const up = rm ? 0.5 : Math.max(0, Math.sin(clock * 0.5 + p.seed));
-            b.armL.rotation.set(-0.4 - up * 1.9, 0, 0.3);
-            b.armR.rotation.set(-0.4 - up * 1.9, 0, -0.3);
-            b.head.rotation.x = -0.2 * up;
+            p.y = floor;
+            a.next -= dt;
+            if (p.anim.action === "none") p.anim.act("hands-clasp", { fade: 0.6 });
+            if (a.next <= 0) {
+              if (!rm) p.anim.act("greet", { fade: 0.5, restart: true, next: "hands-clasp" });
+              a.next = 9 + R() * 6;
+            }
             p.resolve(0.2);
             break;
           }
-          case "mother": {
-            // Standing with her bundle, keeping an eye on the children.
-            p.place(h.x, h.z);
-            p.y = ground(h.x, h.z);
-            p.face(h.x + 0.2, h.z + 2.7, dt, 1.5);
-            b.armL.rotation.set(-0.5, 0, 0.1);
-            b.armR.rotation.set(-0.5, 0, -0.1);
-            p.resolve(0.2);
-            break;
-          }
-          case "spin": {
-            // Standing, the left hand high with the wool, the right low spinning the pushka.
+          default: {
+            // Seated, crouched, kneeling or standing at their work (the action set once above).
             p.place(h.x, h.z, h.yaw);
-            p.y = ground(h.x, h.z);
-            b.armL.rotation.set(-1.5, 0, 0.25);
-            b.armR.rotation.set(-0.3, 0, -0.15);
-            b.handR.rotation.y = rm ? 0 : clock * 9;
-            if (!rm) p.y += Math.sin(clock * 1.2 + p.seed) * 0.005;
+            p.y = floor;
             p.resolve(0.2);
-            break;
           }
         }
-        p.commit();
+        p.commit(frame);
       }
       // At night the boats rest where they were, their fishermen home.
       boats.instanceMatrix.needsUpdate = true;
-      crowd.flush();
+      crowd.update(env.camera);
+      props.update();
     },
     dispose() {
       for (const a of actors) a.p.dispose();
       crowd.dispose();
-      mat.dispose();
+      props.dispose();
       boats.dispose();
       boatGeo.dispose();
       boatMat.dispose();
       crowd.group.removeFromParent();
+      props.group.removeFromParent();
       boats.removeFromParent();
     },
   };
+
+  if (import.meta.env?.DEV) {
+    const debug = {
+      people: () =>
+        actors.map((a) => ({
+          role: a.role,
+          x: +a.p.x.toFixed(1),
+          z: +a.p.z.toFixed(1),
+          y: +a.p.y.toFixed(2),
+          active: a.p.active,
+          action: a.p.anim.action,
+        })),
+      drawCalls: () => crowd.drawCalls() + props.drawCalls() + 1,
+      crowd: () => crowd.stats(),
+    };
+    (window as unknown as { __gente?: typeof debug }).__gente = debug;
+  }
+  return ambient;
+};
+
+/** The action each role keeps (null: set in the frame loop; "carry": carry-back when holding a load). */
+const STEADY: Record<Role, Parameters<Npc["anim"]["act"]>[0] | "carry" | null> = {
+  wave: null,
+  hearth: "tend-fire",
+  sitWeave: "weave",
+  work: "kneel",
+  kid: null,
+  knit: "knit",
+  spin: "spin",
+  herd: "sit-ground",
+  fisher: "fish-cast",
+  walk: null,
+  travel: "carry",
+  paqo: null,
+  pilgrim: "sit-cross",
+  pray: null,
+  mother: "carry-back",
 };

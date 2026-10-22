@@ -8,6 +8,10 @@
  * Origins sit on the ground under the body, except the agouti's, which sits under its hind feet so a pitch
  * of the root about it stands the animal up on its haunches (the alert, upright pose).
  * Also the turtles' basking log (a static prop, vertex-colored) and the agouti's nut.
+ *
+ * The animal models are retired from the world (it draws them on the shared animal core, ./beasts.ts) and only
+ * stay for the animals harness's old-vs-new lineup (characters/animals/dev/old.ts); the log, the nut and
+ * `mergeNear` are still the world's.
  */
 import * as THREE from "three";
 import { GeoBuilder } from "../../../flora/geom";
@@ -125,9 +129,6 @@ export function agoutiModel(): RigModel {
   };
   return { geo: buildRigGeometry(b), spec, eyes: [V3(0.045, 0.31, 0.43), V3(-0.045, 0.31, 0.43)], eyeR: 0.015 };
 }
-
-/** Mouth of the agouti in model space (where a carried nut sits, moved with the head). */
-export const AGOUTI_MOUTH = V3(0, 0.245, 0.52);
 
 /** A Brazil-nut-like seed (brown, ribbed ovoid), ≈ 6 cm; scaled by the ambient so it reads. */
 export function nutGeometry() {

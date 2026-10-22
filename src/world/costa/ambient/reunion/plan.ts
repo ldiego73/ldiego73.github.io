@@ -7,6 +7,7 @@
  * where the cliff drops past x ≈ −12) and the land side (−z), never on the platform, its banners (r ≈ 6), the
  * reward prompt or the road. Measured against the layout's heights (flat to ±0.5 u over x −10…4, z −14…6).
  */
+import type { Action } from "../../../characters/poses";
 import { PLATFORM } from "../finale/logic";
 
 export interface P2 {
@@ -73,3 +74,25 @@ export const within = (time: number, [a, b]: [number, number]) => time > a && ti
 
 /** Nearest any spot may come to the platform's centre (its tier, the banners round it and the reward prompt). */
 export const PLATFORM_CLEAR = PLATFORM.half + 3;
+
+/**
+ * What someone at the gathering is doing (an action of the human animation controller), from their role,
+ * whether they are stepping back to their spot (`moving`: plain walking) and `cycle` (0…4 s, looping):
+ *  - the fisherman at the offering stands with both arms raised over his head to the Mamacocha;
+ *  - the other kneels by the offering cloth;
+ *  - the vendor ladles chicha (1.5 s of every 4), then stands with her hands clasped, looking out at the road;
+ *  - the father stands with his hands behind his back, the mother with hers clasped; the children just play.
+ */
+export function reunionAction(s: Pick<Spot, "role" | "man">, moving: boolean, cycle: number): Action {
+  if (moving || s.role === "kid" || s.role === "family-kid") return "none";
+  switch (s.role) {
+    case "offer":
+      return "carry-head";
+    case "sit-offer":
+      return "kneel";
+    case "vendor":
+      return cycle < 1.5 ? "stir" : "hands-clasp";
+    default:
+      return s.man ? "hands-back" : "hands-clasp";
+  }
+}

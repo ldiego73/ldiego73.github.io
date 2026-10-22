@@ -1,13 +1,12 @@
 /**
  * Winged models for the jungle (one merged vertex-colored geometry per species, wings and head animated in
  * the vertex shader by the shared bird rig of flora/material.ts — one draw call per species, ink-correct):
- * four macaws (scarlet, blue-and-yellow, red-and-green, chestnut-fronted), two amazon parrots (mealy,
- * blue-headed) and two parakeets (dusky-headed, white-eyed) for the collpa, the white-throated toucan, the
- * great egret and the morpho butterfly.
+ * the morpho butterfly (insects.ts, kene.ts). The macaw, toucan and egret models are retired from the world
+ * (it draws its birds on the shared animal core, ./beasts.ts) and only stay for the animals harness's
+ * old-vs-new lineup (characters/animals/dev/old.ts); delete them with it.
  * Models face +Z with the origin at the feet; wings are modeled spread (flight pose) along ±X from the
  * shoulder and fold back along the flanks with pose.w = 1 (see flora/material.ts rigMaterial).
- * Real sizes against the 1.7 u traveler: macaw ≈ 0.85 beak to tail (parrots are modelled at the same build
- * scale and shrunk per instance), toucan ≈ 0.55, egret ≈ 0.95 tall,
+ * Real sizes against the 1.7 u traveler: macaw ≈ 0.85 beak to tail, toucan ≈ 0.55, egret ≈ 0.95 tall,
  * morpho ≈ 0.15 span (instances are scaled up a little so they read from the follow camera).
  */
 import * as THREE from "three";
@@ -191,164 +190,6 @@ export function macawModel(kind: MacawKind): WingModel {
       rig: [side, 0],
     });
   legs(b, 0.07, 0.035, 0.012, "#5a5a5e", 0.02);
-  return { geo: b.build({ rig: true }), shoulder, neck };
-}
-
-export type ParrotKind = "mealy" | "bluehead" | "dusky" | "whiteeye";
-
-/** Parrot palettes: body / belly, head, optional eye ring, vent (undertail), wing inner / outer, speculum. */
-const PARROT: Record<
-  ParrotKind,
-  {
-    body: string;
-    belly: string;
-    head: string;
-    ring?: string;
-    vent?: string;
-    flecks?: string;
-    bill: string;
-    tail: string;
-    tailTip: string;
-    inner: string;
-    outer: string;
-    spec?: string;
-    under: string;
-  }
-> = {
-  // Mealy amazon (Amazona farinosa): big, powdery green, white eye ring, red wing speculum, pale bill.
-  mealy: {
-    body: "#5f9f4c",
-    belly: "#77b15e",
-    head: "#6aa955",
-    ring: "#f1f1ea",
-    bill: "#d9c9a6",
-    tail: "#5f9f4c",
-    tailTip: "#a9c84a",
-    inner: "#5a9a48",
-    outer: "#1f3f6a",
-    spec: "#c8282a",
-    under: "#4f8f44",
-  },
-  // Blue-headed parrot (Pionus menstruus): green body, cobalt head and neck, red undertail.
-  bluehead: {
-    body: "#3e9a46",
-    belly: "#4aa650",
-    head: "#2650c4",
-    vent: "#d4262a",
-    bill: "#2a2422",
-    tail: "#3e9a46",
-    tailTip: "#2f62b8",
-    inner: "#3e9a46",
-    outer: "#2b5d8e",
-    under: "#3a8c42",
-  },
-  // Dusky-headed parakeet (Aratinga weddellii): green, grey-brown head, white eye ring, blue flight feathers.
-  dusky: {
-    body: "#58ad3e",
-    belly: "#86c25a",
-    head: "#7d7869",
-    ring: "#f2f0ea",
-    bill: "#1c1c1c",
-    tail: "#4f9f3a",
-    tailTip: "#2f6ab8",
-    inner: "#58ad3e",
-    outer: "#2f6ab8",
-    under: "#6aa84a",
-  },
-  // White-eyed parakeet (Psittacara leucophthalmus): green with red flecks on the head and neck, red-and-yellow
-  // underwing, white eye ring, pale bill.
-  whiteeye: {
-    body: "#3fa043",
-    belly: "#5cb251",
-    head: "#3fa043",
-    ring: "#f4f4ee",
-    flecks: "#d42a22",
-    bill: "#e6dac2",
-    tail: "#3a9640",
-    tailTip: "#4a9e3c",
-    inner: "#3fa043",
-    outer: "#2f7c3c",
-    under: "#d8372a",
-  },
-};
-
-const PARROT_WING: Array<[number, number]> = [
-  [0, 0],
-  [0.12, -0.02],
-  [0.24, 0.01],
-  [0.31, 0.06],
-  [0.28, 0.13],
-  [0.18, 0.17],
-  [0.06, 0.17],
-  [0, 0.14],
-];
-
-/**
- * Parrots and parakeets (modelled at macaw scale, sized per instance): amazons (`mealy`, `bluehead`) are
- * bulky with a big round head and a short square tail; parakeets (`dusky`, `whiteeye`) are slim with a
- * long pointed tail. Same rig layout as the macaw (wings along ±X, head on the neck pivot).
- */
-export function parrotModel(kind: ParrotKind): WingModel {
-  const b = new GeoBuilder();
-  const amazon = kind === "mealy" || kind === "bluehead";
-  const P = PARROT[kind];
-  const shoulder = V3(0.075, 0.25, 0.03);
-  const neck = V3(0, 0.31, 0.06);
-  const vent = P.vent ? col(P.vent) : null;
-  b.add(egg(amazon ? 0.12 : 0.095, 0.95, 1, amazon ? 1.3 : 1.5, 0, 0.19, 0, -0.5, 10), {
-    color: (p, n) => {
-      if (vent && p.y < 0.13 && p.z < -0.03 && n.y < 0.3) return vent;
-      return col(n.y < 0.1 ? P.belly : P.body);
-    },
-  });
-  // Tail: short and square (amazons) or long and pointed (parakeets).
-  const tail: Array<[number, number]> = amazon
-    ? [
-        [-0.06, 0],
-        [0.06, 0],
-        [0.065, 0.2],
-        [-0.065, 0.2],
-      ]
-    : [
-        [-0.045, 0],
-        [0.045, 0],
-        [0.02, 0.36],
-        [0, 0.42],
-        [-0.02, 0.36],
-      ];
-  b.add(planform(tail, 1, 0.014).rotateX(-0.6).translate(0, 0.13, -0.11), {
-    color: (p, n) => {
-      if (vent && n.y < -0.5) return vent;
-      return col(p.z < (amazon ? -0.22 : -0.33) ? P.tailTip : P.tail);
-    },
-  });
-  // Head (rigged): round, with an eye ring and (white-eyed) red flecks; short deep hooked bill.
-  const hr = amazon ? 0.085 : 0.07;
-  b.add(egg(hr, 0.95, 1, 1.05, 0, 0.34, 0.09), {
-    color: (p) => {
-      const side = Math.abs(p.x);
-      if (P.ring && side > hr * 0.6 && p.z > 0.1 && p.y > 0.335 && p.y < 0.37) return col(P.ring);
-      if (P.flecks && side > hr * 0.5 && Math.sin(p.x * 160 + p.y * 230) > 0.55) return col(P.flecks);
-      return col(P.head);
-    },
-    rig: [0, 1],
-  });
-  b.add(egg(0.04, 0.85, 1.05, 1, 0, 0.33, 0.155 + (amazon ? 0.01 : 0), 0.3), { color: P.bill, rig: [0, 1] });
-  b.add(cone(0.022, 0.045, 6, V3(0, 0.315, 0.175 + (amazon ? 0.01 : 0)), V3(0, -1, 0.35)), {
-    color: P.bill,
-    rig: [0, 1],
-  });
-  for (const side of [1, -1] as const)
-    b.add(planform(PARROT_WING, side, 0.016).translate(shoulder.x * side, shoulder.y, shoulder.z), {
-      color: (p, n) => {
-        const s = Math.abs(p.x);
-        if (n.y < -0.5) return col(P.under);
-        if (P.spec && s > 0.08 && s < 0.17 && p.z < -0.09) return col(P.spec);
-        return col(s < 0.2 ? P.inner : P.outer);
-      },
-      rig: [side, 0],
-    });
-  legs(b, 0.07, 0.035, 0.012, "#6a6a6e", 0.02);
   return { geo: b.build({ rig: true }), shoulder, neck };
 }
 

@@ -7,8 +7,9 @@
  * Walking up (≈ 5 u, 8 if running) sends it off at once, away from the traveler. Only by day; at dusk they
  * are gone. With reduced motion they run at half speed and hold the upright look longer (no sudden dashes).
  *
- * Rendering: one rig InstancedMesh (wild/rig.ts; the model's origin is under the hind feet so the upright
- * pose is a pitch of the root) and one tiny instanced nut → 2 draw calls while one is out, 0 otherwise.
+ * Rendering: the shared animal core (species "agouti", one skinned animal each, wild/beasts.ts solo: drawn
+ * 1.25× so the sprint reads from the follow camera; the gait follows the speed, sitting up is the "sit" mode)
+ * and one tiny instanced nut held at the jaw → 2 draw calls while one is out, 0 otherwise.
  * Bodies: none (too small to block anyone).
  * Stamp `selva:fauna:anuje` after a ~1.5 s good look within 22 u while it is on the road.
  */
@@ -17,11 +18,11 @@ import type { Ambient, CreateAmbient } from "../../contract";
 import { on } from "../../events";
 import { paintStrength } from "../../style-gl";
 import { CANOPY_T, SELVA_STATIONS } from "../contract";
-import { AGOUTI_MOUTH, agoutiModel, nutGeometry } from "./wild/critters";
+import { createBeasts } from "./wild/beasts";
+import { nutGeometry } from "./wild/critters";
 import { type Crossing, crossingPlan, RoadTracker, SpeedMeter } from "./wild/crossing";
-import { devHook, FAUNA_FAR, faunaDt, idle, ramp, rootMatrix, Spotter, selvaOf } from "./wild/kit";
-import { clamp01, damp, diurnal, rng, turnToward, wrapAngle } from "./wild/logic";
-import { headPoint, RigSet } from "./wild/rig";
+import { devHook, FAUNA_FAR, faunaDt, idle, ramp, Spotter, selvaOf } from "./wild/kit";
+import { damp, diurnal, rng, turnToward, wrapAngle } from "./wild/logic";
 
 type State = "away" | "dash" | "look" | "nibble" | "leave";
 
@@ -41,7 +42,6 @@ interface Agouti {
   /** 0 on all fours … 1 sitting up. */
   up: number;
   headYaw: number;
-  headPitch: number;
   nut: boolean;
   cool: number;
   zig: number;
@@ -61,8 +61,7 @@ export const create: CreateAmbient = (env0): Ambient => {
   const rm = env.reducedMotion;
   const R = rng(4421);
   const n = high ? 2 : 1;
-  const model = agoutiModel();
-  const set = new RigSet("selva-fauna-anuje-body", model.geo, model.spec, n, ramp(env), { shadow: high });
+  const set = createBeasts(env, "agouti", n, { solo: true });
   // Carried in the mouth: no world-space painted blotches sliding over it.
   const nutMat = paintStrength(
     new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: ramp(env) }),
@@ -74,9 +73,8 @@ export const create: CreateAmbient = (env0): Ambient => {
   nuts.frustumCulled = false;
   nuts.count = 0;
   nuts.visible = false;
-  const root = new THREE.Group();
-  root.name = "selva-fauna-anuje";
-  root.add(set.mesh, nuts);
+  const root = set.group;
+  root.add(nuts);
   env.scene.add(root);
 
   const agoutis: Agouti[] = Array.from({ length: n }, (_, i) => ({
@@ -93,7 +91,6 @@ export const create: CreateAmbient = (env0): Ambient => {
     phase: R(),
     up: 0,
     headYaw: 0,
-    headPitch: 0,
     nut: false,
     cool: 10 + i * 9 + R() * 8,
     zig: 0,
@@ -111,7 +108,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   const spot = new Spotter(env, "anuje", 22);
   const meter = new SpeedMeter();
   const road = new RoadTracker();
-  const m4 = new THREE.Matrix4();
   const nutM = new THREE.Matrix4();
   const mouth = new THREE.Vector3();
   let clock = 0;
@@ -192,9 +188,10 @@ export const create: CreateAmbient = (env0): Ambient => {
       const onRoad = L.trailQuery(avatar.x, avatar.z).d < 6;
       spot.begin();
       const run = rm ? 3.2 : 6.5;
-      let k = 0;
       let kn = 0;
-      for (const a of agoutis) {
+      set.begin();
+      for (let i = 0; i < agoutis.length; i++) {
+        const a = agoutis[i] as Agouti;
         if (a.state === "away") {
           if (awake && onRoad && !inside && !riding) a.cool -= dt;
           if (a.cool <= 0 && !start(a)) a.cool = 2;
@@ -206,7 +203,6 @@ export const create: CreateAmbient = (env0): Ambient => {
         let speed = 0;
         let upT = 0;
         let look = false;
-        let chew = 0;
         switch (a.state) {
           case "dash": {
             speed = run;
@@ -227,6 +223,7 @@ export const create: CreateAmbient = (env0): Ambient => {
               if (a.nut && R() < 0.6) {
                 a.state = "nibble";
                 a.timer = 2 + R() * 2.5;
+                if (!rm) set.play(i, "chew", a.timer);
               } else leave(a, avatar.x, avatar.z, R() < 0.75);
             }
             break;
@@ -234,7 +231,6 @@ export const create: CreateAmbient = (env0): Ambient => {
           case "nibble": {
             // Sitting up, turning the nut in its forepaws, a glance now and then.
             upT = 0.8;
-            chew = 1;
             look = Math.sin(clock * 0.8 + a.phase * 5) > 0.6;
             a.timer -= dt;
             if (scared || a.timer <= 0) leave(a, avatar.x, avatar.z, R() < 0.75);
@@ -266,28 +262,27 @@ export const create: CreateAmbient = (env0): Ambient => {
         a.y = damp(a.y, env.selva.groundAt(a.x, a.z), 14, dt);
         const toAv = wrapAngle(Math.atan2(avatar.x - a.x, avatar.z - a.z) - a.yaw);
         a.headYaw = damp(a.headYaw, look ? Math.max(-1.1, Math.min(1.1, toAv)) : 0, 6, dt);
-        // Sitting up the head pitches back down to level; nibbling, it bobs over the paws.
-        const nib = chew ? 0.25 + Math.sin(clock * 11 + a.phase) * 0.12 * (rm ? 0.5 : 1) : 0;
-        a.headPitch = damp(a.headPitch, a.up * 0.75 + nib, 8, dt);
-        if (spot.view.dist(a.x, a.y, a.z) > FAUNA_FAR) continue;
-        a.phase = (a.phase + (a.speed * dt) / (0.9 * SCALE)) % 1;
-        const swing = Math.min(0.85, a.speed * 0.16);
-        // Bounding: the body rises and falls with each bound.
-        const hop = Math.max(0, Math.sin(a.phase * Math.PI * 2)) * Math.min(0.08, a.speed * 0.012);
-        const pitch = -a.up * 0.95 + (a.speed > 1 ? Math.sin(a.phase * Math.PI * 2) * 0.12 : 0);
-        rootMatrix(m4, a.x, a.y + hop, a.z, a.yaw, pitch, 0, SCALE);
-        // Upright: the hind legs swing back under the hips (against the body pitch), the forepaws come up.
-        set.set(k++, m4, a.phase, swing, a.headYaw, a.headPitch, 0, 0, -a.up * 0.5, a.up * 0.45);
-        if (a.nut) {
-          // Held crosswise in the incisors, moved with the head (scaled with the body, a little larger).
-          nutM.makeRotationY(a.yaw + Math.PI / 2).scale(NUT_SCALE);
-          nutM.setPosition(headPoint(mouth, m4, model.spec.head, a.headYaw, a.headPitch, AGOUTI_MOUTH));
-          nuts.setMatrixAt(kn++, nutM);
-        }
+        if (inside || spot.view.dist(a.x, a.y, a.z) > FAUNA_FAR) continue;
+        set.put(
+          i,
+          a.x,
+          a.y,
+          a.z,
+          a.yaw,
+          { speed: a.speed, rm, mode: a.up > 0.5 ? "sit" : "auto", look: look ? a.headYaw : undefined },
+          { scale: SCALE },
+        );
         if (L.trailQuery(a.x, a.z).d < L.trail.halfWidth + 1.5) spot.see(a.x, a.y + 0.3, a.z, avatar.x, avatar.z, 0.6);
       }
-      set.rim.value = clamp01(1 - diurnal(time)) * 0.6;
-      set.commit(inside ? 0 : k);
+      set.end(dt, clock, env.camera);
+      // The nut, held crosswise in the incisors (at the jaw, a little larger than life like the body).
+      for (let i = 0; i < agoutis.length; i++) {
+        const a = agoutis[i] as Agouti;
+        if (!a.nut || a.state === "away" || !set.bone(i, "jaw", mouth)) continue;
+        nutM.makeRotationY(a.yaw + Math.PI / 2).scale(NUT_SCALE);
+        nutM.setPosition(mouth);
+        nuts.setMatrixAt(kn++, nutM);
+      }
       nuts.count = inside ? 0 : kn;
       nuts.visible = nuts.count > 0;
       if (nuts.count > 0) {

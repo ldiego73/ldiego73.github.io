@@ -7,20 +7,20 @@
 import * as THREE from "three";
 import { fleeTarget } from "../../../ambient/people/logic";
 import { rng } from "../../../ambient/people/models";
-import { damp, type Person } from "../../../ambient/people/person";
-import type { Crowd, Palette } from "../../../ambient/people/rig";
+import type { Npc } from "../../../ambient/people/npc";
+import { damp } from "../../../ambient/people/person";
+import type { HumanCrowd } from "../../../characters/crowd";
 import { isOut } from "./logic";
-import { BOY, GIRL, RIBBONS, SHORTS, SKINS, SKIRTS, TEES } from "./models";
 import type { Ctx, Group } from "./types";
-import { villager } from "./villager";
+import { reveal, villager } from "./villager";
 
 type Game = "ball" | "tag";
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
+type Person = Npc;
 const out = { x: 0, z: 0 };
 
 export function createPlazaKids(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
   staticMat: THREE.Material,
   center: THREE.Vector3,
   area: number,
@@ -29,22 +29,14 @@ export function createPlazaKids(
   const R = rng(5150);
   const ground = env.selva.groundAt;
   const kids = Array.from({ length: n }, (_, i) => {
-    const boy = i % 2 === 0;
-    const sk = pick(R, SKIRTS);
-    const palette: Palette = boy
-      ? [pick(R, SKINS), pick(R, SHORTS), pick(R, RIBBONS), pick(R, TEES)]
-      : [pick(R, SKINS), sk[0], sk[1], pick(R, TEES)];
-    const p = villager({
+    const p = villager(crowd, {
       kind: "child",
-      crowd,
-      idx: crowd.alloc(),
-      wear: boy ? BOY : GIRL,
-      palette,
-      scale: 0.58 + R() * 0.1,
-      headScale: 1.3,
+      who: i % 2 === 0 ? "boy" : "girl",
+      r: R,
       radius: 0.26,
       seed: 7 + i * 13.1,
     });
+    p.lookRange = 0;
     const a = (i / n) * Math.PI * 2;
     p.place(center.x + Math.cos(a) * area * 0.5, center.z + Math.sin(a) * area * 0.5);
     p.state = "play";
@@ -104,7 +96,10 @@ export function createPlazaKids(
       for (const k of kids) anyone ||= k.active;
       if (visible !== visibleNow) {
         visibleNow = visible;
-        if (!visible) for (const k of kids) k.hide();
+        for (const k of kids) {
+          if (!visible) k.hide();
+          else reveal(k);
+        }
       }
       ball.visible = visible && anyone;
       if (!visible || !anyone) return;
@@ -214,17 +209,16 @@ export function createPlazaKids(
         k.body.x = k.x;
         k.body.z = k.z;
         k.y = ground(k.x, k.z);
-        const b = k.bones;
-        k.rest(cx.clock, cx.rm);
-        k.gait(dt, cx.rm, 1.2);
-        if (!cx.rm && k.state !== "peek" && (k.state === "flee" || k.speed > 1.8))
-          b.hips.position.y += Math.abs(Math.sin(k.phase)) * 0.1;
+        // Pose: running about, a giggle when peeking back at the traveler, a kick at the ball.
         if (k.state === "peek") {
-          b.armR.rotation.set(-2.1, 0, 0.5);
-          if (!cx.rm) b.torso.rotation.x = 0.1 + Math.abs(Math.sin(cx.clock * 14)) * 0.08;
+          k.anim.act("giggle", { side: i % 2 ? 1 : -1 });
+          k.lookRange = 8;
+        } else {
+          k.lookRange = 0;
+          if (k === ballKid && k.timer > 0) k.anim.act("kick", { fade: 0.1, side: 1 });
+          else if (k.anim.action !== "kick") k.anim.act("none");
         }
-        if (k === ballKid && k.timer > 0 && !cx.rm) b.legR.rotation.x = -0.9 * (k.timer / 0.4);
-        k.commit();
+        k.commit(cx);
       }
       // Ball: rolls with friction, hops a little, bounces back off the edge of the play area.
       if (game === "ball" || by > 0 || bv.lengthSq() > 0.01) {

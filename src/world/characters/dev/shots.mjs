@@ -37,7 +37,7 @@ async function open(q = "", vp = { width: 1600, height: 900 }) {
 }
 const C = (p, fn, ...a) => p.evaluate(([f, a]) => window.__chars[f](...a), [fn, a]);
 const shot = async (p, name) => {
-  await p.screenshot({ path: `${out}/${name}.png` });
+  await p.screenshot({ path: `${out}/${name}.png`, timeout: 180000 });
   console.log("shot", name);
 };
 
@@ -107,7 +107,10 @@ if (want("actions")) {
   await sleep(800);
   await shot(p, "actions-all");
   const n = (await C(p, "stats")).crowd.people;
+  // ACTIONS=4,5,8 shoots only those walkers (busy machines).
+  const pickIdx = (process.env.ACTIONS ?? "").split(",").filter(Boolean).map(Number);
   for (let i = 0; i < n; i++) {
+    if (pickIdx.length && !pickIdx.includes(i)) continue;
     await C(p, "viewWalker", i, 2.6, 1.3, 0.5, 0.7);
     await sleep(350);
     await shot(p, `action-${String(i).padStart(2, "0")}`);
@@ -124,6 +127,30 @@ if (want("crowd")) {
   await p.evaluate(() => document.body.classList.remove("clean"));
   await sleep(1200);
   await shot(p, "crowd-stats");
+  await p.context().close();
+}
+if (want("ride")) {
+  const p = await open("&view=ride", { width: 1600, height: 800 });
+  for (const [n, a] of [
+    ["side", Math.PI / 2],
+    ["34", 0.7],
+  ]) {
+    await C(p, "setYaw", a);
+    await C(p, "view", null, 7.5, 1.6, 0, 1.0);
+    await sleep(600);
+    await shot(p, `ride-${n}`);
+  }
+  await C(p, "setYaw", Math.PI / 2);
+  for (const k of await C(p, "slots")) {
+    await C(p, "view", k, 3.0, 1.5, 0, 1.2);
+    await sleep(400);
+    await shot(p, `ride-${k}`);
+  }
+  await C(p, "setMode", "walk");
+  await sleep(800);
+  await C(p, "view", "ride-horse", 3.0, 1.5, 0, 1.2);
+  await sleep(400);
+  await shot(p, "ride-horse-walk");
   await p.context().close();
 }
 if (want("lod")) {

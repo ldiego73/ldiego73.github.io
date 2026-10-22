@@ -1,6 +1,7 @@
 /**
- * The shansho (hoatzin, Opisthocomus hoazin) for the shared bird rig (wild/birds.ts WingSet: wings and head
- * animated in the vertex shader, one draw call per species), and the riverside thicket it lives in.
+ * The riverside thicket the shanshos (hoatzins) live in, and the old hoatzin model for the shared bird rig
+ * (retired from the world, which draws them on the shared animal core, ./beasts.ts; it only stays for the
+ * animals harness's old-vs-new lineup, characters/animals/dev/old.ts).
  * The hoatzin: a pheasant-sized (≈ 0.65 m) heavy-bodied bird with a small head, blue bare face, red eye and a
  * spiky rufous crest; buff breast, chestnut belly and primaries, a long dark tail tipped buff. Faces +Z,
  * origin at the feet, wings modeled spread along ±X (see birds.ts).

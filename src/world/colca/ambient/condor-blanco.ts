@@ -10,16 +10,15 @@
  * A good look (within 30 u and on screen for 0.6 s, like the mountain's golden condor) stamps
  * `colca:egg:white-condor`, listed under the passport's "Secretos" for the Kuntisuyu.
  *
- * Rendering: the shared fauna condor (../../fauna-models.ts condorParts) as separate meshes with a white toon
- * palette (7 small draw calls, only while it flies), ink outline kept like the other fauna. Registered in
- * `creatures` (kind "condor", not solid), parked far away while hidden.
+ * Rendering: the shared animals' condor (./condores/model.ts, a herd of one) in a leucistic palette: one
+ * instanced draw (plus its ink and shadow), only while it flies. Registered in `creatures` (kind "condor", not
+ * solid), parked far away while hidden.
  */
 import * as THREE from "three";
+import { bpal } from "../../characters/animals/species/birds";
 import type { CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit } from "../../events";
-import { condorParts } from "../../fauna-models";
-import { noPaint } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { ColcaLayout } from "../layout";
 import { CANYON, rimZ } from "../plan";
@@ -37,11 +36,26 @@ import {
   passOver,
   schedule,
 } from "./condor-blanco/logic";
+import { CondorFlock } from "./condores/model";
 
 const STAMP = "colca:egg:white-condor";
 const LABEL: L = { es: "Cóndor blanco", en: "White condor" };
-/** A touch bigger than the flock's 0.95 so it reads as the one to look at, still a condor's size. */
-const SCALE = 1.05;
+/**
+ * Leucistic: cream body and wings, the collar and wing band a step brighter so they still read, a pinkish bare
+ * head; kept light so the bird does not sink into the canyon's dusty haze.
+ */
+const WHITE = bpal({
+  back: "#f1eadc",
+  head: "#e8aca2",
+  bill: "#efe4cc",
+  legs: "#c9c0b3",
+  belly: "#f4eee2",
+  coverts: "#eee6d6",
+  flight: "#e6dece",
+  tail: "#ebe3d3",
+  face: "#dc958a",
+  collar: "#fffdf6",
+});
 
 export const create: CreateAmbient = (baseEnv) => {
   const env = baseEnv as SuyuEnv;
@@ -54,32 +68,8 @@ export const create: CreateAmbient = (baseEnv) => {
   const over = passOver(anchor);
 
   // ---------------------------------------------------------------- bird
-  const C = condorParts();
-  // Leucistic: cream body and wings; the collar and wing band a step brighter so they still read; a faint
-  // warm emissive so the bird does not sink into the canyon's dusty fog.
-  const glow = { emissive: "#3a3328", emissiveIntensity: 0.35 };
-  const cream = env.toon("#efe8da", glow);
-  const wingMat = env.toon("#e4dccb", glow);
-  const bright = env.toon("#fffdf6", glow);
-  const headMat = env.toon("#e3a49a");
-  const root = new THREE.Group();
-  root.name = "colca-white-condor";
-  root.scale.setScalar(SCALE);
-  root.rotation.order = "YXZ";
-  const body = new THREE.Mesh(C.body, cream);
-  const collar = new THREE.Mesh(C.collar, bright);
-  const head = new THREE.Mesh(C.head, headMat);
-  const wingR = new THREE.Group();
-  const wingL = new THREE.Group();
-  wingR.position.copy(C.shoulder);
-  wingL.position.set(-C.shoulder.x, C.shoulder.y, C.shoulder.z);
-  wingR.add(new THREE.Mesh(C.wingR, wingMat), new THREE.Mesh(C.patchR, bright));
-  wingL.add(new THREE.Mesh(C.wingL, wingMat), new THREE.Mesh(C.patchL, bright));
-  root.add(body, collar, head, wingR, wingL);
-  root.visible = false;
-  // A flying body: no painted blotches (shared toon materials are swapped for no-paint twins).
-  noPaint(root);
-  env.scene.add(root);
+  const bird = new CondorFlock("colca-white-condor", 1, rm, [WHITE]);
+  env.scene.add(bird.group);
 
   const body0 = creatures.add("condor", 1.4, { solid: false, x: 1e5, z: 1e5 });
 
@@ -94,8 +84,8 @@ export const create: CreateAmbient = (baseEnv) => {
   const ndc = new THREE.Vector3();
 
   return {
-    update(dt, avatar) {
-      dt = Math.min(dt, 0.05);
+    update(dtIn, avatar, t) {
+      const dt = Math.min(dtIn, 0.05);
       clock += dt;
       const want = inWindow(env.sky.time());
       if (want && !active) {
@@ -107,10 +97,11 @@ export const create: CreateAmbient = (baseEnv) => {
         seen = 0;
       }
       active = want;
-      root.visible = active;
       if (!active) {
         body0.x = 1e5;
         body0.z = 1e5;
+        bird.hide(0);
+        bird.update(dt, t, env.camera);
         return;
       }
 
@@ -138,11 +129,10 @@ export const create: CreateAmbient = (baseEnv) => {
       const z = rimZ(f.x) + f.s;
       // Never below the ground (the circle and the pass stay over the canyon; a guard all the same).
       const y = Math.max(rimY + f.y, env.heightAt(x, z) + 3);
-      root.position.set(x, y, z);
-      root.rotation.set(0, f.yaw, -f.bank);
-      wingR.rotation.z = f.wing;
-      wingL.rotation.z = -f.wing;
-      head.rotation.y = rm ? 0 : Math.sin(clock * 0.4) * 0.3;
+      bird.begin(dt);
+      // Its couple of lazy strokes (./condor-blanco/logic.ts onCircle: 1.8 s every 37 s, never in a pass).
+      bird.set(0, { x, y, z, yaw: f.yaw, bank: f.bank, flap: !pass && !rm && clock % 37 < 1.8 });
+      bird.update(dt, t, env.camera);
       body0.x = x;
       body0.z = z;
 
@@ -159,8 +149,7 @@ export const create: CreateAmbient = (baseEnv) => {
     },
     dispose() {
       creatures.remove(body0);
-      root.removeFromParent();
-      for (const g of [C.body, C.collar, C.head, C.wingR, C.wingL, C.patchR, C.patchL]) g.dispose();
+      bird.dispose();
     },
   };
 };

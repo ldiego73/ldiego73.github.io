@@ -139,7 +139,7 @@ export function pelvis(phase: number, walk: number, run: number): PelvisPose {
  * foot then slides a little, as in most games, instead of the legs spinning).
  */
 export function cadence(speed: number, cycleLen: number, run: number) {
-  const max = 1.45 + 0.65 * run;
+  const max = 1.7 + 0.6 * run;
   const min = 0.55 + 0.45 * run;
   if (cycleLen <= 0 || speed <= 0) return 0;
   return Math.min(max, Math.max(min, speed / cycleLen));

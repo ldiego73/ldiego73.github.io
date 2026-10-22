@@ -7,11 +7,16 @@
  *
  * Passport (bonus): `costa:fauna:lobo-marino` within LION_R of a sea lion, `costa:fauna:pinguino` within
  * PENGUIN_R of a penguin, `costa:fauna:cangrejo` within CRAB_R of a crab (you have to get close). Field guide:
- * ../wildlife.ts. Reduced motion: no breathing, swimming circles or waddling (crabs still hide, without
- * running). Draw calls: lying and raised sea lions, swimmers, penguins, crabs (one instanced mesh each).
+ * ../wildlife.ts. Reduced motion: no swimming circles or shuffling, calm idles only (crabs still hide, without
+ * running). The sea lions and penguins are the shared animals (../../characters/animals: continuous skinned
+ * bodies, one herd each, their own idles: dozing, looking about, barking, preening); the crabs stay a small
+ * instanced model (./fauna/models.ts). Draw calls: the sea lions and the penguins (one instanced mesh per LOD
+ * in use each), the crabs (one).
  */
 import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
+import { prefetchAnimals } from "../../characters/animals/assets";
+import { createHerd } from "../../characters/animals/crowd";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit } from "../../events";
@@ -22,11 +27,13 @@ import type { CostaLayout } from "../layout";
 import { BEACHES, COMPANY_STOPS, MARKET } from "../plan";
 import { seaHeight } from "../scenery/waves";
 import { type Crab, prng, seen, stepCrab } from "./fauna/logic";
-import { crab, penguin, seaLionLying, seaLionSwim, seaLionUp } from "./fauna/models";
+import { crab } from "./fauna/models";
 
 const LION_R = 45;
 const PENGUIN_R = 40;
 const CRAB_R = 7;
+/** A swimming sea lion's feet origin below the water line (it swims with its back awash, head up). */
+const SWIM_SINK = 0.3;
 
 export const create: CreateAmbient = (baseEnv): Ambient => {
   const env = baseEnv as SuyuEnv;
@@ -38,10 +45,6 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const root = new THREE.Group();
   root.name = "costa-orilla";
   env.scene.add(root);
-  const m4 = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const up = new THREE.Vector3(0, 1, 0);
-  const one = new THREE.Vector3(1, 1, 1);
   const dummy = new THREE.Object3D();
 
   /** Points on an islet's top (above `minY`), seeded. */
@@ -72,38 +75,34 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   };
 
   // ------------------------------------------------------------------ sea lions
+  prefetchAnimals(["sea-lion", "penguin"]);
   const lions = [...onRock("lobos-1", 8, 0.5), ...onRock("lobos-2", 5, 0.5)];
+  // Three of them hold their heads up, looking about; the rest doze flat out on the warm rock.
   const upIdx = new Set([1, 4, 9]);
-  const lying = lions.filter((_, i) => !upIdx.has(i));
-  const raised = lions.filter((_, i) => upIdx.has(i));
-  const lyingGeo = seaLionLying();
-  const upGeo = seaLionUp();
-  const swimGeo = seaLionSwim();
-  const lyingMesh = inst(lyingGeo, lying.length, "costa-orilla:lions");
-  const upMesh = inst(upGeo, raised.length, "costa-orilla:lions-up");
-  const place = (mesh: THREE.InstancedMesh, list: typeof lions) => {
-    list.forEach((p, i) => {
-      q.setFromAxisAngle(up, p.yaw);
-      m4.compose(new THREE.Vector3(p.x, p.y - 0.05, p.z), q, one);
-      mesh.setMatrixAt(i, m4);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-  };
-  place(lyingMesh, lying);
-  place(upMesh, raised);
-  // Bodies for the soundscape's barks (on their rocks: never in anyone's way).
-  const lionBodies = lions.map((p) => creatures.add("lobo-marino", 0.6, { solid: false, x: p.x, z: p.z }));
   const rocks = L.islets.filter((i) => i.id.startsWith("lobos"));
   const swimmers = Array.from({ length: 3 }, (_, i) => {
     const it = rocks[i % Math.max(1, rocks.length)];
     return { cx: it?.x ?? 0, cz: it?.z ?? 0, r: (it?.r ?? 5) + 4 + i * 2, w: 0.12 + i * 0.03, ph: i * 2.1 };
   });
-  const swimMesh = inst(swimGeo, swimmers.length, "costa-orilla:swimmers");
+  // Females (lighter) and the odd big dark male.
+  const lionHerd = createHerd("sea-lion", { max: lions.length + swimmers.length, variants: ["female", "male"] });
+  lionHerd.group.name = "costa-orilla:sea-lions";
+  root.add(lionHerd.group);
+  const lionIds = lions.map((_, i) => lionHerd.add({ seed: 3 + i * 7, variant: i % 5 === 2 ? 1 : 0 }));
+  const swimIds = swimmers.map((_, i) => lionHerd.add({ seed: 91 + i * 5, variant: 0 }));
+  lionIds.forEach((id, i) => {
+    if (!upIdx.has(i)) lionHerd.play(id, "sleep", 1e6);
+  });
+  // Bodies for the soundscape's barks (on their rocks: never in anyone's way).
+  const lionBodies = lions.map((p) => creatures.add("lobo-marino", 0.6, { solid: false, x: p.x, z: p.z }));
 
   // ------------------------------------------------------------------ penguins
   const pens = onRock("pinguinos", 14, 0.9);
-  const penGeo = penguin();
-  const penMesh = inst(penGeo, pens.length, "costa-orilla:penguins");
+  const penHerd = createHerd("penguin", { max: Math.max(1, pens.length) });
+  penHerd.group.name = "costa-orilla:penguins";
+  root.add(penHerd.group);
+  const penIds = pens.map((_, i) => penHerd.add({ seed: 11 + i * 3 }));
+  const penYaw = pens.map((p) => p.yaw);
 
   // ------------------------------------------------------------------ ghost crabs on the beaches
   const beachAt = (t: number) => {
@@ -151,45 +150,44 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       const dt = Math.min(dtIn, 0.05);
       clock += dt;
       const tt = rm ? 0 : t;
-      // Sea lions breathe; raised heads sway.
-      if (!rm) {
-        const k = 1 + Math.sin(clock * 1.3) * 0.015;
-        lying.forEach((p, i) => {
-          q.setFromAxisAngle(up, p.yaw);
-          m4.compose(dummy.position.set(p.x, p.y - 0.05, p.z), q, dummy.scale.set(1, k + (i % 3) * 0.004, 1));
-          lyingMesh.setMatrixAt(i, m4);
+      // Sea lions on the rocks: dozing, or heads up looking about (and barking now and then: their idles).
+      lions.forEach((p, i) => {
+        const id = lionIds[i] as number;
+        const upNow = upIdx.has(i);
+        lionHerd.set(id, p.x, p.y - 0.05, p.z, p.yaw, {
+          speed: 0,
+          rm,
+          grounded: true,
+          quiet: !upNow,
+          look: upNow && !rm ? Math.sin(clock * 0.5 + i) * 0.6 : undefined,
         });
-        lyingMesh.instanceMatrix.needsUpdate = true;
-        raised.forEach((p, i) => {
-          q.setFromAxisAngle(up, p.yaw + Math.sin(clock * 0.5 + i) * 0.35);
-          m4.compose(dummy.position.set(p.x, p.y - 0.05, p.z), q, one);
-          upMesh.setMatrixAt(i, m4);
-        });
-        upMesh.instanceMatrix.needsUpdate = true;
-      }
+      });
+      // Swimmers circling the rocks, riding the swell (body half under the surface).
       swimmers.forEach((s, i) => {
         const a = s.ph + tt * s.w;
         const x = s.cx + Math.cos(a) * s.r;
         const z = s.cz + Math.sin(a) * s.r;
         const y = seaHeight(x, z, L.shoreX(z) - x, tt);
-        dummy.position.set(x, y, z);
-        dummy.rotation.set(0, Math.atan2(-Math.sin(a), Math.cos(a)), 0);
-        dummy.scale.setScalar(1);
-        dummy.updateMatrix();
-        swimMesh.setMatrixAt(i, dummy.matrix);
+        lionHerd.set(swimIds[i] as number, x, y - SWIM_SINK, z, Math.atan2(-Math.sin(a), Math.cos(a)), {
+          speed: rm ? 0 : s.r * s.w,
+          rm,
+          grounded: false,
+          water: true,
+          turn: rm ? 0 : s.w,
+        });
       });
-      swimMesh.instanceMatrix.needsUpdate = true;
-      // Penguins shift about.
+      lionHerd.update(dt, t, env.camera);
+      // Penguins shift about: turning on the spot, now and then a few steps' shuffle.
       pens.forEach((p, i) => {
-        const yaw = p.yaw + (rm ? 0 : Math.sin(clock * 0.6 + i * 1.3) * 0.5);
-        const waddle = rm ? 0 : Math.sin(clock * 6 + i) * 0.06 * (i % 4 === 0 ? 1 : 0.2);
-        dummy.position.set(p.x, p.y - 0.03, p.z);
-        dummy.rotation.set(0, yaw, waddle);
-        dummy.scale.setScalar(1);
-        dummy.updateMatrix();
-        penMesh.setMatrixAt(i, dummy.matrix);
+        const yaw = (penYaw[i] as number) + (rm ? 0 : Math.sin(clock * 0.6 + i * 1.3) * 0.5);
+        penHerd.set(penIds[i] as number, p.x, p.y - 0.03, p.z, yaw, {
+          speed: 0,
+          rm,
+          grounded: true,
+          turn: rm ? 0 : Math.cos(clock * 0.6 + i * 1.3) * 0.3,
+        });
       });
-      penMesh.instanceMatrix.needsUpdate = true;
+      penHerd.update(dt, t, env.camera);
       // Crabs.
       crabs = crabs.map((c) => {
         const n = stepCrab(c, avatar.x, avatar.z, dt);
@@ -238,8 +236,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     },
     dispose() {
       for (const b of lionBodies) creatures.remove(b);
+      lionHerd.dispose();
+      penHerd.dispose();
       root.removeFromParent();
-      for (const g of [lyingGeo, upGeo, swimGeo, penGeo, crabGeo]) g.dispose();
+      crabGeo.dispose();
       mat.dispose();
     },
   };

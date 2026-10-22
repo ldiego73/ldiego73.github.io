@@ -12,37 +12,32 @@
  * wall, watch the traveler play, and return once the traveler moves on.
  * Clicks are untouched (the content raycasts only its own hit roots).
  *
- * Every person registers a Body in `creatures` ("player", "child") through the shared Person class.
- * Rendering: one instanced mesh per body part (people/rig.ts Crowd): 11 meshes per pass (~+34 calls with the
- * color, shadow and ink passes) while the hall is in view, none when it is more than ~60 u from both camera
- * and traveler (45 on low quality; low also has fewer people: 2 players + 1 child by day, 1 at night).
+ * Every person registers a Body in `creatures` ("player", "child") through the shared Npc (people/npc.ts).
+ * Rendering: the shared characters, one HumanCrowd (two draws per pass for every body and cloth) while the
+ * hall is in view, none when it is more than ~60 u from both camera and traveler (45 on low quality; low also
+ * has fewer people: 2 players + 1 child by day, 1 at night). The hands-on-the-controls, cheering and peeking
+ * gestures are written over the animator's pose (gente/overlay.ts) until the catalogue has them.
  */
 import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../contract";
 import type { WorldEnvExtra } from "../env";
 import { on } from "../events";
 import { cabsFor, LOOK_AHEAD, nextCheer, type Roster, roster, shouldYield } from "./arcade-players/logic";
-import { cheerPose, playPose, watchPose } from "./arcade-players/poses";
+import type { HumanSpec } from "../characters/archetype";
+import { HumanCrowd } from "../characters/crowd";
+import { prefetchHumans } from "../characters/pipeline";
+import { PEOPLE, wardrobe } from "../characters/presets";
+import type { Dress } from "../characters/slots";
+import { arcadePlay, cheer, overlay, peek, play } from "./gente/overlay";
 import { jumped } from "./people/logic";
-import {
-  DARKS,
-  MAN,
-  type PartName,
-  POLLERAS,
-  PONCHOS,
-  partSpecs,
-  SHADOW_PARTS,
-  SKINS,
-  WEAVES,
-  WOMAN,
-} from "./people/models";
-import { damp, Person } from "./people/person";
-import { Crowd, type Palette, paletteMaterial } from "./people/rig";
+import { rng } from "./people/models";
+import { Npc, type NpcFrame } from "./people/npc";
+import { damp } from "./people/person";
 
 type State = "off" | "arrive" | "play" | "aside" | "back" | "leave";
 
 interface Who {
-  p: Person;
+  p: Npc;
   kid: boolean;
   rank: number;
   /** Player this kid watches. */
@@ -76,15 +71,16 @@ const KID_R = 0.24;
 const TRAVELER_R = 0.42;
 const CHEER_S = 1.8;
 
-const OUTFITS: Array<{ wear: PartName[]; pal: (i: number) => Palette; scale: number }> = [
-  { wear: [...MAN, "chullo"], pal: (i) => [SKINS[i % 8]!, PONCHOS[0]!, WEAVES[2]!, DARKS[1]!], scale: 0.98 },
-  { wear: [...WOMAN, "montera"], pal: (i) => [SKINS[(i + 3) % 8]!, POLLERAS[1]!, WEAVES[0]!, DARKS[0]!], scale: 0.95 },
-  { wear: [...MAN, "sombrero"], pal: (i) => [SKINS[(i + 5) % 8]!, PONCHOS[3]!, WEAVES[1]!, DARKS[2]!], scale: 1.02 },
-  { wear: [...WOMAN], pal: (i) => [SKINS[(i + 1) % 8]!, POLLERAS[2]!, WEAVES[3]!, DARKS[4]!], scale: 0.93 },
+/** Young people in highland dress: a chullo, a montera, a felt hat, and braids with no hat. */
+const OUTFITS: Array<{ spec: HumanSpec; pal: (r: () => number) => Dress; scale: number }> = [
+  { spec: PEOPLE.campesino, pal: (r) => wardrobe.andeanMan(r), scale: 0.98 },
+  { spec: PEOPLE.campesina, pal: (r) => wardrobe.andeanWoman(r), scale: 1 },
+  { spec: PEOPLE.campesinoFelt, pal: (r) => wardrobe.andeanMan(r, false, true), scale: 1.02 },
+  { spec: { ...PEOPLE.campesina, hat: undefined }, pal: (r) => wardrobe.andeanWoman(r), scale: 0.98 },
 ];
-const KID_OUTFITS: Array<{ wear: PartName[]; pal: Palette }> = [
-  { wear: [...MAN, "chullo"], pal: [SKINS[4]!, PONCHOS[5]!, WEAVES[5]!, DARKS[3]!] },
-  { wear: [...WOMAN], pal: [SKINS[6]!, POLLERAS[0]!, WEAVES[4]!, DARKS[1]!] },
+const KID_OUTFITS: Array<{ spec: HumanSpec; pal: (r: () => number) => Dress }> = [
+  { spec: PEOPLE.wawaBoy, pal: (r) => wardrobe.andeanMan(r) },
+  { spec: PEOPLE.wawaGirl, pal: (r) => wardrobe.andeanWoman(r) },
 ];
 
 export const create: CreateAmbient = (envIn): Ambient => {
@@ -94,20 +90,18 @@ export const create: CreateAmbient = (envIn): Ambient => {
     low = d.quality === "low";
   });
 
-  const mat = paletteMaterial(env.toon("#ffffff").gradientMap);
-  const parts = new Set<PartName>([...MAN, ...WOMAN, "chullo", "montera", "sombrero"]);
-  const crowd = new Crowd(partSpecs(parts), OUTFITS.length + KID_OUTFITS.length, mat, SHADOW_PARTS);
-  crowd.group.name = "arcade-players:crowd";
+  const R = rng(5150);
+  const crowd = new HumanCrowd({ capacity: OUTFITS.length + KID_OUTFITS.length, name: "arcade-players:crowd" });
   env.scene.add(crowd.group);
+  prefetchHumans([...OUTFITS.map((o) => o.spec), ...KID_OUTFITS.map((o) => o.spec)]);
 
   const players: Who[] = OUTFITS.map((o, i) =>
     who(
-      new Person({
+      new Npc({
         kind: "player",
         crowd,
-        idx: crowd.alloc(),
-        wear: o.wear,
-        palette: o.pal(i * 3),
+        spec: o.spec,
+        palette: o.pal(R),
         scale: o.scale,
         radius: PLAYER_R,
         seed: 3 + i * 7.7,
@@ -119,14 +113,12 @@ export const create: CreateAmbient = (envIn): Ambient => {
   );
   const kids: Who[] = KID_OUTFITS.map((o, i) =>
     who(
-      new Person({
+      new Npc({
         kind: "child",
         crowd,
-        idx: crowd.alloc(),
-        wear: o.wear,
-        palette: o.pal,
-        scale: 0.62 + i * 0.05,
-        headScale: 1.3,
+        spec: o.spec,
+        palette: o.pal(R),
+        scale: 0.95 + i * 0.06,
         radius: KID_R,
         seed: 41 + i * 5.3,
       }),
@@ -135,6 +127,9 @@ export const create: CreateAmbient = (envIn): Ambient => {
       players[i] ?? null,
     ),
   );
+  // They glance at the traveler only while waiting aside (set per frame below).
+  for (const w of [...players, ...kids]) w.p.lookRange = 0;
+  const nf: NpcFrame = { dt: 0, clock: 0, rm: false, avatar: new THREE.Vector3() };
   const all = [...players, ...kids];
 
   // ------------------------------------------------------------ the hall (found once content has built it)
@@ -256,14 +251,18 @@ export const create: CreateAmbient = (envIn): Ambient => {
         }
         if (!visible) {
           avPrev.x = 1e9;
-          if (visibleNow) for (const w of all) w.p.hide();
+          if (visibleNow) for (const w of all) w.p.member.show(false);
           visibleNow = false;
-          crowd.flush();
           return;
         }
       }
+      if (!visibleNow) for (const w of all) w.p.member.show(w.p.active);
       visibleNow = true;
       const rm = env.reducedMotion;
+      nf.dt = dt;
+      nf.clock = clock;
+      nf.rm = rm;
+      nf.avatar.copy(avatar);
       // Where the traveler is heading (smoothed velocity), so people make room before they arrive.
       if (avPrev.x < 1e8) {
         const k = 1 - Math.exp(-8 * dt);
@@ -361,28 +360,29 @@ export const create: CreateAmbient = (envIn): Ambient => {
           }
         }
 
-        // Pose.
+        // Pose: locomotion and the body from the animator, the hands on the controls written over it.
         p.y = env.extra.groundAt(p.x, p.z);
-        p.rest(clock, rm);
         const playing = still && w.state === "play" && p.speed < 0.15;
-        p.gait(dt, rm);
-        if (playing && !w.kid) {
-          if (w.cheer > 0) cheerPose(p, clock, 1 - w.cheer / CHEER_S, rm);
-          else playPose(p, clock, rm);
-        } else if (playing && w.kid) {
+        let ex = 0;
+        if (playing && w.kid) {
           const of = w.of;
-          const ex = of && of.state === "play" && of.cheer > 0 ? Math.sin((1 - of.cheer / CHEER_S) * Math.PI) : 0;
-          watchPose(p, clock, w.side, ex, rm);
+          ex = of && of.state === "play" && of.cheer > 0 ? Math.sin((1 - of.cheer / CHEER_S) * Math.PI) : 0;
         }
-        p.commit();
+        const hopping = !rm && ((playing && !w.kid && w.cheer > 0) || ex > 0.3);
+        play(p, hopping ? "hop" : "none", { fade: 0.25 });
+        p.lookRange = w.state === "aside" ? 6 : 0;
+        p.commit(nf);
+        if (playing && !w.kid) {
+          const k = w.cheer > 0 ? 1 - w.cheer / CHEER_S : -1;
+          overlay(p.member, (b) => (k >= 0 ? cheer(b, clock, k, rm) : arcadePlay(b, clock, p.seed, rm)));
+        } else if (playing && w.kid) overlay(p.member, (b) => peek(b, w.side, ex, clock, rm));
       }
-      crowd.flush();
+      crowd.update(env.camera);
     },
     dispose() {
       offQ();
       for (const w of all) w.p.dispose();
       crowd.dispose();
-      mat.dispose();
       if (import.meta.env?.DEV) delete (window as unknown as { __arcadePlayers?: unknown }).__arcadePlayers;
     },
   };
@@ -409,7 +409,7 @@ export const create: CreateAmbient = (envIn): Ambient => {
 /** Seconds before an empty slot walks in (players one after another, kids after their player). */
 const stagger = (w: Who) => 2 + w.rank * 4 + (w.kid ? 3 : 0);
 
-function who(p: Person, kid: boolean, rank: number, of: Who | null): Who {
+function who(p: Npc, kid: boolean, rank: number, of: Who | null): Who {
   return {
     p,
     kid,

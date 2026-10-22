@@ -21,9 +21,10 @@
  * taken out of the world so the festival layout (dancers' ring, bonfires, banners) is clear: colliders
  * shrink to nothing and the keep-out zones switch off; the walkable grass stays (it's outside the plaza).
  *
- * Rendering: own instanced crowd on the people rig (one InstancedMesh per body part), one merged static
- * mesh, one instanced mesh each for flames / added cairn stones / steam, two glow sprites and the kite
- * (mesh + line): ≈ 20 draw calls when in view, none beyond the view distance. Low quality: two travellers,
+ * Rendering: the shared characters (own HumanCrowd: two draws for every body and cloth; the cup, ladle, stone
+ * and spool as held props, one draw per kind), one merged static mesh, one instanced mesh each for flames /
+ * added cairn stones / steam, two glow sprites and the kite (mesh + line): ≈ 14 draw calls when in view,
+ * none beyond the view distance. Low quality: two travellers,
  * two children, no steam, shorter view distance.
  */
 import * as THREE from "three";
@@ -35,11 +36,13 @@ import { on } from "../events";
 import { glowSprite, localWind } from "../props";
 import { dateWatch } from "./festival/datewatch";
 import { jumped } from "./people/logic";
-import { MAN, type PartName, partSpecs, SHADOW_PARTS, Static, WOMAN } from "./people/models";
-import { Crowd, paletteMaterial } from "./people/rig";
+import { HumanCrowd } from "../characters/crowd";
+import { prefetchHumans } from "../characters/pipeline";
+import { PEOPLE } from "../characters/presets";
+import { HeldProps } from "../characters/props";
+import { Static } from "./people/models";
 import { createFolk, type FolkCtx, type FolkSpots } from "./summit-camp/folk";
 import { createKite } from "./summit-camp/kite";
-import { campPartSpecs } from "./summit-camp/parts";
 import {
   APACHETA,
   CAMP,
@@ -181,12 +184,12 @@ export const create: CreateAmbient = (envIn): Ambient => {
   env.scene.add(camp);
 
   // ------------------------------------------------------------ people
-  const parts: PartName[] = [...MAN, ...WOMAN, "chullo", "montera", "sombrero"];
   const total = n.travellers + 1 + n.kids;
-  const mat = paletteMaterial(ramp);
-  const crowd = new Crowd([...partSpecs(parts), ...campPartSpecs()], total, mat, SHADOW_PARTS);
-  crowd.group.name = "summit-camp:crowd";
+  const crowd = new HumanCrowd({ capacity: total, name: "summit-camp:crowd", lodDist: low ? [7, 20] : [9, 26] });
   env.scene.add(crowd.group);
+  const held = new HeldProps(4);
+  env.scene.add(held.group);
+  prefetchHumans([PEOPLE.campesino, PEOPLE.campesinoFelt, PEOPLE.campesina, PEOPLE.wawaBoy, PEOPLE.wawaGirl]);
 
   // Keep the home point off the trail band (people wait there a moment before leaving / after arriving).
   const offTrail = (h: P2): P2 => {
@@ -272,7 +275,7 @@ export const create: CreateAmbient = (envIn): Ambient => {
     )
       console.warn("[summit-camp] the home route touches the trail band");
   }
-  const folk = createFolk(crowd, spots, n, addStone);
+  const folk = createFolk(crowd, held, spots, n, addStone);
   const kite = createKite(env.noOutline, ramp);
   env.scene.add(kite.group);
 
@@ -366,6 +369,7 @@ export const create: CreateAmbient = (envIn): Ambient => {
       return true;
     },
     groundAt: env.extra.groundAt,
+    avatar: new THREE.Vector3(),
   };
   let lastTime = env.sky.time();
   let lift = 0;
@@ -433,10 +437,8 @@ export const create: CreateAmbient = (envIn): Ambient => {
       lastTime = time;
       c.time = time;
       if (festival.step(dt)) applyFestival();
-      if (festival.on) {
-        crowd.flush();
-        return;
-      }
+      c.avatar.copy(avatar);
+      if (festival.on) return;
       env.camera.getWorldPosition(camPos);
       const view = low ? 70 : 105;
       const d = Math.min(
@@ -450,8 +452,9 @@ export const create: CreateAmbient = (envIn): Ambient => {
       }
       camp.visible = visible;
       folk.update(c, visible);
-      crowd.flush();
       if (!visible) return;
+      crowd.update(env.camera);
+      held.update();
       const light = firelight(time);
       const stoveOn = folk.vendorWorking();
       animateFire(light, stoveOn);
@@ -486,7 +489,7 @@ export const create: CreateAmbient = (envIn): Ambient => {
       // Walkable areas can't be removed from the layout either: shrink them (a remount builds new ones).
       for (const a of walkAreas) a.r = 0;
       crowd.dispose();
-      mat.dispose();
+      held.dispose();
       kite.dispose();
       props.geo.dispose();
       stoneGeo.dispose();
@@ -507,7 +510,7 @@ export const create: CreateAmbient = (envIn): Ambient => {
   if (import.meta.env?.DEV) {
     const drawCalls = () => {
       if (festival.on || !camp.visible) return 0;
-      let k = crowd.drawCalls() + 3; // props, cairn stones, flames
+      let k = crowd.drawCalls() + held.drawCalls() + 3; // props, cairn stones, flames
       if (glowFire.visible) k++;
       if (glowStove.visible) k++;
       if (steam.visible) k++;

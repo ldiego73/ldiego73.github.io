@@ -23,8 +23,21 @@ import { STATIONS } from "./contract";
 import { type Body, creatures } from "./creatures";
 import { emit } from "./events";
 import { type Convo, DialogMachine, MISSION_DIALOGS, NPC_DIALOGS, type NpcDialog } from "./npc-dialogs";
+import { GearKit, type GearHandle, BoneBatch } from "./ambient/gente/bone-batch";
+import { buildGear, GEAR_BONE, type Gear, type Glow } from "./ambient/gente/chasqui-gear";
+import { holdFront, holdUp, overlay } from "./ambient/gente/overlay";
+import { HumanAnimator } from "./characters/anim-human";
+import type { HumanSpec } from "./characters/archetype";
+import type { Animal } from "./characters/animals/animal";
+import { loadAnimal, prefetchAnimals } from "./characters/animals/assets";
+import { type CrowdMember, HumanCrowd } from "./characters/crowd";
+import { prefetchHumans } from "./characters/pipeline";
+import type { Action } from "./characters/poses";
+import { HeldProps, type PropHandle } from "./characters/props";
+import type { Dress } from "./characters/slots";
 import { DYE } from "./palette";
 import { paintStrength } from "./style-gl";
+import { liveWind } from "./wind";
 
 /**
  * Tech chasquis: 7 NPC messengers walking the Qhapaq Ñan up and down. Each wears an unku tunic with khipu-dye
@@ -44,8 +57,6 @@ import { paintStrength } from "./style-gl";
  * bodies, and separation keeps them from overlapping.
  */
 
-const C_INK = "#1f1a17";
-const SANDAL = "#4a2e1c";
 const TALK_R = 2.6;
 const LEAVE_R = 5.2;
 const STORE_KEY = "qn.npcs.talked";
@@ -217,7 +228,70 @@ export const NPC_SPECS: Spec[] = [
   },
 ];
 
-// ------------------------------------------------------------------ geometry: one merged vertex-colored mesh per limb
+// ------------------------------------------------------------------ bodies: the shared characters
+
+/**
+ * A chasqui on the new characters: a knee-length unku (a sleeveless tunic over a skirt of the same cloth with
+ * woven dye bands at the hem), the llawt'u headband (Chaska wears a montera), bare calves and ojota sandals.
+ * The dye bands, the headband and the hair come from the look; the plume, the khipus and the tech are gear
+ * (ambient/gente/chasqui-gear.ts), the staff and the q'ipi are shared held props.
+ */
+export function chasquiSpec(look: Look, elder: boolean): HumanSpec {
+  const f = look.braids === true || look.ponytail === true;
+  return {
+    sex: f ? "f" : "m",
+    age: elder ? "elder" : "adult",
+    build: look.girth > 1.15 ? "sturdy" : look.girth < 0.93 ? "slim" : "average",
+    hair: look.braids ? "braids" : look.ponytail ? "ponytail" : "crop",
+    hat: look.hat ?? "headband",
+    top: { kind: "tee", sleeves: "none", hem: 0.86 },
+    bottom: "bare",
+    feet: "ojotas",
+    layers: [{ kind: "skirt", region: "pollera", group: "wrap", hem: 0.46, flare: 0.08, pleats: 4 }],
+  };
+}
+
+/** The look's colours on the palette slots (tunic in `top` and `wrap`, its bands in the wrap dyes). */
+export function chasquiDress(look: Look): Dress {
+  const [a, b] = look.bands;
+  return {
+    skin: look.skin,
+    hair: look.hair,
+    top: look.tunic,
+    trim: a,
+    legs: look.skin,
+    shoe: "#4a2e1c",
+    sole: "#3a2416",
+    tie: b,
+    hat: look.headband,
+    hatBand: a,
+    hatTrim: look.hat ? DYE.cotton : b,
+    wrap: look.tunic,
+    wrapR: a,
+    wrapG: b,
+    wrapB: a,
+    wrapW: DYE.cotton,
+    accent2: b,
+  };
+}
+
+/** Gear pieces of a look (the staff and the q'ipi are shared props, see `propsOf`). */
+export function gearOf(look: Look): Gear[] {
+  const g: Gear[] = [];
+  if (look.plume) g.push("plume");
+  for (const c of look.carry) {
+    if (c === "khipuHand") g.push("khipuHand");
+    else if (c === "khipuHip") g.push("khipuHip");
+    else if (c === "pututo") g.push("pututo");
+    else if (c === "rack") g.push("rack");
+    else if (c === "satchel") g.push("satchel", "strap");
+    else if (c === "tablet") g.push("tablet");
+    else if (c === "tabletL") g.push("tabletL");
+  }
+  return g;
+}
+
+// ------------------------------------------------------------------ the khipu tied to the traveler's pack
 
 const tmpM = new THREE.Matrix4();
 const tmpQ = new THREE.Quaternion();
@@ -241,9 +315,6 @@ class Part {
     this.list.push(g);
     return this;
   }
-  get empty() {
-    return this.list.length === 0;
-  }
   mesh(mat: THREE.Material, name: string) {
     const merged = mergeGeometries(this.list, false);
     for (const g of this.list) g.dispose();
@@ -255,312 +326,14 @@ class Part {
   }
 }
 
-/** Shared primitive prototypes (disposed after the build). */
+/** Primitive prototypes for the traveler's khipu (disposed after the build). */
 function protos() {
   return {
-    box: new THREE.BoxGeometry(1, 1, 1),
-    sph: new THREE.SphereGeometry(1, 10, 8),
     lowSph: new THREE.IcosahedronGeometry(1, 0),
-    cyl: new THREE.CylinderGeometry(1, 1, 1, 10),
     cyl6: new THREE.CylinderGeometry(1, 1, 1, 6),
     cone: new THREE.ConeGeometry(1, 1, 8),
-    cap: new THREE.CapsuleGeometry(1, 1, 2, 8),
     torus: new THREE.TorusGeometry(1, 0.16, 5, 14),
-    halfSph: new THREE.SphereGeometry(1, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55),
   };
-}
-type Protos = ReturnType<typeof protos>;
-
-interface Rig {
-  group: THREE.Group;
-  rig: THREE.Group;
-  torso: THREE.Group;
-  head: THREE.Group;
-  legL: THREE.Group;
-  legR: THREE.Group;
-  armL: THREE.Group;
-  armR: THREE.Group;
-  plume: THREE.Object3D | null;
-  leds: THREE.Mesh | null;
-  geos: THREE.BufferGeometry[];
-}
-
-/** A hanging khipu: a cotton top cord with colored pendants and knots. */
-function khipu(p: Part, P: Protos, x: number, y: number, z: number, colors: string[], s = 1) {
-  p.add(P.cyl6, DYE.cotton, x, y, z, 0, 0, Math.PI / 2, 0.018 * s, 0.2 * s, 0.018 * s);
-  colors.forEach((c, i) => {
-    const cx = x - 0.08 * s + i * (0.16 / Math.max(1, colors.length - 1)) * s;
-    const len = (0.16 + (i % 2) * 0.05) * s;
-    p.add(P.cyl6, c, cx, y - len / 2, z, 0, 0, 0, 0.012 * s, len, 0.012 * s);
-    p.add(P.lowSph, c, cx, y - len * 0.55, z, 0, 0, 0, 0.022 * s, 0.022 * s, 0.022 * s);
-  });
-}
-
-function buildNpc(env: WorldEnv, spec: Spec, mat: THREE.Material, P: Protos): Rig {
-  const L = spec.look;
-  const g = L.girth;
-  const group = new THREE.Group();
-  group.name = `npc:${spec.id}`;
-  const rig = new THREE.Group();
-  rig.scale.setScalar(L.scale);
-  group.add(rig);
-  const geos: THREE.BufferGeometry[] = [];
-  const done = (p: Part, name: string) => {
-    const m = p.mesh(mat, name);
-    geos.push(m.geometry);
-    return m;
-  };
-
-  // Legs: bare calves (the unku is knee-length), ankle ties in dye, leather sandals.
-  const makeLeg = (side: number) => {
-    const pivot = new THREE.Group();
-    pivot.position.set(0.1 * side * g, 0.55, 0);
-    const p = new Part();
-    p.add(P.cap, L.skin, 0, -0.24, 0, 0, 0, 0, 0.075, 0.28, 0.075);
-    p.add(P.cyl, L.bands[0], 0, -0.43, 0, 0, 0, 0, 0.082, 0.04, 0.082);
-    p.add(P.box, SANDAL, 0, -0.51, 0.035, 0, 0, 0, 0.14, 0.06, 0.24);
-    pivot.add(done(p, `${spec.id}:leg`));
-    rig.add(pivot);
-    return pivot;
-  };
-  const legL = makeLeg(1);
-  const legR = makeLeg(-1);
-
-  // Torso: unku tunic (slightly squared cone) with dye bands and a tocapu checker belt.
-  const torso = new THREE.Group();
-  torso.position.y = 0.55;
-  rig.add(torso);
-  const tp = new Part();
-  tp.add(P.cyl, L.tunic, 0, 0.2, 0, 0, 0, 0, 0.21 * g, 0.66, 0.17 * g);
-  tp.add(P.cyl, L.tunic, 0, -0.08, 0, 0, 0, 0, 0.255 * g, 0.12, 0.2 * g);
-  tp.add(P.cyl, L.bands[0], 0, -0.13, 0, 0, 0, 0, 0.262 * g, 0.05, 0.205 * g);
-  tp.add(P.cyl, L.bands[1], 0, 0.42, 0, 0, 0, 0, 0.205 * g, 0.045, 0.168 * g);
-  for (let i = 0; i < 5; i++) {
-    const a = -0.5 + i * 0.25;
-    tp.add(
-      P.box,
-      i % 2 ? L.bands[0] : L.bands[1],
-      Math.sin(a) * 0.205 * g,
-      0.16,
-      Math.cos(a) * 0.168 * g,
-      0,
-      a,
-      0,
-      0.07,
-      0.07,
-      0.02,
-    );
-  }
-  tp.add(P.cyl, L.skin, 0, 0.56, 0, 0, 0, 0, 0.075, 0.1, 0.075);
-
-  // Arms: bare, with dye wrist bands.
-  const armGroups: THREE.Group[] = [];
-  const armParts: Part[] = [];
-  for (const side of [1, -1]) {
-    const pivot = new THREE.Group();
-    pivot.position.set(0.27 * side * g, 0.47, 0);
-    torso.add(pivot);
-    const ap = new Part();
-    ap.add(P.cap, L.skin, 0, -0.17, 0, 0, 0, 0, 0.06, 0.24, 0.06);
-    ap.add(P.cyl, L.bands[1], 0, -0.3, 0, 0, 0, 0, 0.066, 0.04, 0.066);
-    ap.add(P.sph, L.skin, 0, -0.37, 0.01, 0, 0, 0, 0.068, 0.068, 0.068);
-    armGroups.push(pivot);
-    armParts.push(ap);
-  }
-  const [armL, armR] = armGroups as [THREE.Group, THREE.Group];
-  const [apL, apR] = armParts as [Part, Part];
-
-  // Head
-  const head = new THREE.Group();
-  head.position.y = 0.62;
-  torso.add(head);
-  const hp = new Part();
-  hp.add(P.sph, L.skin, 0, 0.2, 0, 0, 0, 0, 0.22, 0.215, 0.205);
-  hp.add(P.halfSph, L.hair, 0, 0.21, -0.012, -0.25, 0, 0, 0.232, 0.232, 0.225);
-  for (const s of [-1, 1]) hp.add(P.sph, C_INK, 0.078 * s, 0.17, 0.2, 0, 0, 0, 0.024, 0.032, 0.012);
-  hp.add(P.sph, "#8a4f30", 0, 0.12, 0.215, 0, 0, 0, 0.032, 0.032, 0.03);
-  for (const s of [-1, 1]) hp.add(P.sph, "#c4565a", 0.13 * s, 0.1, 0.17, 0, 0, 0, 0.03, 0.018, 0.012);
-  if (L.beard) {
-    hp.add(P.box, L.hair, 0, 0.065, 0.19, 0, 0, 0, 0.16, 0.04, 0.05);
-    hp.add(P.sph, L.hair, 0, 0.02, 0.17, 0, 0, 0, 0.09, 0.08, 0.06);
-  }
-  if (L.ponytail) hp.add(P.cap, L.hair, 0, 0.12, -0.24, 0.5, 0, 0, 0.05, 0.16, 0.05);
-  if (L.braids)
-    for (const s of [-1, 1]) {
-      hp.add(P.cap, L.hair, 0.16 * s, -0.02, -0.1, 0.15, 0, 0.08 * s, 0.04, 0.22, 0.04);
-      hp.add(P.sph, L.bands[0], 0.17 * s, -0.17, -0.12, 0, 0, 0, 0.035, 0.035, 0.035);
-    }
-  let plume: THREE.Object3D | null = null;
-  if (L.hat === "montera") {
-    // Andean montera: a wide flat round hat with a dyed fringe.
-    hp.add(P.cyl, L.headband, 0, 0.36, 0, 0, 0, 0, 0.34, 0.05, 0.34);
-    hp.add(P.cyl, L.headband, 0, 0.42, 0, 0, 0, 0, 0.19, 0.1, 0.19);
-    hp.add(P.cyl, DYE.ochre, 0, 0.335, 0, 0, 0, 0, 0.345, 0.025, 0.345);
-    hp.add(P.cyl, DYE.cotton, 0, 0.475, 0, 0, 0, 0, 0.12, 0.02, 0.12);
-  } else {
-    // Llawt'u headband in dye, with a knot at the back.
-    hp.add(P.cyl, L.headband, 0, 0.27, 0, 0, 0, 0, 0.228, 0.06, 0.215);
-    hp.add(P.cyl, L.bands[0], 0, 0.27, 0, 0, 0, 0, 0.232, 0.018, 0.219);
-    hp.add(P.lowSph, L.headband, 0, 0.27, -0.22, 0, 0, 0, 0.05, 0.05, 0.04);
-  }
-  const headMesh = done(hp, `${spec.id}:head`);
-  head.add(headMesh);
-  if (L.plume) {
-    // Chasqui plume: a small fan of white feathers on its own pivot (it sways with the gait).
-    const pp = new Part();
-    for (let i = -1; i <= 1; i++) pp.add(P.cone, L.plume, i * 0.05, 0.14, 0, 0, 0, i * 0.35, 0.045, 0.3, 0.04);
-    pp.add(P.lowSph, L.bands[1], 0, 0.0, 0, 0, 0, 0, 0.04, 0.04, 0.04);
-    const pm = done(pp, `${spec.id}:plume`);
-    const piv = new THREE.Group();
-    piv.position.set(0, 0.32, -0.04);
-    piv.add(pm);
-    head.add(piv);
-    plume = piv;
-  }
-
-  // ---- Carried things
-  let leds: THREE.Mesh | null = null;
-  const owned = (m: THREE.Mesh) => {
-    geos.push(m.geometry);
-    return m;
-  };
-  for (const c of L.carry) {
-    if (c === "staff") {
-      apR.add(P.cyl6, "#6b4226", 0, -0.42, 0.06, 0, 0, 0, 0.025, 1.2, 0.025);
-      apR.add(P.lowSph, DYE.ochre, 0, 0.2, 0.06, 0, 0, 0, 0.05, 0.05, 0.05);
-      apR.add(P.cyl6, DYE.red, 0, 0.12, 0.06, 0, 0, 0, 0.032, 0.05, 0.032);
-    } else if (c === "khipuHand") {
-      khipu(c === "khipuHand" && L.carry.includes("tabletL") ? apR : apL, P, 0, -0.42, 0.04, [
-        DYE.red,
-        DYE.indigo,
-        DYE.ochre,
-        DYE.turq,
-      ]);
-    } else if (c === "khipuHip") {
-      khipu(tp, P, 0.2 * g, -0.02, 0.1 * g, [DYE.ochre, DYE.red, DYE.indigo, DYE.turq, DYE.cotton], 0.9);
-    } else if (c === "pututo") {
-      // Pututo conch on a cord at the hip: spiral body + flared lip.
-      tp.add(P.cyl6, "#6b4226", -0.12 * g, 0.2, 0.13 * g, 0, 0, -0.7, 0.012, 0.42, 0.012);
-      tp.add(P.cone, "#f2d9c4", -0.25 * g, 0.0, 0.12 * g, 0, 0, Math.PI / 2 + 0.3, 0.075, 0.24, 0.075);
-      tp.add(P.sph, "#e8b9a0", -0.13 * g, -0.03, 0.12 * g, 0, 0, 0, 0.07, 0.06, 0.06);
-      tp.add(P.torus, "#d98f7a", -0.37 * g, 0.03, 0.12 * g, 0, Math.PI / 2, 0, 0.04, 0.04, 0.04);
-    } else if (c === "rack") {
-      // A tiny 4U rack on the back: frame, server faces, straps, and blinking LEDs (one emissive mesh).
-      const z = -(0.17 * g + 0.12);
-      tp.add(P.box, "#8a909b", 0, 0.28, z, 0, 0, 0, 0.4, 0.58, 0.26);
-      for (let i = 0; i < 4; i++) tp.add(P.box, "#b7bcc4", 0, 0.08 + i * 0.13, z - 0.132, 0, 0, 0, 0.36, 0.1, 0.01);
-      tp.add(P.box, DYE.ochre, 0, 0.61, z, 0, 0, 0, 0.44, 0.04, 0.32);
-      for (const s of [-1, 1]) tp.add(P.box, "#4a2e1c", 0.13 * s, 0.3, 0.2 * g - 0.02, 0.05, 0, 0, 0.04, 0.5, 0.03);
-      tp.add(P.box, DYE.cotton, 0.14, 0.04, z - 0.138, 0, 0, 0, 0.05, 0.06, 0.012);
-      const lp = new Part();
-      for (let i = 0; i < 4; i++)
-        for (let k = 0; k < 3; k++)
-          lp.add(P.box, "#ffffff", -0.13 + k * 0.05, 0.08 + i * 0.13, z - 0.14, 0, 0, 0, 0.025, 0.025, 0.01);
-      const lm = lp.mesh(env.toon("#7af0c8", { emissive: "#3ce0a8", emissiveIntensity: 1.2 }), `${spec.id}:leds`);
-      lm.geometry.deleteAttribute("color");
-      owned(lm);
-      env.noOutline(lm);
-      torso.add(lm);
-      leds = lm;
-    } else if (c === "satchel") {
-      // Laptop satchel on a cross-body strap; the lid peeks out.
-      tp.add(P.box, "#6b4a2b", -0.27 * g, -0.02, 0.02, 0, 0, 0.05, 0.1, 0.28, 0.34);
-      tp.add(P.box, DYE.ochre, -0.27 * g, 0.1, 0.02, 0, 0, 0.05, 0.11, 0.07, 0.35);
-      tp.add(P.box, "#3d4046", -0.25 * g, 0.14, 0.02, 0, 0, 0.05, 0.03, 0.12, 0.28);
-      tp.add(P.box, "#4a2e1c", 0, 0.2, 0.175 * g, 0, 0, 0.78, 0.045, 0.72, 0.02);
-      tp.add(P.box, "#4a2e1c", 0, 0.2, -0.175 * g, 0, 0, -0.78, 0.045, 0.72, 0.02);
-    } else if (c === "bundle") {
-      // Q'ipi: a cloth bundle tied across the chest.
-      tp.add(P.sph, DYE.red, 0, 0.3, -0.27 * g, 0, 0, 0, 0.24, 0.22, 0.15);
-      tp.add(P.box, DYE.ochre, 0, 0.3, -0.27 * g, 0, 0, 0, 0.5, 0.05, 0.31);
-      tp.add(P.box, DYE.indigo, 0, 0.35, 0.18 * g, 0, 0, 0, 0.24, 0.05, 0.03);
-    }
-  }
-  const screens: THREE.Mesh[] = [];
-  const screenMat = env.toon("#b8fff4", { emissive: "#58d8ca", emissiveIntensity: 1.1 });
-  const addTablet = (parent: Part, holder: THREE.Group, x: number, y: number, z: number, rx: number) => {
-    parent.add(P.box, "#2b2d33", x, y, z, rx, 0, 0, 0.3, 0.21, 0.022);
-    const s = owned(new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.17), screenMat));
-    s.position.set(x, y, z);
-    s.rotation.x = rx;
-    s.translateZ(0.013);
-    s.rotateX(Math.PI); // the screen faces the holder (up/back toward the eyes)
-    s.translateZ(0.027);
-    env.noOutline(s);
-    holder.add(s);
-    screens.push(s);
-  };
-  if (L.carry.includes("tablet")) addTablet(tp, torso, 0, 0.36, 0.42, -0.9);
-  if (L.carry.includes("tabletL")) addTablet(apL, armL, 0.0, -0.39, 0.06, -0.15);
-
-  torso.add(done(tp, `${spec.id}:torso`));
-  armL.add(done(apL, `${spec.id}:arm`));
-  armR.add(done(apR, `${spec.id}:arm`));
-  return { group, rig, torso, head, legL, legR, armL, armR, plume, leds, geos };
-}
-
-interface LlamaRig {
-  group: THREE.Group;
-  body: THREE.Group;
-  neck: THREE.Group;
-  legs: THREE.Group[];
-  geos: THREE.BufferGeometry[];
-}
-
-function buildLlama(mat: THREE.Material, P: Protos): LlamaRig {
-  const group = new THREE.Group();
-  group.name = "npc:llama";
-  const body = new THREE.Group();
-  group.add(body);
-  const geos: THREE.BufferGeometry[] = [];
-  const wool = "#efe6d6";
-  const bp = new Part();
-  bp.add(P.cap, wool, 0, 0.78, 0, Math.PI / 2, 0, 0, 0.22, 0.42, 0.22);
-  bp.add(P.lowSph, wool, 0, 0.82, -0.42, 0, 0, 0, 0.12, 0.12, 0.12);
-  // Panniers with "Helm charts" in dye cloth + a tasseled saddle blanket.
-  bp.add(P.box, DYE.red, 0, 0.98, 0, 0, 0, 0, 0.5, 0.06, 0.4);
-  for (const s of [-1, 1]) {
-    bp.add(P.box, s > 0 ? DYE.indigo : DYE.ochre, 0.27 * s, 0.82, 0.02, 0, 0, 0, 0.12, 0.24, 0.3);
-    bp.add(P.box, DYE.cotton, 0.335 * s, 0.84, 0.02, 0, 0, 0, 0.012, 0.06, 0.2);
-    bp.add(P.lowSph, DYE.turq, 0.26 * s, 1.0, 0.2, 0, 0, 0, 0.04, 0.04, 0.04);
-  }
-  const bm = bp.mesh(mat, "llama:body");
-  geos.push(bm.geometry);
-  body.add(bm);
-  const neck = new THREE.Group();
-  neck.position.set(0, 0.9, 0.36);
-  body.add(neck);
-  const np = new Part();
-  np.add(P.cap, wool, 0, 0.26, 0.02, 0.12, 0, 0, 0.09, 0.42, 0.09);
-  np.add(P.cap, wool, 0, 0.56, 0.1, Math.PI / 2 - 0.2, 0, 0, 0.085, 0.14, 0.085);
-  np.add(P.sph, "#d8cbb4", 0, 0.54, 0.24, 0, 0, 0, 0.06, 0.055, 0.05);
-  for (const s of [-1, 1]) {
-    np.add(P.cone, wool, 0.06 * s, 0.7, 0.04, -0.15, 0, 0.2 * s, 0.03, 0.16, 0.025);
-    np.add(P.lowSph, DYE.red, 0.065 * s, 0.68, 0.06, 0, 0, 0, 0.032, 0.032, 0.032);
-    np.add(P.sph, C_INK, 0.06 * s, 0.6, 0.16, 0, 0, 0, 0.018, 0.022, 0.012);
-  }
-  const nm = np.mesh(mat, "llama:neck");
-  geos.push(nm.geometry);
-  neck.add(nm);
-  const legs: THREE.Group[] = [];
-  for (const [x, z] of [
-    [0.12, 0.3],
-    [-0.12, 0.3],
-    [0.12, -0.3],
-    [-0.12, -0.3],
-  ] as const) {
-    const piv = new THREE.Group();
-    piv.position.set(x, 0.62, z);
-    const lp = new Part();
-    lp.add(P.cap, wool, 0, -0.3, 0, 0, 0, 0, 0.05, 0.5, 0.05);
-    lp.add(P.box, "#3d2c22", 0, -0.6, 0.02, 0, 0, 0, 0.07, 0.05, 0.1);
-    const lm = lp.mesh(mat, "llama:leg");
-    geos.push(lm.geometry);
-    piv.add(lm);
-    body.add(piv);
-    legs.push(piv);
-  }
-  return { group, body, neck, legs, geos };
 }
 
 // ------------------------------------------------------------------ runtime state
@@ -570,8 +343,11 @@ type Mode = "walk" | "turn" | "rest" | "attend" | "talk";
 interface Npc {
   spec: Spec;
   dialog: NpcDialog;
-  rig: Rig;
-  llama: LlamaRig | null;
+  member: CrowdMember;
+  anim: HumanAnimator;
+  gear: GearHandle[];
+  leds: GearHandle | null;
+  held: PropHandle[];
   t: number;
   dir: 1 | -1;
   lane: number;
@@ -582,23 +358,24 @@ interface Npc {
   restCooldown: number;
   rest: { k: number; target: THREE.Vector3; base: THREE.Vector3; hold: number; out: boolean } | null;
   yaw: number;
-  phase: number;
-  walkW: number;
-  runW: number;
-  talkW: number;
-  restW: number;
-  headYaw: number;
+  /** Action now playing (so `act` is only called on a change). */
+  action: Action;
   acc: number;
   frame: number;
   jogT: number;
   pos: THREE.Vector3;
   prev: THREE.Vector3;
+  llama: Animal | null;
   llamaPos: THREE.Vector3;
   llamaYaw: number;
-  llamaPhase: number;
   llamaSpeed: number;
   convoIdx: number;
   ledT: number;
+  ledOn: boolean;
+  /** Smoothed ground speed (the walk cycle follows it). */
+  gs: number;
+  /** Seconds to the llama's next LOD pick. */
+  lodT: number;
   seed: number;
   body: Body;
   llamaBody: Body | null;
@@ -651,15 +428,41 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
   const hw = trail.halfWidth;
   const len = Math.max(1, trail.length);
 
-  // One vertex-colored toon material for every NPC body (shares the core's 3-step ramp).
+  // One vertex-colored toon material for the gear and the traveler's khipu (shares the core's 3-step ramp).
   const ramp = env.toon("#ffffff").gradientMap;
   // People move: no world-space painted blotches sliding over them (style-gl.ts).
   const mat = paintStrength(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp }), 0);
-  const P = protos();
 
   const root = new THREE.Group();
   root.name = "npc-chasquis";
   env.scene.add(root);
+  let disposed = false;
+
+  // Bodies: one crowd for every chasqui (two draw calls), the staff and the q'ipi as shared held props, the rest
+  // of what they carry as instances of one gear batch (plus one unlit batch for the LEDs and screens).
+  const looks = NPC_SPECS.map((s) => ({ s, spec: chasquiSpec(s.look, s.id === "amauta") }));
+  prefetchHumans(looks.map((l) => l.spec));
+  if (NPC_SPECS.some((s) => s.look.llama)) prefetchAnimals(["llama"]);
+  const crowd = new HumanCrowd({ capacity: NPC_SPECS.length, name: "npc-chasquis:crowd" });
+  root.add(crowd.group);
+  const held = new HeldProps(4);
+  root.add(held.group);
+  const kit = new GearKit();
+  const gear = new BoneBatch(mat, { geometries: 12, vertices: 24000, instances: NPC_SPECS.length * 5 });
+  const glowMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const glow = new BoneBatch(glowMat, { geometries: 3, vertices: 2400, instances: 6 }, "npc-chasquis:glow");
+  glow.mesh.castShadow = false;
+  env.noOutline(glow.mesh);
+  root.add(gear.mesh, glow.mesh);
+  const gearIds = new Map<Gear | Glow, number>();
+  const gearId = (g: Gear | Glow) => {
+    let id = gearIds.get(g);
+    if (id === undefined) {
+      id = (g === "leds" || g === "screen" || g === "screenL" ? glow : gear).geometry(buildGear(kit, g));
+      gearIds.set(g, id);
+    }
+    return id;
+  };
 
   const tambos = STATIONS.filter((s) => s.kind === "company").map((s) => ({ id: s.id, t: s.t }));
   const restSpot = (id: string, t: number) => {
@@ -679,23 +482,30 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
   }
 
   const npcs: Npc[] = [];
-  NPC_SPECS.forEach((spec, i) => {
+  looks.forEach(({ s: spec, spec: body }, i) => {
     const dialog = NPC_DIALOGS.find((d) => d.id === spec.id);
     if (!dialog) return;
-    const rig = buildNpc(env, spec, mat, P);
-    root.add(rig.group);
-    let llama: LlamaRig | null = null;
-    if (spec.look.llama) {
-      llama = buildLlama(mat, P);
-      root.add(llama.group);
-    }
+    const L = spec.look;
+    const member = crowd.add(body, chasquiDress(L), { scale: L.scale });
+    const anim = new HumanAnimator(member, member.meta.style, { seed: i * 7.3 + 1 });
+    const gearH = gearOf(L).map((g) => gear.attach(member, GEAR_BONE[g], gearId(g)));
+    const glowH: GearHandle[] = [];
+    if (L.carry.includes("tablet")) glowH.push(glow.attach(member, GEAR_BONE.screen, gearId("screen")));
+    if (L.carry.includes("tabletL")) glowH.push(glow.attach(member, GEAR_BONE.screenL, gearId("screenL")));
+    const leds = L.carry.includes("rack") ? glow.attach(member, GEAR_BONE.leds, gearId("leds")) : null;
+    const props: PropHandle[] = [];
+    if (L.carry.includes("staff")) props.push(held.attach(member, "staff", "#6b4226"));
+    if (L.carry.includes("bundle")) props.push(held.attach(member, "qipi", DYE.red));
     const r = spec.route;
     const pos = trail.pointAt(r.t0);
-    npcs.push({
+    const n: Npc = {
       spec,
       dialog,
-      rig,
-      llama,
+      member,
+      anim,
+      gear: [...gearH, ...glowH],
+      leds,
+      held: props,
       t: r.t0,
       dir: r.dir,
       lane: r.dir * 0.4 * hw,
@@ -706,36 +516,43 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
       restCooldown: 3 + i * 2,
       rest: null,
       yaw: 0,
-      phase: i * 1.7,
-      walkW: 1,
-      runW: r.speed > 2.6 ? 1 : 0,
-      talkW: 0,
-      restW: 0,
-      headYaw: 0,
+      action: "none",
       acc: 0,
       frame: i,
       jogT: 6 + i,
       pos: pos.clone(),
       prev: pos.clone(),
+      llama: null,
       llamaPos: pos.clone(),
       llamaYaw: 0,
-      llamaPhase: 0,
       llamaSpeed: 0,
       convoIdx: 0,
       ledT: 0,
+      ledOn: true,
+      gs: 0,
+      lodT: 0,
       seed: i * 7.3 + 1,
       body: creatures.add("chasqui", 0.36 * spec.look.scale * Math.max(1, spec.look.girth), {
         give: 0.35,
         x: pos.x,
         z: pos.z,
       }),
-      llamaBody: llama ? creatures.add("pack-llama", 0.5, { give: 0.3, x: pos.x, z: pos.z }) : null,
+      llamaBody: L.llama ? creatures.add("pack-llama", 0.5, { give: 0.3, x: pos.x, z: pos.z }) : null,
       offX: 0,
       offZ: 0,
       block: 0,
-    });
+    };
+    npcs.push(n);
+    // Sisa's pack llama: the shared llama with its pack (built off the main thread; it walks once ready).
+    if (L.llama)
+      void loadAnimal("llama", { variant: "white", seed: 11, features: { pack: true } }).then((a) => {
+        if (disposed) return a.dispose();
+        a.group.name = "npc:llama";
+        root.add(a.group);
+        n.llama = a;
+      });
   });
-  for (const k of Object.values(P)) k.dispose();
+  kit.dispose();
 
   // ------------------------------------------------------------------ DOM: tag, dialog card, toast
   const layer = el("div", "qn-hud qn-npc-layer");
@@ -1308,124 +1125,69 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
     n.llamaPos.y = surfaceY(n.llamaPos.x, n.llamaPos.z);
   };
 
+  const local = new THREE.Vector3();
+  const UP = new THREE.Vector3(0, 1, 0);
+  /** Pose and draw one chasqui (and Sisa's llama): the walk cycle follows the real ground speed. */
   const animate = (n: Npc, dt: number, avatar: THREE.Vector3) => {
-    const R = n.rig;
     const L = n.spec.look;
-    const sp = n.speed;
-    const amp = rm ? 0.45 : 1;
-    n.walkW = damp(n.walkW, Math.min(1, sp / 1.1), 8, dt);
-    n.runW = damp(n.runW, sp > 2.6 ? 1 : 0, 5, dt);
-    n.talkW = damp(n.talkW, n.mode === "talk" ? 1 : 0, 5, dt);
+    const runner = n.spec.route.speed > 2.6;
+    const moved = Math.hypot(n.pos.x - n.prev.x, n.pos.z - n.prev.z);
+    // Ground speed, ignoring jumps (a dev placement, a far catch-up).
+    const ground = dt > 0 && moved < 1.5 ? moved / dt : 0;
+    n.gs = damp(n.gs, ground, 10, dt);
     const resting = n.mode === "rest" && !!n.rest && n.rest.k >= 1 && n.rest.hold > 0;
-    const winded = n.mode === "turn" && n.spec.route.speed > 2.6;
-    n.restW = damp(n.restW, resting || winded ? 1 : 0, 4, dt);
-
-    const stride = 0.62 + n.runW * 0.5;
-    n.phase += (dt * sp * Math.PI) / stride;
-    const sw = Math.sin(n.phase);
-    const legAmp = (0.5 * n.walkW + 0.42 * n.runW) * amp;
-    const armAmp = (0.38 * n.walkW + 0.5 * n.runW) * amp;
-    const tAll = clock + n.seed;
-
-    R.legL.rotation.x = sw * legAmp;
-    R.legR.rotation.x = -sw * legAmp;
-
-    // Arms: swing, or hold (tablet / staff), plus talk gestures and rest poses.
-    const holdsFront = L.carry.includes("tablet");
-    const holdsLeft = L.carry.includes("tabletL");
-    const staff = L.carry.includes("staff");
-    let aL = -sw * armAmp;
-    let aR = sw * armAmp;
-    let zL = 0.1 + n.runW * 0.2;
-    let zR = -0.1 - n.runW * 0.2;
-    if (holdsFront) {
-      aL = aR = -1.05 + sw * 0.05 * n.walkW;
-      zL = -0.28;
-      zR = 0.28;
+    const winded = n.mode === "turn" && runner;
+    // Talking, the hands explain; at a rest the runner catches her breath (hands on the hips) and the others
+    // stand easy (hands behind the back); the guide keeps both hands for his staff.
+    let want: Action = "none";
+    if (n.mode === "talk" && !L.carry.includes("tablet")) want = "talk";
+    else if ((resting || winded) && n.gs < 0.3)
+      want = runner ? "hands-hips" : L.carry.includes("staff") || L.carry.some((c) => c.startsWith("tablet")) ? "none" : "hands-back";
+    if (want !== n.action) {
+      n.action = want;
+      n.anim.act(want, { fade: 0.4 });
     }
-    if (holdsLeft) aL = -0.95 + sw * 0.06 * n.walkW;
-    if (staff) aR = -0.35 + sw * 0.18 * n.walkW;
-    if (n.runW > 0.5) {
-      aL -= 0.35 * n.runW;
-      aR -= 0.35 * n.runW;
-    }
-    // Idle gestures while talking: the free hand explains, the head nods along with the typewriter.
-    const typing = active?.npc === n && active.m.typing;
-    const gest = n.talkW * amp;
-    if (!holdsFront) {
-      if (!staff) {
-        aR = THREE.MathUtils.lerp(aR, -1.1 - Math.sin(tAll * 3.1) * 0.35 * (rm ? 0 : 1), gest);
-        zR = THREE.MathUtils.lerp(zR, -0.35 - Math.sin(tAll * 2.3) * 0.15 * (rm ? 0 : 1), gest);
-      } else if (staff) {
-        // The guide taps the staff while he talks.
-        aR = THREE.MathUtils.lerp(aR, -0.45 + Math.abs(Math.sin(tAll * 2.2)) * 0.12 * (rm ? 0 : 1), gest);
-        aL = THREE.MathUtils.lerp(aL, -0.6 - Math.sin(tAll * 1.7) * 0.25 * (rm ? 0 : 1), gest);
-      }
-    }
-    // Rest: the runner leans on her knees; the others stretch now and then.
-    if (n.restW > 0.01) {
-      if (n.spec.route.speed > 2.6) {
-        aL = THREE.MathUtils.lerp(aL, -0.75, n.restW);
-        aR = THREE.MathUtils.lerp(aR, -0.75, n.restW);
-      } else if (!holdsFront && !staff) {
-        const s = rm ? 0 : Math.max(0, Math.sin(tAll * 0.9)) ** 3;
-        aR = THREE.MathUtils.lerp(aR, -2.7 * s, n.restW);
-        if (!holdsLeft) aL = THREE.MathUtils.lerp(aL, -2.7 * s, n.restW);
-      }
-    }
-    R.armL.rotation.x = aL;
-    R.armR.rotation.x = aR;
-    R.armL.rotation.z = zL;
-    R.armR.rotation.z = zR;
-
-    // Body: bob, lean (run lean, elder hunch, runner hands-on-knees), breathing, talk bounce.
-    const bob = Math.abs(Math.cos(n.phase)) * (0.035 * n.walkW + 0.07 * n.runW) * amp;
-    const breathe = rm ? 0 : Math.sin(tAll * 2) * 0.012 * (1 - n.walkW);
-    const bounce = !rm && n.spec.route.speed > 2.6 ? Math.abs(Math.sin(tAll * 7)) * 0.025 * n.talkW : 0;
-    R.rig.position.y = bob + bounce;
-    R.rig.scale.y = L.scale * (1 + breathe);
-    const lean = L.hunch + 0.05 * n.walkW + 0.2 * n.runW + (n.spec.route.speed > 2.6 ? 0.5 : 0.05) * n.restW;
-    R.torso.rotation.x = lean;
-    R.torso.rotation.y = sw * 0.06 * n.walkW * amp;
-    R.torso.rotation.z = Math.cos(n.phase) * 0.03 * n.walkW * amp;
-
-    // Head: look at the traveler (within limits) when engaged, nod while the line types.
-    let look = 0;
+    const m = n.member;
+    m.place(n.pos.x, n.pos.y, n.pos.z, n.yaw);
     if (n.mode === "talk" || n.mode === "attend") {
-      const want = Math.atan2(avatar.x - n.pos.x, avatar.z - n.pos.z) - n.yaw;
-      look = THREE.MathUtils.clamp(Math.atan2(Math.sin(want), Math.cos(want)), -0.7, 0.7);
-    }
-    n.headYaw = damp(n.headYaw, look, 6, dt);
-    R.head.rotation.y = n.headYaw;
-    R.head.rotation.x = -lean * 0.7 + (typing && !rm ? Math.sin(tAll * 13) * 0.05 : 0) - n.talkW * 0.06;
-    if (R.plume) R.plume.rotation.x = -(0.15 * n.walkW + 0.35 * n.runW) * amp + Math.sin(n.phase * 2) * 0.08 * amp;
+      local.set(avatar.x - n.pos.x, avatar.y + 1.4 - n.pos.y, avatar.z - n.pos.z).applyAxisAngle(UP, -n.yaw);
+      n.anim.look(local);
+    } else n.anim.look(null);
+    const w = liveWind.sample(n.pos.x, n.pos.z);
+    const c = Math.cos(n.yaw);
+    const s = Math.sin(n.yaw);
+    n.anim.update(dt, clock, {
+      speed: n.gs / L.scale,
+      rm,
+      expression: "auto",
+      windX: c * w.x - s * w.z,
+      windZ: s * w.x + c * w.z,
+    });
+    m.commit();
+    // Tablets: held in front with both hands (Inti, the lookout), or up in the left hand (Chaska).
+    if (L.carry.includes("tablet"))
+      overlay(m, (b) => holdFront(b, rm ? 0 : Math.sin(clock * 1.3 + n.seed) * 0.04 * (1 - Math.min(1, n.gs))));
+    else if (L.carry.includes("tabletL")) overlay(m, (b) => holdUp(b, "L"));
 
-    if (R.leds && !rm) {
+    if (n.leds && !rm) {
       n.ledT -= dt;
       if (n.ledT <= 0) {
-        R.leds.visible = !R.leds.visible || Math.sin(tAll * 17) > -0.2;
-        n.ledT = 0.15 + Math.abs(Math.sin(tAll * 5.3)) * 0.5;
+        n.ledOn = !n.ledOn || Math.sin((clock + n.seed) * 17) > -0.2;
+        n.leds.show(n.ledOn);
+        n.ledT = 0.15 + Math.abs(Math.sin((clock + n.seed) * 5.3)) * 0.5;
       }
     }
-
-    R.group.position.copy(n.pos);
-    R.group.rotation.y = n.yaw;
 
     const lm = n.llama;
     if (lm) {
       lm.group.position.copy(n.llamaPos);
       lm.group.rotation.y = n.llamaYaw;
-      const ls = n.llamaSpeed;
-      n.llamaPhase += dt * ls * 4.2;
-      const a = Math.sin(n.llamaPhase) * Math.min(1, ls / 1.2) * 0.45 * amp;
-      // Diagonal pairs move together (a llama's pace is close to it; diagonal reads better at this scale).
-      lm.legs[0]!.rotation.x = a;
-      lm.legs[3]!.rotation.x = a;
-      lm.legs[1]!.rotation.x = -a;
-      lm.legs[2]!.rotation.x = -a;
-      lm.body.position.y = Math.abs(Math.cos(n.llamaPhase)) * 0.03 * Math.min(1, ls) * amp;
-      lm.neck.rotation.x = rm ? 0 : Math.sin(tAll * 0.7) * 0.08 - Math.min(1, ls) * 0.1;
-      lm.neck.rotation.y = rm ? 0 : Math.sin(tAll * 0.4) * 0.25 * (1 - Math.min(1, ls));
+      lm.update(dt, clock, { speed: n.llamaSpeed, rm, quiet: false });
+      n.lodT -= dt;
+      if (n.lodT <= 0) {
+        n.lodT = 0.25;
+        lm.autoLod(env.camera);
+      }
     }
   };
 
@@ -1518,10 +1280,14 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
         n.acc = 0;
         simulate(n, sdt, avatar, d);
         const vis = d < 150;
-        n.rig.group.visible = vis;
+        n.member.show(vis);
         if (n.llama) n.llama.group.visible = vis;
         if (vis) animate(n, sdt, avatar);
       }
+      crowd.update(env.camera);
+      held.update();
+      gear.update();
+      glow.update();
 
       // Typewriter + card placement.
       if (active) {
@@ -1584,9 +1350,14 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
       for (const n of npcs) {
         creatures.remove(n.body);
         if (n.llamaBody) creatures.remove(n.llamaBody);
-        for (const g of n.rig.geos) g.dispose();
-        if (n.llama) for (const g of n.llama.geos) g.dispose();
+        n.llama?.dispose();
       }
+      disposed = true;
+      crowd.dispose();
+      held.dispose();
+      gear.dispose();
+      glow.dispose();
+      glowMat.dispose();
       mat.dispose();
       root.removeFromParent();
       layer.remove();

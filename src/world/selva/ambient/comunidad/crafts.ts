@@ -11,14 +11,16 @@
  */
 import * as THREE from "three";
 import { hearth, rng, Static } from "../../../ambient/people/models";
-import { damp, type Person } from "../../../ambient/people/person";
-import type { Crowd, Palette } from "../../../ambient/people/rig";
+import type { Npc } from "../../../ambient/people/npc";
+import type { HumanCrowd } from "../../../characters/crowd";
+import type { HeldProps } from "../../../characters/props";
 import { creatures, type KeepOut } from "../../../creatures";
 import { glowSprite } from "../../../props";
+import { NATURAL, SKINS, SKIRTS, type Who } from "./dress";
 import { greeting, isOut, type Role } from "./logic";
-import { type AmazonPart, frameMatrix, loom, MAN, mat, pots, SKINS, SKIRTS, stool, WOMAN } from "./models";
+import { frameMatrix, loom, mat, pots, stool } from "./models";
 import type { Ctx, Greeter, Group } from "./types";
-import { villager, wavePose } from "./villager";
+import { give, reveal, villager } from "./villager";
 
 export interface CraftSpot {
   /** Weaver (hips), potter and elder positions (world) and the direction they face (yaw). */
@@ -28,7 +30,7 @@ export interface CraftSpot {
 }
 
 interface Worker {
-  p: Person;
+  p: Npc;
   role: Role;
   home: { x: number; z: number; yaw: number };
   greetN: number;
@@ -41,7 +43,8 @@ const REACH = 2.1;
 
 export function createCrafts(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
+  held: HeldProps,
   staticMat: THREE.Material,
   spot: CraftSpot,
   n: number,
@@ -52,40 +55,37 @@ export function createCrafts(
   const sk2 = SKIRTS[0] as readonly [string, string];
   const defs: Array<{
     role: Role;
-    wear: readonly AmazonPart[];
-    pal: Palette;
+    who: Who;
+    skin: string;
+    skirt?: readonly [string, string];
+    top?: string;
+    cushma?: string;
     home: CraftSpot["weaver"];
-    scale: number;
   }> = [
-    { role: "weaver", wear: WOMAN, pal: [SKINS[1] as string, sk[0], sk[1], "#c2456b"], home: spot.weaver, scale: 0.94 },
-    {
-      role: "elder",
-      wear: [...MAN, "a:crown"],
-      pal: [SKINS[2] as string, "#d8cbb0", "#3b2a20", "#d8cbb0"],
-      home: spot.elder,
-      scale: 0.93,
-    },
-    {
-      role: "potter",
-      wear: WOMAN,
-      pal: [SKINS[4] as string, sk2[0], sk2[1], "#2a9d8f"],
-      home: spot.potter,
-      scale: 0.92,
-    },
+    { role: "weaver", who: "woman", skin: SKINS[1] as string, skirt: sk, top: "#c2456b", home: spot.weaver },
+    // The elder in natural cotton and a feather crown.
+    { role: "elder", who: "elder", skin: SKINS[2] as string, cushma: NATURAL, home: spot.elder },
+    { role: "potter", who: "woman", skin: SKINS[4] as string, skirt: sk2, top: "#2a9d8f", home: spot.potter },
   ];
   const workers: Worker[] = defs.slice(0, Math.max(1, n)).map((d, i) => {
-    const p = villager({
+    const p = villager(crowd, {
       kind: "villager",
-      crowd,
-      idx: crowd.alloc(),
-      wear: d.wear,
-      palette: d.pal,
-      scale: d.scale,
+      who: d.who,
+      r: R,
+      skin: d.skin,
+      ...(d.skirt ? { skirt: d.skirt } : {}),
+      ...(d.top ? { top: d.top } : {}),
+      ...(d.cushma ? { cushma: d.cushma } : {}),
       radius: 0.42,
       seed: 31 + i * 17.7,
     });
     p.place(d.home.x, d.home.z, d.home.yaw);
     p.y = ground(d.home.x, d.home.z);
+    // The potter paints a pot held in her lap.
+    if (d.role === "potter") {
+      give(p, held, "pot", "#b5653b");
+      give(p, held, "brush");
+    }
     return { p, role: d.role, home: d.home, greetN: Math.floor(R() * 4), wave: 0, night: d.role === "elder" };
   });
 
@@ -163,43 +163,27 @@ export function createCrafts(
   const head = new THREE.Vector3();
   let near: Worker | null = null;
 
+  /** Stool seat height (./models.ts stool: the seat top), for the elder's "sit-stool". */
+  const STOOL_SEAT = 0.31;
   const pose = (k: Worker, c: Ctx) => {
     const p = k.p;
-    const b = p.bones;
-    const night = !isOut("craft", c.time);
-    p.rest(c.clock, c.rm);
+    const a = p.anim;
     p.speed = 0;
-    const t = c.rm ? 0 : c.clock;
-    if (k.role === "weaver") {
-      p.sit(c.clock, true, -0.18);
-      // Arms forward to the breast bar; every few seconds the sword beats the weft down.
-      const beat = c.rm ? 0 : Math.max(0, Math.sin(t * 1.6 + p.seed)) ** 6;
-      b.armL.rotation.set(-1.15 + beat * 0.35, 0, 0.18);
-      b.armR.rotation.set(-1.15 + beat * 0.35, 0, -0.18);
-      b.head.rotation.x = 0.28;
-    } else if (k.role === "potter") {
-      p.sit(c.clock, true, -0.35);
-      b.armL.rotation.set(-0.95, 0, 0.35);
-      b.armR.rotation.set(-1.05 + Math.sin(t * 3.1) * 0.06, Math.sin(t * 2.3) * 0.15, -0.2);
-      b.head.rotation.x = 0.42;
-    } else {
-      // On the stool: hips at its height, shins down to the ground; hands on the knees.
-      b.hips.position.y = -0.24;
-      b.legL.rotation.set(-1.15, 0, 0.1);
-      b.legR.rotation.set(-1.15, 0, -0.1);
-      b.armL.rotation.set(-0.75, 0, 0.15);
-      b.armR.rotation.set(-0.75, 0, -0.15);
-      b.torso.rotation.x = night ? 0.12 : -0.04;
-      if (!c.rm) b.head.rotation.y = Math.sin(c.clock * 0.25 + p.seed) * 0.4;
-    }
     if (k.wave > 0) {
+      // The elder gets up from his stool to wave back; the women at work answer from their mats (a smile and a
+      // look: one action at a time, and a seated wave is not in the catalogue).
       k.wave -= c.dt;
-      // Wave back with the free hand, looking at the traveler.
-      wavePose(p, c.clock, c.rm);
-      const target = Math.atan2(c.avatar.x - p.x, c.avatar.z - p.z) - p.yaw;
-      b.head.rotation.y = damp(b.head.rotation.y, Math.atan2(Math.sin(target), Math.cos(target)) * 0.6, 8, c.dt);
+      if (k.role === "elder") a.act("wave", { fade: 0.45, side: -1 });
+      p.lookRange = 6;
+    } else p.lookRange = k.role === "elder" ? 4 : 0;
+    if (k.wave <= 0 || k.role !== "elder") {
+      // The weaver at the backstrap loom (leaning back on the strap, passing and beating the weft), the potter
+      // cross-legged painting a pot in her lap, the elder on his stool.
+      if (k.role === "weaver") a.act("weave", { fade: 0.5 });
+      else if (k.role === "potter") a.act("sit-cross", { fade: 0.5 });
+      else a.act("sit-stool", { fade: 0.5, seat: STOOL_SEAT });
     }
-    p.commit();
+    p.commit(c);
   };
 
   return {
@@ -220,7 +204,10 @@ export function createCrafts(
       if (visible !== shown) {
         shown = visible;
         props.visible = visible;
-        if (!visible) for (const k of workers) k.p.hide();
+        for (const k of workers) {
+          if (!visible) k.p.hide();
+          else reveal(k.p);
+        }
       }
       fl.visible = visible && fireOn;
       if (fl.visible && !c.rm)

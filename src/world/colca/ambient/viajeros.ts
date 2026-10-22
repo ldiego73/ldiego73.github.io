@@ -7,50 +7,36 @@
  *    the descent and the climb back to the rim, walkers and a Cabanaconde woman; on the Nazca pampa,
  *    archaeologists in canvas sun hats, visitors with packs, and people from Nasca in felt hats.
  *  - At the Cruz del Cóndor (GATHER): visitors along the parapet watching the condors (one taking photos,
- *    one resting on a bench), a vendor with textiles laid out on a cloth, a woman of Cabanaconde, and two
- *    children playing near the sign. The way from the road's end to the cross stays clear.
+ *    one resting on a bench), a vendor spinning yarn by her textiles laid out on a cloth, a woman of
+ *    Cabanaconde, and two children playing near the sign. The way from the road's end to the cross stays clear.
  * Everyone is out by day and goes home at dusk (switched while unseen, or at once on a clock jump). People
  * far from the camera are taken out of the world (not drawn, bodies parked), so only the near ones cost.
  *
- * Rendering: one instanced crowd on the shared people rig (../../ambient/people: one InstancedMesh per part,
- * only parts someone near wears are drawn) with the Colca garments (./gente/garments.ts), the two llamas
- * (./wild/camelids.ts), the vendor's cloth (one merged mesh) and the mantas she hangs behind her (one cloth
- * mesh on the shared wind, ../cloth.ts). Everyone is a creatures body (solid). The people's own idle motion
- * (glances, a reach to the textiles) is their rig's, not the wind's.
+ * Rendering: the shared characters (../../characters): everyone is a member of ONE crowd (skinned on the GPU,
+ * LOD by distance, two draw calls for all bodies and cloth) driven by the human animation controller
+ * (../../ambient/people/npc.ts: the walk cycle from the real speed, carrying, herding, spinning, sitting on a
+ * bench, a glance at the traveler); loads and tools (q'ipi, baskets, staff, drop spindle) are held props (one
+ * instanced draw per kind); the two llamas are a herd (./wild/herds.ts, one instanced draw per LOD); the
+ * vendor's cloth is one merged mesh and the mantas she hangs behind her one cloth mesh on the shared wind
+ * (../cloth.ts). Everyone is a creatures body (solid).
  */
 import * as THREE from "three";
-import {
-  DARKS,
-  MAN,
-  POLLERAS,
-  PONCHOS,
-  partSpecs,
-  SHADOW_PARTS,
-  SKINS,
-  WEAVES,
-  WOMAN,
-} from "../../ambient/people/models";
-import { Person } from "../../ambient/people/person";
-import { Crowd, type Palette, paletteMaterial } from "../../ambient/people/rig";
+import { Npc } from "../../ambient/people/npc";
+import { prefetchAnimals } from "../../characters/animals/assets";
+import type { HumanSpec } from "../../characters/archetype";
+import { HumanCrowd } from "../../characters/crowd";
+import { prefetchHumans } from "../../characters/pipeline";
+import type { Action } from "../../characters/poses";
+import { HeldProps, type PropKind } from "../../characters/props";
+import type { Dress } from "../../characters/slots";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
-import { LLAMA } from "../../fauna-models";
 import { vertexToon } from "../../merge-colors";
 import type { SuyuEnv } from "../../suyu/contract";
 import { ClothKit, clothMesh } from "../cloth";
 import { VKit } from "../kit";
 import type { ColcaLayout } from "../layout";
-import {
-  BORDADOS,
-  type ColcaPart,
-  colcaPartSpecs,
-  KHAKI,
-  PACKS,
-  RIBBONS,
-  SHELLS,
-  TROUSERS,
-  wear,
-} from "./gente/garments";
+import { COLCA, outdoor, rng, valleyMan, valleyWoman } from "./gente/dress";
 import {
   BLOCK_R,
   GATHER,
@@ -67,30 +53,24 @@ import {
   type TravellerSpec,
   type Walk,
 } from "./viajeros/logic";
-import { CamelidHerd } from "./wild/camelids";
+import { packLlamas } from "./wild/herds";
 
-function rng(seed: number) {
-  let a = seed | 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
-
-/** Visitors come from everywhere: the valley's skins plus a few lighter ones. */
-const VISITOR_SKINS = [...SKINS, "#e8c4a4", "#d9a882", "#f0cfb0", "#7a4a30"];
-const LLAMA_COATS = ["#fbf6ee", "#5a463a"];
-const LLAMA_PACKS = ["#c4383f", "#2a9d8f"];
 /** Road people are drawn within this camera distance (taken out beyond, with a little hysteresis). */
 const VIEW = 160;
 /** The gathering is drawn within this distance of the Cruz. */
 const GATHER_VIEW = 130;
 const FILE_GAP = 2.3;
+/** Height of the Cruz's stone benches (../cruz.ts) for the visitor resting on one. */
+const BENCH_SEAT = 0.42;
 
-type Outfit = { parts: ColcaPart[]; palette: Palette; scale: number; kid?: boolean };
+/** One person's look: archetype, palette, height jitter, what they carry and how they carry it. */
+interface Outfit {
+  spec: HumanSpec;
+  palette: Dress;
+  scale: number;
+  kid?: boolean;
+  prop?: { kind: PropKind; tint?: string; act: Action };
+}
 
 export const create: CreateAmbient = (baseEnv): Ambient => {
   const env = baseEnv as SuyuEnv;
@@ -102,118 +82,104 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const roadSpecs = TRAVELLERS.filter((s) => high || !s.high);
   const gatherSpecs = GATHER.filter((g) => high || !g.high);
 
-  const ramp = env.toon("#ffffff").gradientMap;
-  const mat = paletteMaterial(ramp);
-  const specs = [
-    ...partSpecs([...MAN, ...WOMAN, "sombrero", "chullo", "bundle", "basket"]),
-    ...colcaPartSpecs([
-      "colca:cabana",
-      "colca:collagua",
-      "colca:bordado",
-      "colca:jacket",
-      "colca:cap",
-      "colca:sunhat",
-      "colca:backpack",
-    ]),
-  ];
-  const shadows = new Set([...SHADOW_PARTS, "colca:bordado", "colca:jacket"]);
-  const crowd = new Crowd(specs, roadSpecs.length + gatherSpecs.length, mat, shadows);
-  crowd.group.name = "colca-viajeros";
+  const crowd = new HumanCrowd({ capacity: roadSpecs.length + gatherSpecs.length, name: "colca-viajeros:crowd" });
   env.scene.add(crowd.group);
+  const props = new HeldProps(8);
+  env.scene.add(props.group);
 
-  const valleyWoman = (hat: ColcaPart, extra: ColcaPart[] = []): Outfit => ({
-    parts: [...WOMAN, "colca:bordado", hat, ...extra],
-    palette: [pick(R, SKINS), pick(R, BORDADOS), pick(R, RIBBONS), pick(R, BORDADOS)],
-    scale: 0.92 + R() * 0.06,
+  const woman = (spec: HumanSpec, prop?: Outfit["prop"]): Outfit => ({
+    spec,
+    palette: valleyWoman(R),
+    scale: 0.95 + R() * 0.06,
+    prop,
   });
-  const outdoor = (hat: ColcaPart, pack: boolean, khaki = false): Outfit => ({
-    parts: ["leg", "colca:jacket", "m:arm", "m:head", hat, ...(pack ? (["colca:backpack"] as ColcaPart[]) : [])],
-    palette: [
-      pick(R, VISITOR_SKINS),
-      khaki ? pick(R, KHAKI) : pick(R, SHELLS),
-      khaki ? "#6b5a3e" : pick(R, PACKS),
-      pick(R, TROUSERS),
-    ],
+  const walker = (spec: HumanSpec, khaki = false): Outfit => ({
+    spec,
+    palette: outdoor(R, khaki),
     scale: 0.96 + R() * 0.08,
   });
   const outfitFor = (role: Role | GatherSpot["role"], i: number): Outfit => {
     switch (role) {
       case "cabana":
-        return valleyWoman("colca:cabana");
+        return woman(COLCA.cabana);
       case "collagua":
-        return valleyWoman("colca:collagua");
+        return woman(COLCA.collagua);
       case "basket":
-        return valleyWoman("colca:cabana", ["basket"]);
+        return woman(COLCA.cabana, { kind: "basket-hand", tint: "#b98a4e", act: "carry-hand" });
       case "vendor":
-        return valleyWoman("colca:collagua");
+        return woman(COLCA.collagua, { kind: "pushka", act: "spin" });
       case "farmer":
+        return {
+          spec: COLCA.man,
+          palette: valleyMan(R),
+          scale: 0.98 + R() * 0.05,
+          prop: { kind: "qipi", tint: "#c4383f", act: "carry-back" },
+        };
       case "caravan":
         return {
-          parts: [...MAN, "sombrero", ...(role === "farmer" ? (["bundle"] as ColcaPart[]) : [])],
-          palette: [pick(R, SKINS), pick(R, PONCHOS), pick(R, WEAVES), pick(R, DARKS)],
+          spec: COLCA.man,
+          palette: valleyMan(R),
           scale: 0.98 + R() * 0.05,
+          prop: { kind: "staff", act: "herd" },
         };
       case "trekker":
-        return outdoor("colca:cap", true);
+        return walker(i % 2 ? COLCA.trekkerWoman : COLCA.trekker);
       case "archaeologist":
-        return outdoor("colca:sunhat", false, true);
+        return walker(i % 2 ? COLCA.archaeologistWoman : COLCA.archaeologist, true);
       case "tourist":
-        return outdoor(i % 2 ? "colca:cap" : "colca:sunhat", i % 3 !== 2);
+        return i % 3 === 2
+          ? walker(i % 2 ? COLCA.touristWoman : COLCA.tourist)
+          : walker(i % 2 ? COLCA.trekkerWoman : COLCA.trekker);
       case "local-man":
-        return {
-          parts: [...MAN, "sombrero"],
-          palette: [pick(R, SKINS), pick(R, PONCHOS), pick(R, WEAVES), pick(R, DARKS)],
-          scale: 0.97 + R() * 0.05,
-        };
+        return { spec: COLCA.nascaMan, palette: valleyMan(R), scale: 0.97 + R() * 0.05 };
       case "local-woman":
         return {
-          parts: [...WOMAN, "sombrero", "basket"],
-          palette: [pick(R, SKINS), pick(R, POLLERAS), pick(R, WEAVES), pick(R, DARKS)],
-          scale: 0.92 + R() * 0.05,
+          spec: COLCA.nascaWoman,
+          palette: { ...valleyWoman(R), hat: "#3b2c25", hatBand: "#c4383f" },
+          scale: 0.94 + R() * 0.05,
+          prop: { kind: "basket-hand", tint: "#b98a4e", act: "carry-hand" },
         };
       case "kid":
-        return {
-          parts: i % 2 ? [...MAN, "chullo"] : [...WOMAN, "colca:bordado", "colca:cabana"],
-          palette: [pick(R, SKINS), pick(R, BORDADOS), pick(R, RIBBONS), pick(R, DARKS)],
-          scale: 0.62 + R() * 0.06,
-          kid: true,
-        };
+        return i % 2
+          ? { spec: COLCA.boy, palette: valleyMan(R), scale: 0.92 + R() * 0.1, kid: true }
+          : { spec: COLCA.girl, palette: valleyWoman(R), scale: 0.92 + R() * 0.1, kid: true };
     }
   };
-  const person = (o: Outfit, seed: number) =>
-    new Person({
+  const outfits = new Set<HumanSpec>();
+  const person = (o: Outfit, seed: number) => {
+    outfits.add(o.spec);
+    const p = new Npc({
       kind: o.kid ? "child" : "colca-person",
       crowd,
-      idx: crowd.alloc(),
-      wear: wear(o.parts),
+      spec: o.spec,
       palette: o.palette,
       scale: o.scale,
-      headScale: o.kid ? 1.3 : 1,
       radius: o.kid ? 0.26 : 0.34,
       seed,
     });
+    if (o.prop) p.hold(props, o.prop.kind, o.prop.tint);
+    return { p, act: o.prop?.act ?? ("none" as Action) };
+  };
 
   // ------------------------------------------------------------------ road walkers
   interface Walker {
     spec: TravellerSpec;
     w: Walk;
-    p: Person;
+    p: Npc;
+    /** What they do while walking (carry a load, herd with the staff) — "none" for plain walking. */
+    act: Action;
     v: number;
-    phase: number;
-    walkAmt: number;
   }
-  const walkers: Walker[] = roadSpecs.map((spec, i) => ({
-    spec,
-    w: startWalk(spec),
-    p: person(outfitFor(spec.role, i), 11 + i * 7.7),
-    v: 0,
-    phase: 0,
-    walkAmt: 0,
-  }));
+  const walkers: Walker[] = roadSpecs.map((spec, i) => {
+    const { p, act } = person(outfitFor(spec.role, i), 11 + i * 7.7);
+    return { spec, w: startWalk(spec), p, act, v: 0 };
+  });
   const caravan = walkers.find((w) => w.spec.role === "caravan");
   const nLlamas = caravan ? 2 : 0;
-  const herd = new CamelidHerd("colca-viajeros:llamas", LLAMA, Math.max(1, nLlamas), LLAMA_COATS, LLAMA_PACKS);
+  if (nLlamas) prefetchAnimals(["llama"]);
+  const herd = packLlamas("colca-viajeros:llamas", Math.max(1, nLlamas));
   env.scene.add(herd.group);
+  const llamaIds = Array.from({ length: nLlamas }, (_, k) => herd.add({ seed: 31 + k * 7, variant: k + 1 }));
   const llamaBodies = Array.from({ length: nLlamas }, () => creatures.add("llama", 0.55, { x: 1e5, z: 1e5 }));
   const L = layout.trail.length;
   const tP = new THREE.Vector3();
@@ -233,7 +199,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const sn = Math.sin(C.yaw);
   const W = (lx: number, lz: number) => ({ x: C.x + lx * cs + lz * sn, z: C.z - lx * sn + lz * cs });
   const floorY = env.heightAt(C.x, C.z) + 0.05;
-  const gatherers = gatherSpecs.map((g, i) => ({ g, p: person(outfitFor(g.role, i), 101 + i * 5.3) }));
+  const gatherers = gatherSpecs.map((g, i) => ({ g, ...person(outfitFor(g.role, i), 101 + i * 5.3) }));
+  prefetchHumans(outfits);
   // The vendor's cloth: a striped manta with folded textiles, a few small wares and a stool.
   const stallPos = W(STALL.x, STALL.z);
   const kit = new VKit().at(stallPos.x, floorY, stallPos.z, C.yaw);
@@ -292,7 +259,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     seenV.set(x, ground(x, z) + 0.9, z).project(env.camera);
     return seenV.z < 1 && Math.abs(seenV.x) < 1.15 && Math.abs(seenV.y) < 1.15;
   };
-  let clock = 0;
+  const f = { dt: 0, clock: 0, rm, avatar: new THREE.Vector3() };
 
   const updateWalker = (
     wk: Walker,
@@ -328,18 +295,17 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     const d = Math.hypot(at.x - camPos.x, at.z - camPos.z);
     const want = dayNow && d < VIEW;
     if (p.active !== want && (flipped || d > VIEW - 20 || !seen(at.x, at.z))) p.setActive(want);
-    wk.walkAmt += ((wk.v > 0 ? 1 : 0) - wk.walkAmt) * (1 - Math.exp(-dt * 4));
-    if (!rm) wk.phase += dt * wk.v * 4.2;
     if (!p.active) {
-      if (wk === caravan) for (let k = 0; k < nLlamas; k++) herd.hide(k);
+      if (wk === caravan) for (const id of llamaIds) herd.hide(id);
       return;
     }
-    p.place(at.x, at.z, at.yaw);
+    // The person turns in place at the ends of the stretch (a quick swing, not a snap).
+    p.place(at.x, at.z, p.speed > 0.05 || wk.v > 0 ? at.yaw : p.yaw);
+    if (wk.v === 0) p.face(at.x + Math.sin(at.yaw), at.z + Math.cos(at.yaw), dt, 4);
     p.speed = wk.v;
     p.y = ground(at.x, at.z);
-    p.rest(clock, rm);
-    p.gait(dt, rm, spec.role === "caravan" ? 0.6 : 1);
-    p.commit();
+    p.anim.act(wk.act, { fade: 0.4 });
+    p.commit(f);
     if (wk === caravan) {
       for (let k = 0; k < nLlamas; k++) {
         const q = lane(w.t - (w.dir * FILE_GAP * (k + 1)) / L, w.dir);
@@ -348,24 +314,14 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           b.x = q.x;
           b.z = q.z;
         }
-        herd.set(k, {
-          x: q.x,
-          y: ground(q.x, q.z),
-          z: q.z,
-          yaw: q.yaw,
-          phase: wk.phase + k * 1.3,
-          walk: wk.walkAmt,
-          graze: wk.v === 0 && !rm ? 0.2 + 0.15 * Math.sin(clock * 0.8 + k) : 0,
-          lying: false,
-        });
+        herd.set(llamaIds[k] as number, q.x, ground(q.x, q.z), q.z, q.yaw, { speed: wk.v, rm });
       }
     }
   };
 
   const updateGatherer = (
-    o: { g: GatherSpot; p: Person },
+    o: { g: GatherSpot; p: Npc; act: Action },
     i: number,
-    dt: number,
     dayNow: boolean,
     flipped: boolean,
     near: boolean,
@@ -377,7 +333,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     let speed = 0;
     if (g.pose === "play") {
       // Children chase round their spot (still, with reduced motion: they stand and chat).
-      const ang = rm ? g.a : clock * PLAY.w + g.a;
+      const ang = rm ? g.a : f.clock * PLAY.w + g.a;
       lx = g.x + Math.sin(ang) * PLAY.r;
       lz = g.z + Math.cos(ang) * PLAY.r;
       a = ang + Math.PI / 2;
@@ -385,59 +341,45 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     }
     const w = W(lx, lz);
     if (p.active !== dayNow && (flipped || !seen(w.x, w.z))) p.setActive(dayNow);
-    if (!p.active) return;
+    if (!p.active || !near) return;
     p.place(w.x, w.z, C.yaw + a);
-    if (!near) {
-      p.hide();
-      return;
-    }
     p.speed = speed;
-    p.y = g.pose === "sit" ? floorY + 0.4 : floorY;
-    p.rest(clock, rm);
-    const b = p.bones;
-    const sway = rm ? 0 : Math.sin(clock * 0.4 + i * 1.7);
+    p.y = floorY;
+    // Each one keeps their pose; the photographer and a watcher point out the condors now and then.
+    const k = rm ? 0 : Math.sin(f.clock * 0.21 + i * 1.3);
     switch (g.pose) {
       case "watch":
-        // Following the condors: head up, turning slowly.
-        b.head.rotation.x = -0.28 - 0.08 * sway;
-        b.head.rotation.y = 0.35 * sway;
-        if (i % 2 === 0) {
-          // Pointing now and then.
-          const k = rm ? 0 : Math.max(0, Math.sin(clock * 0.21 + i));
-          b.armR.rotation.x = -1.9 * k;
-        }
+        p.lookRange = 3;
+        p.anim.act(i % 2 === 0 && k > 0.55 ? "point" : i % 2 ? "hands-back" : "arms-crossed", { fade: 0.6 });
         break;
-      case "photo": {
-        // Phone or camera up to the face, lowered now and then to look.
-        const up = rm ? 1 : Math.sin(clock * 0.35 + i) > -0.3 ? 1 : 0;
-        b.armL.rotation.set(-1.45 * up, 0, -0.45 * up);
-        b.armR.rotation.set(-1.45 * up, 0, 0.45 * up);
-        b.head.rotation.x = -0.15;
-        b.head.rotation.y = 0.25 * sway * (1 - up);
+      case "photo":
+        // Phone up toward the condors (no "photo" pose in the catalogue yet: pointing it at them).
+        p.lookRange = 0;
+        p.anim.act(k > -0.3 ? "point" : "hands-clasp", { fade: 0.5 });
         break;
-      }
       case "sit":
-        p.sit(clock, rm, 0.05);
-        b.head.rotation.x = -0.2;
+        p.lookRange = 4;
+        p.anim.act("sit-bench", { seat: BENCH_SEAT, fade: 0.4 });
         break;
       case "vend":
-        // Folding and offering the textiles: a slow reach toward the cloth.
-        b.torso.rotation.x = 0.15 + (rm ? 0 : 0.1 * Math.max(0, Math.sin(clock * 0.5)));
-        b.armR.rotation.x = -0.7 - (rm ? 0 : 0.3 * Math.max(0, Math.sin(clock * 0.5)));
-        b.armL.rotation.x = -0.5;
-        b.head.rotation.y = 0.3 * sway;
+        // Spinning yarn on her drop spindle while she minds the cloth; a few words when the traveler stops by.
+        p.lookRange = 5;
+        p.anim.act(Math.hypot(f.avatar.x - w.x, f.avatar.z - w.z) < 3.5 ? "talk" : "spin", { fade: 0.5 });
         break;
       case "play":
-        p.gait(dt, rm, 1.3);
+        p.lookRange = 0;
+        p.anim.act(rm ? "talk" : "none", { fade: 0.3 });
         break;
     }
-    p.commit();
+    p.commit(f);
   };
 
   return {
-    update(dtIn, avatar) {
+    update(dtIn, avatar, t) {
       const dt = Math.min(dtIn, 0.05);
-      clock += dt;
+      f.dt = dt;
+      f.clock += dt;
+      f.avatar.copy(avatar);
       env.camera.getWorldPosition(camPos);
       const dayNow = isDay(env.sky.time());
       const flipped = day !== dayNow;
@@ -448,12 +390,13 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           b.x = 1e5;
           b.z = 1e5;
         }
-      herd.commit();
       const near = Math.hypot(C.x - camPos.x, C.z - camPos.z) < GATHER_VIEW;
       stall.visible = near;
       for (let i = 0; i < gatherers.length; i++)
-        updateGatherer(gatherers[i] as { g: GatherSpot; p: Person }, i, dt, dayNow, flipped, near);
-      crowd.flush();
+        updateGatherer(gatherers[i] as (typeof gatherers)[number], i, dayNow, flipped, near);
+      herd.update(dt, t, env.camera);
+      crowd.update(env.camera);
+      props.update();
     },
     dispose() {
       for (const w of walkers) w.p.dispose();
@@ -461,7 +404,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       for (const b of llamaBodies) creatures.remove(b);
       creatures.remove(stallBody);
       crowd.dispose();
-      mat.dispose();
+      props.dispose();
       herd.dispose();
       stall.removeFromParent();
       stallGeo.dispose();

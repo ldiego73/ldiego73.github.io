@@ -1,5 +1,6 @@
 /**
- * The people of the summit camp, on the shared people rig (people/person.ts, own crowd):
+ * The people of the summit camp, on the shared characters (people/npc.ts on the camp's own HumanCrowd; the cup,
+ * the ladle, the stone and the kite spool are shared held props):
  *  - travellers resting by the fire (day and night): one sips api from a clay cup, one gets up now and then
  *    to stretch, one warms their hands and, by day, walks over to leave a stone on the apacheta;
  *  - the api vendor (stall hours): stirs the pot on the q'uncha, serves a cup, looks out over the plaza;
@@ -8,13 +9,30 @@
  * The vendor and the children come up over the grass at the south end of the pocket in the morning and go
  * home that way at dusk (plan.ts ROUTE, never on the trail band); they appear / vanish only out of sight
  * (behind the brow or off screen), or after a short fallback wait. Every person is a creatures Body
- * ("traveler-npc", "vendor", "child").
+ * ("traveler-npc", "vendor", "child"). Gestures the action catalogue lacks (sipping while seated, warming the
+ * hands, a stretch, setting the stone, tugging the kite string) are written over the pose (gente/overlay.ts).
  */
 import * as THREE from "three";
-import { DARKS, MAN, type PartName, POLLERAS, PONCHOS, rng, SKINS, WEAVES, WOMAN } from "../people/models";
-import { angleDamp, damp, Person } from "../people/person";
-import type { Crowd, Palette } from "../people/rig";
-import type { CampPart } from "./parts";
+import type { HumanSpec } from "../../characters/archetype";
+import type { HumanCrowd } from "../../characters/crowd";
+import { PEOPLE, wardrobe } from "../../characters/presets";
+import type { HeldProps, PropHandle } from "../../characters/props";
+import type { Dress } from "../../characters/slots";
+import {
+  armsUp,
+  commitLooking,
+  kiteTug,
+  overlay,
+  placeStone,
+  play,
+  pointUp,
+  sipSeated,
+  stretch,
+  warmHands,
+} from "../gente/overlay";
+import { rng } from "../people/models";
+import { Npc, type NpcFrame } from "../people/npc";
+import { angleDamp, damp } from "../people/person";
 import { type P2, PLAY_HOURS, routeStart, STALL_HOURS, within } from "./plan";
 
 export interface FolkCtx {
@@ -26,6 +44,8 @@ export interface FolkCtx {
   jump: boolean;
   seen(x: number, y: number, z: number, max?: number): boolean;
   groundAt(x: number, z: number): number;
+  /** The traveler (people glance at them when close). */
+  avatar: THREE.Vector3;
 }
 
 /** World-frame anchors (precomputed from plan.ts by the module). */
@@ -56,31 +76,18 @@ const LEAVE_WAIT = 12;
 /** Walking home for this long (s) and still not there (blocked): vanish anyway. */
 const LEAVE_GIVE_UP = 60;
 
-type Wear = Array<PartName | CampPart>;
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
+type Person = Npc;
 
 function makePerson(
-  crowd: Crowd,
+  crowd: HumanCrowd,
   kind: string,
-  wear: Wear,
-  palette: Palette,
+  spec: HumanSpec,
+  palette: Dress,
   scale: number,
   seed: number,
   radius: number,
-  headScale = 1,
 ) {
-  const p = new Person({
-    kind,
-    crowd,
-    idx: crowd.alloc(),
-    wear: wear as PartName[],
-    palette,
-    scale,
-    headScale,
-    radius,
-    seed,
-  });
-  return p;
+  return new Npc({ kind, crowd, spec, palette, scale, radius, seed });
 }
 
 // ------------------------------------------------------------------------------------------ travellers
@@ -95,9 +102,8 @@ interface Traveller {
   nextStretch: number;
   nextTrip: number;
   carrying: boolean;
-  wear: Wear;
-  wearStone: Wear;
-  palette: Palette;
+  /** The stone for the apacheta (shown while carried). */
+  stone: PropHandle | null;
 }
 
 export interface Folk {
@@ -115,29 +121,37 @@ export interface Folk {
 }
 
 export function createFolk(
-  crowd: Crowd,
+  crowd: HumanCrowd,
+  held: HeldProps,
   spots: FolkSpots,
   n: { travellers: number; kids: number },
   onStone: () => void,
 ): Folk {
   const R = rng(7331);
   const all: Person[] = [];
+  const nf: NpcFrame = { dt: 0, clock: 0, rm: false, avatar: new THREE.Vector3() };
+  const look = new THREE.Vector3();
+  /** Animate and draw (the people glance at the traveler within ~6 u). */
+  const commit = (p: Person, c: FolkCtx) => {
+    nf.dt = c.dt;
+    nf.clock = c.clock;
+    nf.rm = c.rm;
+    nf.avatar.copy(c.avatar);
+    p.commit(nf);
+  };
 
   // ---------------------------------------------------------------- travellers
   const roles: TRole[] = n.travellers >= 3 ? ["sip", "stretch", "warm"] : ["sip", "stretch"];
   const tripper = roles.length - 1;
   const travellers: Traveller[] = roles.map((role, i) => {
     const man = i !== 1;
-    const hat: PartName = man ? (i === 0 ? "chullo" : "sombrero") : "montera";
-    const base: Wear = [...(man ? MAN : WOMAN), hat];
-    const wear: Wear = role === "sip" ? [...base, "cup"] : base;
-    const palette: Palette = [
-      pick(R, SKINS),
-      man ? pick(R, PONCHOS) : pick(R, POLLERAS),
-      pick(R, WEAVES),
-      pick(R, DARKS),
-    ];
-    const p = makePerson(crowd, "traveler-npc", wear, palette, man ? 1.02 : 0.95, 31 + i * 17.3, 0.32);
+    const spec = man ? (i === 0 ? PEOPLE.campesino : PEOPLE.campesinoFelt) : PEOPLE.campesina;
+    const palette = man ? wardrobe.andeanMan(R, false, i !== 0) : wardrobe.andeanWoman(R);
+    const p = makePerson(crowd, "traveler-npc", spec, palette, man ? 1.02 : 1, 31 + i * 17.3, 0.32);
+    // Bundles beside them on the ground are static props; the sipper holds a clay cup of api.
+    if (role === "sip") p.hold(held, "cup", "#b5653b");
+    const stone = i === roles.length - 1 ? p.hold(held, "stone", "#9a9184") : null;
+    stone?.show(false);
     all.push(p);
     return {
       p,
@@ -146,9 +160,7 @@ export function createFolk(
       nextStretch: 14 + R() * 20 + i * 9,
       nextTrip: 30 + R() * 25,
       carrying: false,
-      wear,
-      wearStone: [...wear, "stone"],
-      palette,
+      stone,
     };
   });
 
@@ -160,60 +172,40 @@ export function createFolk(
     t.p.timer = 0;
     if (t.carrying) {
       t.carrying = false;
-      crowd.wear(t.p.idx, t.wear, t.palette);
+      t.stone?.show(false);
     }
   };
   for (const t of travellers) seatTraveller(t);
 
   const sitPose = (t: Traveller, c: FolkCtx) => {
     const p = t.p;
-    const b = p.bones;
     const s = spots.seats[t.seat] as FolkSpots["seats"][number];
-    p.rest(c.clock, c.rm);
-    const seatH = Math.max(0.03, s.top - p.y);
-    const pelvis = 0.55 * p.scale;
-    b.hips.position.y = seatH - pelvis + 0.02;
-    if (s.stone) {
-      // On a stone: thighs angle down to the feet on the grass.
-      const drop = Math.min(0.95, Math.max(0, (seatH + 0.02) / pelvis));
-      const ang = -(Math.PI / 2 - Math.asin(drop));
-      b.legL.rotation.set(ang, 0, 0.1);
-      b.legR.rotation.set(ang - 0.08, 0, -0.1);
-    } else {
-      b.legL.rotation.set(-1.42, 0, 0.16);
-      b.legR.rotation.set(-1.42, 0, -0.16);
-    }
+    // On a stone: a low seat, feet on the grass; on the manta: cross-legged.
+    if (s.stone) play(p, "sit-stool", { seat: Math.max(0.05, s.top - p.y), fade: 0.5 });
+    else play(p, "sit-cross", { fade: 0.5 });
     const night = !within(c.time, 0.27, 0.73);
-    if (!c.rm) b.head.rotation.y = Math.sin(c.clock * 0.27 + p.seed) * 0.3;
+    // Eyes drift between the fire and the view.
+    look.set(spots.fire.x, p.y + 0.4, spots.fire.z);
+    if (!c.rm) look.x += Math.sin(c.clock * 0.27 + p.seed) * 2.5;
+    nf.dt = c.dt;
+    nf.clock = c.clock;
+    nf.rm = c.rm;
+    commitLooking(p, nf, look);
     if (t.role === "sip") {
       // Hold the cup at the chest; every few seconds lift it to drink.
       const k = (c.clock + p.seed * 3) % 7.5;
       const lift = c.rm ? 0 : k < 0.6 ? k / 0.6 : k < 2.6 ? 1 : k < 3.2 ? 1 - (k - 2.6) / 0.6 : 0;
       const e = lift * lift * (3 - 2 * lift);
-      b.armR.rotation.set(-1.1 - e * 1.2, 0, 0.35 + e * 0.15);
-      b.armL.rotation.set(-0.55, 0, 0.3);
-      b.head.rotation.x = -0.25 * e;
-      b.torso.rotation.x = 0.06 - 0.08 * e;
+      overlay(p.member, (b) => sipSeated(b, e));
     } else if (t.role === "warm" || night) {
-      // Hands out to the fire.
       const w = c.rm ? 0 : Math.sin(c.clock * 0.9 + p.seed) * 0.06;
-      b.torso.rotation.x = 0.16;
-      b.armL.rotation.set(-1.25 + w, 0, -0.18);
-      b.armR.rotation.set(-1.25 - w, 0, 0.18);
-      b.head.rotation.x = 0.08;
-    } else {
-      // Leaning back on the hands.
-      b.torso.rotation.x = -0.2;
-      b.armL.rotation.set(0.5, 0, 0.35);
-      b.armR.rotation.set(0.5, 0, -0.35);
+      overlay(p.member, (b) => warmHands(b, w));
     }
-    p.commit();
   };
 
   const stepTraveller = (t: Traveller, c: FolkCtx, i: number) => {
     const p = t.p;
     const dt = c.dt;
-    const b = p.bones;
     const s = spots.seats[t.seat] as FolkSpots["seats"][number];
     const day = within(c.time, 0.28, 0.72);
     p.timer -= dt;
@@ -229,7 +221,7 @@ export function createFolk(
         if (i === tripper && t.nextTrip <= 0) {
           t.nextTrip = 55 + R() * 45;
           t.carrying = true;
-          crowd.wear(p.idx, t.wearStone, t.palette);
+          t.stone?.show(true);
           p.state = "toCairn";
         } else if (t.nextStretch <= 0 && t.role === "stretch") {
           t.nextStretch = 26 + R() * 22;
@@ -270,7 +262,7 @@ export function createFolk(
         p.face(spots.cairn.x, spots.cairn.z, dt, 6);
         if (t.carrying && p.timer < 1.2) {
           t.carrying = false;
-          crowd.wear(p.idx, t.wear, t.palette);
+          t.stone?.show(false);
           onStone();
         }
         if (p.timer <= 0) p.state = "back";
@@ -282,31 +274,17 @@ export function createFolk(
       }
     }
     p.y = c.groundAt(p.x, p.z);
-    p.rest(c.clock, c.rm);
-    p.gait(dt, c.rm);
+    play(p, t.carrying && p.state !== "place" ? "carry-hand" : "none", { fade: 0.3 });
+    commit(p, c);
     if (p.state === "stretch") {
       // Rise onto the toes, arms overhead, a slow lean back and a twist.
       const k = 1 - Math.max(0, p.timer) / 5.5;
-      const up = Math.sin(Math.min(1, k * 1.25) * Math.PI);
-      b.armL.rotation.set(-2.95 * up, 0, 0.25 * up + 0.08);
-      b.armR.rotation.set(-2.95 * up, 0, -0.25 * up - 0.08);
-      b.torso.rotation.x = -0.18 * up;
-      b.head.rotation.x = -0.3 * up;
-      if (!c.rm) b.torso.rotation.y = Math.sin(k * Math.PI * 2) * 0.25 * up;
-      b.hips.position.y = 0.03 * up;
+      overlay(p.member, (b) => stretch(b, k, c.rm));
     } else if (p.state === "place") {
       // Stoop and set the stone on the cairn.
       const k = 1 - Math.max(0, p.timer) / 2.6;
-      const bend = Math.sin(Math.min(1, k * 1.4) * Math.PI);
-      b.torso.rotation.x = 0.55 * bend;
-      b.armR.rotation.set(-0.6 - 0.7 * bend, 0, 0.1);
-      b.armL.rotation.set(-0.3 * bend, 0, 0.12);
-      b.head.rotation.x = 0.25 * bend;
-    } else if (t.carrying) {
-      b.armR.rotation.set(-0.9, 0, 0.15);
+      overlay(p.member, (b) => placeStone(b, k));
     }
-    if (t.role === "sip" && p.state !== "sit") b.armR.rotation.set(-1.0, 0, 0.3);
-    p.commit();
   };
 
   // ---------------------------------------------------------------- route (vendor and children)
@@ -347,9 +325,9 @@ export function createFolk(
     (p.v < route.length - 1 && !seenAt(c, p.x, p.z)) || waited > LEAVE_WAIT || -p.timer > LEAVE_GIVE_UP;
 
   // ---------------------------------------------------------------- vendor
-  const vPal: Palette = [pick(R, SKINS), pick(R, POLLERAS), pick(R, WEAVES), pick(R, DARKS)];
-  const vWear: Wear = [...WOMAN, "montera", "ladle"];
-  const vendor = makePerson(crowd, "vendor", vWear, vPal, 0.94, 77.7, 0.34);
+  const vendor = makePerson(crowd, "vendor", PEOPLE.campesina, wardrobe.andeanWoman(R), 0.97, 77.7, 0.34);
+  // The long wooden ladle (wislla) for stirring and serving the api.
+  vendor.hold(held, "ladle", "#7a5233");
   all.push(vendor);
   vendor.state = "home";
   let vendorWait = 0;
@@ -370,7 +348,6 @@ export function createFolk(
   const stepVendor = (c: FolkCtx) => {
     const p = vendor;
     const dt = c.dt;
-    const b = p.bones;
     const open = within(c.time, STALL_HOURS[0], STALL_HOURS[1]);
     p.timer -= dt;
     switch (p.state) {
@@ -435,43 +412,19 @@ export function createFolk(
       }
     }
     p.y = c.groundAt(p.x, p.z);
-    p.rest(c.clock, c.rm);
-    p.gait(dt, c.rm);
-    if (p.state === "work") {
-      if (p.u === 0) {
-        // Stir the api with the long ladle: small circles over the pot.
-        const a = c.rm ? 0 : c.clock * 2.4;
-        b.torso.rotation.x = 0.22;
-        b.armR.rotation.set(-0.95 + Math.sin(a) * 0.12, Math.cos(a) * 0.15, 0.12);
-        b.armL.rotation.set(-0.35, 0, 0.12);
-        b.head.rotation.x = 0.3;
-      } else if (p.u === 1) {
-        // Ladle a cup.
-        const k = 1 - Math.max(0, p.timer) / 2.4;
-        b.torso.rotation.x = 0.18;
-        b.armR.rotation.set(-1.05 + Math.sin(k * Math.PI) * 0.3, 0, 0.2);
-        b.armL.rotation.set(-0.95, 0, -0.15);
-        b.head.rotation.x = 0.25;
-      } else {
-        b.armL.rotation.set(-0.5, 0, -0.2);
-        b.armR.rotation.set(-0.45, 0, 0.25);
-      }
-    } else b.armR.rotation.set(-0.2, 0, -0.1);
-    p.commit();
+    // Work: stir the pot with the ladle, ladle a cup at the stall, then stand looking out over the plaza.
+    play(p, p.state !== "work" ? "none" : p.u === 2 ? "hands-clasp" : "stir", { fade: 0.4 });
+    commit(p, c);
   };
 
   // ---------------------------------------------------------------- children
   const kids: Person[] = Array.from({ length: n.kids }, (_, i) => {
     const boy = i % 2 === 0;
-    const wear: Wear = boy ? [...MAN, "chullo"] : [...WOMAN];
-    if (i === 0) wear.push("spool");
-    const palette: Palette = [
-      pick(R, SKINS),
-      boy ? pick(R, PONCHOS) : pick(R, POLLERAS),
-      pick(R, WEAVES),
-      pick(R, DARKS),
-    ];
-    const p = makePerson(crowd, "child", wear, palette, 0.6 + R() * 0.07, 91 + i * 13.1, 0.26, 1.3);
+    const spec = boy ? PEOPLE.wawaBoy : PEOPLE.wawaGirl;
+    const palette = boy ? wardrobe.andeanMan(R) : wardrobe.andeanWoman(R);
+    const p = makePerson(crowd, "child", spec, palette, 0.95 + R() * 0.1, 91 + i * 13.1, 0.26);
+    // The holder winds the kite string on a spool.
+    if (i === 0) p.hold(held, "spool", "#c4383f");
     p.state = "home";
     p.u = i * 2.1; // runner's angle
     all.push(p);
@@ -509,8 +462,7 @@ export function createFolk(
 
   const stepKid = (k: Person, i: number, c: FolkCtx) => {
     const dt = c.dt;
-    const b = k.bones;
-    const play = within(c.time, PLAY_HOURS[0], PLAY_HOURS[1]);
+    const playing = within(c.time, PLAY_HOURS[0], PLAY_HOURS[1]);
     const w = spots.wind;
     k.timer -= dt;
     switch (k.state) {
@@ -522,7 +474,7 @@ export function createFolk(
           k.state = "play";
           k.timer = 4 + i * 2;
         }
-        if (!play) {
+        if (!playing) {
           k.state = "toHome";
           startRoute(k, false);
         }
@@ -530,7 +482,7 @@ export function createFolk(
       }
       case "toHome": {
         const d = followRoute(k, false, spots.home.x + i * 0.6, spots.home.z, 1.6, dt);
-        if (play) {
+        if (playing) {
           k.state = "toPlay";
           startRoute(k, true);
         } else if (canVanish(c, k, 0)) {
@@ -547,7 +499,7 @@ export function createFolk(
         // Waiting at home, out of the way, until nobody looks (or a short while).
         k.speed = damp(k.speed, 0, 6, dt);
         k.resolve(0.3);
-        if (play) {
+        if (playing) {
           k.state = "toPlay";
           startRoute(k, true);
         } else if (canVanish(c, k, -k.timer)) {
@@ -559,7 +511,7 @@ export function createFolk(
       }
       default: {
         // play
-        if (!play) {
+        if (!playing) {
           k.state = "toHome";
           startRoute(k, false);
           break;
@@ -592,36 +544,20 @@ export function createFolk(
       }
     }
     k.y = c.groundAt(k.x, k.z);
-    k.rest(c.clock, c.rm);
-    k.gait(dt, c.rm);
+    // Holder: string up, tugging. Runner: circling, or stopping to point up with a skip. Watcher: sitting on
+    // the grass, then up hopping and cheering.
+    const pointing = k.state === "play" && i === 1 && k.timer <= 0 && !c.rm;
+    const sitting = k.state === "play" && i >= 2 && k.timer > 0;
+    const cheering = k.state === "play" && i >= 2 && k.timer <= 0;
+    play(k, sitting ? "sit-ground" : (pointing || cheering) && !c.rm ? "hop" : "none", { fade: 0.3 });
+    commit(k, c);
     if (k.state === "play") {
       if (i === 0) {
         const tug = c.rm ? 0 : Math.max(0, Math.sin(c.clock * 1.7)) * 0.25;
-        b.armR.rotation.set(-1.95 + tug, 0, 0.2);
-        b.armL.rotation.set(-1.75 + tug * 0.6, 0, -0.25);
-        b.torso.rotation.x = -0.1 - tug * 0.2;
-        b.head.rotation.x = -0.45;
-      } else if (i === 1 && k.timer <= 0 && !c.rm) {
-        // Point up at the kite with a little hop.
-        b.armR.rotation.set(-2.7, 0, -0.1);
-        b.head.rotation.x = -0.5;
-        b.hips.position.y = Math.abs(Math.sin(c.clock * 7)) * 0.07;
-      } else if (i === 1) {
-        b.head.rotation.x = -0.2;
-      } else if (k.timer > 0) {
-        k.sit(c.clock, c.rm, 0.05);
-        b.armL.rotation.set(0.45, 0, 0.3);
-        b.armR.rotation.set(0.45, 0, -0.3);
-        b.head.rotation.x = -0.4;
-      } else {
-        const hop = c.rm ? 0 : Math.abs(Math.sin(c.clock * 6.5));
-        b.hips.position.y = hop * 0.1;
-        b.armL.rotation.set(-2.8, 0, 0.3);
-        b.armR.rotation.set(-2.8, 0, -0.3);
-        b.head.rotation.x = -0.45;
-      }
+        overlay(k.member, (b) => kiteTug(b, tug));
+      } else if (pointing) overlay(k.member, pointUp);
+      else if (cheering) overlay(k.member, armsUp);
     }
-    k.commit();
   };
 
   // ---------------------------------------------------------------- group driver
@@ -630,6 +566,7 @@ export function createFolk(
   let shownNow = true;
   let frame = 0;
   const hand = new THREE.Vector3();
+  const handM = new THREE.Matrix4();
   const kite = { hand, x: 0, z: 0, flying: false };
 
   const snapAll = (c: FolkCtx) => {
@@ -685,7 +622,8 @@ export function createFolk(
       }
       if (visible !== shownNow) {
         shownNow = visible;
-        if (!visible) for (const p of all) p.hide();
+        // Out of view: not drawn (props follow their holder); back in view: shown again if they are out.
+        for (const p of all) p.member.show(visible && p.active);
       }
       if (!visible) {
         // Far away: keep the schedule (cheap) about twice a second, by snapping.
@@ -708,7 +646,7 @@ export function createFolk(
       const h = kids[0];
       kite.flying = !!h && h.active && h.state === "play";
       if (h?.active) {
-        h.bones.handR.getWorldPosition(hand);
+        hand.setFromMatrixPosition(h.member.boneWorld("handR", handM));
         kite.x = h.x;
         kite.z = h.z;
       }

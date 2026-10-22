@@ -2,27 +2,32 @@
  * Eared doves (tórtolas, native to the Andes) on Haukaypata's flagstones: a small flock pecking and hopping
  * by day; when the traveler comes within FLEE_R a dove (and its neighbours) takes off in a flapping arc and
  * lands on open flagstones away from them (./doves/logic.ts). At night they are gone (roosting). With
- * prefers-reduced-motion they still move away, gliding without wing beats.
+ * prefers-reduced-motion they still move away (the bird animator calms its wing beats).
  *
- * Two instanced meshes for the whole flock (bodies; wings, two per dove), no outline on the small wings.
+ * The doves are ONE flock of the shared eared dove (../../characters/animals, species "dove": one instanced
+ * draw per LOD, far ones not drawn): this module runs the flock's sim and hands each bird its state (on the
+ * ground or in the air, speed, climb and height), and the bird animator does the rest: head-bobbing walk and
+ * pecks while grounded, take-off, flapping, gliding and landing (../../characters/animals/flight.ts).
  */
-import * as THREE from "three";
+import { prefetchAnimals } from "../../characters/animals/assets";
+import { createHerd } from "../../characters/animals/crowd";
 import type { Ambient, CreateAmbient } from "../../contract";
-import { mergeColored, vertexToon } from "../../merge-colors";
-import { paintStrength } from "../../style-gl";
 import { FLEE_R, flightAt, flightTime, pickLanding, type Spot, shouldFlee } from "./doves/logic";
 import { isDay } from "./life/logic";
 
 interface Dove {
+  id: number;
   x: number;
   z: number;
+  y: number;
   yaw: number;
   state: "ground" | "fly";
   from: Spot;
   to: Spot;
   t: number;
   dur: number;
-  peck: number;
+  /** Seconds to the next hop decision, and the hop in progress (seconds left). */
+  next: number;
   hop: number;
 }
 
@@ -36,56 +41,18 @@ function rng(seed: number) {
   };
 }
 
-function bodyGeometry(): THREE.BufferGeometry | null {
-  const body = new THREE.SphereGeometry(0.11, 8, 6);
-  body.scale(0.85, 0.8, 1.35);
-  body.translate(0, 0.13, 0);
-  const head = new THREE.SphereGeometry(0.06, 7, 5);
-  head.translate(0, 0.22, 0.13);
-  const beak = new THREE.ConeGeometry(0.015, 0.05, 4);
-  beak.rotateX(Math.PI / 2);
-  beak.translate(0, 0.21, 0.2);
-  const tail = new THREE.BoxGeometry(0.07, 0.015, 0.14);
-  tail.translate(0, 0.14, -0.18);
-  const parts = [
-    { geometry: body, color: new THREE.Color("#b39b86") },
-    { geometry: head, color: new THREE.Color("#a68c78") },
-    { geometry: beak, color: new THREE.Color("#2b2420") },
-    { geometry: tail, color: new THREE.Color("#7f6a59") },
-  ];
-  const g = mergeColored(parts);
-  for (const p of parts) p.geometry.dispose();
-  return g;
-}
-
-function wingGeometry(): THREE.BufferGeometry {
-  // One wing along +X from the shoulder (a flat tapered quad pair).
-  const g = new THREE.BufferGeometry();
-  const v = [0, 0, 0.06, 0.2, 0, 0.04, 0.2, 0, -0.06, 0, 0, -0.08];
-  g.setAttribute("position", new THREE.Float32BufferAttribute(v, 3));
-  g.setIndex([0, 1, 2, 0, 2, 3]);
-  g.computeVertexNormals();
-  return g;
-}
+/** A hop on the ground: how long, and how fast it carries the dove. */
+const HOP_SECS = 0.25;
+const HOP_V = 0.8;
 
 export const create: CreateAmbient = (env): Ambient => {
   const R = rng(0xd0e);
   const n = env.quality === "high" ? 14 : 9;
-  // Moving bodies: no world-space paint (it would slide over the plumage).
-  const mat = paintStrength(vertexToon(), 0);
-  const geo = bodyGeometry() ?? new THREE.BoxGeometry(0.2, 0.2, 0.3);
-  const bodies = new THREE.InstancedMesh(geo, mat, n);
-  bodies.name = "cusco-doves";
-  bodies.frustumCulled = false;
-  const wingGeo = wingGeometry();
-  const wingMat = env.toon("#8e7a68").clone();
-  wingMat.side = THREE.DoubleSide;
-  paintStrength(wingMat, 0);
-  const wings = new THREE.InstancedMesh(wingGeo, wingMat, n * 2);
-  wings.name = "cusco-doves:wings";
-  wings.frustumCulled = false;
-  env.noOutline(wings);
-  env.scene.add(bodies, wings);
+  prefetchAnimals(["dove"], [2, 1, 0]);
+  const flock = createHerd("dove", { max: n, lodScale: env.quality === "low" ? 0.8 : 1 });
+  flock.group.name = "cusco-doves";
+  env.scene.add(flock.group);
+  const rm = env.reducedMotion;
 
   // Two groups pecking near the usnu's south and north-west.
   const doves: Dove[] = Array.from({ length: n }, (_, i) => {
@@ -93,30 +60,20 @@ export const create: CreateAmbient = (env): Ambient => {
     const x = c.x + (R() - 0.5) * 6;
     const z = c.z + (R() - 0.5) * 5;
     return {
+      id: flock.add({ seed: 5 + i * 11 }),
       x,
       z,
+      y: 0,
       yaw: R() * 6.28,
       state: "ground",
       from: { x, z },
       to: { x, z },
       t: 0,
       dur: 1,
-      peck: R() * 3,
+      next: R() * 3,
       hop: 0,
     };
   });
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const e = new THREE.Euler();
-  const p = new THREE.Vector3();
-  const s = new THREE.Vector3(1, 1, 1);
-  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
-  const wingM = new THREE.Matrix4();
-  const mirror = new THREE.Matrix4().makeScale(-1, 1, 1);
-  const shoulder = new THREE.Matrix4();
-  const rm = env.reducedMotion;
-  let clock = 0;
-  let shown = true;
 
   const takeOff = (d: Dove, avatar: Spot) => {
     d.state = "fly";
@@ -126,29 +83,29 @@ export const create: CreateAmbient = (env): Ambient => {
     d.dur = flightTime(Math.hypot(d.to.x - d.x, d.to.z - d.z));
   };
 
+  let clock = 0;
+  let shown = true;
   return {
     update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
       clock += dt;
-      const day = isDay(env.sky.time());
-      if (!day) {
+      if (!isDay(env.sky.time())) {
         if (shown) {
-          bodies.visible = false;
-          wings.visible = false;
+          for (const d of doves) flock.hide(d.id);
+          flock.update(dt, clock, env.camera);
+          flock.group.visible = false;
           shown = false;
         }
         return;
       }
       if (!shown) {
-        bodies.visible = true;
-        wings.visible = true;
+        flock.group.visible = true;
         shown = true;
       }
-      const near = Math.hypot(env.camera.position.x - 0, env.camera.position.z - 0) < 140;
       doves.forEach((d, i) => {
-        let y = 0;
-        let flap = 0;
-        let pitch = 0;
+        const x0 = d.x;
+        const z0 = d.z;
+        const y0 = d.y;
         if (d.state === "ground") {
           if (shouldFlee(d, avatar)) {
             takeOff(d, avatar);
@@ -156,23 +113,21 @@ export const create: CreateAmbient = (env): Ambient => {
             for (const o of doves)
               if (o !== d && o.state === "ground" && Math.hypot(o.x - d.x, o.z - d.z) < FLEE_R) takeOff(o, avatar);
           } else {
-            d.peck -= dt;
-            if (d.peck < 0) {
-              d.peck = 0.6 + R() * 2.4;
-              // A small hop now and then, turning.
+            // Now and then a small hop, turning (the animator pecks and bobs in between).
+            d.next -= dt;
+            if (d.next < 0) {
+              d.next = 0.6 + R() * 2.4;
               if (R() < 0.35) {
-                d.hop = 0.25;
+                d.hop = HOP_SECS;
                 d.yaw += (R() - 0.5) * 1.6;
               }
             }
             if (d.hop > 0) {
               d.hop -= dt;
-              const k = Math.max(0, d.hop) / 0.25;
-              y = Math.sin(k * Math.PI) * 0.06;
-              d.x += Math.sin(d.yaw) * dt * 0.8;
-              d.z += Math.cos(d.yaw) * dt * 0.8;
+              d.x += Math.sin(d.yaw) * dt * HOP_V;
+              d.z += Math.cos(d.yaw) * dt * HOP_V;
             }
-            pitch = !rm && d.peck < 0.35 ? 0.5 : 0;
+            d.y = 0;
           }
         }
         if (d.state === "fly") {
@@ -181,49 +136,28 @@ export const create: CreateAmbient = (env): Ambient => {
           d.x = f.x;
           d.z = f.z;
           d.yaw = f.yaw;
-          y = f.y;
-          flap = rm ? 0.2 : Math.sin(clock * 26 + i) * 0.9;
+          d.y = f.y;
           if (d.t >= 1) {
             d.state = "ground";
-            d.peck = 1 + R();
+            d.y = 0;
+            d.next = 1 + R();
           }
         }
-        if (!near) {
-          bodies.setMatrixAt(i, zero);
-          wings.setMatrixAt(i * 2, zero);
-          wings.setMatrixAt(i * 2 + 1, zero);
-          return;
-        }
-        q.setFromEuler(e.set(pitch, d.yaw, 0, "YXZ"));
-        p.set(d.x, y, d.z);
-        m.compose(p, q, s);
-        bodies.setMatrixAt(i, m);
-        // Wings only show in flight (on the ground they are folded into the body's shape).
-        for (const side of [-1, 1]) {
-          const slot = i * 2 + (side < 0 ? 0 : 1);
-          if (d.state !== "fly") {
-            wings.setMatrixAt(slot, zero);
-            continue;
-          }
-          wingM.makeRotationZ(0.35 + flap);
-          if (side < 0) wingM.premultiply(mirror);
-          wingM.premultiply(shoulder.makeTranslation(side * 0.05, 0.17, 0.02));
-          wingM.premultiply(m);
-          wings.setMatrixAt(slot, wingM);
-        }
+        const air = d.state === "fly";
+        const speed = dt > 0 ? Math.hypot(d.x - x0, d.z - z0) / dt : 0;
+        flock.set(d.id, d.x, d.y, d.z, d.yaw, {
+          speed,
+          rm,
+          grounded: !air,
+          vy: dt > 0 ? (d.y - y0) / dt : 0,
+          height: d.y,
+        });
       });
-      bodies.instanceMatrix.needsUpdate = true;
-      wings.instanceMatrix.needsUpdate = true;
+      flock.update(dt, clock, env.camera);
     },
     dispose() {
-      bodies.removeFromParent();
-      wings.removeFromParent();
-      bodies.dispose();
-      wings.dispose();
-      geo.dispose();
-      wingGeo.dispose();
-      mat.dispose();
-      wingMat.dispose();
+      flock.group.removeFromParent();
+      flock.dispose();
     },
   };
 };

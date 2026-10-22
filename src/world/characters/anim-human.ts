@@ -124,6 +124,7 @@ export class HumanAnimator {
   private pose: Pose = emptyPose();
   private pctx: PoseCtx = { t: 0, phase: 0, speed: 0, rm: false, side: 1, seat: 0, seed: 0 };
   private curDefines = new Set<string>();
+  private skirtW = 0;
   readonly b: Record<string, THREE.Bone>;
   private rest: Record<string, THREE.Vector3>;
 
@@ -194,10 +195,16 @@ export class HumanAnimator {
     const ampK = rm ? 0.6 : 1;
 
     // ---------------------------------------------------------------- pelvis
-    const duty = mix(0.6, 0.38, this.runW);
+    // Faster than a person can stride (the traveler's game speeds), shorter stance and the longest reachable
+    // stride keep the stance foot sliding as little as possible without speeding the legs into a blur.
+    const hurry = virtual
+      ? 0
+      : ss(st.walkSpeed * 1.2, st.walkSpeed * 2.8, speed) * (1 - this.runW) +
+        ss(st.runSpeed, st.runSpeed * 2, speed) * this.runW;
+    const duty = mix(mix(0.6, 0.38, this.runW), mix(0.52, 0.32, this.runW), hurry);
     const half = virtual
       ? (duty * cycle) / 2
-      : strideHalf(speed, Math.max(cad, 1e-3), duty, mix(0.27, 0.3, this.runW) * k);
+      : strideHalf(speed, Math.max(cad, 1e-3), duty, mix(0.31, 0.33, this.runW) * k);
     const pv = pelvis(this.phase, walkW * (1 - this.runW), runW);
     const breath = Math.sin(t * (rm ? 1.4 : 2.1) + this.seed);
     const idleW = 1 - this.walkW;
@@ -324,6 +331,7 @@ export class HumanAnimator {
 
     // ---------------------------------------------------------------- action layers
     let headOwned = false;
+    let legsW = 0;
     let face: Pose["face"] = null;
     const layers = this.mixer.layers();
     const pc = this.pctx;
@@ -369,6 +377,7 @@ export class HumanAnimator {
         qHips.setFromEuler(eA.set(h.rx, h.ry, h.rz, "ZXY"));
         hips.quaternion.slerp(qHips, w);
       }
+      if (p.legs) legsW += l.weight;
       if (p.head && l.weight > 0.5) headOwned = true;
       if (p.face && l.weight > 0.5) face = p.face;
     }
@@ -423,6 +432,31 @@ export class HumanAnimator {
         if (sp.dir === "down") bone.rotation.set(-p, 0, r);
         else bone.rotation.set(p, 0, -r);
       }
+    }
+
+    // ---------------------------------------------------------------- skirts over posed legs
+    // Sitting, kneeling, paddling: the skirt (pollera, cushma, wrap skirt) leans forward over the thighs and
+    // opens a little, so the knees stay under the cloth instead of poking through it.
+    const skirt = this.b.skirt;
+    if (skirt) {
+      const want = Math.min(1, legsW);
+      this.skirtW = damp(this.skirtW, want, 8, dt);
+      if (this.skirtW > 0.001) {
+        let fwd = 0;
+        let spread = 0;
+        for (const n of ["thighL", "thighR"]) {
+          const th = this.b[n];
+          if (!th) continue;
+          v3.set(0, -1, 0).applyQuaternion(th.quaternion);
+          fwd += Math.atan2(v3.z, Math.max(1e-3, -v3.y)) * 0.5;
+          spread += Math.abs(v3.x) * 0.5;
+        }
+        const w = this.skirtW;
+        qA.setFromEuler(eA.set(-Math.max(0, fwd) * 0.55 * w, 0, 0, "XYZ"));
+        skirt.quaternion.premultiply(qA);
+        const open = 1 + w * (0.12 + 0.35 * Math.min(1, Math.max(0, fwd) / 1.4) + 0.4 * spread);
+        skirt.scale.set(open, 1 - w * 0.12 * Math.min(1, Math.max(0, fwd) / 1.4), open);
+      } else skirt.scale.set(1, 1, 1);
     }
 
     // ---------------------------------------------------------------- face

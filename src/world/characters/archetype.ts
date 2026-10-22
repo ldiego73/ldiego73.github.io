@@ -225,7 +225,12 @@ export function bodyPaint(spec: HumanSpec): BodyPaint {
     chest = {
       stops: [-5, 0.82],
       slots: [HS.skin, HS.wrap, HS.wrapR],
-      at: (p) => Math.sin(Math.atan2(p[0], p[2]) * 10) - Math.max(0, p[1] - 1.15) * 220,
+      // Stripes fade out toward the shoulders (where the surface turns fast around the clavicles the angle
+      // scalar would fray them): a stripe needs |sin| > 0.82, so scaling it down there just ends it cleanly.
+      at: (p) => {
+        const fade = 1 - Math.min(1, Math.max(0, (Math.abs(p[0]) - 0.1) / 0.05));
+        return Math.sin(Math.atan2(p[0], p[2]) * 8) * fade - Math.max(0, p[1] - 1.15) * 220;
+      },
     };
   } else if (top.kind === "bare") chest = { stops: [], slots: [HS.skin] };
   // ---- arms: skin | cuff | sleeve
@@ -488,7 +493,8 @@ export function composeHuman(spec: HumanSpec, lod: Lod = 0): Composed {
     : layers.some((l) => l.kind === "poncho")
       ? 0.03
       : 0.012;
-  take(hair(ctx, spec.hair, { over: overBack }));
+  const brim = spec.hat !== undefined && !NO_BRIM.has(spec.hat);
+  take(hair(ctx, spec.hair, { over: overBack, underBrim: brim }));
   if (spec.hat) take(hat(ctx, spec.hat));
   for (const w of wornKinds) take(worn(ctx, w));
   if (spec.feet === "ojotas" || spec.feet === "sandals") pieces.push(...sandals(ctx, spec.feet));
@@ -576,6 +582,9 @@ function foldCloth(p: Piece): Piece {
   if (p.shade) out.shade = p.shade;
   return out;
 }
+
+/** Hats without a brim over the forehead (bangs still show under them). */
+const NO_BRIM = new Set<HatKind>(["chullo", "headband", "feather-crown"]);
 
 /** Every slot a cloth group uses (for palette checks). */
 export const clothSlots = (g: ClothGroup) => CLOTH_GROUPS[g];

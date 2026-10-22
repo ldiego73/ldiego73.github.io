@@ -23,9 +23,13 @@
  *    directly, so it is already crowded on arrival.
  * At night they roost: the snag birds sleep on their perches, the flyovers and the collpa flock are gone.
  *
- * Rendering: one bird-rig InstancedMesh per species (eight: wings and head in the vertex shader, frustum-culled
- * as a whole; the snag and flyover birds share the scarlet and blue-and-yellow sets) and one static mesh per
- * snag (drawn within ~260 u) → ≤ 10 draw calls (plus their ink pass), ≤ 8 at the collpa.
+ * Rendering: the shared animal core (wild/beasts.ts): one instanced flock per species at the collpa (eight,
+ * drawn larger than life to read across the river) and two for the snag and flyover macaws (scarlet,
+ * blue-and-yellow) → ≤ 10 instanced flocks (one draw per LOD in use each, frustum-culled), plus one static mesh
+ * per snag (drawn within ~260 u). Species "macaw" in its scarlet, blue-and-yellow and red-and-green coats and
+ * in the chestnut-fronted macaw's greens; the parrots and parakeets wear their own palettes on the same body
+ * (no parrot species in the core yet). The flight state machine takes the world's flight paths (height above
+ * the ground or the water, vertical speed); biting the clay is the "graze" peck, a squabble a "shake".
  * Bodies ("guacamayo", creatures.ts): listed for the soundscape and queries, never solid (they live in the air,
  * on the snags and on the wall).
  * Stamp `selva:fauna:guacamayo` after a ~1.5 s good look: within ~34 u at the collpa (the wall is across
@@ -41,12 +45,14 @@ import {
   planFlight,
   type Vec,
 } from "../../ambient/birds/sim";
+import { bpal } from "../../characters/animals/species/birds";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, PARKED, park } from "../../creatures";
 import { on } from "../../events";
 import { GeoBuilder } from "../../flora/geom";
 import { collpaCliff } from "./collpa/spot";
-import { FOLDED, macawModel, parrotModel, type WingModel, WingSet } from "./wild/birds";
+import { createBeasts } from "./wild/beasts";
+import { FOLDED } from "./wild/birds";
 import { devHook, idle, SiteProps, Spotter, selvaOf } from "./wild/kit";
 import {
   type CollpaSpecies,
@@ -74,19 +80,57 @@ type Act = "bite" | "look" | "hop" | "squab";
 /** Flight easing per leg: linear, in-out, ease-out (landing), ease-in (take-off). */
 type Curve = 0 | 1 | 2 | 3;
 
+/** Parrots and parakeets on the shared macaw body (palettes: back, head, bill, legs, belly, coverts, flight…). */
+const green = (head: string, o: Partial<Parameters<typeof bpal>[0]> = {}) =>
+  bpal({
+    back: "#3f9a3a",
+    head,
+    bill: "#2a2420",
+    legs: "#5a5048",
+    belly: "#6ab84a",
+    coverts: "#3f9a3a",
+    flight: "#2a5ab0",
+    tail: "#3f9a3a",
+    face: head,
+    accent: "#1e1a18",
+    ...o,
+  });
+
 /**
- * Species: model and instance scale. A little larger than life so the flock reads across the river at the
- * collpa (~27 u); the small parrots are exaggerated more but stay clearly smaller than the macaws.
+ * Species: the core species, its coat and the instance scale. A little larger than life so the flock reads
+ * across the river at the collpa (~27 u); the small parrots are exaggerated more but stay clearly smaller than
+ * the macaws.
  */
-const SPECIES: ReadonlyArray<{ key: CollpaSpecies; model: () => WingModel; scale: number }> = [
-  { key: "scarlet", model: () => macawModel("scarlet"), scale: 1.45 },
-  { key: "blue", model: () => macawModel("blue"), scale: 1.45 },
-  { key: "redgreen", model: () => macawModel("redgreen"), scale: 1.5 },
-  { key: "chestnut", model: () => macawModel("chestnut"), scale: 1.0 },
-  { key: "mealy", model: () => parrotModel("mealy"), scale: 1.2 },
-  { key: "bluehead", model: () => parrotModel("bluehead"), scale: 1.05 },
-  { key: "dusky", model: () => parrotModel("dusky"), scale: 1.0 },
-  { key: "whiteeye", model: () => parrotModel("whiteeye"), scale: 1.0 },
+const SPECIES: ReadonlyArray<{
+  key: CollpaSpecies;
+  coat: string | readonly string[];
+  scale: number;
+  /** Room a bird keeps on the wall (half its folded span, in the old models' scale). */
+  room: number;
+}> = [
+  { key: "scarlet", coat: "scarlet", scale: 1.45, room: 1.45 },
+  { key: "blue", coat: "blue-yellow", scale: 1.45, room: 1.45 },
+  { key: "redgreen", coat: "red-green", scale: 1.5, room: 1.5 },
+  // Chestnut-fronted macaw (Ara severus): green, a chestnut forehead, red under the wing.
+  {
+    key: "chestnut",
+    coat: green("#4a8a3a", { face: "#f2ece0", collar: "#7a3a1e", accent: "#1e1a18" }),
+    scale: 1.0,
+    room: 1.0,
+  },
+  // Mealy amazon: pale powdery green, a bit of blue on the crown.
+  {
+    key: "mealy",
+    coat: green("#7ab06a", { back: "#6aa85a", belly: "#8ac07a", bill: "#c8b8a0" }),
+    scale: 0.75,
+    room: 1.2,
+  },
+  // Blue-headed parrot: green, a blue head and a red vent.
+  { key: "bluehead", coat: green("#2a5ab0", { accent: "#c8302a" }), scale: 0.62, room: 1.05 },
+  // Dusky-headed parakeet: green, a grey-brown head.
+  { key: "dusky", coat: green("#7a7066", { flight: "#2a4a8a" }), scale: 0.55, room: 1.0 },
+  // White-eyed parakeet: green, red flecks on the head and under the wing.
+  { key: "whiteeye", coat: green("#3f9a3a", { face: "#c8302a", flight: "#c8b030" }), scale: 0.55, room: 1.0 },
 ];
 const SP = (k: CollpaSpecies) => SPECIES.findIndex((s) => s.key === k);
 /**
@@ -144,6 +188,11 @@ interface Macaw extends WallSpot {
   ca: number;
   cw: number;
   cy: number;
+  /** Index in its flock (wild/beasts.ts), last height and vertical speed (flight state), last act shown. */
+  k: number;
+  py: number;
+  vy: number;
+  lastAct: Act;
   body: Body;
 }
 
@@ -164,6 +213,7 @@ export const create: CreateAmbient = (env0): Ambient => {
   const env = selvaOf(env0);
   if (!env) return idle();
   const L = env.selva.layout;
+  const lv = L.river.level;
   const high = env.quality === "high";
   const rm = env.reducedMotion;
   const R = rng(7717);
@@ -252,7 +302,7 @@ export const create: CreateAmbient = (env0): Ambient => {
     cu: 0,
     cv: 0,
     // Clearance about half the folded span (macaws sit ~0.9 u apart, parakeets ~0.55 u).
-    rad: 0.32 * (SPECIES[sp]?.scale ?? 1) * (home === "collpa" ? COLLPA_BOOST : 1),
+    rad: 0.32 * (SPECIES[sp]?.room ?? 1) * (home === "collpa" ? COLLPA_BOOST : 1),
     held: false,
     mate: -1,
     group: -1,
@@ -270,6 +320,10 @@ export const create: CreateAmbient = (env0): Ambient => {
     cr: 6,
     ca: 0,
     cw: 1,
+    k: 0,
+    py: 0,
+    vy: 0,
+    lastAct: "look",
     cy: 0,
     body: creatures.add("guacamayo", 0.4, { solid: false, x: PARKED, z: PARKED }),
   });
@@ -301,12 +355,22 @@ export const create: CreateAmbient = (env0): Ambient => {
     b.mate = i % 2 === 0 ? birds.length + 1 : birds.length - 1;
     birds.push(b);
   }
-  const counts = SPECIES.map(() => 0);
-  for (const b of birds) counts[b.sp]!++;
-  const sets = SPECIES.map((s, i) => new WingSet(env, `selva-fauna-guacamayo-${s.key}`, s.model(), counts[i]!));
+  // One flock per species at the collpa (drawn larger), one per species for the snags and flyovers.
+  const setOf = (m: Macaw) => m.sp * 2 + (m.home === "collpa" ? 0 : 1);
+  const sizes = SPECIES.flatMap(() => [0, 0]);
+  for (const b of birds) b.k = sizes[setOf(b)]!++;
+  const sets = SPECIES.flatMap((sp) =>
+    [COLLPA_BOOST, 1].map((boost, j) =>
+      createBeasts(env, "macaw", sizes[SPECIES.indexOf(sp) * 2 + j]!, {
+        variants: [sp.coat],
+        scale: sp.scale * boost,
+        shadows: false,
+      }),
+    ),
+  );
   const root = new THREE.Group();
   root.name = "selva-fauna-guacamayo";
-  for (const s of sets) root.add(s.mesh);
+  for (const s of sets) root.add(s.group);
   root.add(props.group);
   env.scene.add(root);
 
@@ -351,7 +415,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   let trackDir = 1;
   let trackClock = 1;
   let clock = 0;
-  const nDraw = SPECIES.map(() => 0);
   /** Birds kept circling over the river in front of the wall (pairs). */
   const nCircle = high ? 4 : 2;
 
@@ -1030,28 +1093,33 @@ export const create: CreateAmbient = (env0): Ambient => {
           spot.see(m.x, m.y, m.z, avatar.x, avatar.z, 0.7, near);
       }
 
-      // ---- draw
-      nDraw.fill(0);
+      // ---- draw: the flight state machine reads the world's flight (height above the ground or the water,
+      // vertical speed); clinging and perched birds stand; a peck at the clay, a squabble, sleep at night.
+      for (const s of sets) s.begin();
       for (const m of birds) {
-        if (m.mode === "away" || spot.view.dist(m.x, m.y, m.z) > 220) continue;
-        const sc = SPECIES[m.sp]!.scale * (m.home === "collpa" ? COLLPA_BOOST : 1);
-        sets[m.sp]!.set(
-          nDraw[m.sp]!,
-          m.x,
-          m.y,
-          m.z,
-          m.yaw,
-          m.pitch,
-          m.bank,
-          sc,
-          m.wing,
-          m.headYaw,
-          m.headPitch,
-          m.fold,
-        );
-        nDraw[m.sp]!++;
+        m.vy = dt > 0 ? damp(m.vy, (m.y - m.py) / dt, 8, dt) : m.vy;
+        m.py = m.y;
+        if (inside || m.mode === "away" || spot.view.dist(m.x, m.y, m.z) > 220) continue;
+        const set = sets[setOf(m)]!;
+        if (m.mode === "cling" && m.act !== m.lastAct) {
+          if (m.act === "bite" && m.zone !== "lip") set.play(m.k, "graze", m.actT);
+          else if (m.act === "squab") set.play(m.k, "shake", m.actT);
+        }
+        m.lastAct = m.mode === "cling" ? m.act : "look";
+        const air = m.mode === "fly" || m.mode === "circle";
+        const below = Math.max(lv, L.heightAt(m.x, m.z));
+        set.put(m.k, m.x, m.y, m.z, m.yaw, {
+          speed: air ? 9 : m.mode === "cling" && m.hopT < 1 ? 1 : 0,
+          rm,
+          look: m.mode === "perch" && !day ? undefined : m.headYaw,
+          quiet: !day,
+          grounded: !air,
+          vy: air ? m.vy : 0,
+          height: air ? Math.max(0, m.y - below) : 0,
+          turn: air ? -m.bank * 2 : 0,
+        });
       }
-      for (let k = 0; k < sets.length; k++) sets[k]!.commit(inside ? 0 : nDraw[k]!);
+      for (const s of sets) s.end(dt, clock, env.camera);
       spot.end(dt);
     },
     dispose() {

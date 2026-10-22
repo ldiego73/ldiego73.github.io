@@ -70,3 +70,10 @@ export function respawns(pt: number, len: number, r1: number, r2: number): Array
   }
   return out;
 }
+
+/**
+ * A surfer astride a board at sea: how far below the water the person's feet origin goes so the seat rests on
+ * the deck. The "ride" pose rests the pelvis about 0.5 above the feet origin (../../../avatar.ts RIDER_SEAT) and
+ * the board's deck floats ≈ 0.06 above the water line: the legs hang down into the sea.
+ */
+export const SEA_SEAT = -0.44;

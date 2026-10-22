@@ -6,6 +6,9 @@
  *   ambient so it reads) · coto (red howler) 0.6 · perezoso (three-toed sloth) 0.6 · caimán negro ≈ 3
  *   · bufeo colorado ≈ 2.2.
  * Colors are chunky regions (saturated, so the 1 px ink and the 3-step toon keep them readable).
+ *
+ * Retired from the world: the jungle draws its animals on the shared animal core (./beasts.ts). These models
+ * only stay for the animals harness's old-vs-new lineup (characters/animals/dev/old.ts); delete them with it.
  */
 import * as THREE from "three";
 import { GeoBuilder } from "../../../flora/geom";
@@ -175,33 +178,7 @@ export function squirrelMonkeyModel(): RigModel {
   return { geo: buildRigGeometry(b), spec, eyes: [V3(0.02, 0.255, 0.18), V3(-0.02, 0.255, 0.18)], eyeR: 0.011 };
 }
 
-// ---------------------------------------------------------------- coto (red howler monkey)
-
-export function howlerModel(): RigModel {
-  const b = new GeoBuilder();
-  const fur = backBelly("#a7421c", "#7a2c12", 0.22, 0.1);
-  b.add(egg(0.14, 0.9, 0.95, 1.5, 0, 0.3, -0.02, 0, 10), { color: fur });
-  const legs = [V3(0.08, 0.28, 0.13), V3(-0.08, 0.28, 0.13), V3(0.09, 0.28, -0.15), V3(-0.09, 0.28, -0.15)];
-  legSet(b, legs, 0.035, 0, "#8e3416", "#2a1610");
-  const head = V3(0, 0.38, 0.17);
-  // Dark bare face, bearded throat (the hyoid that makes the roar).
-  b.add(egg(0.09, 1, 1, 1, 0, 0.43, 0.25, 0, 10), {
-    color: (p) => (p.z > 0.29 ? _c.set("#2a1a14") : _c.set("#b3491e")),
-    flex: J.head,
-  });
-  b.add(egg(0.08, 0.9, 1.1, 0.8, 0, 0.35, 0.27, 0, 8), { color: "#8a3214", flex: J.head });
-  const spec: RigSpec = {
-    legs: legs as RigSpec["legs"],
-    head,
-    tail: V3(0, 0.32, -0.2),
-    tailLen: 0.65,
-    gait: GAIT_WALK,
-  };
-  b.add(tube(0.03, 0.022, 0, 0.32, -0.2, 0, 0.28, -0.85, 6), { color: "#9a3b18", flex: J.tail });
-  return { geo: buildRigGeometry(b), spec, eyes: [V3(0.03, 0.45, 0.33), V3(-0.03, 0.45, 0.33)], eyeR: 0.012 };
-}
-
-// ---------------------------------------------------------------- perezoso (brown-throated three-toed sloth)
+// ---------------------------------------------------------------- perezoso (three-toed sloth)
 
 /**
  * Built standing on its hooks (legs down to y = 0); the ambient flips it under a branch (roll π), so the

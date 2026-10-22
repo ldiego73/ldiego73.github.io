@@ -9,24 +9,27 @@
  *    for a few seconds now and then (more often when someone waits nearby), its baggy olive back and bulging
  *    eyes just above the water. Rare.
  * A good look earns the bonus stamps `titicaca:fauna:alpaca`, `…:llama`, `…:vizcacha`, `…:rana`. Animals are
- * solid bodies in the creatures registry. Draw calls: alpacas 3, llamas 3, vizcachas 3 + their rocks 1, frog 1.
+ * solid bodies in the creatures registry. They are the shared animal core's (../../characters/animals: one
+ * skinned body per animal, a herd = one instanced draw per LOD, gaits and idles from the speed this ambient
+ * gives them), loaded off the main thread (./fauna/herds.ts). Draw calls: one per herd per LOD in use (alpacas,
+ * llamas, vizcachas), the vizcachas' rocks 1, the frog 1.
  */
 import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
+import type { Animal } from "../../characters/animals/animal";
+import type { Herd } from "../../characters/animals/crowd";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { emit } from "../../events";
-import { ALPACA, LLAMA, vizcachaParts } from "../../fauna-models";
 import { mergeColored, vertexToon } from "../../merge-colors";
-import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { FROG_SPOT, HERDS, LEVEL, SILLUSTANI, TAQUILE } from "../plan";
-import { CamelidHerd } from "./fauna/camelids";
-import { damp, daylight, frogSurface, LookTimer, rng, TAU, turnToward, wanderTarget } from "./fauna/logic";
-import { frogGeometry } from "./fauna/models";
+import { lazyHerds } from "./fauna/herds";
+import { damp, daylight, frogSurface, LookTimer, rng, TAU, turnToward, wanderTarget, wrapAngle } from "./fauna/logic";
 
-const ALPACA_COATS = ["#f4efe4", "#c8a27a", "#7a5a44", "#e6d5b8", "#3f3430", "#f4efe4", "#a8825f"];
-const LLAMA_COATS = ["#fbf6ee", "#a8724a", "#5a463a", "#e0bf92", "#2f2724"];
+/** Coats (the core's variants), picked in turn: mostly white and fawn alpacas, a few brown, grey and black. */
+const ALPACA_COATS = ["white", "fawn", "brown", "white", "black", "grey", "fawn"];
+const LLAMA_COATS = ["white", "brown", "black", "cafe", "spotted"];
 
 interface Grazer {
   x: number;
@@ -35,10 +38,11 @@ interface Grazer {
   tx: number;
   tz: number;
   pause: number;
-  phase: number;
-  walk: number;
+  speed: number;
+  /** Seconds to the next grazing bout. */
   graze: number;
   body: Body;
+  id: number;
 }
 
 export const create: CreateAmbient = (baseEnv): Ambient => {
@@ -71,17 +75,26 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         tx: p.x,
         tz: p.z,
         pause: R() * 6,
-        phase: R() * TAU,
-        walk: 0,
-        graze: R(),
+        speed: 0,
+        graze: R() * 3,
         body: creatures.add(kind, r, { x: p.x, z: p.z, give: 0.6 }),
+        id: -1,
       };
     });
   const alpacas = herd(HERDS.alpacas, high ? 7 : 5, "alpaca", 0.5);
   const llamas = herd(HERDS.llamas, high ? 5 : 4, "llama", 0.55);
-  const alpacaMesh = new CamelidHerd("titicaca-alpacas", ALPACA, ALPACA_COATS, alpacas.length);
-  const llamaMesh = new CamelidHerd("titicaca-llamas", LLAMA, LLAMA_COATS, llamas.length);
-  group.add(alpacaMesh.group, llamaMesh.group);
+  const herds = lazyHerds(group);
+  herds.herd("alpaca", { max: alpacas.length, variants: ALPACA_COATS }, (h) =>
+    alpacas.forEach((g, i) => {
+      g.id = h.add({ seed: 3 + i * 7, variant: i % ALPACA_COATS.length });
+    }),
+  );
+  // The shore llamas graze free: no tassels in their ears, no packs.
+  herds.herd("llama", { max: llamas.length, variants: LLAMA_COATS, features: { tika: false } }, (h) =>
+    llamas.forEach((g, i) => {
+      g.id = h.add({ seed: 5 + i * 9, variant: i % LLAMA_COATS.length });
+    }),
+  );
 
   // ------------------------------------------------------------------ vizcachas on their rocks
   const rockSpots: Array<[number, number]> = [];
@@ -112,12 +125,11 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       ),
     });
     env.addCollider({ kind: "circle", x, z, r: 1.3 });
-    return { x, z, top: y + 0.95, yaw: R() * TAU, look: 0, hide: 0, away: 0, seen: false };
+    // `top`: the rock's crown, where it sits; `px, pz, py`: where it is drawn this frame (for its hop speed).
+    return { x, z, top: y + 0.95, yaw: R() * TAU, look: 0, hide: 0, away: 0, px: x, pz: z, speed: 0, id: -1 };
   });
   const rocksGeo = mergeColored(rockParts);
   rockGeo.dispose();
-  // The animals move (no world-space painted blotches on them); the vizcachas' rocks keep the paint.
-  const vmat = paintStrength(vertexToon(), 0);
   const rockMat = vertexToon();
   if (rocksGeo) {
     const rm = new THREE.Mesh(rocksGeo, rockMat);
@@ -125,36 +137,22 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     rm.castShadow = true;
     group.add(rm);
   }
-  const vp = vizcachaParts();
-  const vizBody = mergeColored([{ geometry: vp.body, color: new THREE.Color("#a39b8e") }]);
-  const vizHead = mergeColored([
-    { geometry: vp.head, color: new THREE.Color("#a39b8e") },
-    { geometry: vp.eyes, color: new THREE.Color("#1f1a17") },
-  ]);
-  const vizTail = mergeColored([{ geometry: vp.tail, color: new THREE.Color("#3f3832") }]);
-  for (const g of [vp.body, vp.head, vp.eyes, vp.tail]) g.dispose();
-  const nV = Math.max(1, vizcachas.length);
-  const vBody = new THREE.InstancedMesh(vizBody ?? new THREE.BufferGeometry(), vmat, nV);
-  const vHead = new THREE.InstancedMesh(vizHead ?? new THREE.BufferGeometry(), vmat, nV);
-  const vTail = new THREE.InstancedMesh(vizTail ?? new THREE.BufferGeometry(), vmat, nV);
-  for (const [m, nm] of [
-    [vBody, "body"],
-    [vHead, "head"],
-    [vTail, "tail"],
-  ] as const) {
-    m.name = `titicaca-vizcachas:${nm}`;
-    m.frustumCulled = false;
-    m.castShadow = nm !== "tail";
-    group.add(m);
-  }
+  if (vizcachas.length)
+    herds.herd("vizcacha", { max: vizcachas.length }, (h) =>
+      vizcachas.forEach((v, i) => {
+        v.id = h.add({ seed: 7 + i * 13 });
+      }),
+    );
 
   // ------------------------------------------------------------------ the frog
-  const frog = new THREE.Mesh(frogGeometry(), vmat);
-  frog.name = "titicaca-orilla:frog";
-  frog.position.set(FROG_SPOT.x, LEVEL - 0.4, FROG_SPOT.z);
-  frog.rotation.y = 2.4;
-  frog.visible = false;
-  group.add(frog);
+  let frog: Animal | null = null;
+  herds.one("frog", { variant: "titicaca", lod: 1, seed: 3 }, (a) => {
+    frog = a;
+    a.group.name = "titicaca-orilla:frog";
+    a.group.position.set(FROG_SPOT.x, LEVEL - 0.4, FROG_SPOT.z);
+    a.group.rotation.y = 2.4;
+    a.group.visible = false;
+  });
   env.scene.add(group);
 
   const looks = {
@@ -163,22 +161,12 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     vizcacha: new LookTimer(1.2),
     rana: new LookTimer(1.2),
   };
-  const m4 = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const e = new THREE.Euler();
-  const v = new THREE.Vector3();
-  const s = new THREE.Vector3(1.25, 1.25, 1.25);
-  const hm = new THREE.Matrix4();
-  const hq = new THREE.Quaternion();
-  const out = new THREE.Matrix4();
-  const ONE = new THREE.Vector3(1, 1, 1);
-  const tailM = new THREE.Matrix4().makeTranslation(vp.tailPivot.x, vp.tailPivot.y, vp.tailPivot.z);
   let clock = 0;
   const rmo = env.reducedMotion;
 
   const stepHerd = (
     list: Grazer[],
-    mesh: CamelidHerd,
+    h: Herd | null,
     home: { x: number; z: number; r: number },
     dt: number,
     avatar: THREE.Vector3,
@@ -186,8 +174,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     id: "alpaca" | "llama",
   ) => {
     let seen = false;
-    list.forEach((g, i) => {
+    for (const g of list) {
       const dAv = Math.hypot(avatar.x - g.x, avatar.z - g.z);
+      let want = 0;
+      let look: number | undefined;
       if (day) {
         g.pause -= dt;
         if (dAv < 4.5) {
@@ -220,87 +210,98 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           if (ok(nx, nz)) {
             g.x = nx;
             g.z = nz;
+            want = sp;
           } else g.tx = g.x;
         }
-        g.walk = damp(g.walk, moving ? 1 : 0, 5, dt);
-        if (!rmo) g.phase += dt * sp * 4.5 * g.walk;
-        // Graze while standing, heads up when someone comes close.
-        g.graze = damp(g.graze, !moving && dAv > 9 ? 1 : 0, 1.5, dt);
-      } else {
-        g.walk = damp(g.walk, 0, 5, dt);
+        // Graze while standing; heads up, watching, when someone comes close.
+        if (dAv < 9) look = THREE.MathUtils.clamp(wrapAngle(Math.atan2(avatar.x - g.x, avatar.z - g.z) - g.yaw), -1, 1);
+        else if (!moving && h && g.id >= 0) {
+          g.graze -= dt;
+          if (g.graze <= 0) {
+            h.play(g.id, "graze", 4 + R() * 5);
+            g.graze = 6 + R() * 6;
+          }
+        }
       }
+      g.speed = damp(g.speed, want, 5, dt);
       g.body.x = g.x;
       g.body.z = g.z;
-      mesh.set(i, {
-        x: g.x,
-        y: L.heightAt(g.x, g.z),
-        z: g.z,
-        yaw: g.yaw,
-        phase: g.phase,
-        walk: g.walk,
-        graze: g.graze * (0.8 + (rmo ? 0 : 0.15 * Math.sin(clock * 0.9 + i))),
-        lying: !day,
-      });
-      if (dAv < 18 && onScreen(g.x, L.heightAt(g.x, g.z) + 1, g.z)) seen = true;
-    });
-    mesh.commit();
+      const y = L.heightAt(g.x, g.z);
+      // At night they lie down where they are (the kush, legs folded under), asleep.
+      if (h && g.id >= 0)
+        h.set(g.id, g.x, y, g.z, g.yaw, { speed: g.speed, rm: rmo, look, mode: day ? "auto" : "sleep" });
+      if (dAv < 18 && onScreen(g.x, y + 1, g.z)) seen = true;
+    }
     if (looks[id].update(dt, seen)) stamp(`titicaca:fauna:${id}`);
   };
 
+  if (import.meta.env?.DEV)
+    (window as unknown as { __orilla?: unknown }).__orilla = {
+      vizcachas: () => vizcachas.map((v) => [+v.x.toFixed(1), +v.z.toFixed(1)]),
+      drawCalls: () => herds.drawCalls() + 1,
+    };
   return {
     update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
       clock += dt;
       const day = daylight(env.sky.time()) > 0.3;
-      stepHerd(alpacas, alpacaMesh, HERDS.alpacas, dt, avatar, day, "alpaca");
-      stepHerd(llamas, llamaMesh, HERDS.llamas, dt, avatar, day, "llama");
+      stepHerd(alpacas, herds.get("alpaca"), HERDS.alpacas, dt, avatar, day, "alpaca");
+      stepHerd(llamas, herds.get("llama"), HERDS.llamas, dt, avatar, day, "llama");
 
       // ----- vizcachas
+      const vh = herds.get("vizcacha");
       let vSeen = false;
       vizcachas.forEach((z, i) => {
         const dAv = Math.hypot(avatar.x - z.x, avatar.z - z.z);
         if (z.hide <= 0 && dAv < 7.5 && day) z.hide = 9 + R() * 6;
         z.hide = Math.max(0, z.hide - dt);
-        // Hop behind the rock (away from the traveler) and shrink out of sight; back when the timer runs out.
+        // Hop down behind the rock (away from the traveler), out of sight; back when the timer runs out.
         z.away = damp(z.away, z.hide > 0 || !day ? 1 : 0, z.hide > 0 ? 6 : 2, dt);
         const a = Math.atan2(z.z - avatar.z, z.x - avatar.x);
         const hx = z.x + Math.cos(a) * z.away * 1.8;
         const hz = z.z + Math.sin(a) * z.away * 1.8;
-        const hy = z.top - z.away * 0.9 + Math.sin(z.away * Math.PI) * 0.5;
+        const hy = z.top - z.away * 0.95 + Math.sin(z.away * Math.PI) * 0.4;
+        const step = Math.hypot(hx - z.px, hz - z.pz);
+        z.px = hx;
+        z.pz = hz;
+        z.speed = damp(z.speed, dt > 0 ? step / dt : 0, 8, dt);
         if (!rmo && z.away < 0.05) z.look = Math.sin(clock * 0.6 + i * 2) * 0.9 + Math.sin(clock * 2.3 + i) * 0.15;
-        const sc = 1.3 * (1 - THREE.MathUtils.smoothstep(z.away, 0.75, 1));
-        q.setFromEuler(e.set(0, z.yaw, 0));
-        m4.compose(v.set(hx, hy, hz), q, s.setScalar(sc));
-        vBody.setMatrixAt(i, m4);
-        hm.compose(vp.headPivot, hq.setFromEuler(e.set(0, z.look, 0)), ONE);
-        vHead.setMatrixAt(i, out.copy(m4).multiply(hm));
-        vTail.setMatrixAt(i, out.copy(m4).multiply(tailM));
+        // Moving away it faces where it hops; sitting on the rock it keeps its own heading.
+        const yaw = z.away > 0.05 && z.hide > 0 ? Math.atan2(Math.cos(a), Math.sin(a)) : z.yaw;
+        if (vh && z.id >= 0) {
+          if (z.away > 0.92) vh.hide(z.id);
+          else
+            vh.set(z.id, hx, hy, hz, yaw, {
+              speed: z.away > 0.05 ? z.speed : 0,
+              rm: rmo,
+              look: z.away < 0.05 ? z.look : undefined,
+              mode: z.away < 0.05 ? "sit" : "auto",
+            });
+        }
         if (z.away < 0.2 && dAv < 16 && onScreen(hx, hy + 0.3, hz)) vSeen = true;
       });
-      vBody.instanceMatrix.needsUpdate = true;
-      vHead.instanceMatrix.needsUpdate = true;
-      vTail.instanceMatrix.needsUpdate = true;
       if (looks.vizcacha.update(dt, vSeen)) stamp("titicaca:fauna:vizcacha");
 
       // ----- the frog
       const dFrog = Math.hypot(avatar.x - FROG_SPOT.x, avatar.z - FROG_SPOT.z);
       const up = frogSurface(clock, dFrog < 18);
-      frog.visible = up > 0.01;
-      frog.position.y = LEVEL - 0.42 + up * 0.36 + (rmo ? 0 : Math.sin(clock * 1.7) * 0.01);
+      const f = frog as Animal | null;
+      if (f) {
+        // Its back and eyes just out of the water, sinking back to the lake bed in between.
+        f.group.position.y = LEVEL - 0.3 + up * 0.24 + (rmo ? 0 : Math.sin(clock * 1.7) * 0.01);
+        if (up > 0.01) {
+          f.autoLod(env.camera);
+          f.update(dt, clock, { speed: 0, rm: rmo, mode: "swim" });
+        } else f.group.visible = false;
+      }
       if (looks.rana.update(dt, up > 0.5 && dFrog < 14 && onScreen(FROG_SPOT.x, LEVEL, FROG_SPOT.z)))
         stamp("titicaca:fauna:rana");
+      herds.update(dt, clock, env.camera);
     },
     dispose() {
       for (const g of [...alpacas, ...llamas]) creatures.remove(g.body);
-      alpacaMesh.dispose();
-      llamaMesh.dispose();
-      for (const m of [vBody, vHead, vTail]) m.dispose();
-      vizBody?.dispose();
-      vizHead?.dispose();
-      vizTail?.dispose();
+      herds.dispose();
       rocksGeo?.dispose();
-      frog.geometry.dispose();
-      vmat.dispose();
       rockMat.dispose();
       group.removeFromParent();
     },

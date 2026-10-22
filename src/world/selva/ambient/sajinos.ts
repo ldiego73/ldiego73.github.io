@@ -1,30 +1,12 @@
-/**
- * Sajinos (collared peccaries, Pecari tajacu): a small herd that crosses the road ahead of the traveler.
- * Every so often (the first time after ~20 s of walking the road, then every minute or so; less often once
- * the passport has the stamp) a herd trots out of the undergrowth ≈ 25–35 u ahead, on a quiet stretch away
- * from the stations and the canopy walkway, and crosses in single file: the leader picks the way, the others
- * walk exactly in its tracks one body length apart (wild/crossing.ts Trail). They snuffle as they go, heads
- * low and nodding, and now and then the leader stops to root at the verge and the file bunches up behind it.
- * On the far side they melt into the forest. By day and in the twilight; not in deep night.
- * Running at them (within ≈ 16 u) or walking right up (≈ 6 u) breaks the file: every peccary bolts at a
- * gallop for the nearest side of the road and is gone. With reduced motion they trot slower, never stop to
- * root, and scatter at a canter instead of a gallop.
- *
- * Rendering: one rig InstancedMesh (wild/rig.ts, trot gait) → 1 draw call while a herd is out, 0 otherwise.
- * Bodies ("sajino"): solid while out (give 0.5), parked while away.
- * Stamp `selva:fauna:sajino` after a ~1.5 s good look within 30 u while one is on the road.
- */
-import * as THREE from "three";
 import { loadPassport } from "../../../lib/passport";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, park } from "../../creatures";
 import { on } from "../../events";
 import { CANOPY_T, SELVA_STATIONS } from "../contract";
-import { peccaryModel } from "./wild/critters";
+import { createBeasts } from "./wild/beasts";
 import { type Crossing, crossingPlan, RoadTracker, SpeedMeter, Trail } from "./wild/crossing";
-import { devHook, FAUNA_FAR, faunaDt, idle, ramp, rootMatrix, Spotter, selvaOf } from "./wild/kit";
+import { devHook, FAUNA_FAR, faunaDt, idle, Spotter, selvaOf } from "./wild/kit";
 import { damp, dayAmount, rng, turnToward, wrapAngle } from "./wild/logic";
-import { RigSet } from "./wild/rig";
 
 type HerdState = "away" | "file" | "bolt";
 
@@ -34,10 +16,9 @@ interface Pig {
   z: number;
   yaw: number;
   speed: number;
-  phase: number;
+  /** Set once it has stopped to root (the "graze" idle plays once per stop). */
+  rooted: boolean;
   headYaw: number;
-  headPitch: number;
-  scale: number;
   /** Bolt target (the nearest forest edge) and whether it is gone from view. */
   tx: number;
   tz: number;
@@ -57,11 +38,8 @@ export const create: CreateAmbient = (env0): Ambient => {
   const rm = env.reducedMotion;
   const R = rng(8807);
   const n = high ? 7 : 4;
-  const model = peccaryModel();
-  const set = new RigSet("selva-fauna-sajino-body", model.geo, model.spec, n, ramp(env), { shadow: high });
-  const root = new THREE.Group();
-  root.name = "selva-fauna-sajino";
-  root.add(set.mesh);
+  const set = createBeasts(env, "sajino", n);
+  const root = set.group;
   env.scene.add(root);
 
   const pigs: Pig[] = [];
@@ -74,11 +52,8 @@ export const create: CreateAmbient = (env0): Ambient => {
       z: 0,
       yaw: 0,
       speed: 0,
-      phase: R(),
+      rooted: false,
       headYaw: 0,
-      headPitch: 0.3,
-      // The last ones are this year's young, smaller.
-      scale: i >= n - (high ? 2 : 1) ? 0.78 + R() * 0.06 : 1.05 + R() * 0.1,
       tx: 0,
       tz: 0,
       gone: false,
@@ -110,7 +85,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   const meter = new SpeedMeter();
   const road = new RoadTracker();
   const trail = new Trail(0.2, GAP * n + 6);
-  const m4 = new THREE.Matrix4();
   const want = { x: 0, z: 0 };
   const at = { x: 0, z: 0, yaw: 0 };
   let state: HerdState = "away";
@@ -286,9 +260,10 @@ export const create: CreateAmbient = (env0): Ambient => {
       }
 
       // ---- pose and draw
-      let k = 0;
+      set.begin();
       if (state !== "away") {
-        for (const p of pigs) {
+        for (let i = 0; i < pigs.length; i++) {
+          const p = pigs[i] as Pig;
           if (p.gone) continue;
           p.y = damp(p.y, env.selva.groundAt(p.x, p.z), 12, dt);
           p.body.x = p.x;
@@ -298,29 +273,26 @@ export const create: CreateAmbient = (env0): Ambient => {
             p.z = p.body.z;
           }
           const d = Math.hypot(p.x - avatar.x, p.z - avatar.z);
-          p.phase = (p.phase + (p.speed * dt) / (0.75 * p.scale)) % 1;
-          const swing = Math.min(0.7, p.speed * 0.32);
-          // Snuffling: head low and nodding at the trot, down to the ground while stopped; a glance at a
-          // traveler within 14 u; up and forward at the gallop.
-          const still = p.speed < 0.2;
-          let pitchT = state === "bolt" ? 0.05 : still ? 0.75 : 0.35;
-          const nod = state === "bolt" ? 0 : Math.sin(clock * (still ? 9 : 5) + p.phase * 11) * (still ? 0.12 : 0.08);
+          // A glance at a traveler within 14 u while filing across; rooting at the verge while stopped.
           let yawT = 0;
-          if (state === "file" && d < 14) {
+          if (state === "file" && d < 14)
             yawT = Math.max(-0.9, Math.min(0.9, wrapAngle(Math.atan2(avatar.x - p.x, avatar.z - p.z) - p.yaw)));
-            pitchT = 0.1;
-          }
           p.headYaw = damp(p.headYaw, yawT, 3, dt);
-          p.headPitch = damp(p.headPitch, pitchT, 4, dt);
-          if (spot.view.dist(p.x, p.y, p.z) > FAUNA_FAR) continue;
-          const bob = Math.abs(Math.sin(p.phase * Math.PI * 2)) * Math.min(0.04, p.speed * 0.01);
-          rootMatrix(m4, p.x, p.y + bob, p.z, p.yaw, 0, 0, p.scale);
-          set.set(k++, m4, p.phase, swing, p.headYaw, p.headPitch + nod * (rm ? 0.4 : 1), Math.sin(clock * 6) * 0.3);
+          const still = p.speed < 0.2;
+          if (still && state === "file" && !rm && !p.rooted) {
+            set.play(i, "graze", 1.2 + R() * 0.8);
+            p.rooted = true;
+          } else if (!still) p.rooted = false;
+          if (inside || spot.view.dist(p.x, p.y, p.z) > FAUNA_FAR) continue;
+          set.put(i, p.x, p.y, p.z, p.yaw, {
+            speed: p.speed,
+            rm,
+            look: state === "file" && d < 14 ? p.headYaw : undefined,
+          });
           if (L.trailQuery(p.x, p.z).d < 5) spot.see(p.x, p.y + 0.4, p.z, avatar.x, avatar.z, 0.7);
         }
       }
-      set.rim.value = (1 - dayAmount(time)) * 0.7;
-      set.commit(inside ? 0 : k);
+      set.end(dt, clock, env.camera);
       spot.end(dt);
     },
     dispose() {

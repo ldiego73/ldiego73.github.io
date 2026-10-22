@@ -84,8 +84,8 @@ describe("cadence and stride", () => {
     expect(2 * half).toBeCloseTo((1.2 * 0.6) / c);
   });
   test("game speeds clamp the cadence and the stride to what reads well", () => {
-    expect(cadence(3.6, 0.95, 0)).toBeCloseTo(1.45);
-    expect(cadence(7.4, 2.0, 1)).toBeCloseTo(2.1);
+    expect(cadence(3.6, 0.95, 0)).toBeCloseTo(1.7);
+    expect(cadence(7.4, 2.0, 1)).toBeCloseTo(2.3);
     expect(strideHalf(7.4, 2.1, 0.36, 0.29)).toBe(0.29);
     expect(cadence(0, 1, 0)).toBe(0);
   });

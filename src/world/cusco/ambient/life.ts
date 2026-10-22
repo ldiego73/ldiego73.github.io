@@ -4,33 +4,31 @@
  *  - Walkers go between the street mouths and the halls' doorways (./life/logic.ts destinations), round the
  *    usnu rather than over it (routeAround), pausing at each stop; they steer round every body through the
  *    shared creatures registry (the traveler included), so they step out of the way. Out by day only: at
- *    dusk they go home (switched off while unseen), at dawn they come back.
+ *    dusk they go home (switched off while unseen), at dawn they come back. One woman carries a q'ipi.
  *  - The chasqui sits on the bench of the post (./chasqui.ts builds it) day and night.
- *  - The caravan follows a loop inside the plaza (LOOP), the llamas in file behind the herder, and waits
- *    while the traveler stands in the herder's way. At night it rests at NIGHT_CAMP: the llamas lie down, the
- *    herder sits by them.
- * People are the mountain's instanced bipeds (../../ambient/people: one InstancedMesh per body part for all of
- * them) with Andean palettes; llamas are ./life/llamas.ts. About 15 draw calls in all.
+ *  - The caravan follows a loop inside the plaza (LOOP), the llamas in file behind the herder (staff in hand),
+ *    and waits while the traveler stands in the herder's way: the llamas graze while they wait. At night it
+ *    rests at NIGHT_CAMP: the llamas lie down, the herder sits by them.
+ * People are the shared characters (../../characters, ../../ambient/people/npc.ts `Npc`): highland campesinos
+ * and campesinas (ponchos and chullos or felt hats; jobonas, polleras, llicllas and monteras) with the
+ * Andean wardrobes, all in ONE HumanCrowd (two draw calls per pass) with their held props (staff, q'ipi: one
+ * instanced draw per kind). The llamas are ONE herd of the shared llama (../../characters/animals: one instanced
+ * draw per LOD) wearing their pack saddlebags. Builds are prefetched at load (worker, far LODs first).
  */
 import * as THREE from "three";
-import {
-  DARKS,
-  MAN,
-  POLLERAS,
-  PONCHOS,
-  partSpecs,
-  SHADOW_PARTS,
-  SKINS,
-  WEAVES,
-  WOMAN,
-} from "../../ambient/people/models";
-import { Person } from "../../ambient/people/person";
-import { Crowd, type Palette, paletteMaterial } from "../../ambient/people/rig";
+import { Npc } from "../../ambient/people/npc";
+import { prefetchAnimals } from "../../characters/animals/assets";
+import { createHerd } from "../../characters/animals/crowd";
+import type { HumanSpec } from "../../characters/archetype";
+import { HumanCrowd } from "../../characters/crowd";
+import { prefetchHumans } from "../../characters/pipeline";
+import { PEOPLE, wardrobe } from "../../characters/presets";
+import { HeldProps } from "../../characters/props";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import type { SuyuEnv } from "../../suyu/contract";
+import { liveWind } from "../../wind";
 import { CHASQUI } from "../plan";
-import { LlamaHerd } from "./life/llamas";
 import {
   blocked,
   destinations,
@@ -56,12 +54,18 @@ function rng(seed: number) {
 }
 
 interface Walker {
-  p: Person;
+  p: Npc;
   route: P[];
   at: number;
   pause: number;
   speed: number;
 }
+
+/** The caravan's pace (u/s) and the bench of the chasqui post (seat height, body units). */
+const CARAVAN_V = 0.85;
+const BENCH = 0.45;
+/** Llama coats of the caravan (../../characters/animals/species: llama variants). */
+const COATS = ["white", "brown", "cafe", "black"] as const;
 
 export const create: CreateAmbient = (baseEnv): Ambient => {
   const env = baseEnv as SuyuEnv;
@@ -71,24 +75,34 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const nLlamas = high ? 4 : 3;
   const ground = env.suyu.groundAt;
 
-  const ramp = env.toon("#ffffff").gradientMap;
-  const mat = paletteMaterial(ramp);
-  // Only the parts these people wear: every part is one InstancedMesh (one draw call per pass).
-  const crowd = new Crowd(partSpecs([...MAN, ...WOMAN, "chullo"]), nWalkers + 2, mat, SHADOW_PARTS);
-  env.scene.add(crowd.group);
+  // Walkers alternate men and women; every fourth man and every other woman wears a felt hat.
+  const walkerSpecs: HumanSpec[] = Array.from({ length: nWalkers }, (_, i) =>
+    i % 2 === 0
+      ? i % 4 === 0
+        ? PEOPLE.campesino
+        : PEOPLE.campesinoFelt
+      : i % 4 === 1
+        ? PEOPLE.campesinaFelt
+        : PEOPLE.campesina,
+  );
+  // Start the builds now (worker, far LODs first) so the plaza is peopled by the time the traveler looks.
+  prefetchHumans([PEOPLE.campesino, PEOPLE.campesinoFelt, PEOPLE.campesina, PEOPLE.campesinaFelt]);
+  prefetchAnimals(["llama"], [2, 1, 0]);
 
-  const person = (man: boolean, seed: number, hat?: "chullo"): Person => {
-    const wear = [...(man ? MAN : WOMAN), ...(hat ? [hat] : [])];
-    const palette: Palette = man
-      ? [pick(R, SKINS), pick(R, PONCHOS), pick(R, WEAVES), pick(R, DARKS)]
-      : [pick(R, SKINS), pick(R, POLLERAS), pick(R, WEAVES), pick(R, PONCHOS)];
-    return new Person({
+  const crowd = new HumanCrowd({ capacity: nWalkers + 2, name: "cusco-people", lodDist: high ? [9, 26] : [7, 20] });
+  env.scene.add(crowd.group);
+  const props = new HeldProps(4);
+  env.scene.add(props.group);
+
+  const person = (spec: HumanSpec, seed: number): Npc => {
+    const man = spec.sex === "m";
+    const felt = spec.hat === "felt";
+    return new Npc({
       kind: "cusco-person",
       crowd,
-      idx: crowd.alloc(),
-      wear,
-      palette,
-      scale: man ? 0.98 + R() * 0.06 : 0.92 + R() * 0.06,
+      spec,
+      palette: man ? wardrobe.andeanMan(R, false, felt) : wardrobe.andeanWoman(R, false, felt),
+      scale: man ? 0.97 + R() * 0.06 : 0.96 + R() * 0.06,
       radius: 0.34,
       seed,
     });
@@ -98,10 +112,14 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const dests = destinations();
   const walkers: Walker[] = [];
   for (let i = 0; i < nWalkers; i++) {
-    const man = i % 2 === 0;
-    const p = person(man, 7 + i * 13.7, man && i % 4 === 0 ? "chullo" : undefined);
+    const p = person(walkerSpecs[i] as HumanSpec, 7 + i * 13.7);
     const start = dests[(i * 5) % dests.length] as P;
     p.place(start.x, start.z, R() * Math.PI * 2);
+    // One woman takes a q'ipi (a bundle in a woven cloth) across the plaza on her back.
+    if (i === 1) {
+      p.hold(props, "qipi", pick(R, ["#c4383f", "#3446a6", "#2a9d8f"]));
+      p.anim.act("carry-back");
+    }
     walkers.push({ p, route: [], at: 0, pause: R() * 4, speed: 1.0 + R() * 0.3 });
   }
   const nextRoute = (w: Walker) => {
@@ -112,22 +130,34 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   };
 
   // ------------------------------------------------------------------ chasqui (seated at the post)
-  const chasqui = person(true, 99, "chullo");
+  const chasqui = person(PEOPLE.campesino, 99);
   // The bench is at the back of the shelter (local z −d/2 + 0.85; the shelter faces north, so world +z).
   const benchZ = CHASQUI.z + CHASQUI.d / 2 - 0.85;
   chasqui.place(CHASQUI.x + 0.2, benchZ, CHASQUI.yaw);
   chasqui.setActive(true);
+  chasqui.anim.act("sit-bench", { seat: BENCH, fade: 0 });
   // Its body would push the traveler off the post's front: the bench is inside the shelter's collider.
   chasqui.body.solid = false;
 
   // ------------------------------------------------------------------ caravan
-  const herder = person(true, 51, "chullo");
-  const llamas = new LlamaHerd(env, nLlamas);
+  const herder = person(PEOPLE.campesinoFelt, 51);
+  herder.hold(props, "staff");
+  herder.anim.act("herd");
+  const llamas = createHerd("llama", {
+    max: nLlamas,
+    variants: [...COATS],
+    features: { pack: true },
+    lodScale: high ? 1 : 0.8,
+  });
   env.scene.add(llamas.group);
+  const llamaIds = Array.from({ length: nLlamas }, (_, i) =>
+    llamas.add({ seed: 31 + i * 7, variant: i % COATS.length }),
+  );
   const llamaBodies = Array.from({ length: nLlamas }, () => creatures.add("llama", 0.55, { x: 1e5, z: 1e5 }));
+  const llamaYaw = new Array<number>(nLlamas).fill(0);
   let s = 0;
-  let phase = 0;
-  let walkAmt = 0;
+  let v = 0;
+  let camped: boolean | null = null;
 
   // ------------------------------------------------------------------ frame
   let day: boolean | null = null;
@@ -138,13 +168,15 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     seenV.set(x, 0.9, z).project(env.camera);
     return seenV.z < 1 && Math.abs(seenV.x) < 1.15 && Math.abs(seenV.y) < 1.15;
   };
-  let clock = 0;
   const rm = env.reducedMotion;
+  const frame = { dt: 0, clock: 0, rm, avatar: new THREE.Vector3() };
 
   return {
     update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
-      clock += dt;
+      frame.dt = dt;
+      frame.clock += dt;
+      frame.avatar.copy(avatar);
       env.camera.getWorldPosition(camPos);
       const isDayNow = isDay(env.sky.time());
       const flipped = day !== isDayNow;
@@ -176,46 +208,47 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           }
         }
         p.y = ground(p.x, p.z);
-        p.rest(clock, rm);
-        p.gait(dt, rm);
-        p.commit();
+        p.commit(frame);
       }
 
-      // Chasqui: seated, looking about.
-      chasqui.y = 0.45;
-      chasqui.rest(clock, rm);
-      chasqui.sit(clock, rm, 0.05);
-      chasqui.commit();
+      // Chasqui: seated on the bench, glancing at the traveler when near.
+      chasqui.y = 0;
+      chasqui.speed = 0;
+      chasqui.commit(frame);
 
       // Caravan.
       const L = loopLength();
+      if (camped !== !isDayNow) {
+        camped = !isDayNow;
+        // Day: the herder walks with the staff; night: sits cross-legged by the resting llamas.
+        herder.anim.act(camped ? "sit-cross" : "herd", { fade: flipped ? 0 : 0.6 });
+      }
+      herder.setActive(true);
       if (isDayNow) {
         const head = loopAt(s);
         const wait = blocked(head, avatar);
-        const v = wait ? 0 : 0.85;
+        v += ((wait ? 0 : CARAVAN_V) - v) * (1 - Math.exp(-dt * 4));
         s = (s + v * dt) % L;
-        walkAmt += ((wait ? 0 : 1) - walkAmt) * (1 - Math.exp(-dt * 4));
-        if (!rm) phase += dt * v * 4.2;
         const h = loopAt(s);
-        herder.setActive(true);
         herder.place(h.x, h.z, h.yaw);
         herder.speed = v;
         herder.y = ground(h.x, h.z);
-        herder.rest(clock, rm);
-        herder.gait(dt, rm, 0.6);
-        herder.commit();
         for (let i = 0; i < nLlamas; i++) {
           const q = loopAt(s - FILE_GAP * (i + 1));
-          llamas.set(i, {
-            x: q.x,
-            y: ground(q.x, q.z),
-            z: q.z,
-            yaw: q.yaw,
-            phase: phase + i * 1.3,
-            walk: walkAmt,
-            graze: wait && !rm ? 0.25 + 0.2 * Math.sin(clock * 0.8 + i) : 0,
-            lying: false,
+          const id = llamaIds[i] as number;
+          // Turn rate for the lean into the loop's corners.
+          let dy = q.yaw - (llamaYaw[i] as number);
+          dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+          llamaYaw[i] = q.yaw;
+          const w = liveWind.sample(q.x, q.z);
+          llamas.set(id, q.x, ground(q.x, q.z), q.z, q.yaw, {
+            speed: v,
+            rm,
+            turn: dt > 0 ? dy / dt : 0,
+            windX: Math.cos(q.yaw) * w.x - Math.sin(q.yaw) * w.z,
           });
+          // Waiting: now and then one lowers its head to graze between the flagstones.
+          if (wait && !rm && R() < dt * 0.15) llamas.play(id, "graze", 2.5);
           const b = llamaBodies[i];
           if (b) {
             b.x = q.x;
@@ -224,25 +257,16 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         }
       } else {
         // Night camp: the herder sits, the llamas lie in a row beside him.
-        herder.setActive(true);
+        v = 0;
         herder.place(NIGHT_CAMP.x, NIGHT_CAMP.z - 1.4, NIGHT_CAMP.yaw);
+        herder.speed = 0;
         herder.y = 0;
-        herder.rest(clock, rm);
-        herder.sit(clock, rm);
-        herder.commit();
         for (let i = 0; i < nLlamas; i++) {
           const x = NIGHT_CAMP.x + (i % 2) * 1.2;
           const z = NIGHT_CAMP.z + i * 1.6;
-          llamas.set(i, {
-            x,
-            y: 0,
-            z,
-            yaw: NIGHT_CAMP.yaw + (i % 2 ? 0.3 : -0.2),
-            phase: 0,
-            walk: 0,
-            graze: 0,
-            lying: true,
-          });
+          const yaw = NIGHT_CAMP.yaw + (i % 2 ? 0.3 : -0.2);
+          llamaYaw[i] = yaw;
+          llamas.set(llamaIds[i] as number, x, 0, z, yaw, { speed: 0, mode: "sleep", quiet: true, rm });
           const b = llamaBodies[i];
           if (b) {
             b.x = x;
@@ -250,8 +274,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           }
         }
       }
-      llamas.commit();
-      crowd.flush();
+      herder.commit(frame);
+      llamas.update(dt, frame.clock, env.camera);
+      crowd.update(env.camera);
+      props.update();
     },
     dispose() {
       for (const w of walkers) w.p.dispose();
@@ -259,7 +285,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       herder.dispose();
       for (const b of llamaBodies) creatures.remove(b);
       crowd.dispose();
-      mat.dispose();
+      props.dispose();
+      llamas.group.removeFromParent();
       llamas.dispose();
     },
   };

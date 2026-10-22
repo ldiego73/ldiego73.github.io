@@ -17,34 +17,22 @@
  */
 import * as THREE from "three";
 import { hearth, rng, Static } from "../../../ambient/people/models";
-import { damp, type Person } from "../../../ambient/people/person";
-import type { Crowd, Palette } from "../../../ambient/people/rig";
+import type { Npc } from "../../../ambient/people/npc";
+import type { HumanCrowd } from "../../../characters/crowd";
+import type { HeldProps } from "../../../characters/props";
 import { creatures } from "../../../creatures";
 import { glowSprite } from "../../../props";
 import { keneFloorY, keneSpot, PROMPT_R } from "../kene/spot";
+import { CUSHMAS, NATURAL, SHORTS, SKINS, SKIRTS, TEES } from "./dress";
 import { greeting, isOut, type Role } from "./logic";
-import {
-  type AmazonPart,
-  BOY,
-  CUSHMAS,
-  frameMatrix,
-  GIRL,
-  MAN,
-  mat,
-  SHORTS,
-  SKINS,
-  SKIRTS,
-  stool,
-  TEES,
-  WOMAN,
-} from "./models";
+import { frameMatrix, mat, stool } from "./models";
 import type { Ctx, Greeter, Group } from "./types";
-import { villager, wavePose } from "./villager";
+import { give, reveal, villager } from "./villager";
 
 type Kind = "painter" | "traveller" | "kid" | "elder";
 
 interface Who {
-  p: Person;
+  p: Npc;
   kind: Kind;
   /** Index within its kind (left/right painter, first/second traveller…). */
   k: number;
@@ -75,7 +63,13 @@ const ELDER = { a: -1.62, r: 4.65 } as const;
 const INK = "#231a16";
 const CREAM = "#efe3c8";
 
-export function createFinale(env: Ctx["env"], crowd: Crowd, staticMat: THREE.Material, n: number): Group {
+export function createFinale(
+  env: Ctx["env"],
+  crowd: HumanCrowd,
+  held: HeldProps,
+  staticMat: THREE.Material,
+  n: number,
+): Group {
   const R = rng(0x6e4e1);
   const spot = keneSpot(env.selva.layout);
   // The clearing's floor is a raised deck the totem ambient registers after this one is built: sit on it.
@@ -122,43 +116,39 @@ export function createFinale(env: Ctx["env"], crowd: Crowd, staticMat: THREE.Mat
   // ------------------------------------------------------------ people
   const people: Who[] = ORDER.slice(0, Math.max(0, n)).map(([kind, k], i) => {
     const sk = SKIRTS[(i * 2 + k) % SKIRTS.length] as readonly [string, string];
-    let wear: AmazonPart[];
-    let palette: Palette;
-    let scale = 0.94;
-    let headScale = 1;
+    const base = { kind: kind === "kid" ? "child" : "villager", r: R, seed: 61 + i * 11.3 };
+    let p: Npc;
     if (kind === "painter") {
-      wear = [...WOMAN];
-      palette = [SKINS[(2 + k * 3) % SKINS.length] as string, sk[0], sk[1], k ? "#2a9d8f" : "#c2456b"];
-      scale = 0.92 + k * 0.03;
+      p = villager(crowd, {
+        ...base,
+        who: "woman",
+        skin: SKINS[(2 + k * 3) % SKINS.length] as string,
+        skirt: sk,
+        top: k ? "#2a9d8f" : "#c2456b",
+        radius: 0.4,
+      });
+      // The brush that draws the kené lines on the cloth.
+      give(p, held, "brush");
     } else if (kind === "traveller") {
-      wear = [...MAN];
-      if (k === 1) wear.push("a:crown");
-      const c = CUSHMAS[(k * 3 + 1) % CUSHMAS.length] as string;
-      palette = [SKINS[k ? 6 : 0] as string, c, k ? "#efe3c8" : "#2a1d17", c];
-      scale = 0.97;
+      p = villager(crowd, {
+        ...base,
+        who: k === 1 ? "crown" : "man",
+        skin: SKINS[k ? 6 : 0] as string,
+        cushma: CUSHMAS[(k * 3 + 1) % CUSHMAS.length] as string,
+        radius: 0.4,
+      });
     } else if (kind === "kid") {
-      wear = [...(k ? BOY : GIRL)];
-      palette = k
-        ? [SKINS[3] as string, SHORTS[1] as string, "#e8b631", TEES[5] as string]
-        : [SKINS[1] as string, sk[0], sk[1], TEES[4] as string];
-      scale = 0.6 + k * 0.05;
-      headScale = 1.3;
+      p = villager(crowd, {
+        ...base,
+        who: k ? "boy" : "girl",
+        skin: SKINS[k ? 3 : 1] as string,
+        top: (k ? TEES[5] : TEES[4]) as string,
+        ...(k ? { shorts: SHORTS[1] as string } : { skirt: sk }),
+        radius: 0.26,
+      });
     } else {
-      wear = [...MAN, "a:crown"];
-      palette = [SKINS[2] as string, "#d8cbb0", "#3b2a20", "#d8cbb0"];
-      scale = 0.93;
+      p = villager(crowd, { ...base, who: "elder", skin: SKINS[2] as string, cushma: NATURAL, radius: 0.4 });
     }
-    const p = villager({
-      kind: kind === "kid" ? "child" : "villager",
-      crowd,
-      idx: crowd.alloc(),
-      wear,
-      palette,
-      scale,
-      headScale,
-      radius: kind === "kid" ? 0.26 : 0.4,
-      seed: 61 + i * 11.3,
-    });
     const h = home(kind, k);
     const w = world(h.x, h.z);
     p.place(w.x, w.z, h.yaw);
@@ -276,51 +266,36 @@ export function createFinale(env: Ctx["env"], crowd: Crowd, staticMat: THREE.Mat
   let near: Who | null = null;
   const head = new THREE.Vector3();
 
+  /** Seat heights (./models.ts stool top; the log's top, 0.16 + 0.17). */
+  const STOOL_SEAT = 0.31;
+  const LOG_SEAT = 0.33;
   const pose = (w: Who, c: Ctx) => {
     const p = w.p;
-    const b = p.bones;
-    const t = c.rm ? 0 : c.clock;
-    p.rest(c.clock, c.rm);
+    const a = p.anim;
     p.speed = 0;
-    if (w.kind === "painter") {
-      // Sitting by the cloth, leaning in; the right hand draws the line, the left steadies the cloth.
-      p.sit(c.clock, true, -0.4);
-      b.armL.rotation.set(-0.85, 0, 0.3);
-      b.armR.rotation.set(-1.0 + Math.sin(t * 1.3 + p.seed) * 0.08, Math.sin(t * 0.9 + p.seed) * 0.25, -0.15);
-      b.head.rotation.x = 0.45;
-    } else if (w.kind === "traveller") {
-      // On the log: hips at its height, shins down; elbows on the knees by day, hands to the fire at night.
-      b.hips.position.y = -0.24;
-      b.legL.rotation.set(-1.15, 0, 0.1);
-      b.legR.rotation.set(-1.15, 0, -0.1);
-      const night = isOut("fire", c.time);
-      b.torso.rotation.x = night ? 0.3 : 0.12;
-      b.armL.rotation.set(night ? -1.1 : -0.8, 0, 0.2);
-      b.armR.rotation.set(night ? -1.1 : -0.8, 0, -0.2);
-      if (!c.rm) b.head.rotation.y = Math.sin(c.clock * 0.2 + p.seed) * 0.35;
-    } else if (w.kind === "kid") {
-      // Clapping game: hands meet the partner's, then their own, in a little rhythm.
-      const beat = Math.sin(t * 5 + w.k * Math.PI);
-      const cross = Math.max(0, beat);
-      b.armL.rotation.set(-1.3 - cross * 0.2, 0, 0.1 + (1 - cross) * 0.35);
-      b.armR.rotation.set(-1.3 - cross * 0.2, 0, -0.1 - (1 - cross) * 0.35);
-      b.hips.position.y = Math.abs(Math.sin(t * 2.5 + w.k)) * 0.03;
-      b.head.rotation.x = -0.05;
-    } else {
-      b.hips.position.y = -0.24;
-      b.legL.rotation.set(-1.15, 0, 0.1);
-      b.legR.rotation.set(-1.15, 0, -0.1);
-      b.armL.rotation.set(-0.75, 0, 0.15);
-      b.armR.rotation.set(-0.75, 0, -0.15);
-      if (!c.rm) b.head.rotation.y = Math.sin(c.clock * 0.25 + p.seed) * 0.3;
-    }
+    const sits = w.kind === "traveller" || w.kind === "elder";
     if (w.wave > 0) {
+      // Those on the log and the stool get up to wave back; the painters answer with a look and a smile.
       w.wave -= c.dt;
-      wavePose(p, c.clock, c.rm);
-      const target = Math.atan2(c.avatar.x - p.x, c.avatar.z - p.z) - p.yaw;
-      b.head.rotation.y = damp(b.head.rotation.y, Math.atan2(Math.sin(target), Math.cos(target)) * 0.6, 8, c.dt);
-    }
-    p.commit();
+      p.lookRange = 6;
+      if (sits) {
+        a.act("wave", { fade: 0.45, side: w.k ? -1 : 1 });
+        p.commit(c);
+        return;
+      }
+    } else p.lookRange = sits ? 4 : 0;
+    if (w.kind === "painter") {
+      // Kneeling at the cloth's edge, the brush low over it.
+      a.act("kneel", { fade: 0.5 });
+    } else if (w.kind === "traveller") {
+      // On the log; at night, hands to the fire.
+      a.act(isOut("fire", c.time) ? "sit-stool" : "sit-bench", { fade: 0.6, seat: LOG_SEAT });
+    } else if (w.kind === "kid") {
+      // The clapping game: hands go back and forth between the two, a little bob.
+      a.act("talk", { side: w.k ? 1 : -1 });
+      p.lookRange = 0;
+    } else a.act("sit-stool", { fade: 0.5, seat: STOOL_SEAT });
+    p.commit(c);
   };
 
   const center = world(0, 0);
@@ -339,7 +314,10 @@ export function createFinale(env: Ctx["env"], crowd: Crowd, staticMat: THREE.Mat
       if (visible !== shown) {
         shown = visible;
         props.visible = visible;
-        if (!visible) for (const w of people) w.p.hide();
+        for (const w of people) {
+          if (!visible) w.p.hide();
+          else reveal(w.p);
+        }
       }
       const fireOn = isOut("fire", c.time);
       fl.visible = visible && fireOn && has("traveller");

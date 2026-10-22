@@ -10,10 +10,16 @@
  */
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { buildPasoHorse } from "../../ambient/mount/horse";
+import { saddledLlamaMount } from "../../ambient/mount/llama";
+import { buildSaddledMule } from "../../ambient/mount/mule";
+import { buildQuad } from "../../ambient/mount/quad";
+import type { MountModel } from "../../ambient/mount/ride";
+import type { WorldEnv } from "../../contract";
 import { createEngine } from "../../engine";
 import { createSky } from "../../sky";
 import { createWorldStyle, type WorldStyleOptions } from "../../style-runtime";
-import { createToonCache } from "../../toon";
+import { createToonCache, noOutline } from "../../toon";
 import { liveWind } from "../../wind";
 import {
   ACTIONS,
@@ -142,6 +148,34 @@ if (view === "lineup") {
   outfits.forEach(([name, spec], i) => {
     addHuman(`traveler-${name}`, name, spec, dress(TRAVELER_DRESS[name]), (i - 2) * 1.3);
   });
+} else if (view === "ride") {
+  // The traveler on each road mount, as the runtime places a rider: feet origin at the mount's seatHeight.
+  const env = { scene, toon: toon.toon, noOutline, reducedMotion: false, lang: "es", heightAt } as unknown as WorldEnv;
+  const mounts: Array<[string, () => MountModel]> = [
+    ["horse", () => buildPasoHorse(env)],
+    ["mule", () => buildSaddledMule(env)],
+    ["llama", () => saddledLlamaMount(env)],
+    ["quad", () => buildQuad(env)],
+  ];
+  mounts.forEach(([name, make], i) => {
+    const m = make();
+    const x = (i - 1.5) * 2.4;
+    scene.add(m.group);
+    const slot = addHuman(`ride-${name}`, name, TRAVELER.andean, dress(TRAVELER_DRESS.andean), x);
+    const h = slot.h as Human;
+    h.anim.act("ride", { fade: 0 });
+    const base = slot.update;
+    slot.update = (dt, t) => {
+      const sp = state.mode === "walk" ? 1.4 : state.mode === "run" ? 3.6 : 0;
+      m.group.position.set(slot.x, heightAt(slot.x, slot.z), slot.z);
+      m.group.rotation.y = state.yaw;
+      m.animate({ speed: sp, look: 0, t, dt, rm: state.rm });
+      h.group.position.set(slot.x, heightAt(slot.x, slot.z) + m.seatHeight, slot.z);
+      h.group.rotation.y = state.yaw;
+      h.update(dt, t, { speed: 0, rm: state.rm, expression: state.expression });
+      void base;
+    };
+  });
 } else if (view === "lod") {
   const which = (q.get("who") as keyof typeof PEOPLE) ?? "campesina";
   const spec = (which in PEOPLE ? PEOPLE[which] : TRAVELER.andean) as HumanSpec;
@@ -211,6 +245,7 @@ if (view === "lineup") {
 prefetchHumans(view === "outfits" ? outfits.map((o) => o[1]) : people.map((p) => p[1]));
 
 function placeAll() {
+  if (view === "ride") return;
   for (const s of slots)
     if (s.h) {
       s.h.group.position.set(s.x, heightAt(s.x, s.z), s.z);
@@ -284,7 +319,7 @@ function refresh() {
     for (const b of list)
       b.setAttribute("aria-pressed", String((b as unknown as { pressed: () => boolean }).pressed()));
 }
-for (const v of ["lineup", "outfits", "actions", "crowd", "lod"])
+for (const v of ["lineup", "outfits", "actions", "crowd", "lod", "ride"])
   button(
     "view",
     v,

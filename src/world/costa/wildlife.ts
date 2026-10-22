@@ -37,8 +37,8 @@ export const COSTA_WILDLIFE: readonly Species[] = [
     },
     when: ALWAYS,
     does: {
-      es: "Una colonia echada sobre las rocas, respirando despacio; algunos levantan la cabeza y la mueven de un lado a otro. Tres nadan en círculos alrededor de las rocas, con la cabeza fuera del agua, subiendo y bajando con las olas. Con el sonido activo se les oye ladrar cuando estás cerca.",
-      en: "A colony lying on the rocks, breathing slowly; some hold their heads up and turn them about. Three swim in circles round the rocks with their heads out of the water, rising and falling with the waves. With sound on you hear them bark when you are near.",
+      es: "Una colonia echada sobre las rocas, dormitando; algunos levantan la cabeza y miran a su alrededor, abren la boca para ladrar o se rascan con una aleta. Tres nadan en círculos alrededor de las rocas, con la cabeza fuera del agua, subiendo y bajando con las olas. Con el sonido activo se les oye ladrar cuando estás cerca.",
+      en: "A colony lying on the rocks, dozing; some hold their heads up and look about, open their mouths to bark or scratch with a flipper. Three swim in circles round the rocks with their heads out of the water, rising and falling with the waves. With sound on you hear them bark when you are near.",
     },
     stamp: "costa:fauna:lobo-marino",
   },
@@ -52,8 +52,8 @@ export const COSTA_WILDLIFE: readonly Species[] = [
     },
     when: ALWAYS,
     does: {
-      es: "Un grupo de pingüinos de espalda negra, pecho blanco con la banda negra y la mancha rosada en la cara, de pie sobre las rocas; se giran de un lado a otro y algunos se balancean como al caminar.",
-      en: "A group of penguins with black backs, white fronts with the black breast band and the pink patch on the face, standing on the rocks; they turn this way and that and some sway as if waddling.",
+      es: "Un grupo de pingüinos de espalda negra, pecho blanco con la banda negra y la mancha rosada en la cara, de pie sobre las rocas; se giran de un lado a otro, se acicalan y se sacuden.",
+      en: "A group of penguins with black backs, white fronts with the black breast band and the pink patch on the face, standing on the rocks; they turn this way and that, preen and shake themselves.",
     },
     stamp: "costa:fauna:pinguino",
   },
@@ -144,8 +144,8 @@ export const COSTA_WILDLIFE: readonly Species[] = [
     },
     when: ALWAYS,
     does: {
-      es: "Burros grises de hocico claro, orejas largas y la cruz oscura en el lomo. Pastan con la cabeza gacha y caminan despacio de una mata a otra; si te acercas levantan la cabeza y te miran.",
-      en: "Grey donkeys with pale muzzles, long ears and the dark cross on the back. They graze with their heads down and amble from one patch to the next; come close and they lift their heads to look at you.",
+      es: "Burros grises de hocico y vientre claros y orejas largas. Pastan con la cabeza gacha y caminan despacio de una mata a otra; si te acercas levantan la cabeza y te miran.",
+      en: "Grey donkeys with pale muzzles and bellies and long ears. They graze with their heads down and amble from one patch to the next; come close and they lift their heads to look at you.",
     },
   },
   {
@@ -172,8 +172,8 @@ export const COSTA_WILDLIFE: readonly Species[] = [
     },
     when: ALWAYS,
     does: {
-      es: "Lagartijas arenosas de manchas claras y cola larga que toman sol y a ratos hacen flexiones. Si te acercas corren a su madriguera y desaparecen en la arena; vuelven a salir cuando ya te alejaste.",
-      en: "Sandy lizards with pale spots and long tails that bask and now and then do push-ups. Come close and they dash to their burrow and vanish into the sand; they come back out once you have moved off.",
+      es: "Lagartijas arenosas de manchas claras y cola larga que toman sol quietas, mirando a su alrededor. Si te acercas corren a su madriguera y desaparecen en la arena; vuelven a salir cuando ya te alejaste.",
+      en: "Sandy lizards with pale spots and long tails that bask, still, looking about. Come close and they dash to their burrow and vanish into the sand; they come back out once you have moved off.",
     },
   },
   {

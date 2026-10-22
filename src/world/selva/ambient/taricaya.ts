@@ -8,7 +8,9 @@
  * shells come up beside the log, drift a moment and climb back onto it, one by one. At dusk they slip into
  * the river for the night and only surface now and then, back on the log after sunrise.
  *
- * Rendering: one rig InstancedMesh for all turtles, the logs merged per cluster (the ones along the canoe route
+ * Rendering: the turtles as one instanced herd on the shared animal core (species "taricaya", drawn 1.35×
+ * life so the row reads from the road, wild/beasts.ts; a crawl up the log, the "swim" mode with the legs
+ * sculling), the logs merged per cluster (the ones along the canoe route
  * are one mesh) and shown only within 110 u of the camera (wild/kit.ts SiteProps), and a ripple pool → 2–3
  * draw calls (plus their ink and shadow passes) near the logs, none elsewhere.
  * Bodies: none (they never leave the log and the water, where the traveler cannot walk).
@@ -18,11 +20,11 @@ import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { on } from "../../events";
 import { inStationFootprint, stationFootprints } from "./embarcadero/footprints";
-import { logGeometry, mergeNear, turtleModel } from "./wild/critters";
+import { createBeasts } from "./wild/beasts";
+import { logGeometry, mergeNear } from "./wild/critters";
 import { ranks, SpeedMeter, stagger } from "./wild/crossing";
-import { devHook, FAUNA_FAR, faunaDt, idle, Ripples, ramp, rootMatrix, SiteProps, Spotter, selvaOf } from "./wild/kit";
+import { devHook, FAUNA_FAR, faunaDt, idle, Ripples, SiteProps, Spotter, selvaOf } from "./wild/kit";
 import { clamp01, damp, dayAmount, rng, roadFrame, TAU, turnToward, wrapAngle } from "./wild/logic";
-import { RigSet } from "./wild/rig";
 
 type State = "bask" | "slide" | "under" | "surface" | "climb";
 
@@ -87,7 +89,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   const rm = env.reducedMotion;
   const R = rng(6151);
   const prints = stationFootprints(L);
-  const model = turtleModel();
   /** Swimming: the root sits so only the top of the shell and the head break the surface. */
   const swimY = lv - 0.13 * SCALE;
 
@@ -189,13 +190,11 @@ export const create: CreateAmbient = (env0): Ambient => {
     tt.pitch = tt.down ? tt.log.slope : -tt.log.slope;
   }
 
-  const set = new RigSet("selva-fauna-taricaya-body", model.geo, model.spec, turtles.length, ramp(env), {
-    shadow: high,
-  });
+  const set = createBeasts(env, "taricaya", turtles.length, { scale: SCALE });
   const ripples = new Ripples(env, "selva-fauna-taricaya-ripples", 10, lv, 1.4);
   const root = new THREE.Group();
   root.name = "selva-fauna-taricaya";
-  root.add(props.group, set.mesh, ripples.mesh);
+  root.add(props.group, set.group, ripples.mesh);
   env.scene.add(root);
 
   const spot = new Spotter(env, "taricaya", 30);
@@ -217,7 +216,6 @@ export const create: CreateAmbient = (env0): Ambient => {
       turtles: l.turtles.map((tt) => tt.state),
     })),
   );
-  const m4 = new THREE.Matrix4();
   const tmp = { x: 0, y: 0, z: 0 };
   let clock = 0;
 
@@ -264,8 +262,9 @@ export const create: CreateAmbient = (env0): Ambient => {
             }
       }
 
-      let k = 0;
-      for (const tt of turtles) {
+      set.begin();
+      for (let i = 0; i < turtles.length; i++) {
+        const tt = turtles[i] as Turtle;
         const log = tt.log;
         let swimming = false;
         let headT = -0.3;
@@ -387,16 +386,18 @@ export const create: CreateAmbient = (env0): Ambient => {
         tt.swing = damp(tt.swing, swingT, 4, dt);
         tt.headYaw = damp(tt.headYaw, Math.max(-1, Math.min(1, lookT)), 2, dt);
         tt.headPitch = damp(tt.headPitch, headT, 3, dt);
-        if (spot.view.dist(tt.x, tt.y, tt.z) > FAUNA_FAR) continue;
-        if (swimming || tt.swing > 0.1) tt.phase = (tt.phase + dt * 0.9 * mot) % 1;
-        rootMatrix(m4, tt.x, tt.y, tt.z, tt.yaw, swimming ? -0.1 : tt.pitch, 0, tt.scale);
-        // Basking: all four legs stretched back and out, the classic sunning sprawl.
-        const sprawl = tt.state === "bask" ? 1 : 0;
-        set.set(k++, m4, tt.phase, tt.swing, tt.headYaw, tt.headPitch, 0, 0, sprawl * 0.5, sprawl * 1.0);
+        if (inside || spot.view.dist(tt.x, tt.y, tt.z) > FAUNA_FAR) continue;
+        set.put(i, tt.x, tt.y, tt.z, tt.yaw, {
+          speed: tt.swing > 0.1 ? 0.12 + tt.swing * 0.2 : 0,
+          rm,
+          mode: swimming ? "swim" : "auto",
+          look: tt.headYaw,
+          // Basking in the sun: dozing allowed while nobody is near.
+          quiet: tt.state === "bask" && !log.alarm,
+        });
         spot.see(tt.x, tt.y + 0.1, tt.z, avatar.x, avatar.z, 0.5);
       }
-      set.rim.value = (1 - day) * 0.6;
-      set.commit(inside ? 0 : k);
+      set.end(dt, clock, env.camera);
       ripples.update(dt);
       spot.end(dt);
     },

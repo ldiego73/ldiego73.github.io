@@ -171,7 +171,8 @@ export function skirt(ctx: WearCtx, o: SkirtOpts): GridPiece {
       const side = Math.sin(a);
       const front = Math.cos(a);
       const q = smoothstep(0.1, 1, s);
-      const legK = 0.32 * q * (0.6 + 0.4 * Math.max(0, front));
+      // The front follows the forward leg more than the back does (and the thighs when seated).
+      const legK = 0.4 * q * (0.5 + 0.5 * Math.max(0, front));
       return [
         [hips, 1],
         [tL, legK * smoothstep(-0.35, 0.6, side)],

@@ -6,17 +6,17 @@ import {
   BELL_FAR,
   beat,
   bellGain,
-  blendPose,
   clockJumped,
-  dancePose,
-  greetPose,
+  danceStep,
+  greetStep,
+  HOP_HZ,
   inPlaza,
   isMidnight,
   LINES,
   lineFor,
   nextShown,
   panFor,
-  REST,
+  ROUTINE,
   ROUTINE_SECS,
   SPOT,
   STAMP,
@@ -70,40 +70,46 @@ describe("ukuku: dance", () => {
     expect(stepAt(ROUTINE_SECS + 0.1).i).toBe(0);
     expect(stepAt(-0.1).i).toBeGreaterThanOrEqual(0);
   });
-  test("hops land on the ground, stay near the spot and never sink", () => {
+  test("each move is a human action; it stays near its spot", () => {
+    const actions = new Set<string>();
     for (let t = 0; t < ROUTINE_SECS; t += 0.05) {
-      const p = dancePose(t, false);
-      expect(p.lift).toBeGreaterThanOrEqual(0);
-      expect(p.lift).toBeLessThan(0.4);
-      expect(Math.hypot(p.dx, p.dz)).toBeLessThanOrEqual(WANDER);
+      const s = danceStep(t, false);
+      actions.add(s.action);
+      expect(Math.hypot(s.dx, s.dz)).toBeLessThanOrEqual(WANDER);
+      expect(s.side).toBe(1);
     }
-    expect(dancePose(0, false).lift).toBeCloseTo(0, 6);
+    expect([...actions].sort()).toEqual(["dance", "hop", "wave"]);
+    expect(danceStep(0.1, false).action).toBe("hop");
   });
   test("it spins whole turns in a spin step", () => {
     // The first spin starts after the first 4 s hop step.
     const start = 4;
     expect(stepAt(start + 0.01).move).toBe("spin");
-    expect(dancePose(start + 2.5 - 1e-6, false).turn).toBeCloseTo(Math.PI * 4, 3);
+    expect(danceStep(start + 0.01, false).action).toBe("dance");
+    expect(danceStep(start + 2.5 - 1e-6, false).turn).toBeCloseTo(Math.PI * 4, 3);
   });
-  test("reduced motion: a gentle sway, no hops or spins", () => {
+  test("reduced motion: hands on the hips, a gentle sway, no hops or spins", () => {
     for (let t = 0; t < ROUTINE_SECS; t += 0.1) {
-      const p = dancePose(t, true);
-      expect(p.lift).toBe(0);
-      expect(Math.abs(p.turn)).toBeLessThan(0.2);
-      expect(Math.abs(p.leanZ)).toBeLessThan(0.1);
+      const s = danceStep(t, true);
+      expect(s.action).toBe("hands-hips");
+      expect(Math.abs(s.turn)).toBeLessThan(0.2);
+      expect(s.dx).toBe(0);
     }
-    expect(greetPose(1, true).lift).toBe(0);
   });
-  test("the greeting raises the left arm", () => {
-    expect(greetPose(0.3, false).armLZ).toBeGreaterThan(2);
+  test("the greeting waves the left arm, standing still", () => {
+    const g = greetStep();
+    expect(g.action).toBe("wave");
+    expect(g.side).toBe(-1);
+    expect(g.turn).toBe(0);
   });
-  test("blending goes the short way round", () => {
-    const cur = { ...REST, turn: Math.PI * 4 - 0.1 };
-    blendPose(cur, { ...REST, turn: 0.1 }, 1);
-    expect(Math.abs(Math.sin(cur.turn - 0.1))).toBeLessThan(1e-9);
-  });
-  test("the bell rings once per hop, slower when reduced", () => {
-    expect(beat(1.01, false) - beat(0, false)).toBe(2);
+  test("the bell rings on every other hop landing, counted from each step's start; slower when reduced", () => {
+    // HOP_HZ beats a second within a step.
+    expect(beat(1 / HOP_HZ + 0.01, false) - beat(0, false)).toBe(1);
+    expect(beat(2 / HOP_HZ + 0.01, false) - beat(0, false)).toBe(2);
+    // A new step starts a new count (and so rings), and so does a new loop of the routine.
+    const first = (ROUTINE[0] as { secs: number }).secs;
+    expect(beat(first + 0.001, false)).not.toBe(beat(first - 0.001, false));
+    expect(beat(ROUTINE_SECS + 0.001, false)).not.toBe(beat(0.001, false));
     expect(beat(10, true)).toBeLessThan(beat(10, false));
   });
 });

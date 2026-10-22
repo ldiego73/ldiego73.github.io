@@ -47,7 +47,7 @@ export function hairBones(style: HairStyle, hc: Vec3, s: number, k: number): Bon
   return [];
 }
 
-export function hair(ctx: WearCtx, style: HairStyle, opts: { over?: number; under?: boolean } = {}): Worn {
+export function hair(ctx: WearCtx, style: HairStyle, opts: { over?: number; underBrim?: boolean } = {}): Worn {
   const pieces: Piece[] = [];
   const s = headS(ctx);
   if (style === "none") return { pieces };
@@ -58,7 +58,8 @@ export function hair(ctx: WearCtx, style: HairStyle, opts: { over?: number; unde
   }
   const low = style === "crop";
   pieces.push(shell(ctx, { parting: style === "parted" || style === "braids", hairline: low ? 0.36 : 0.45 }));
-  if (style === "crop" || style === "long")
+  // Under a brimmed hat the bangs would read as dark marks at the temples from afar: the shell's hairline is enough.
+  if ((style === "crop" || style === "long") && !opts.underBrim)
     pieces.push(rigidGrid("bangs", locks(ctx, "bangs"), ctx.b("head"), HS.hair));
   if (style === "braids") {
     const r = braids(ctx, opts.over ?? 0.035);
