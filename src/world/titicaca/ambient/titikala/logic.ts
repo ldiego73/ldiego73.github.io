@@ -64,16 +64,36 @@ export function spawnSparks(n: number, y0: number, colors: number, rand: () => n
   });
 }
 
-/** One step: gravity and air drag (the sparks float down like petals once their throw is spent), land on `floor`. */
-export function stepSpark(p: Spark, dt: number, age: number, floor: (x: number, z: number) => number): void {
+/** World wind at the rock (../../../wind.ts `liveWind.sample`: direction × speed, gusts included). */
+export interface Breeze {
+  x: number;
+  z: number;
+}
+
+/** How much of the wind a falling spark takes (light as a petal, so most of it). */
+export const SPARK_DRIFT = 0.55;
+
+/**
+ * One step: gravity and air drag (the sparks float down like petals once their throw is spent), land on
+ * `floor`. With a `wind`, the falling sparks drift downwind (the altiplano's gusts carry them off the rock).
+ */
+export function stepSpark(
+  p: Spark,
+  dt: number,
+  age: number,
+  floor: (x: number, z: number) => number,
+  wind?: Breeze,
+): void {
   if (p.landed) return;
   const drag = Math.exp(-1.6 * dt);
   p.vx *= drag;
   p.vz *= drag;
   // Fall slower than a stone: a terminal speed of ~1.6 u/s with a sideways flutter.
   p.vy = Math.max(-1.6, p.vy - 9 * dt);
-  p.x += (p.vx + Math.sin(age * 3 + p.ph) * 0.5) * dt;
-  p.z += (p.vz + Math.cos(age * 2.6 + p.ph) * 0.5) * dt;
+  // The wind takes them once the throw is spent (rising, they still fly where they were thrown).
+  const carry = wind && p.vy < 0 ? SPARK_DRIFT : 0;
+  p.x += (p.vx + Math.sin(age * 3 + p.ph) * 0.5 + (wind?.x ?? 0) * carry) * dt;
+  p.z += (p.vz + Math.cos(age * 2.6 + p.ph) * 0.5 + (wind?.z ?? 0) * carry) * dt;
   p.y += p.vy * dt;
   const f = floor(p.x, p.z);
   if (p.y <= f) {

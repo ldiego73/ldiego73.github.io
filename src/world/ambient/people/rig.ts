@@ -9,6 +9,7 @@
  */
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { paintStrength } from "../../style-gl";
 
 export const S_SKIN = 1;
 export const S_MAIN = 2;
@@ -118,7 +119,8 @@ export function paletteMaterial(gradientMap: THREE.Texture | null): THREE.MeshTo
       );
   };
   mat.customProgramCacheKey = () => "qn-people-palette";
-  return mat;
+  // People walk: world-space painted blotches (style-gl.ts) would slide over them.
+  return paintStrength(mat, 0);
 }
 
 /** Four outfit colors (sRGB hex) for slots 1..4. */

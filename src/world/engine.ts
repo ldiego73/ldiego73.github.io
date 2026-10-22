@@ -5,6 +5,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { InkOutlinePass } from "./outline";
+import { installStyleShaders } from "./style-gl";
 import { NO_OUTLINE_LAYER } from "./toon";
 
 export type Quality = "low" | "high";
@@ -36,6 +37,8 @@ export interface Engine {
 
 /** One renderer, one scene: color → ink outline → FXAA (high) → tone map + sRGB. */
 export function createEngine(host: HTMLElement, opts: { quality: Quality }): Engine {
+  // Cel pintado andino chunks (style-gl.ts) must be in place before the first material compiles.
+  installStyleShaders();
   const canvas = document.createElement("canvas");
   canvas.className = "kw-canvas";
   canvas.setAttribute("aria-hidden", "true");

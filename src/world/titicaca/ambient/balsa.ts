@@ -21,6 +21,7 @@ import { creatures } from "../../creatures";
 import { decks } from "../../decks";
 import { emit, on } from "../../events";
 import { vertexToon } from "../../merge-colors";
+import { noPaint } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { ride } from "../../suyu/ride";
 import { LEVEL } from "../plan";
@@ -36,7 +37,7 @@ import {
   pierY,
   stepBoat,
 } from "./balsa/logic";
-import { Build, frameAt } from "./kit/build";
+import { Build, frameAt, kitMaterial } from "./kit/build";
 import { balsaBoat, REED } from "./kit/totora";
 
 const T_BOARD: L = { es: "E · Subir a la balsa", en: "E · Board the reed boat" };
@@ -124,12 +125,15 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   // ------------------------------------------------------------------ the boat and its pole
   const hull = new THREE.Group();
   hull.name = "titicaca-balsa-hull";
+  let hullMat: THREE.Material | null = null;
   {
     const b = new Build();
     balsaBoat(b, 1, true);
     const g = b.build();
     if (g) {
-      const m = new THREE.Mesh(g, mat);
+      // Its own material: the sail is cloth on the shared wind (./kit/build.ts `kitMaterial`).
+      hullMat = kitMaterial(g);
+      const m = new THREE.Mesh(g, hullMat);
       m.name = "titicaca-balsa:hull";
       m.castShadow = true;
       hull.add(m);
@@ -141,6 +145,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   );
   pole.name = "titicaca-balsa:pole";
   hull.add(pole);
+  // It moves: world-space painted blotches would slide over the reeds (and the shared pole colour gets a twin).
+  noPaint(hull);
   group.add(hull);
   env.scene.add(group);
   const body = creatures.add("balsa", 1.6, { give: 0.2 });
@@ -320,6 +326,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       for (const m of pierMeshes) m.geometry.dispose();
       hull.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
       mat.dispose();
+      hullMat?.dispose();
       group.removeFromParent();
     },
   };

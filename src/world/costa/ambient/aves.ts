@@ -20,6 +20,7 @@ import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit } from "../../events";
 import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { CostaLayout } from "../layout";
 import { BEACHES, STATION } from "../plan";
@@ -39,7 +40,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const L = env.suyu.layout as CostaLayout;
   const rm = env.reducedMotion;
   const R = prng(0xa7e5);
-  const mat = vertexToon();
+  // Birds: no world-space paint sliding over moving bodies.
+  const mat = paintStrength(vertexToon(), 0);
   const root = new THREE.Group();
   root.name = "costa-aves";
   env.scene.add(root);

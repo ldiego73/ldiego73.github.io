@@ -23,6 +23,7 @@ import {
   saveGhost,
   shouldReplaceGhost,
 } from "../journey";
+import { styleUniforms } from "../style-gl";
 import { makeChip, releaseChips, trailChips } from "./errand/chips";
 
 const COPY = {
@@ -43,23 +44,35 @@ const COPY = {
 const CORE = new THREE.Color("#48b8b4");
 const RIM = new THREE.Color("#e9fffb");
 
+/**
+ * Translucent apu: cel-banded like the rest of the world (a soft core, then a hard-edged bright rim band, like
+ * the style's two-tone light; style-gl.ts), and hazed with distance like every fogged material (three's fog
+ * chunks + `styleUniforms()` give it the aerial perspective).
+ */
 function ghostMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: {
+      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      ...styleUniforms(),
       uOpacity: { value: 0 },
       uCore: { value: CORE },
       uRim: { value: RIM },
     },
     vertexShader: /* glsl */ `
+      #include <common>
+      #include <fog_pars_vertex>
       varying vec3 vN;
       varying vec3 vV;
       void main() {
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
         vN = normalize(normalMatrix * normal);
-        vV = -mv.xyz;
-        gl_Position = projectionMatrix * mv;
+        vV = -mvPosition.xyz;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
       }`,
     fragmentShader: /* glsl */ `
+      #include <common>
+      #include <fog_pars_fragment>
       uniform float uOpacity;
       uniform vec3 uCore;
       uniform vec3 uRim;
@@ -67,12 +80,16 @@ function ghostMaterial() {
       varying vec3 vV;
       void main() {
         float f = 1.0 - max(dot(normalize(vN), normalize(vV)), 0.0);
-        float rim = pow(f, 1.7);
-        vec3 col = mix(uCore, uRim, rim);
-        gl_FragColor = vec4(col, uOpacity * (0.46 + 0.5 * rim));
+        float w = max(fwidth(f), 0.01);
+        // Two tones and a thin outer band (cel), not a smooth gradient.
+        float band = smoothstep(0.5 - w, 0.5 + w, f) * 0.65 + smoothstep(0.78 - w, 0.78 + w, f) * 0.35;
+        vec3 col = mix(uCore, uRim, band);
+        gl_FragColor = vec4(col, uOpacity * (0.42 + 0.52 * band));
+        #include <fog_fragment>
       }`,
     transparent: true,
     depthWrite: false,
+    fog: true,
   });
 }
 

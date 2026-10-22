@@ -2,7 +2,7 @@
  * Coast soundscape (ambient, no prompt), procedural Web Audio on the shared music output's ambient bus:
  *   surf     the sea's roar and the hiss of foam, loud by the water and swelling with each set of waves
  *            (./soundscape/mix.ts, on the sea's own swash rhythm), panned toward the shore
- *   wind     a soft band of noise, stronger up on the cliffs and the headland
+ *   wind     a soft band of noise, stronger up on the cliffs and the headland and in the gust fronts
  *   calls    gull cries and sea lion barks from the nearest bird or animal of the shared `creatures` registry
  *            (registered by ./aves.ts and ./orilla.ts; no body of a kind, no sound)
  *   stamps   `world:stamp` → the passport chime of the shared sfx bus
@@ -17,6 +17,7 @@ import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures, isParked } from "../../creatures";
 import { on } from "../../events";
 import type { SuyuEnv } from "../../suyu/contract";
+import { liveWind } from "../../wind";
 import type { CostaLayout } from "../layout";
 import { prng } from "./fauna/logic";
 import { callGain, callGap, panFor, surf, wind } from "./soundscape/mix";
@@ -244,7 +245,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         applyClock = 0;
         ramp(g.master.gain, game ? 0 : LEVEL * bedLevel, game ? 0.3 : 0.8);
         ramp(g.surfG.gain, surf(L.shoreDist(avatar.x, avatar.z), clock) * 0.55);
-        ramp(g.windG.gain, wind(avatar.y, env.sky.isNight()) * 0.3);
+        ramp(g.windG.gain, wind(avatar.y, env.sky.isNight(), liveWind.gust) * 0.3);
         // The sea is to the west (its normal from the shore points −x).
         if (g.surfPan) ramp(g.surfPan.pan, panFor(-1, 0, right.x, right.z) * 0.6, 0.6);
       }

@@ -15,6 +15,7 @@ import type { Ambient, CreateAmbient } from "../contract";
 import { type Body, creatures, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
+import { paintStrength } from "../style-gl";
 import { rng } from "../tex";
 import {
   angleDiff,
@@ -120,7 +121,8 @@ export const create: CreateAmbient = (env): Ambient => {
   // ---------------------------------------------------------------- meshes
   const geos = bearGeometries();
   const base = env.toon("#ffffff");
-  const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: base.gradientMap });
+  // Bears move: no world-space painted blotches sliding over the fur (style-gl.ts).
+  const mat = paintStrength(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: base.gradientMap }), 0);
   const mk = (geo: THREE.BufferGeometry, name: string, count: number) => {
     const mesh = new THREE.InstancedMesh(geo, mat, count);
     mesh.name = name;

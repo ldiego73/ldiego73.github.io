@@ -13,9 +13,16 @@
  *
  * Draws: everything solid is one vertex-colored merged mesh (casts shadows); the rope netting between the rails
  * is one alpha-tested mesh on the no-outline layer (a net would ink as a solid sheet in the prepass).
+ *
+ * Wind: the merged mesh rides the shared wind (style-gl.ts windSway, "grass" mode on a `flex` weight): the
+ * deck, posts, stilts and beams have weight 0 (feet must meet the planks exactly), the rope rails swing a few
+ * centimetres between their posts and the long cables from the trunks sway at mid-span. The traveler's body
+ * pushes the rails beside them a little as they pass (the shared pushers). The net stays put: its panels
+ * only touch the ropes at the posts, where the ropes do not move.
  */
 import * as THREE from "three";
 import { mergeColored } from "../../merge-colors";
+import { windSway } from "../../style-gl";
 import { canvasTex, rng } from "../../tex";
 import type { ToonCache } from "../../toon";
 import { noOutline } from "../../toon";
@@ -28,6 +35,30 @@ const WOOD = [C("#9b7550"), C("#8a6440"), C("#a8835a"), C("#7e5a38")];
 const POST = C("#6e4c30");
 const ROPE = C("#cdb88c");
 const BEAM = C("#5b4029");
+/** Largest sway weight (u of swing at full wind) of a rope rail mid-span and of a long cable from a trunk. */
+const RAIL_SWING = 0.2;
+const CABLE_SWING = 0.3;
+
+/** Sway weight along a rope rail: 0 at its posts, RAIL_SWING half way between two posts (spacing `step`). */
+export function railFlex(posts: readonly THREE.Vector3[], step: number) {
+  return (p: THREE.Vector3) => {
+    let d = Number.POSITIVE_INFINITY;
+    for (const q of posts) d = Math.min(d, (p.x - q.x) ** 2 + (p.z - q.z) ** 2);
+    const u = Math.min(1, Math.sqrt(d) / (step / 2));
+    return RAIL_SWING * Math.sin((u * Math.PI) / 2) ** 2;
+  };
+}
+
+/** Sway weight of a straight cable from a to b: 0 at both ends, `max` at mid-span. */
+export function cableFlex(a: THREE.Vector3, b: THREE.Vector3, max = CABLE_SWING) {
+  const ab = new THREE.Vector3().subVectors(b, a);
+  const l2 = ab.lengthSq() || 1;
+  const t = new THREE.Vector3();
+  return (p: THREE.Vector3) => {
+    const u = Math.min(1, Math.max(0, t.subVectors(p, a).dot(ab) / l2));
+    return max * Math.sin(u * Math.PI);
+  };
+}
 
 /** Rope net (diamond mesh) for the walkway sides; alpha-tested. */
 function netTexture() {
@@ -61,6 +92,8 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache): Walkway {
   const hw = trail.halfWidth;
   const R = rng(97);
   const parts: Array<{ geometry: THREE.BufferGeometry; color: THREE.Color; matrix?: THREE.Matrix4 }> = [];
+  /** Sway weight per part (same order as `parts`; null = rigid). */
+  const flexes: Array<((p: THREE.Vector3) => number) | null> = [];
   const owned: THREE.BufferGeometry[] = [];
   const box = new THREE.BoxGeometry(1, 1, 1);
   const pole = new THREE.CylinderGeometry(0.5, 0.5, 1, 6);
@@ -71,14 +104,27 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache): Walkway {
   const p = new THREE.Vector3();
   const tg = new THREE.Vector3();
   const s = new THREE.Vector3();
-  const add = (geometry: THREE.BufferGeometry, color: THREE.Color, matrix?: THREE.Matrix4) =>
+  const add = (
+    geometry: THREE.BufferGeometry,
+    color: THREE.Color,
+    matrix?: THREE.Matrix4,
+    flex: ((p: THREE.Vector3) => number) | null = null,
+  ) => {
     parts.push({ geometry, color, matrix: matrix?.clone() });
-  /** Rope / beam as a thin tube through points. */
-  const rope = (pts: THREE.Vector3[], r: number, color: THREE.Color, sides = 4) => {
+    flexes.push(flex);
+  };
+  /** Rope / beam as a thin tube through points (`flex`: its sway weight at a world point). */
+  const rope = (
+    pts: THREE.Vector3[],
+    r: number,
+    color: THREE.Color,
+    sides = 4,
+    flex: ((p: THREE.Vector3) => number) | null = null,
+  ) => {
     const curve = new THREE.CatmullRomCurve3(pts);
     const g = new THREE.TubeGeometry(curve, Math.max(2, pts.length * 2), r, sides, false);
     owned.push(g);
-    add(g, color);
+    add(g, color, undefined, flex);
   };
   const deckAt = (t: number) => L.canopyDeckAt(t) ?? L.heightAt(trail.pointAt(t).x, trail.pointAt(t).z);
   // Deck extent: where the walkway leaves the ground (matches the road ribbon's gap, with a small overlap).
@@ -140,8 +186,13 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache): Walkway {
     let dist = 0;
     const flush = () => {
       if (top.length > 1) {
-        rope(top, 0.045, ROPE);
-        rope(mid, 0.035, ROPE);
+        // Every other point is a post (the ones between are the sag points).
+        const at = railFlex(
+          top.filter((_, i) => i % 2 === 0),
+          (span / posts) * 1.02,
+        );
+        rope(top, 0.045, ROPE, 4, at);
+        rope(mid, 0.035, ROPE, 4, at);
       }
       top = [];
       mid = [];
@@ -234,9 +285,12 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache): Walkway {
     // Rim posts and rope where the rim clears the bridge; cables from high on the trunk to the posts.
     const rimN = 28;
     let ring: THREE.Vector3[] = [];
+    const rimPosts: THREE.Vector3[] = [];
     const rimFlush = () => {
-      if (ring.length > 1) rope(ring, 0.045, ROPE);
+      if (ring.length > 1)
+        rope(ring, 0.045, ROPE, 4, railFlex(rimPosts.slice(), ((Math.PI * 2 * pf.outer) / rimN) * 2));
       ring = [];
+      rimPosts.length = 0;
     };
     for (let k = 0; k <= rimN; k++) {
       const a = (k / rimN) * Math.PI * 2;
@@ -252,8 +306,13 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache): Walkway {
       if (k % 2 === 0 || ring.length === 1) {
         m.compose(b.clone().setY(by + RAIL / 2), q.identity(), s.set(0.14, RAIL, 0.14));
         add(pole, POST, m);
+        rimPosts.push(b.clone().setY(by + RAIL));
       }
-      if (k % 4 === 0) rope([new THREE.Vector3(pf.x, pf.y + 6, pf.z), b.clone().setY(by + RAIL)], 0.035, ROPE, 3);
+      if (k % 4 === 0) {
+        const c0 = new THREE.Vector3(pf.x, pf.y + 6, pf.z);
+        const c1 = b.clone().setY(by + RAIL);
+        rope([c0, c1], 0.035, ROPE, 3, cableFlex(c0, c1, CABLE_SWING * 0.5));
+      }
     }
     rimFlush();
     // Knee braces under the platform, into the trunk.
@@ -278,17 +337,36 @@ export function buildWalkway(L: SelvaLayout, toon: ToonCache): Walkway {
       for (const side of [-1, 1]) {
         if (inGap(t, side)) continue;
         const a = edge(t, side, hw + 0.12, RAIL);
-        rope([new THREE.Vector3(pf.x, pf.y + 7.5, pf.z), a], 0.03, ROPE, 3);
+        const c0 = new THREE.Vector3(pf.x, pf.y + 7.5, pf.z);
+        rope([c0, a], 0.03, ROPE, 3, cableFlex(c0, a));
       }
     }
   }
 
+  // Sway weights in merge order (mergeColored concatenates the parts de-indexed, in order).
+  const counts = parts.map((pt) => pt.geometry.index?.count ?? pt.geometry.getAttribute("position").count);
   const merged = mergeColored(parts);
   for (const g of owned) g.dispose();
   const objects: THREE.Object3D[] = [];
   const mats: THREE.Material[] = [];
   if (merged) {
-    const mesh = new THREE.Mesh(merged, toon.vertexToon());
+    const pos = merged.getAttribute("position") as THREE.BufferAttribute;
+    const flex = new Float32Array(pos.count);
+    const v = new THREE.Vector3();
+    let o = 0;
+    counts.forEach((n, i) => {
+      const f = flexes[i];
+      if (f) for (let k = o; k < o + n && k < pos.count; k++) flex[k] = f(v.fromBufferAttribute(pos, k));
+      o += n;
+    });
+    merged.setAttribute("flex", new THREE.BufferAttribute(flex, 1));
+    // Own material (the toon cache's vertex material is shared): rails and cables on the shared wind.
+    const mat = windSway(
+      new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: toon.toon("#fff").gradientMap }),
+      { mode: "grass", flex: true },
+    );
+    mats.push(mat);
+    const mesh = new THREE.Mesh(merged, mat);
     mesh.name = "selva-walkway";
     mesh.castShadow = true;
     mesh.receiveShadow = true;

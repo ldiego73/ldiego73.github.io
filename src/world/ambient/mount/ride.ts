@@ -19,6 +19,7 @@ import * as THREE from "three";
 import type { Ambient, L, WorldEnv } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit, on } from "../../events";
+import { noPaint } from "../../style-gl";
 import { angleLerp, mountMustStop, ROAD_VERGE, rideAction } from "./logic";
 
 export interface MountModel {
@@ -68,6 +69,8 @@ export function createRideMount(env: WorldEnv, o: RideMountOpts): Ambient {
   const { model, home } = o;
   const g = model.group;
   g.name = o.name;
+  // Mounts move: no world-space painted blotches sliding over the coat (style-gl.ts).
+  noPaint(g);
   env.scene.add(g);
   g.position.set(home.x, o.groundAt(home.x, home.z), home.z);
   g.rotation.y = home.yaw;

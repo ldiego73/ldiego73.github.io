@@ -26,6 +26,7 @@ import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures, park } from "../../creatures";
 import { emit } from "../../events";
 import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SelvaEnv } from "../contract";
 import { ride } from "../ride";
 import { mudPatches } from "../scenery/ground";
@@ -173,10 +174,12 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   const spiritGeo = spiritGeometry();
   const figure = new THREE.Group();
   figure.name = "chullachaqui:figure";
-  const body = new THREE.Mesh(spiritGeo, solidMat);
+  // The spirit, its vanishing twin and the leaf puff move: no world-space painted blotches on them.
+  const bodyMat = paintStrength(vertexToon(), 0);
+  const body = new THREE.Mesh(spiritGeo, bodyMat);
   body.castShadow = true;
   // Twin used only for the vanish: same shape, transparent, without ink (the screen-space ink can't fade).
-  const ghostMat = vertexToon();
+  const ghostMat = paintStrength(vertexToon(), 0);
   ghostMat.transparent = true;
   const ghost = new THREE.Mesh(spiritGeo, ghostMat);
   ghost.visible = false;
@@ -190,6 +193,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   const leafGeo = leafGeometry();
   const leafMat = new THREE.MeshToonMaterial({ color: "#ffffff", gradientMap: env.toon("#ffffff").gradientMap });
   leafMat.side = THREE.DoubleSide;
+  paintStrength(leafMat, 0);
   const leaves = new THREE.InstancedMesh(leafGeo, leafMat, LEAVES);
   leaves.name = "chullachaqui:puff";
   leaves.visible = false;
@@ -395,7 +399,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       spiritGeo.dispose();
       leafGeo.dispose();
       leaves.dispose();
-      for (const mt of [solidMat, printMat, ghostMat, leafMat]) mt.dispose();
+      for (const mt of [solidMat, bodyMat, printMat, ghostMat, leafMat]) mt.dispose();
       layer.remove();
     },
   };

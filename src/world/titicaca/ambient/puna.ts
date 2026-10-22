@@ -20,6 +20,7 @@ import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { TiticacaLayout } from "../layout";
 import { CUY_PEN, DUCKS, GEESE, IBIS, LEVEL, SHEEP, TROUT } from "../plan";
@@ -67,7 +68,9 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const R = rng(0x9a0a);
   const high = env.quality === "high";
   const rmo = env.reducedMotion;
-  const mat = vertexToon();
+  // The animals move: no world-space painted blotches on them (the cuy pen's stones have their own material).
+  const mat = paintStrength(vertexToon(), 0);
+  const penMat = vertexToon();
   const group = new THREE.Group();
   group.name = "titicaca-puna";
   const geos: THREE.BufferGeometry[] = [];
@@ -220,7 +223,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const penGeo = pb.build();
   if (penGeo) {
     geos.push(penGeo);
-    const pen = new THREE.Mesh(penGeo, mat);
+    const pen = new THREE.Mesh(penGeo, penMat);
     pen.name = "titicaca-puna:pen";
     pen.castShadow = true;
     group.add(pen);
@@ -468,6 +471,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       for (const m of meshes) m.dispose();
       for (const g of geos) g.dispose();
       mat.dispose();
+      penMat.dispose();
       ringMat.dispose();
       group.removeFromParent();
     },

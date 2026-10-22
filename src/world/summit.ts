@@ -2,12 +2,21 @@ import * as THREE from "three";
 import type { Collider, WorldEnv } from "./contract";
 import type { Place, PlaceCtx } from "./landmarks";
 import { C, canvasTex, circleAt, circlesAlong, DYE, glowSprite, hashStr, Kit, rng } from "./props";
+import { WIND } from "./style";
+import { clothFlex, paintStrength, windSway } from "./style-gl";
+import { gradientMap } from "./toon";
+import { liveWind } from "./wind";
 
 /**
  * Summit finale past the chasqui post: a stepped ushnu (ceremonial stone platform) crowned by a
  * golden Inti sun disk, pennant poles in khipu dyes with bunting between them, and a one-time
  * confetti burst of small dyed cubes the first time the traveler arrives.
  * Local frame: origin at the plaza center, +Z toward where the trail arrives.
+ *
+ * The pennants and the bunting are cloth on the world's shared wind (style-gl.ts `clothFlex` + `windSway`
+ * "cloth"): no CPU work per frame, ink-aware, and the same gust fronts that cross the ichu shake them. The
+ * pennants fly downwind of the mountain's prevailing wind (style.ts WIND.qhapaq), each a little off it; the
+ * confetti drifts downwind as it falls (wind.ts `liveWind`).
  */
 export interface SummitPlace extends Place {
   celebrate(): void;
@@ -73,7 +82,8 @@ export function buildSummit(env: WorldEnv, ground: (x: number, z: number) => num
   const top = y + 0.85;
 
   // ---------- golden Inti (sun disk with rays), slowly turning
-  const gold = env.toon(GOLD).clone();
+  // The Inti turns: no world-space painted blotches sliding over the gold.
+  const gold = paintStrength(env.toon(GOLD).clone(), 0);
   gold.emissive = new THREE.Color("#ffcf5a");
   gold.emissiveIntensity = 0.28;
   mats.push(gold);
@@ -133,41 +143,79 @@ export function buildSummit(env: WorldEnv, ground: (x: number, z: number) => num
   }
   group.add(pk.build("summit-poles"));
 
-  // Waving pennants: a tapered plane per pole, vertices displaced each frame.
-  interface Flag {
-    mesh: THREE.Mesh;
-    base: Float32Array;
-    ph: number;
-  }
-  const flags: Flag[] = [];
+  // Pennants: a tapered plane per pole on the shared wind (cloth, pinned at the pole). The wiphala keeps its
+  // own mapped material; the dyed ones share one vertex-coloured material (same draws as before, no CPU work).
   const wiphala = wiphalaTexture();
   texs.push(wiphala);
+  const clothMat = (map: THREE.Texture | null) => {
+    const m = new THREE.MeshToonMaterial({
+      color: "#ffffff",
+      map,
+      vertexColors: !map,
+      gradientMap: gradientMap(),
+      side: THREE.DoubleSide,
+    });
+    // Cloth moves: no world-space painted blotches sliding over the weave.
+    paintStrength(windSway(m, { mode: "cloth", flex: true, amp: 1.25 }), 0);
+    mats.push(m);
+    return m;
+  };
+  const wiphalaMat = clothMat(wiphala);
+  const dyedMat = clothMat(null);
+  const pennants: Array<{ mesh: THREE.Mesh; jitter: number }> = [];
+  const lin = new THREE.Color();
   poles.forEach((p, i) => {
-    const g = new THREE.PlaneGeometry(1.1, 0.62, 8, 2);
+    const g = new THREE.PlaneGeometry(1.1, 0.62, 10, 3);
     g.translate(0.55, 0, 0);
     const pos = g.getAttribute("position");
     if (i !== 0) for (let v = 0; v < pos.count; v++) pos.setY(v, pos.getY(v) * (1 - pos.getX(v) / 1.25));
+    clothFlex(g, "x", 0, 1.1);
+    if (i !== 0) {
+      lin.set(p.color);
+      const col = new Float32Array(pos.count * 3);
+      for (let v = 0; v < pos.count; v++) col.set([lin.r, lin.g, lin.b], v * 3);
+      g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    }
     geos.push(g);
-    const m = env.toon(i === 0 ? "#ffffff" : p.color).clone();
-    m.side = THREE.DoubleSide;
-    if (i === 0) m.map = wiphala;
-    mats.push(m);
-    const mesh = new THREE.Mesh(g, m);
+    const mesh = new THREE.Mesh(g, i === 0 ? wiphalaMat : dyedMat);
+    mesh.name = "summit-pennant";
     const g0 = ground(p.x, p.z);
     mesh.position.set(p.x, g0 + 0.2 + p.h - 0.4, p.z);
-    mesh.rotation.y = rand() * Math.PI * 2;
+    // Oriented downwind on the first update (the plaza's yaw is set by content.ts after the build).
+    pennants.push({ mesh, jitter: (rand() - 0.5) * 0.7 });
     group.add(mesh);
-    flags.push({ mesh, base: Float32Array.from(pos.array as Float32Array), ph: i * 1.3 });
   });
-  // Bunting: small triangles strung between consecutive poles.
+  let pennantsAimed = false;
+  const _q = new THREE.Quaternion();
+  const _e = new THREE.Euler();
+  const aimPennants = () => {
+    pennantsAimed = true;
+    group.updateWorldMatrix(true, false);
+    const gy = _e.setFromQuaternion(group.getWorldQuaternion(_q), "YXZ").y;
+    // Local +x maps to world (cos(gy + r), −sin(gy + r)) in xz; the wind blows toward (cos d, sin d).
+    for (const f of pennants) f.mesh.rotation.y = -WIND.qhapaq.dir - gy + f.jitter;
+  };
+  // Bunting: small dyed triangles hanging from cotton strings between consecutive poles. The strings stay a
+  // Kit mesh; the triangles are ONE vertex-coloured cloth mesh pinned along their top edge (flex 0 → 1 tip).
   const bunting = new THREE.Group();
   const bk = new Kit(env);
-  const tri = new THREE.BufferGeometry();
-  tri.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute([-0.13, 0, 0, 0.13, 0, 0, 0, -0.3, 0, 0.13, 0, 0, -0.13, 0, 0, 0, -0.3, 0], 3),
-  );
-  tri.computeVertexNormals();
+  const flagPos: number[] = [];
+  const flagCol: number[] = [];
+  const flagFlex: number[] = [];
+  const addTri = (p: THREE.Vector3, ry: number, color: string) => {
+    lin.set(color);
+    const c = Math.cos(ry);
+    const s = Math.sin(ry);
+    for (const [lx, ly, f] of [
+      [-0.13, 0, 0],
+      [0.13, 0, 0],
+      [0, -0.3, 1],
+    ] as const) {
+      flagPos.push(p.x + lx * c, p.y + ly, p.z - lx * s);
+      flagCol.push(lin.r, lin.g, lin.b);
+      flagFlex.push(f);
+    }
+  };
   for (let i = 0; i < poles.length; i++) {
     const a = poles[i]!;
     const b = poles[(i + 1) % poles.length]!;
@@ -189,20 +237,30 @@ export function buildSummit(env: WorldEnv, ground: (x: number, z: number) => num
     for (let k = 1; k < 10; k++) {
       const p = pts[k]!;
       const ry = Math.atan2(-(b.z - a.z), b.x - a.x);
-      bk.add(tri, DYES[(i + k) % DYES.length]!, p.x, p.y, p.z, 0, ry, 0);
+      addTri(p, ry, DYES[(i + k) % DYES.length]!);
     }
   }
-  tri.dispose();
   bunting.add(bk.build("bunting"));
-  bunting.traverse((o) => {
-    const m = o as THREE.Mesh;
-    if (m.isMesh) {
-      const c = (m.material as THREE.MeshToonMaterial).clone();
-      c.side = THREE.DoubleSide;
-      m.material = c;
-      mats.push(c);
-    }
-  });
+  if (flagPos.length) {
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute("position", new THREE.Float32BufferAttribute(flagPos, 3));
+    fg.setAttribute("color", new THREE.Float32BufferAttribute(flagCol, 3));
+    fg.setAttribute("flex", new THREE.Float32BufferAttribute(flagFlex, 1));
+    fg.computeVertexNormals();
+    fg.computeBoundingSphere();
+    geos.push(fg);
+    const fm = new THREE.MeshToonMaterial({
+      color: "#ffffff",
+      vertexColors: true,
+      gradientMap: gradientMap(),
+      side: THREE.DoubleSide,
+    });
+    paintStrength(windSway(fm, { mode: "cloth", flex: true, amp: 0.8 }), 0);
+    mats.push(fm);
+    const flagsMesh = new THREE.Mesh(fg, fm);
+    flagsMesh.name = "bunting-flags";
+    bunting.add(flagsMesh);
+  }
   group.add(bunting);
 
   // ---------- confetti: instanced dyed cubes with simple ballistic physics
@@ -259,28 +317,27 @@ export function buildSummit(env: WorldEnv, ground: (x: number, z: number) => num
     },
     walkables: () => [circleAt(group, 0, 0, 6.2)],
     update(dt, t, dist, _ctx?: PlaceCtx) {
+      if (!pennantsAimed) aimPennants();
       if (dist > 45) return;
       if (!env.reducedMotion) {
         sun.rotation.y = Math.sin(t * 0.5) * 0.5;
         sun.position.y = top + 0.55 + Math.sin(t * 1.4) * 0.06;
-        for (const f of flags) {
-          const pos = f.mesh.geometry.getAttribute("position");
-          for (let v = 0; v < pos.count; v++) {
-            const x = f.base[v * 3]!;
-            pos.setZ(v, Math.sin(t * 4 + f.ph - x * 3.2) * 0.12 * (x / 1.1));
-          }
-          pos.needsUpdate = true;
-          f.mesh.geometry.computeVertexNormals();
-        }
-        bunting.rotation.y = Math.sin(t * 0.7) * 0.004;
       }
       if (burst >= 0) {
         burst += dt;
+        // Confetti drifts downwind as it falls: the world wind at the plaza, turned into the plaza's frame.
+        group.updateWorldMatrix(true, false);
+        const gy = _e.setFromQuaternion(group.getWorldQuaternion(_q), "YXZ").y;
+        const w = liveWind.sample(group.position.x, group.position.z);
+        const cy = Math.cos(gy);
+        const sy = Math.sin(gy);
+        const wx = (w.x * cy - w.z * sy) * 1.4;
+        const wz = (w.x * sy + w.z * cy) * 1.4;
         for (let i = 0; i < N; i++) {
           const j = i * 3;
           V[j + 1] = V[j + 1]! - 9.8 * dt;
-          V[j] = V[j]! * (1 - dt * 0.8);
-          V[j + 2] = V[j + 2]! * (1 - dt * 0.8);
+          V[j] = V[j]! + (wx - V[j]!) * dt * 0.8;
+          V[j + 2] = V[j + 2]! + (wz - V[j + 2]!) * dt * 0.8;
           P[j] = P[j]! + V[j]! * dt;
           P[j + 1] = Math.max(ground(P[j]!, P[j + 2]!) + 0.05, P[j + 1]! + V[j + 1]! * dt);
           P[j + 2] = P[j + 2]! + V[j + 2]! * dt;

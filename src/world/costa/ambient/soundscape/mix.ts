@@ -20,9 +20,12 @@ export function surf(shoreDist: number, t: number): number {
   return clamp01(0.12 + near * 0.88) * set;
 }
 
-/** Wind: stronger up on the cliffs and the headland (height above the sea), a little stronger at night. */
-export function wind(height: number, night: boolean): number {
-  return clamp01(0.25 + smooth(4, 16, height) * 0.6 + (night ? 0.1 : 0));
+/**
+ * Wind: stronger up on the cliffs and the headland (height above the sea), a little stronger at night, and
+ * swelling as a gust front of the shared wind passes the traveler (`gust`: ../../../wind.ts `liveWind.gust`).
+ */
+export function wind(height: number, night: boolean, gust = 0): number {
+  return clamp01(0.25 + smooth(4, 16, height) * 0.6 + (night ? 0.1 : 0) + gust * 1.3);
 }
 
 /** Stereo pan (−1 left … 1 right) of a source at (dx, dz) for a listener whose right is (rx, rz). */

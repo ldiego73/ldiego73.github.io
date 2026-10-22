@@ -32,7 +32,7 @@ import type { Ambient, CreateAmbient } from "../contract";
 import { type Body, creatures, type KeepOut, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { on } from "../events";
-import { glowSprite } from "../props";
+import { glowSprite, localWind } from "../props";
 import { dateWatch } from "./festival/datewatch";
 import { jumped } from "./people/logic";
 import { MAN, type PartName, partSpecs, SHADOW_PARTS, Static, WOMAN } from "./people/models";
@@ -395,9 +395,14 @@ export const create: CreateAmbient = (envIn): Ambient => {
     glowStove.visible = stoveOn && light > 0.02;
   };
 
+  const steamWind = { x: 0, z: 0, speed: 0, gust: 0 };
   const animateSteam = (on: boolean) => {
     steam.visible = on && n.steam > 0 && !env.reducedMotion && !low;
     if (!steam.visible) return;
+    // The puffs bend downwind as they rise (the shared wind in the camp's frame).
+    localWind(camp, steamWind);
+    const wx = THREE.MathUtils.clamp(steamWind.x * 0.28, -0.6, 0.6);
+    const wz = THREE.MathUtils.clamp(steamWind.z * 0.28, -0.6, 0.6);
     for (let i = 0; i < n.steam; i++) {
       const k = (c.clock * 0.35 + i / n.steam) % 1;
       const s = 0.06 + k * 0.13;
@@ -405,9 +410,9 @@ export const create: CreateAmbient = (envIn): Ambient => {
       q.identity();
       m4.compose(
         seenV.set(
-          STOVE.x + Math.sin(k * 5 + i) * 0.08 + k * 0.15,
+          STOVE.x + Math.sin(k * 5 + i) * 0.08 + k * k * wx,
           props.potTop + 0.05 + k * 0.9,
-          STOVE.z + Math.cos(k * 4 + i) * 0.06,
+          STOVE.z + Math.cos(k * 4 + i) * 0.06 + k * k * wz,
         ),
         q,
         sv,

@@ -39,6 +39,7 @@ import { FONT, glowSprite } from "../../props";
 import type { SuyuEnv } from "../../suyu/contract";
 import { travelTo } from "../../travel";
 import { loadTraveler } from "../../traveler";
+import { liveWind } from "../../wind";
 import { OFFERING, TITIKALA } from "../plan";
 import { Build } from "./kit/build";
 import { buildBoards, paperBoard } from "./kit/signs";
@@ -337,6 +338,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     }
     openIn = env.reducedMotion ? 0.4 : PANEL_DELAY;
   };
+  const breeze = { x: 0, z: 0 };
   const stepBurst = (dt: number) => {
     if (age < 0) return;
     age += dt;
@@ -345,7 +347,10 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       sparks.visible = false;
       return;
     }
-    for (const p of state) stepSpark(p, Math.min(dt, 0.05), age, floor);
+    const w = liveWind.sample(rock.x, rock.z);
+    breeze.x = w.x;
+    breeze.z = w.z;
+    for (const p of state) stepSpark(p, Math.min(dt, 0.05), age, floor, breeze);
   };
   const drawBurst = () => {
     const sc = burstScale(age);

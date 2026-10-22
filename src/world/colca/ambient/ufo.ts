@@ -31,6 +31,7 @@ import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit, on } from "../../events";
 import { ALPACA, camelidRig } from "../../fauna-models";
+import { noPaint } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import {
   alpacaLift,
@@ -103,6 +104,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
 
   // ---------------------------------------------------------------- saucer and effects
   const M = buildSaucer(env);
+  // A flying, spinning body: no painted blotches (the alpaca's herd material has none either).
+  noPaint(M.saucer);
   const group = new THREE.Group();
   group.name = "colca-ufo";
   M.saucer.visible = false;

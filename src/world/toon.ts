@@ -39,6 +39,8 @@ export function createToonCache(): ToonCache {
       let m = cache.get(key);
       if (!m) {
         m = new THREE.MeshToonMaterial({ color: c, gradientMap: gradientMap() });
+        // Shared by colour across the world: style-gl.ts `noPaint` swaps it for a twin instead of editing it.
+        m.userData.kwShared = true;
         if (opts?.emissive !== undefined) {
           m.emissive.set(opts.emissive);
           m.emissiveIntensity = opts.emissiveIntensity ?? 1;

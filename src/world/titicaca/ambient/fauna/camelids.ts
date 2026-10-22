@@ -9,6 +9,7 @@
 import * as THREE from "three";
 import { type CamelidSpec, camelidParts } from "../../../fauna-models";
 import { mergeColored, vertexToon } from "../../../merge-colors";
+import { paintStrength } from "../../../style-gl";
 
 export interface CamelidPose {
   x: number;
@@ -46,7 +47,8 @@ export class CamelidHerd {
     readonly n: number,
   ) {
     this.group.name = name;
-    this.mat = vertexToon();
+    // Moving bodies: no world-space painted blotches sliding over the fleece.
+    this.mat = paintStrength(vertexToon(), 0);
     this.rig = camelidParts(spec);
     const P = this.rig;
     const R = P.rig;

@@ -14,6 +14,10 @@ describe("coast soundscape mix", () => {
     expect(wind(15, false)).toBeGreaterThan(wind(1, false));
     expect(wind(1, true)).toBeGreaterThan(wind(1, false));
   });
+  test("wind swells in a gust front", () => {
+    expect(wind(1, false, 0.3)).toBeGreaterThan(wind(1, false, 0) + 0.3);
+    expect(wind(20, true, 0.3)).toBeLessThanOrEqual(1);
+  });
   test("pan, gain and call gaps", () => {
     expect(panFor(1, 0, 1, 0)).toBeCloseTo(0.85, 6);
     expect(panFor(-1, 0, 1, 0)).toBeCloseTo(-0.85, 6);

@@ -18,6 +18,7 @@ import { type Body, creatures } from "../../creatures";
 import { emit } from "../../events";
 import { ALPACA, LLAMA, vizcachaParts } from "../../fauna-models";
 import { mergeColored, vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { FROG_SPOT, HERDS, LEVEL, SILLUSTANI, TAQUILE } from "../plan";
 import { CamelidHerd } from "./fauna/camelids";
@@ -115,9 +116,11 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   });
   const rocksGeo = mergeColored(rockParts);
   rockGeo.dispose();
-  const vmat = vertexToon();
+  // The animals move (no world-space painted blotches on them); the vizcachas' rocks keep the paint.
+  const vmat = paintStrength(vertexToon(), 0);
+  const rockMat = vertexToon();
   if (rocksGeo) {
-    const rm = new THREE.Mesh(rocksGeo, vmat);
+    const rm = new THREE.Mesh(rocksGeo, rockMat);
     rm.name = "titicaca-orilla:rocks";
     rm.castShadow = true;
     group.add(rm);
@@ -298,6 +301,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       rocksGeo?.dispose();
       frog.geometry.dispose();
       vmat.dispose();
+      rockMat.dispose();
       group.removeFromParent();
     },
   };

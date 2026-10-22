@@ -10,6 +10,9 @@
  *  - Curuhuinsis (leafcutter ants): a few trails cross the road on quiet stretches; a column of ants carries
  *    green leaf bits across in one direction and comes back empty in the other, day and night.
  * Everything stays near the traveler (pools re-placed ahead while out of sight) and is only drawn near them.
+ * Morphos and fireflies are carried a little by the world's shared wind (liveWind: the floor's calm air
+ * barely moves them, a gust nudges them downwind). The moving bodies (frogs, ants, their leaf bits) opt out of
+ * the style's painted blotches, which are fixed in world space and would slide over them.
  *
  * Rendering: morphos (bird rig), fireflies (additive dots), leaves, frogs, ants, leaf bits: one InstancedMesh
  * each → 6 draw calls at most; a pool with nothing to show sets its count to 0. Bodies: none (too small to
@@ -20,6 +23,8 @@ import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { on } from "../../events";
 import { GeoBuilder } from "../../flora/geom";
+import { paintStrength } from "../../style-gl";
+import { liveWind } from "../../wind";
 import { CANOPY_T, SELVA_STATIONS } from "../contract";
 import { morphoModel, WingSet } from "./wild/birds";
 import { col, devHook, egg, idle, ramp, rootMatrix, selvaOf, View } from "./wild/kit";
@@ -154,7 +159,7 @@ export const create: CreateAmbient = (env0): Ambient => {
     nL,
     "selva-fauna-frog-leaves",
   );
-  const frogMesh = mk(frogGeometry(), vtoon(), nL, "selva-fauna-frogs");
+  const frogMesh = mk(frogGeometry(), paintStrength(vtoon(), 0), nL, "selva-fauna-frogs");
   const leaves = Array.from({ length: nL }, (_, i) => ({
     x: 0,
     y: 0,
@@ -195,8 +200,11 @@ export const create: CreateAmbient = (env0): Ambient => {
       tint: k % 5,
     })),
   );
-  const antMesh = mk(antGeometry(), vtoon(), Math.max(1, ants.length), "selva-fauna-ants");
-  const bitMat = new THREE.MeshToonMaterial({ color: "#ffffff", gradientMap: gm, side: THREE.DoubleSide });
+  const antMesh = mk(antGeometry(), paintStrength(vtoon(), 0), Math.max(1, ants.length), "selva-fauna-ants");
+  const bitMat = paintStrength(
+    new THREE.MeshToonMaterial({ color: "#ffffff", gradientMap: gm, side: THREE.DoubleSide }),
+    0,
+  );
   const bitMesh = mk(bitGeometry(), bitMat, Math.max(1, ants.length), "selva-fauna-ant-leaves");
   const bitTints = ["#5fae3a", "#7fc24a", "#4a9a32", "#c9d24a", "#e07aa0"].map((c) => new THREE.Color(c));
   for (let i = 0; i < ants.length; i++) bitMesh.setColorAt(i, bitTints[0]!);
@@ -280,8 +288,10 @@ export const create: CreateAmbient = (env0): Ambient => {
         const dAv = Math.hypot(avatar.x - b.x, avatar.z - b.z);
         if (dAv < 1.6) b.yaw += Math.sin(Math.atan2(b.x - avatar.x, b.z - avatar.z) - b.yaw) * 4 * dt;
         const sp = 1.6 * mot;
-        b.x += Math.sin(b.yaw) * sp * dt;
-        b.z += Math.cos(b.yaw) * sp * dt;
+        // A light flier: the wind carries it a little (it beats back toward its anchor above).
+        const wm = liveWind.sample(b.x, b.z, b.y);
+        b.x += (Math.sin(b.yaw) * sp + wm.x * 0.35) * dt;
+        b.z += (Math.cos(b.yaw) * sp + wm.z * 0.35) * dt;
         b.flap += dt * (rm ? 14 : 24);
         const beat = Math.sin(b.flap);
         const ground = L.heightAt(b.x, b.z);
@@ -307,8 +317,9 @@ export const create: CreateAmbient = (env0): Ambient => {
             else f.y = L.heightAt(f.x, f.z) + 0.4 + R() * 2.4;
             f.live = true;
           }
-          f.x += Math.sin(clock * 0.3 + f.ph) * 0.15 * dt * mot;
-          f.z += Math.cos(clock * 0.27 + f.ph * 1.3) * 0.15 * dt * mot;
+          const wf = liveWind.sample(f.x, f.z, f.y);
+          f.x += (Math.sin(clock * 0.3 + f.ph) * 0.15 * mot + wf.x * 0.2) * dt;
+          f.z += (Math.cos(clock * 0.27 + f.ph * 1.3) * 0.15 * mot + wf.z * 0.2) * dt;
           f.y += Math.sin(clock * 0.5 + f.ph * 2) * 0.08 * dt * mot;
           // Blink: a short soft flash once per period.
           const u = ((clock + f.ph) % f.per) / f.per;

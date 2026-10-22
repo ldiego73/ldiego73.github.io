@@ -39,6 +39,7 @@ import { Person } from "../../ambient/people/person";
 import { Crowd, type Palette, paletteMaterial } from "../../ambient/people/rig";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { LEVEL } from "../plan";
 import {
@@ -174,7 +175,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const bb = new Build();
   balsaBoat(bb, 0.55, false);
   const boatGeo = bb.build() ?? new THREE.BufferGeometry();
-  const boatMat = vertexToon();
+  // The boats move: no world-space painted blotches sliding over them.
+  const boatMat = paintStrength(vertexToon(), 0);
   const boats = new THREE.InstancedMesh(boatGeo, boatMat, LOOPS.length);
   boats.name = "titicaca-gente:boats";
   boats.castShadow = true;

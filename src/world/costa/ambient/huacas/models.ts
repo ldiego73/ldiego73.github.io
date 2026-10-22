@@ -98,7 +98,7 @@ function paracas(b: Build) {
     [0, "mantle2"],
     [4.6, "mantle3"],
   ] as const) {
-    q.wall(x - 1.15, Z0 - 0.45, x + 1.15, Z0 - 0.45, 1.05, 3.05, cell);
+    q.hanging(x - 1.15, Z0 - 0.45, x + 1.15, Z0 - 0.45, 1.05, 3.05, cell);
     g.box(2.5, 0.08, 0.08, x, 4.1, Z0 - 0.5, "#3a2a20");
   }
   // Funerary bundles (fardos) wrapped in cream cloth with a "false head".

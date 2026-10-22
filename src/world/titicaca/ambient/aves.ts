@@ -19,6 +19,7 @@ import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { emit } from "../../events";
 import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { TiticacaLayout } from "../layout";
 import { FLAMINGO_BAY, ISLANDS, LEVEL } from "../plan";
@@ -66,7 +67,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const L = env.suyu.layout as TiticacaLayout;
   const R = rng(0xa7e5);
   const high = env.quality === "high";
-  const mat = vertexToon();
+  // Birds move: world-space painted blotches would slide over them.
+  const mat = paintStrength(vertexToon(), 0);
   const group = new THREE.Group();
   group.name = "titicaca-aves";
   const depthAt = (x: number, z: number) => LEVEL - L.heightAt(x, z);

@@ -15,6 +15,7 @@ import type { Ambient, CreateAmbient } from "../contract";
 import { creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
+import { noPaint } from "../style-gl";
 import { duckParts, HIP, NECK, PLUMAGE, rockGeometry, SHOULDER, WATERLINE } from "./duck/model";
 import { findCrossing, gentleRun, makePath, type PathSample, ribbonCenterline, type WaterPath } from "./duck/path";
 
@@ -304,6 +305,8 @@ export const create: CreateAmbient = (env): Ambient => {
     m.name = name;
     m.frustumCulled = false;
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Ducks move: no world-space painted blotches sliding over the plumage (style-gl.ts).
+    noPaint(m);
     env.scene.add(m);
     meshes.push(m);
     return m;

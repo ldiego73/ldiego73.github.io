@@ -8,8 +8,13 @@
  *  - `halo`: a wide, flat additive billboard over the spot, what reads as "a light in the lake" from the road
  *    where the plane is seen almost edge-on.
  * Both off the ink pass (the caller calls noOutline), no depth writes, no fog. Two draw calls.
+ *
+ * Cel pintado andino (../../../style.ts): the decal's glow is painted in flat steps (an anime glow: a hard core,
+ * a ring, a faint halo) rather than a smooth falloff, and it fades into the lake's aerial haze with distance
+ * like every fogged surface (the shared style uniforms; additive, so the haze dims it instead of tinting it).
  */
 import * as THREE from "three";
+import { styleUniforms } from "../../../style-gl";
 
 /** Canvas size of the ruins drawing (square). 512 keeps the thin walls crisp across a 34 u decal. */
 const RES = 512;
@@ -135,16 +140,24 @@ function haloCanvas(): HTMLCanvasElement {
 
 const VERT = /* glsl */ `
 varying vec2 vUv;
+varying float vDepth;
+varying float vY;
 void main() {
   vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vDepth = -mv.z;
+  vY = (modelMatrix * vec4(position, 1.0)).y;
+  gl_Position = projectionMatrix * mv;
 }`;
 
 const FRAG = /* glsl */ `
+#include <common>
 uniform sampler2D uMap;
 uniform float uTime, uGlow, uRuins;
 uniform vec3 uColor;
 varying vec2 vUv;
+varying float vDepth;
+varying float vY;
 void main() {
   vec2 p = vUv - 0.5;
   float r = length(p) * 2.0;
@@ -152,10 +165,16 @@ void main() {
   vec2 w = vec2(sin(vUv.y * 26.0 + uTime * 1.3), cos(vUv.x * 22.0 + uTime * 1.1)) * 0.0045;
   float ink = texture2D(uMap, vUv + w).g;
   float caustic = 0.6 + 0.4 * sin((vUv.x + vUv.y) * 38.0 + uTime * 1.6) * sin((vUv.x - vUv.y) * 31.0 - uTime * 1.2);
-  float glow = exp(-r * r * 4.5) * uGlow;
+  // The glow in flat painted steps (core, ring, halo), each edge a couple of pixels soft.
+  float g = exp(-r * r * 4.5);
+  float aa = fwidth(g) * 1.5 + 1e-3;
+  float glow = (smoothstep(0.7 - aa, 0.7 + aa, g) * 0.45 + smoothstep(0.38 - aa, 0.38 + aa, g) * 0.35
+    + smoothstep(0.12 - aa, 0.12 + aa, g) * 0.2 + g * 0.15) * uGlow;
   // Faint: the lake's own ripples and glints must still read over the walls.
   vec3 col = uColor * (glow * 0.5 + ink * uRuins * caustic * 0.5);
-  gl_FragColor = vec4(col, 1.0);
+  // Aerial haze as on every fogged surface: how much of the colour it would take, dimming the added light.
+  float haze = 1.0 + cpaHaze(vec3(0.0), vDepth, vY).g - cpaHaze(vec3(1.0), vDepth, vY).g;
+  gl_FragColor = vec4(col * (1.0 - clamp(haze, 0.0, 1.0)), 1.0);
 }`;
 
 export interface SunkenCity {
@@ -173,6 +192,7 @@ export function buildSunkenCity(x: number, y: number, z: number, size: number): 
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 4;
   const uniforms = {
+    ...styleUniforms(),
     uMap: { value: map },
     uTime: { value: 0 },
     uGlow: { value: 0 },

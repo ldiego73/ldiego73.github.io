@@ -2,10 +2,15 @@
  * The altiplano's small things, all static: ichu (puna bunch grass) tufts and boulders as two InstancedMeshes,
  * the pirca stone walls round the chacras and a few adobe farmhouses with thatched roofs, merged into one
  * vertex-coloured mesh. Three draw calls (plus the ink pass). Placement: ./placement.ts and ./fields.ts.
+ *
+ * The ichu rides the shared wind (../../style-gl.ts `windSway`, mode "grass"): the altiplano's gust fronts sweep
+ * the puna as a wave of bending tufts, and the traveler, the llama and the herds part it. Ink-aware, so it takes
+ * the ink like the mountain's ichu.
  */
 import * as THREE from "three";
 import { mergeColored } from "../../merge-colors";
-import { NO_OUTLINE_LAYER, type ToonCache } from "../../toon";
+import { windSway } from "../../style-gl";
+import type { ToonCache } from "../../toon";
 import type { TiticacaLayout } from "../layout";
 import { HOUSES } from "../plan";
 import { parcelEdges } from "./fields";
@@ -147,11 +152,11 @@ export function buildFlora(L: TiticacaLayout, toon: ToonCache, quality: "low" | 
   const group = new THREE.Group();
   group.name = "titicaca-flora";
   const tuft = tuftGeometry();
-  const grassMat = toon.vertexToon();
+  // Tufts stand 0.55–0.9 u: the reference height and amplitude give the tip the mountain ichu's bend at the base
+  // wind, and the gust crests nearly lay it down (the puna's signature).
+  const grassMat = windSway(toon.vertexToon(), { mode: "grass", height: 0.8, amp: 0.55 });
   const grass = instanced("titicaca-ichu", tuft, grassMat, grassSpots(L, quality === "high" ? 2600 : 1400), L.heightAt);
   grass.receiveShadow = true;
-  // Thin blades would be all ink at a distance (like the hub's ichu): no outline for the tufts.
-  grass.layers.set(NO_OUTLINE_LAYER);
   const rockGeo = new THREE.IcosahedronGeometry(0.6, 0);
   const rp = rockGeo.getAttribute("position") as THREE.BufferAttribute;
   for (let i = 0; i < rp.count; i++) rp.setY(i, rp.getY(i) * 0.6 + 0.12);

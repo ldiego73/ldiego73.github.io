@@ -1,7 +1,8 @@
 /**
  * Braziers of Haukaypata: stone fire bowls at the four corners of the usnu's first tier and either side of
  * the Qorikancha's doorway. By day they hold embers; at night they burn: a flickering flame cone and a warm
- * additive glow each (still with prefers-reduced-motion), so the plaza reads at night.
+ * additive glow each (still with prefers-reduced-motion), so the plaza reads at night. The flames lean
+ * downwind with the shared wind (`liveWind`: the same gusts that roll across the ichu).
  *
  * Draw calls: bowls one vertex-coloured mesh, flames one instanced mesh; the glows (one sprite each) only at
  * night. The bowls are colliders.
@@ -10,6 +11,7 @@ import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { flattenToonGroup, vertexToon } from "../../merge-colors";
 import { glowSprite, Kit } from "../../props";
+import { liveWind } from "../../wind";
 import { QORIKANCHA, USNU } from "../plan";
 
 /** Brazier spots (x, y of the floor, z). */
@@ -59,6 +61,7 @@ export const create: CreateAmbient = (env): Ambient => {
   const q = new THREE.Quaternion();
   const v = new THREE.Vector3();
   const sc = new THREE.Vector3();
+  const axis = new THREE.Vector3();
   let night: boolean | null = null;
 
   const pose = (t: number, lit: boolean) => {
@@ -69,6 +72,11 @@ export const create: CreateAmbient = (env): Ambient => {
           : 1 + Math.sin(t * 9 + i * 1.9) * 0.12 + Math.sin(t * 17 + i) * 0.06
         : 0.35;
       sc.set(lit ? 1 : 0.8, f, lit ? 1 : 0.8);
+      // Lean downwind: about the axis up × wind, more in a gust, never past ~0.4 rad.
+      const w = liveWind.sample(p.x, p.z, p.y + 1);
+      const sp = Math.hypot(w.x, w.z);
+      if (lit && sp > 1e-3) q.setFromAxisAngle(axis.set(w.z / sp, 0, -w.x / sp), Math.min(0.4, sp * 0.24));
+      else q.identity();
       v.set(p.x, p.y + 0.8, p.z);
       m.compose(v, q, sc);
       flames.setMatrixAt(i, m);

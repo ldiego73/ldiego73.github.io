@@ -4,10 +4,13 @@
  * (both animated entirely in the shader). A fixed pool of point lights follows the fires nearest the
  * traveler; the pool size never changes at runtime (that would recompile every lit material).
  * Draw calls: stones, logs, outer flames, inner flames, halos, embers = 6 for all fires.
+ * The flames lean and the embers drift downwind with the world's shared wind (wind.ts `liveWind`, sampled at
+ * the traveler: the fires are all on one plaza; world frame).
  */
 import * as THREE from "three";
 import type { WorldEnv } from "../../contract";
 import { C } from "../../props";
+import { liveWind } from "../../wind";
 import { flicker } from "./spots";
 
 export interface Fire {
@@ -41,6 +44,7 @@ void main() {
 const EMBER_VERT = /* glsl */ `
 attribute float aSeed;
 uniform float uTime, uSize, uAlpha;
+uniform vec2 uWind;
 varying float vLife;
 varying float vA;
 void main() {
@@ -48,6 +52,8 @@ void main() {
   vec3 p = position;
   p.x += sin(life * 6.0 + aSeed * 20.0) * 0.45 * life;
   p.z += cos(life * 5.0 + aSeed * 13.0) * 0.45 * life;
+  // Carried downwind more the higher they rise (uWind: world xz wind × speed).
+  p.xz += uWind * life * life * (1.0 + aSeed);
   p.y += 0.5 + life * (2.4 + aSeed * 1.6);
   vLife = life;
   vA = uAlpha * (1.0 - life) * smoothstep(0.0, 0.08, life);
@@ -146,10 +152,13 @@ export function createBonfires(
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     env.noOutline(m);
   }
+  // Lean downwind (eased); spin about the flame's own axis first, then lean (Euler order XZY).
+  const lean = { x: 0, z: 0 };
+  e.order = "XZY";
   const placeFlames = (t: number) => {
     fires.forEach((f, i) => {
       const k = flicker(t, seeds[i]! * 10);
-      e.set(Math.sin(t * 3 + i) * 0.06, t * 0.8 + i, Math.cos(t * 2.6 + i) * 0.06);
+      e.set(lean.x + Math.sin(t * 3 + i) * 0.06, t * 0.8 + i, lean.z + Math.cos(t * 2.6 + i) * 0.06);
       q.setFromEuler(e);
       m4.compose(v.set(f.x, f.y + 0.1, f.z), q, s.set(1 + (k - 1) * 0.4, k, 1 + (k - 1) * 0.4));
       outer.setMatrixAt(i, m4);
@@ -221,7 +230,12 @@ export function createBonfires(
     g.setAttribute("aSeed", new THREE.BufferAttribute(sd, 1));
     geos.push(g);
     emberMat = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uSize: { value: 5 * pr }, uAlpha: { value: 1 } },
+      uniforms: {
+        uTime: { value: 0 },
+        uSize: { value: 5 * pr },
+        uAlpha: { value: 1 },
+        uWind: { value: new THREE.Vector2() },
+      },
       vertexShader: EMBER_VERT,
       fragmentShader: EMBER_FRAG,
       transparent: true,
@@ -272,11 +286,16 @@ export function createBonfires(
         const fi = owner[k]!;
         lights[k]!.intensity = fi < 0 ? 0 : (6 + 22 * night) * flicker(t, seeds[fi]! * 10);
       }
+      const w = liveWind.sample(avatar.x, avatar.z);
+      const ease = Math.min(1, dt * 3);
+      lean.x += (THREE.MathUtils.clamp(w.z * 0.14, -0.3, 0.3) - lean.x) * ease;
+      lean.z += (THREE.MathUtils.clamp(-w.x * 0.14, -0.3, 0.3) - lean.z) * ease;
       if (opts.animate) placeFlames(t);
       haloMat.uniforms.uTime!.value = t;
       haloMat.uniforms.uAlpha!.value = 0.22 + 0.5 * night;
       if (emberMat) {
         emberMat.uniforms.uTime!.value = t;
+        (emberMat.uniforms.uWind!.value as THREE.Vector2).set(w.x * 0.9, w.z * 0.9);
         emberMat.uniforms.uAlpha!.value = 0.55 + 0.45 * night;
       }
     },

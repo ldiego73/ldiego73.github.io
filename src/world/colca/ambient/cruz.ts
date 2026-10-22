@@ -15,8 +15,12 @@
  * achievements in the colcas, career stages, companies) and the buttons: the postcard (`world:postcard`),
  * book 60 min (SITE.calendly), download the CV (SITE.resume), back to Qusqu (travel.ts) and back to the site.
  *
- * Draw calls: the platform, parapet, pedestal and cross 1, the sign 1; the bits and the flock (3) only during
- * the celebration. The parapet and the pedestal are colliders; fauna keeps out.
+ * The cross is dressed, as Andean crosses are for their feast: streamers in the khipu dyes tied to both arms,
+ * rippling on the shared wind (../cloth.ts, mode "cloth"), and the confetti and feathers of the burst drift
+ * downwind with it (../../wind.ts liveWind).
+ *
+ * Draw calls: the platform, parapet, pedestal and cross 1, the streamers 1, the sign 1; the bits and the
+ * flock (3) only during the celebration. The parapet and the pedestal are colliders; fauna keeps out.
  */
 import * as THREE from "three";
 import { getMusic } from "../../../audio";
@@ -32,6 +36,8 @@ import { glowSprite } from "../../props";
 import type { SuyuEnv } from "../../suyu/contract";
 import { travelTo } from "../../travel";
 import { loadTraveler } from "../../traveler";
+import { liveWind } from "../../wind";
+import { ClothKit, clothMesh } from "../cloth";
 import { finaleStats } from "../content";
 import { signBoard, VKit } from "../kit";
 import type { ColcaLayout } from "../layout";
@@ -132,6 +138,23 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   env.scene.add(mesh);
+  // Streamers tied to both arms of the cross (world space; the arms run along the platform's local x).
+  const ck = new ClothKit();
+  const armY = floorY + baseTop + CROSS.h * 0.66 + 0.17;
+  const out = { x: sn, z: cs };
+  for (const sx of [-1, 1])
+    for (let i = 0; i < 4; i++) {
+      const p = W(sx * (0.5 + i * 0.11), CROSS.z);
+      ck.ribbon(
+        { x: p.x, y: armY, z: p.z },
+        out,
+        1.1 + ((i * 7) % 4) * 0.22,
+        0.09,
+        COLORS[2 + ((i + (sx > 0 ? 2 : 0)) % 5)] as string,
+      );
+    }
+  const streamers = clothMesh(ck, "colca-cruz:streamers");
+  env.scene.add(streamers.mesh);
   const sign = signBoard(env.toon as (c: string) => THREE.Material, {
     w: 2.8,
     title: T(S.sign),
@@ -263,7 +286,10 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
       halo.visible = false;
       return;
     }
-    for (const b of bitState) stepBit(b, Math.min(dt, 0.05), age, floor);
+    // The wind where the cross stands, in the platform's local frame (lx = dx·cos − dz·sin, lz = dx·sin + dz·cos).
+    const w = liveWind.sample(cross.x, cross.z);
+    const wind = { x: w.x * cs - w.z * sn, z: w.x * sn + w.z * cs };
+    for (const b of bitState) stepBit(b, Math.min(dt, 0.05), age, floor, wind);
   };
   const drawBurst = () => {
     const sc = bitScale(age);
@@ -369,6 +395,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
       mesh.removeFromParent();
       geo.dispose();
       mat.dispose();
+      streamers.mesh.removeFromParent();
+      streamers.dispose();
       sign.mesh.removeFromParent();
       sign.dispose();
       bits.removeFromParent();

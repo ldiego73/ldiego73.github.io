@@ -1,12 +1,19 @@
 import * as THREE from "three";
 import { FullScreenQuad, Pass } from "three/examples/jsm/postprocessing/Pass.js";
+import { setInkPass } from "./style-gl";
 import { inkMaskScene, NO_OUTLINE_LAYER } from "./toon";
 
 /**
  * Hand-inked outlines: a normal + depth prepass (outlined layer only), then a full-screen
  * edge detect that mixes ink into the color buffer. Ink color and distance fade are uniforms
- * so day/night and the title view can retune them. Ink also dissolves into the scene fog (linear
- * `THREE.Fog` near/far or `FogExp2` density, read every frame) so misty distances stay soft.
+ * so day/night and the title view can retune them. Brush weight (cel pintado andino, ./style.ts `ink`):
+ * silhouettes (depth jumps) are sampled `uSil` texels away, so they read thicker near the camera and thin
+ * to one pixel with distance; creases (normal jumps inside a shape) are sampled `uCrease` texels away on the
+ * linearly filtered normal buffer, so below 1 they come out thinner and lighter, scaled by `uCreaseK`.
+ * All three at 1 reproduce the original single-weight ink. Ink-aware materials (style-gl.ts) are told the
+ * prepass is drawing (`setInkPass`) so they write their own swaying normals.
+ * Ink also dissolves into the scene fog (linear `THREE.Fog` near/far or `FogExp2` density, read every
+ * frame) so misty distances stay soft.
  * Labels tagged with `inkMask()` draw a depth-tested mask into the prepass alpha (1 = ink allowed,
  * 0 = a label is in front), so lines of the geometry behind a label never cross its text.
  */
@@ -20,6 +27,11 @@ const OutlineShader = {
     uFar: { value: 1500 },
     uInk: { value: new THREE.Color("#1f1a17") },
     uThick: { value: 1 },
+    /** Silhouette width multiplier near the camera (1 px far away). */
+    uSil: { value: 1 },
+    /** Crease sample distance (texels × uThick) and crease opacity. */
+    uCrease: { value: 1 },
+    uCreaseK: { value: 1 },
     uFade: { value: new THREE.Vector2(160, 520) },
     uStrength: { value: 1 },
     /** 0 no fog, 1 linear (uFogNear/uFogFar), 2 exp² (uFogDensity). Synced from scene.fog in render(). */
@@ -35,7 +47,7 @@ const OutlineShader = {
     #include <packing>
     uniform sampler2D tDiffuse, tNormal, tDepth;
     uniform vec2 uTexel, uFade;
-    uniform float uNear, uFar, uThick, uStrength, uFogMode, uFogNear, uFogFar, uFogDensity;
+    uniform float uNear, uFar, uThick, uStrength, uFogMode, uFogNear, uFogFar, uFogDensity, uSil, uCrease, uCreaseK;
     uniform vec3 uInk;
     varying vec2 vUv;
     float viewZ(vec2 uv) {
@@ -57,21 +69,24 @@ const OutlineShader = {
       vec2 o = uTexel * uThick;
       float zc = viewZ(vUv);
       vec3 nc = nrm(vUv);
+      // Brush weight: thick silhouettes close by, one pixel far away; thinner creases.
+      vec2 os = o * mix(max(uSil, 1.0), 1.0, smoothstep(25.0, 180.0, zc));
+      vec2 on = o * uCrease;
       float zs[4]; vec3 ns[4];
       vec2 offs[4];
-      offs[0] = vec2(o.x, 0.0); offs[1] = vec2(-o.x, 0.0); offs[2] = vec2(0.0, o.y); offs[3] = vec2(0.0, -o.y);
+      offs[0] = vec2(1.0, 0.0); offs[1] = vec2(-1.0, 0.0); offs[2] = vec2(0.0, 1.0); offs[3] = vec2(0.0, -1.0);
       float dEdge = 0.0;
       float nEdge = 0.0;
       float zmin = zc;
       for (int i = 0; i < 4; i++) {
-        float z = viewZ(vUv + offs[i]);
-        vec3 n = nrm(vUv + offs[i]);
+        float z = viewZ(vUv + offs[i] * os);
+        vec3 n = nrm(vUv + offs[i] * on);
         zmin = min(zmin, z);
         // Relative depth jump: only the side that is nearer draws the line (crisp, one-sided).
         dEdge = max(dEdge, (z - zc) / max(zc, 0.001));
         nEdge = max(nEdge, 1.0 - dot(nc, n));
       }
-      float edge = max(smoothstep(0.05, 0.11, dEdge), smoothstep(0.32, 0.55, nEdge) * step(zc, uFar * 0.98));
+      float edge = max(smoothstep(0.05, 0.11, dEdge), smoothstep(0.32, 0.55, nEdge) * step(zc, uFar * 0.98) * uCreaseK);
       edge *= 1.0 - smoothstep(uFade.x, uFade.y, zmin);
       // Gone by the time the fog has eaten ~60% of the color.
       edge *= 1.0 - smoothstep(0.05, 0.6, fogAt(zmin));
@@ -136,7 +151,9 @@ export class InkOutlinePass extends Pass {
     renderer.setClearColor(0x8080ff, 1);
     renderer.setRenderTarget(this.rt);
     renderer.clear();
+    setInkPass(true);
     renderer.render(scene, cam);
+    setInkPass(false);
     scene.overrideMaterial = ov;
     // Ink mask: visible tagged labels multiply the prepass alpha by (1 − coverage) where they pass
     // the depth test against the outlined geometry (one tiny draw per visible label, no world traversal).

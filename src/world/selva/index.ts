@@ -60,6 +60,7 @@ import { createLoader, type LoadStep } from "../loader";
 import { createGovernor, detectDevice, LEVELS } from "../quality";
 import { createStandLatch, type Seat, SIT_SQUEEZE, seatedFeetY, seatFrom } from "../seat";
 import { createSky, hasWeather } from "../sky";
+import { createWorldStyle } from "../style-runtime";
 import { disposeTextures, redrawAll } from "../tex";
 import { focusStep } from "../textmode";
 import { canopyPlatforms } from "./scenery/platforms";
@@ -556,6 +557,9 @@ async function start(
     // ---------------------------------------------------------------- player
     const st = layout.trail.tangentAt(SPAWN_T);
     const pos = new THREE.Vector3(sp.x, layout.groundAt(sp.x, sp.z), sp.z);
+    // Cel pintado andino + shared wind (style-runtime.ts): the world's profile, ink, haze, clouds and wind.
+    const style = createWorldStyle({ world: "selva", engine, sky, reducedMotion, focus: pos, noPaint: [avatar.group] });
+    early.push(() => style.dispose());
     const vel = new THREE.Vector2();
     let vy = 0;
     let grounded = true;
@@ -920,6 +924,8 @@ async function start(
       sky.fog.near *= HAZE_NEAR;
       sky.fog.far *= HAZE_FAR;
       engine.outline.uniforms.uInk.value.copy(sky.ink);
+      // After the green air above: the haze takes its brightness from this frame's fog.
+      style.update(dt, time);
       scenery.setNight?.(night);
       scenery.update(dt, time, env);
 
@@ -1096,6 +1102,8 @@ async function start(
       (host as HTMLElement & { __kw?: unknown }).__kw = {
         begin() {},
         engine,
+        /** Style + wind driver (style-runtime.ts): `style.set(profile, wind)` to tune live. */
+        style,
         layout,
         scene,
         env,

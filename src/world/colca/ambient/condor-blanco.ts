@@ -19,6 +19,7 @@ import type { CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit } from "../../events";
 import { condorParts } from "../../fauna-models";
+import { noPaint } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { ColcaLayout } from "../layout";
 import { CANYON, rimZ } from "../plan";
@@ -76,6 +77,8 @@ export const create: CreateAmbient = (baseEnv) => {
   wingL.add(new THREE.Mesh(C.wingL, wingMat), new THREE.Mesh(C.patchL, bright));
   root.add(body, collar, head, wingR, wingL);
   root.visible = false;
+  // A flying body: no painted blotches (shared toon materials are swapped for no-paint twins).
+  noPaint(root);
   env.scene.add(root);
 
   const body0 = creatures.add("condor", 1.4, { solid: false, x: 1e5, z: 1e5 });

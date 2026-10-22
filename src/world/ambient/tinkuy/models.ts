@@ -9,7 +9,21 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Lang, WorldEnv } from "../../contract";
 import { flattenToonGroup, vertexToon } from "../../merge-colors";
 import { DYE } from "../../palette";
-import { C, canvasTex, drawBoard, FONT, fitFont, Kit, redraw, rng, toonMapped } from "../../props";
+import {
+  C,
+  canvasTex,
+  clothMaterial,
+  clothStripsGeometry,
+  drawBoard,
+  FONT,
+  fitFont,
+  Kit,
+  redraw,
+  rng,
+  toonMapped,
+  withFlex,
+} from "../../props";
+import { windSway } from "../../style-gl";
 import { PUNKU } from "../../trailhead";
 import { arrowYaw, BAND, BAND_R, DOORWAY, type P2, type PunkuAt, SIGN, SIGN_TARGETS } from "./logic";
 
@@ -63,21 +77,17 @@ export function buildSignpost(env: WorldEnv, lang: Lang, ground: Ground, mat: TH
   k.rock(0.22, 0, 0.15, 0, C.stone, rand);
   k.box(0.18, 3.25, 0.18, 0, -0.1, 0, C.woodDark);
   k.cyl(0.13, 0.11, 0.12, 0, 3.12, 0, C.wood, 6);
-  // Dye ribbons tied under the cap.
-  ["red", "ochre", "turq"].forEach((d, i) => {
-    k.box(
-      0.05,
-      0.42 - i * 0.06,
-      0.02,
-      -0.05 + i * 0.05,
-      2.62 + i * 0.03,
-      0.1,
-      DYE[d as keyof typeof DYE],
-      0,
-      0,
-      (i - 1) * 0.12,
-    );
-  });
+  // Dye ribbons tied under the cap: cloth on the shared wind, folded into the post's mesh below.
+  const ribbons = clothStripsGeometry(
+    (["red", "ochre", "turq"] as const).map((d, i) => ({
+      w: 0.06,
+      h: 0.46 - i * 0.06,
+      x: -0.05 + i * 0.05,
+      y: 3.06 + i * 0.03,
+      z: 0.1,
+      color: DYE[d],
+    })),
+  );
 
   // Four arrow boards: local +X points along the arrow; the tip is a short prism.
   const rows = Object.keys(SIGN_TARGETS) as Array<keyof typeof SIGN_TARGETS>;
@@ -132,7 +142,23 @@ export function buildSignpost(env: WorldEnv, lang: Lang, ground: Ground, mat: TH
     textGeos.push(g);
   }
   k.box(0.1, 0.32, 1.1, 0, 2.85, 0, C.woodDark);
-  group.add(finish(k, "tinkuy-sign", mat));
+  const post = finish(k, "tinkuy-sign", mat);
+  // The ribbons join the post's merged mesh (rigid parts at flex 0) on a cloth material: no extra draw.
+  const postMesh = post.getObjectByName("tinkuy-sign:vc") as THREE.Mesh | undefined;
+  if (postMesh && ribbons) {
+    const rigid = withFlex(postMesh.geometry);
+    const merged = mergeGeometries([rigid, ribbons], false);
+    if (merged) {
+      rigid.dispose();
+      merged.computeBoundingSphere();
+      postMesh.geometry = merged;
+      const cloth = clothMaterial(0.9);
+      own.mats.push(cloth);
+      postMesh.material = cloth;
+    }
+  }
+  ribbons?.dispose();
+  group.add(post);
 
   const draw = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
     const rh = h / (rows.length + 1);
@@ -403,6 +429,9 @@ export function buildPunku(
 function junglePlants(env: WorldEnv, own: Owned, group: THREE.Group, rand: () => number, g: Ground) {
   const leafMat = vertexToon();
   leafMat.side = THREE.DoubleSide;
+  // The leaves move with the shared wind as small trees (bend with height², flutter up top; style-gl.ts). The
+  // merged mesh's origin is the punku's ground, so the height weight works without a flex attribute.
+  windSway(leafMat, { mode: "tree", height: 1, amp: 1.6 });
   own.mats.push(leafMat);
   const pk = new Kit(env);
   const plant = (lx: number, lz: number, s: number, leaves: number, tall = false) => {

@@ -34,4 +34,15 @@ describe("Kuntisuyu finale", () => {
     expect(bitScale(BURST.life)).toBe(0);
     expect(bitScale(3)).toBe(1);
   });
+
+  test("the wind carries them downwind before they land", () => {
+    const run = (wind?: { x: number; z: number }) => {
+      const bits = spawnBits(40, 4, 5, prng(9));
+      for (let k = 0; k < 2400; k++) for (const b of bits) stepBit(b, 1 / 60, k / 60, () => 0, wind);
+      return bits.reduce((s, b) => s + b.x, 0) / bits.length;
+    };
+    const still = run();
+    const windy = run({ x: 1.2, z: 0 });
+    expect(windy - still).toBeGreaterThan(1);
+  });
 });

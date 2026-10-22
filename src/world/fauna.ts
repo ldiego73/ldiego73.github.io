@@ -42,6 +42,7 @@ import {
   wrapAngle,
 } from "./fauna-sim";
 import { detectDevice } from "./quality";
+import { noPaint } from "./style-gl";
 
 const NEAR = 120;
 const FAR_STEP = 0.25;
@@ -109,6 +110,8 @@ class Part {
   constructor(env: WorldEnv, geo: THREE.BufferGeometry, count: number, name: string, shadow: boolean) {
     this.mesh = new THREE.InstancedMesh(geo, env.toon("#ffffff"), Math.max(1, count));
     this.mesh.name = `fauna-${name}`;
+    // Animals move: no world-space painted blotches sliding over them (style-gl.ts).
+    noPaint(this.mesh);
     this.mesh.count = count;
     this.mesh.frustumCulled = false;
     this.mesh.castShadow = shadow;

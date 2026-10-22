@@ -16,6 +16,7 @@ import { buildQuad } from "../../ambient/mount/quad";
 import { createRideMount } from "../../ambient/mount/ride";
 import type { CreateAmbient } from "../../contract";
 import type { SuyuEnv } from "../../suyu/contract";
+import { unpainted } from "../kit";
 import { parkingDisc, parkingWalk, QUAD, quadStops } from "./mounts/logic";
 
 export const create: CreateAmbient = (baseEnv) => {
@@ -26,7 +27,7 @@ export const create: CreateAmbient = (baseEnv) => {
   const tg = env.trail.tangentAt(QUAD.homeT);
   return createRideMount(env, {
     name: "ride-quad",
-    model: buildQuad(env),
+    model: unpainted(buildQuad(env)),
     home: mountHome({
       plaza: disc,
       station: { x: disc.x, z: disc.z },

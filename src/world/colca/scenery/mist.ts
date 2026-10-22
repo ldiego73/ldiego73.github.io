@@ -1,12 +1,15 @@
 /**
- * Mist layers inside the canyon: two soft, translucent ribbons that follow the canyon (../plan.ts rimZ) at
- * different depths, so the drop reads in layers from the rim (nearer walls crisp, the river half lost). The
- * alpha is a canvas of soft blobs repeating along the canyon; it drifts slowly downstream (still with
- * prefers-reduced-motion). Thicker in the early morning, thin by afternoon, faint and blue at night.
- * No outline (../../toon.ts noOutline), no depth write; two draw calls.
+ * Mist layers inside the canyon: three soft, translucent ribbons that follow the canyon (../plan.ts rimZ) at
+ * different depths, so the drop reads in painted layers from the rim: every veil the eye looks through on the
+ * way down adds a pale lilac-blue wash (the aerial haze's hue, ../../style.ts STYLES.colca), so the terraces
+ * stay crisp, the lower walls soften and the river is half lost. The
+ * alpha is a canvas of soft blobs repeating along the canyon; it drifts along the canyon with the shared wind
+ * (../../wind.ts liveWind: up-valley, quicker while a gust front passes; still with prefers-reduced-motion). Thicker in the early morning, thin by afternoon, faint and blue at night.
+ * No outline (../../toon.ts noOutline), no depth write; three draw calls.
  */
 import * as THREE from "three";
 import { noOutline } from "../../toon";
+import { liveWind } from "../../wind";
 import { smooth } from "../layout";
 import { rimZ } from "../plan";
 
@@ -83,8 +86,9 @@ function ribbon(y: number, s0: number, s1: number, rep: number): THREE.BufferGeo
 export function buildMist(reducedMotion: boolean) {
   const tex = blobTexture();
   const layers = [
-    { y: -96, s0: 60, s1: 240, rep: 520, speed: 1.6, base: 0.22 },
-    { y: -140, s0: 85, s1: 215, rep: 360, speed: 2.4, base: 0.34 },
+    { y: -70, s0: 76, s1: 226, rep: 640, speed: 1.2, base: 0.15 },
+    { y: -104, s0: 62, s1: 240, rep: 520, speed: 1.6, base: 0.24 },
+    { y: -146, s0: 88, s1: 214, rep: 360, speed: 2.4, base: 0.36 },
   ].map((L) => {
     const map = tex.clone();
     map.needsUpdate = true;
@@ -107,19 +111,29 @@ export function buildMist(reducedMotion: boolean) {
   group.name = "colca-mist";
   for (const l of layers) group.add(l.mesh);
   const night = new THREE.Color("#9fb0c8");
-  const day = new THREE.Color("#f4efe6");
+  // Lower veils lean further toward the haze's lilac blue (they are seen through more air).
+  const dayTop = new THREE.Color("#f2eee8");
+  const dayLow = new THREE.Color("#dfe2f4");
   return {
     group,
-    /** time: seconds; dayTime: 0..1 (0.25 sunrise); n: 0 day … 1 night. */
-    update(time: number, dayTime: number, n: number) {
+    /** dt: seconds; dayTime: 0..1 (0.25 sunrise); n: 0 day … 1 night; fx: x of the camera (wind sampled there). */
+    update(dt: number, dayTime: number, n: number, fx = 0) {
+      // The wind's along-canyon component where the traveler looks (the canyon runs along x); a calm floor of
+      // 0.35 so the mist never freezes when the wind turns across the canyon.
+      const w = liveWind.sample(fx, rimZ(fx) + 120);
+      const along = Math.sign(w.x || 1) * Math.max(0.35, Math.abs(w.x));
       // Morning mist (≈ 6–10 am) burning off by noon.
       const morning = smooth(0.2, 0.3, dayTime) * (1 - smooth(0.36, 0.5, dayTime));
       const k = 0.55 + 0.45 * morning;
-      for (const l of layers) {
-        if (!reducedMotion) l.map.offset.x = (time * l.speed) / l.rep;
+      layers.forEach((l, i) => {
+        // u runs along +x (x / rep), so moving the texture downwind means a decreasing offset.
+        if (!reducedMotion) l.map.offset.x = (l.map.offset.x - (along * l.speed * dt) / l.rep) % 1;
         l.mat.opacity = l.base * k * (1 - n * 0.45);
-        l.mat.color.copy(day).lerp(night, n);
-      }
+        l.mat.color
+          .copy(dayTop)
+          .lerp(dayLow, i / (layers.length - 1))
+          .lerp(night, n);
+      });
     },
     dispose() {
       for (const l of layers) {

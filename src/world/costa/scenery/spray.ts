@@ -4,14 +4,20 @@
  * computed in the vertex shader from its emitter, launch velocity and phase (no per-frame CPU work): each
  * emitter bursts once per its own period, so the cliffs flash white out of step with each other.
  * Emitters: along the cliff stretches of the shore (layout.cliff high) and round the islets.
+ * The sea breeze carries every droplet inland as it flies: the shared wind (../../wind-glsl.ts, read through the
+ * style uniforms every built-in material has) pushes it downwind, harder inside a gust front, so the spray
+ * streams off the rocks the same way the reeds and banners lean.
  * Hidden with prefers-reduced-motion.
  */
 import * as THREE from "three";
 import { canvasTex } from "../../props";
+import { WIND_SLOT } from "../../wind";
 import { rng } from "../kit";
 import type { CostaLayout } from "../layout";
 
 const PER = 22;
+/** The shared wind's first slot (direction xy, strength z, clock w) in the style uniform array. */
+const WIND_U = `cpaU[${WIND_SLOT.W0}]`;
 
 export interface Spray {
   points: THREE.Points;
@@ -108,6 +114,9 @@ export function buildSpray(L: CostaLayout, reducedMotion: boolean): Spray {
         `float age = mod(uTime + aTime.y, aTime.x);
         float life = 1.6;
         vec3 transformed = position + aVel * age + vec3(0.0, -9.0, 0.0) * age * age * 0.5;
+        // Blown downwind (speed × (1 + gust) of the shared wind at the emitter), more the longer it flies.
+        float gustK = 1.0 + cpaGust(position.xz);
+        transformed.xz += cpaWindDir() * ${WIND_U}.z * gustK * (age * 0.8 + age * age * 0.7);
         transformed.y = max(transformed.y, -0.3);
         vLife = age < life ? 1.0 - age / life : 0.0;`,
       )

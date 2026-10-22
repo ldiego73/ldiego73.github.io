@@ -75,6 +75,21 @@ describe("celebration burst", () => {
     }
     expect(new Set(ps.map((p) => p.c)).size).toBe(5);
   });
+  test("falling petals drift downwind, resting ones stay put", () => {
+    const still = spawnPetals(30, 7, 5, prng(4));
+    const blown = spawnPetals(30, 7, 5, prng(4));
+    const floor = () => 0;
+    for (let k = 0; k < 60 * BURST.life; k++) {
+      for (const p of still) stepPetal(p, 1 / 60, k / 60, floor);
+      for (const p of blown) stepPetal(p, 1 / 60, k / 60, floor, { x: 0.5, z: 0 });
+    }
+    const meanX = (ps: typeof still) => ps.reduce((a, p) => a + p.x, 0) / ps.length;
+    expect(meanX(blown)).toBeGreaterThan(meanX(still) + 0.5);
+    for (const p of blown) expect(p.y).toBeCloseTo(0.02, 5);
+    const rest = blown.map((p) => p.x);
+    for (const p of blown) stepPetal(p, 1 / 60, 99, floor, { x: 3, z: 0 });
+    expect(blown.map((p) => p.x)).toEqual(rest);
+  });
   test("morphos climb and spiral outward", () => {
     for (const m of spawnMorphos(12, prng(9))) {
       const a = morphoAt(m, 0.2, 7);

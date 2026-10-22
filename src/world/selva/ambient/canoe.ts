@@ -22,6 +22,7 @@ import type { CreateAmbient, L } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { emit, on } from "../../events";
 import { Kit, rng } from "../../props";
+import { paintStrength } from "../../style-gl";
 import { CANOE_STRETCH, type SelvaEnv } from "../contract";
 import { ride } from "../ride";
 import {
@@ -82,6 +83,8 @@ export const create: CreateAmbient = (baseEnv) => {
     dockGeo(L, CANOE_STRETCH.toStation, pts[pts.length - 1] as [number, number], 1),
   ];
   const mat = stationMaterial();
+  // The canoe and its paddle move: no world-space painted blotches on them (style-gl.ts).
+  const boatMat = paintStrength(stationMaterial(), 0);
   const root = new THREE.Group();
   root.name = "selva-canoe";
   env.scene.add(root);
@@ -150,7 +153,7 @@ export const create: CreateAmbient = (baseEnv) => {
     kit.cyl(0.05, 0.07, 0.18, 0, HULL.h * 0.75 + 0.04, HULL.len / 2 - 0.1, A.woodDark, 6);
     kit.box(0.04, 0.05, HULL.len * 0.6, HULL.w * 0.43, HULL.h * 0.62, 0, A.achiote);
     kit.box(0.04, 0.05, HULL.len * 0.6, -HULL.w * 0.43, HULL.h * 0.62, 0, A.achiote);
-    canoe.add(bake(kit, "selva-canoe-hull", mat));
+    canoe.add(bake(kit, "selva-canoe-hull", boatMat));
   }
   const paddle = new THREE.Group();
   {
@@ -158,7 +161,7 @@ export const create: CreateAmbient = (baseEnv) => {
     kit.cyl(0.025, 0.025, 1.45, 0, -0.95, 0, A.plank, 5);
     kit.box(0.04, 0.5, 0.2, 0, -1.15, 0, A.wood);
     kit.box(0.12, 0.06, 0.05, 0, 0.47, 0, A.woodDark);
-    paddle.add(bake(kit, "selva-canoe-paddle", mat));
+    paddle.add(bake(kit, "selva-canoe-paddle", boatMat));
   }
   canoe.add(paddle);
   root.add(canoe);
@@ -382,6 +385,7 @@ export const create: CreateAmbient = (baseEnv) => {
       for (const off of unDeck) off();
       disposeTree(root);
       mat.dispose();
+      boatMat.dispose();
     },
   };
 };

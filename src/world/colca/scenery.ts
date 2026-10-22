@@ -34,9 +34,10 @@ export function createColcaScenery(layout: ColcaLayout, toon: ToonCache, quality
     setNight(n) {
       night = n;
     },
-    update(_dt, time, env: SuyuEnv) {
-      mist.update(time, env.sky.time(), night);
-      back.update(time);
+    update(dt, _time, env: SuyuEnv) {
+      const c = env.camera.position;
+      mist.update(dt, env.sky.time(), night, c.x);
+      back.update(dt);
     },
     dispose() {
       ground.dispose();

@@ -18,11 +18,10 @@ import { createFieldPanel, el } from "../../ambient/fields/panel";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { decks } from "../../decks";
 import { on } from "../../events";
-import { vertexToon } from "../../merge-colors";
 import { FONT } from "../../props";
 import type { SuyuEnv } from "../../suyu/contract";
 import { HUB_ISLAND, ISLAND_Y, ISLANDS, type Island, islandGroup, UROS_LANDING, WALK_Y } from "../plan";
-import { Build, frameAt } from "./kit/build";
+import { Build, frameAt, kitMaterial } from "./kit/build";
 import { buildBoards, paperBoard } from "./kit/signs";
 import { balsaBoat, bannerPole, hearth, islandFloor, REED, reedHut, watchtower } from "./kit/totora";
 import { ISLAND_COPY, islandAt, islandPanel, islandPrompt, islandYaw, rampY, spans } from "./uros/logic";
@@ -126,7 +125,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   b.frame = null;
 
   const geo = b.build();
-  const mat = vertexToon();
+  // The island flags and the moored boat's sail are cloth on the shared wind (same mesh, same draw call).
+  const mat = kitMaterial(geo);
   if (geo) {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = "titicaca-uros";

@@ -7,6 +7,7 @@
 import * as THREE from "three";
 import type { Lang, WorldEnv } from "../../contract";
 import { C, DYE, FONT, Kit } from "../../props";
+import { noPaint } from "../../style-gl";
 import { fitText, type Owned, plate, roundRect } from "./label";
 
 export interface ExhibitModel {
@@ -56,6 +57,8 @@ function inst(ctx: Ctx, geo: THREE.BufferGeometry, n: number, mat: THREE.Materia
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   m.frustumCulled = false;
   m.name = "exhibit-anim";
+  // It moves: no world-space painted blotches sliding over it (style-gl.ts).
+  noPaint(m);
   ctx.geos.push(geo);
   ctx.moving.push(m);
   ctx.group.add(m);

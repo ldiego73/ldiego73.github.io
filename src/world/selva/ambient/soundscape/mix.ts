@@ -59,4 +59,14 @@ export function callGap(d: number, far: number, base: number, r: number) {
   return base * (0.6 + r * 0.8) * (1 + (2 * d) / far);
 }
 
+/**
+ * Canopy rustle (0..1): the leaves overhead hiss when a gust front passes. `gust` is the shared wind's
+ * smoothed gust at the traveler (wind.ts `liveWind.gust`, 0 … `gustAmp`); a faint breath of it stays in the
+ * still air so the bed never cuts in from silence.
+ */
+export function rustleGain(gust: number, gustAmp: number) {
+  const g = gustAmp > 0 ? clamp01(gust / gustAmp) : 0;
+  return 0.08 + 0.92 * smooth(0.05, 0.85, g);
+}
+
 export { howlerHour } from "../wild/logic";

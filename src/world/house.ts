@@ -17,6 +17,7 @@ import {
   glowSprite,
   hashStr,
   Kit,
+  localWind,
   makeTorch,
   offFontsReady,
   onFontsReady,
@@ -27,6 +28,7 @@ import {
   thatchRoof,
   toonMapped,
 } from "./props";
+import { noPaint } from "./style-gl";
 
 /**
  * The chasqui post is the owner's house: an enterable stone house at the top of the trail.
@@ -715,6 +717,7 @@ export function buildHouse(env: WorldEnv, lang: Lang, groundOuter: (x: number, z
     g.add(k.build("apacheta"));
   });
   const mk = new THREE.Group();
+  const mkWind = { x: 0, z: 0, speed: 0, gust: 0 };
   yardItem(0.2, [...SIDE_L], (g) => {
     const k = new Kit(env);
     k.box(0.12, 2.5, 0.12, 0, -0.6, 0, C.woodDark);
@@ -728,6 +731,8 @@ export function buildHouse(env: WorldEnv, lang: Lang, groundOuter: (x: number, z
         mkk.add(new THREE.SphereGeometry(0.04, 6, 5), DYE[d as keyof typeof DYE], -0.3 + i * 0.2, -0.15 - kk * 0.12, 0);
     });
     mk.add(mkk.build("message-khipu"));
+    // It swings in the wind: no world-space painted blotches sliding over the cords (style-gl.ts).
+    noPaint(mk);
     g.add(mk);
   });
   yardItem(0.6, [...SIDE_L].reverse(), (g) => {
@@ -833,7 +838,13 @@ export function buildHouse(env: WorldEnv, lang: Lang, groundOuter: (x: number, z
     },
     update(dt, t, _dist, ctx?: PlaceCtx) {
       for (const tc of torches) tc.update(t);
-      if (!env.reducedMotion) mk.rotation.z = Math.sin(t * 1.4) * 0.03;
+      if (!env.reducedMotion) {
+        // The message khipu's cords lean downwind and swing harder in a gust (the shared wind, local frame).
+        localWind(mk, mkWind);
+        mk.rotation.z =
+          THREE.MathUtils.clamp(mkWind.x * 0.05, -0.12, 0.12) + Math.sin(t * 1.4) * (0.02 + 0.03 * mkWind.gust);
+        mk.rotation.x = THREE.MathUtils.clamp(-mkWind.z * 0.05, -0.12, 0.12) + Math.sin(t * 1.1 + 1) * 0.012;
+      }
       if (!ctx) return;
       tmp.copy(ctx.avatar);
       group.worldToLocal(tmp);

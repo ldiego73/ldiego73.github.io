@@ -8,13 +8,22 @@
  * hidden (`visible`, owned here). Beyond the instanced forest the canopy carpet (far.ts) carries the view.
  * The tiles also carry `userData.cullDistance` so the runtime's detail-cull treats them the same way.
  *
- * Materials: vertex-colored toon with wind sway (kit.ts swayMaterial, `inkAware`: the ink follows
- * the swaying vertices). Double-sided because leaves are single sheets. Trees sway very little (crowns), the
- * understory more. Ceibas and palms cast shadows; the understory doesn't (cheap shadow pass).
+ * Materials: vertex-colored toon on the world's shared wind (kit.ts swayMaterial → style-gl.ts windSway; the
+ * ink follows the swaying vertices). Double-sided because leaves are single sheets. One material per sway
+ * class (they differ only in shader defines, so no extra draws: every species is already its own mesh):
+ *  - trees and palms ride the "tree" mode: the whole tree bends with height² (`treeFlex` rewrites the
+ *    models' `flex` as that bend plus their own leaf weight), the crown sways and flutters, and the gust
+ *    fronts roll across the canopy. The jungle's calm band (style.ts WIND.selva) keeps the trunks' feet still;
+ *  - the understory (banana, heliconia, shrubs, ferns, caña brava, liana curtains) rides the "grass" mode on
+ *    its own leaf weights: quiet in the still air of the forest floor, stirred by gusts, parted by the
+ *    traveler and the animals, and the small plants are registered as springs, so brushing past one shakes it;
+ *  - the victoria regia pads float still (no sway, no extra vertex work).
+ * Ceibas and palms cast shadows; the understory doesn't (cheap shadow pass).
  */
 import * as THREE from "three";
 import type { ToonCache } from "../../toon";
-import { inkAware, type SwayUniforms, swayMaterial } from "./kit";
+import { springs } from "../../wind";
+import { swayMaterial } from "./kit";
 import {
   aguajeModel,
   bananaModel,
@@ -86,11 +95,62 @@ const TINTS: Record<"tree" | "palm" | "under" | "flower", readonly string[]> = {
 
 const SHADOW = new Set<Species>(["ceiba", "broadleaf", "tiered", "aguaje", "shapaja", "huasai", "cecropia"]);
 
+/** How each species moves with the wind (see the header). */
+type SwayClass = "tall" | "tree" | "palm" | "leafy" | "low" | "reed" | "liana" | "still";
+const SWAY: Record<Species | "lilyFlower", SwayClass> = {
+  ceiba: "tall",
+  broadleaf: "tree",
+  tiered: "tree",
+  cecropia: "tree",
+  aguaje: "palm",
+  huasai: "palm",
+  shapaja: "palm",
+  banana: "leafy",
+  heliconia: "leafy",
+  shrub: "low",
+  fern: "low",
+  liana: "liana",
+  reed: "reed",
+  lily: "still",
+  lilyFlower: "still",
+};
+/**
+ * Tree classes: reference height H (model units, ≈ the crown top: ceiba 26, moena 13, shihuahuaco 17,
+ * cetico 11, palms 8–12) for the height² trunk bend and the crown's flutter band, and how much of the models'
+ * own leaf weight (crown tops, frond tips, hanging lianas) rides on top of the bend.
+ */
+const TREE_SWAY = { tall: { h: 24, leaf: 1.5 }, tree: { h: 13, leaf: 1.5 }, palm: { h: 10, leaf: 2.5 } } as const;
+/**
+ * Understory amplitude multipliers on the models' leaf weights. The forest floor sits inside the jungle's calm
+ * band (wind × 0.35), so without them the undergrowth would stand dead still; with them it breathes a little
+ * and moves clearly only when a gust comes through, while the canopy above does most of the moving.
+ */
+const UNDER_AMP = { leafy: 3, low: 2.5, reed: 3, liana: 2.5 } as const;
+/** Understory species registered as springs (brushing past one shakes it), with their trunk radius. */
+const SPRINGY: Partial<Record<Species, number>> = { banana: 0.35, heliconia: 0.3, shrub: 0.6, fern: 0.35 };
+
+/**
+ * Rewrites a tree model's `flex` as the shared wind's "tree" weight: the trunk bend (height² × H × 0.1, the
+ * same weight wind-glsl.ts uses without a flex attribute) plus the model's own leaf weight × `leaf`, so the
+ * crown tops, palm fronds and hanging lianas move a little more than the bend that carries them.
+ */
+export function treeFlex(geo: THREE.BufferGeometry, h: number, leaf: number) {
+  const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+  const old = geo.getAttribute("flex") as THREE.BufferAttribute | undefined;
+  const out = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const y = Math.max(0, pos.getY(i)) / h;
+    out[i] = y * y * h * 0.1 + (old ? old.getX(i) : 0) * leaf;
+  }
+  geo.setAttribute("flex", new THREE.BufferAttribute(out, 1));
+  return geo;
+}
+
 export interface Forest {
   objects: THREE.Object3D[];
   /** Instanced meshes with their view range (for stats). */
   tiles: THREE.InstancedMesh[];
-  update(time: number, camera: THREE.Vector3): void;
+  update(camera: THREE.Vector3): void;
   dispose(): void;
 }
 
@@ -109,15 +169,24 @@ export function composeInst(i: Inst, out: THREE.Matrix4) {
 export function createForest(
   plan: SceneryPlan,
   toon: ToonCache,
-  o: { quality: "low" | "high"; phone: boolean; reducedMotion: boolean },
+  o: { quality: "low" | "high"; phone: boolean },
 ): Forest {
   const lite = o.quality === "low" || o.phone;
   const grad = toon.toon("#fff").gradientMap;
-  const still = o.reducedMotion ? 0 : 1;
-  const windTree: SwayUniforms = { uTime: { value: 0 }, uWind: { value: 0.35 * still } };
-  const windUnder: SwayUniforms = { uTime: { value: 0 }, uWind: { value: 0.75 * still } };
-  const treeMat = swayMaterial(grad, windTree, THREE.DoubleSide);
-  const underMat = swayMaterial(grad, windUnder, THREE.DoubleSide);
+  const mats = new Map<SwayClass, THREE.Material>();
+  const materialFor = (c: SwayClass) => {
+    let m = mats.get(c);
+    if (!m) {
+      const D = THREE.DoubleSide;
+      if (c === "tall" || c === "tree" || c === "palm")
+        m = swayMaterial(grad, { mode: "tree", flex: true, height: TREE_SWAY[c].h }, D);
+      else if (c === "still")
+        m = new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: grad, side: D });
+      else m = swayMaterial(grad, { mode: "grass", flex: true, amp: UNDER_AMP[c] }, D);
+      mats.set(c, m);
+    }
+    return m;
+  };
   const rangeK = (o.phone ? PHONE_RANGE : 1) * (o.quality === "low" ? LOW_RANGE : 1);
 
   const geos: Partial<Record<Species | "lilyFlower", THREE.BufferGeometry>> = {
@@ -137,6 +206,10 @@ export function createForest(
     lily: lilyModel(false),
     lilyFlower: lilyModel(true),
   };
+  for (const [sp, g] of Object.entries(geos)) {
+    const c = SWAY[sp as Species];
+    if (g && (c === "tall" || c === "tree" || c === "palm")) treeFlex(g, TREE_SWAY[c].h, TREE_SWAY[c].leaf);
+  }
   const kindOf: Record<Species, keyof typeof TINTS> = {
     ceiba: "tree",
     broadleaf: "tree",
@@ -157,7 +230,7 @@ export function createForest(
   const tiles: THREE.InstancedMesh[] = [];
   const ranges: number[] = [];
 
-  const build = (name: Species | "lilyFlower", list: Inst[], tints: readonly string[], under: boolean) => {
+  const build = (name: Species | "lilyFlower", list: Inst[], tints: readonly string[]) => {
     const geo = geos[name];
     if (!geo || !list.length) return;
     const buckets = new Map<number, Inst[]>();
@@ -170,7 +243,7 @@ export function createForest(
     }
     const range = RANGE[name] * rangeK;
     for (const b of buckets.values()) {
-      const mesh = new THREE.InstancedMesh(geo, under ? underMat : treeMat, b.length);
+      const mesh = new THREE.InstancedMesh(geo, materialFor(SWAY[name]), b.length);
       mesh.name = `selva-${name}`;
       b.forEach((inst, k) => {
         mesh.setMatrixAt(k, composeInst(inst, _m));
@@ -179,7 +252,6 @@ export function createForest(
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.computeBoundingSphere();
-      inkAware(mesh);
       const sp = name === "lilyFlower" ? "lily" : name;
       mesh.castShadow = SHADOW.has(sp);
       mesh.receiveShadow = true;
@@ -203,22 +275,24 @@ export function createForest(
     "fern",
     "liana",
     "reed",
-  ] as const) {
-    const under = !(kindOf[sp] === "tree" || kindOf[sp] === "palm");
-    build(sp, plan.inst[sp], TINTS[kindOf[sp]], under);
-  }
+  ] as const)
+    build(sp, plan.inst[sp], TINTS[kindOf[sp]]);
   // Victoria regia: pads, and the night-blooming flowers on about a fifth of them.
   build(
     "lily",
     plan.inst.lily.filter((i) => i.tint === 0),
     TINTS.under,
-    true,
   );
   build(
     "lilyFlower",
     plan.inst.lily.filter((i) => i.tint === 1),
     TINTS.flower,
-    true,
+  );
+  // Small plants shake when the traveler or an animal brushes past (wind.ts springs; trunk radius × scale).
+  const unspring = springs.add(
+    (Object.keys(SPRINGY) as Species[]).flatMap((sp) =>
+      plan.inst[sp].map((i) => ({ x: i.x, z: i.z, r: (SPRINGY[sp] as number) * i.s })),
+    ),
   );
 
   const center = new THREE.Vector3();
@@ -226,9 +300,7 @@ export function createForest(
   return {
     objects,
     tiles,
-    update(time, camera) {
-      windTree.uTime.value = time;
-      windUnder.uTime.value = time;
+    update(camera) {
       // A slice of the tiles per frame is plenty: the camera moves a few metres per second.
       const n = tiles.length;
       const step = Math.max(24, Math.ceil(n / 4));
@@ -244,8 +316,8 @@ export function createForest(
       }
     },
     dispose() {
-      treeMat.dispose();
-      underMat.dispose();
+      unspring();
+      for (const m of mats.values()) m.dispose();
       for (const g of Object.values(geos)) g?.dispose();
     },
   };

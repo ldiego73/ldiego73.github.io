@@ -4,11 +4,19 @@
  * (Polylepis, red papery bark, small dark crowns) higher up, and ichu bunch-grass tufts. Placed on open
  * ground only (layout.isGround), seeded, thinner on the low tier but never removed by distance (the hub is
  * small; the far ones fade into the fog).
+ *
+ * Wind: every kind rides the shared field (../../style-gl.ts `windSway`): molle and queñua in "tree" mode
+ * (trunk bend with height², the molle's weeping crown flutters, a damped spring kick when the traveler or a
+ * llama brushes one: `springs`), the ichu tufts in "grass" mode (gust fronts rolling across the slopes, parted
+ * by bodies). Each kind has its own material (the reference height differs) and a matching swaying shadow
+ * depth material, so shadows move with the crowns; draw calls stay one per kind.
  */
 import * as THREE from "three";
 import type { Quality } from "../../engine";
 import { mergeColored } from "../../merge-colors";
+import { windSway } from "../../style-gl";
 import { NO_OUTLINE_LAYER, type ToonCache } from "../../toon";
+import { springs } from "../../wind";
 import type { CuscoLayout } from "../layout";
 import { rng } from "./buildings";
 
@@ -72,9 +80,19 @@ function ichu(): THREE.BufferGeometry | null {
   return out;
 }
 
+type Sway = Parameters<typeof windSway>[1];
+
+/** A material pair (colour + shadow depth) on the shared wind. */
+function swaying(toon: ToonCache, o: Sway) {
+  const mat = windSway(toon.vertexToon(), o);
+  const depth = windSway(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), o);
+  return { mat, depth };
+}
+
 export function buildFlora(layout: CuscoLayout, toon: ToonCache, quality: Quality) {
   const rand = rng(0xf10a);
-  const mat = toon.vertexToon();
+  const mats: THREE.Material[] = [];
+  const springPts: Array<{ x: number; z: number; r: number }> = [];
   const group = new THREE.Group();
   group.name = "cusco-flora";
   const geos: THREE.BufferGeometry[] = [];
@@ -91,16 +109,52 @@ export function buildFlora(layout: CuscoLayout, toon: ToonCache, quality: Qualit
     rMax: number;
     ok: (y: number) => boolean;
     scale: [number, number];
+    /** Wind mode and reference height (object units: the plant's top), amplitude. */
+    sway: Sway;
+    /** Spring-kick radius per unit scale (trees the traveler brushes), or 0. */
+    spring: number;
   }> = [
-    { make: molle, n: high ? 200 : 120, rMin: 30, rMax: 200, ok: (y) => y < 22, scale: [0.85, 1.5] },
-    { make: quenua, n: high ? 90 : 50, rMin: 60, rMax: 225, ok: (y) => y > 14, scale: [0.8, 1.3] },
-    { make: ichu, n: high ? 650 : 320, rMin: 20, rMax: 200, ok: () => true, scale: [0.7, 1.4] },
+    // The molle's crown tops out near 3.2 u; its weeping foliage moves more than the sierra's trees (amp).
+    {
+      make: molle,
+      n: high ? 200 : 120,
+      rMin: 30,
+      rMax: 200,
+      ok: (y) => y < 22,
+      scale: [0.85, 1.5],
+      sway: { mode: "tree", height: 3.2, amp: 1.6 },
+      spring: 0.9,
+    },
+    {
+      make: quenua,
+      n: high ? 90 : 50,
+      rMin: 60,
+      rMax: 225,
+      ok: (y) => y > 14,
+      scale: [0.8, 1.3],
+      sway: { mode: "tree", height: 2.2, amp: 1.3 },
+      spring: 0.7,
+    },
+    // Ichu blades stand ~0.85 u; amp so the tips travel about a blade's width in a gust.
+    {
+      make: ichu,
+      n: high ? 650 : 320,
+      rMin: 20,
+      rMax: 200,
+      ok: () => true,
+      scale: [0.7, 1.4],
+      sway: { mode: "grass", height: 0.85, amp: 1.4 },
+      spring: 0,
+    },
   ];
   for (const k of kinds) {
     const geo = k.make();
     if (!geo) continue;
     geos.push(geo);
+    const { mat, depth } = swaying(toon, k.sway);
+    mats.push(mat, depth);
     const mesh = new THREE.InstancedMesh(geo, mat, k.n);
+    mesh.customDepthMaterial = depth;
     let count = 0;
     for (let tries = 0; tries < k.n * 12 && count < k.n; tries++) {
       const a = rand() * Math.PI * 2;
@@ -116,6 +170,7 @@ export function buildFlora(layout: CuscoLayout, toon: ToonCache, quality: Qualit
       p.set(x, y - 0.05, z);
       m.compose(p, q, s);
       mesh.setMatrixAt(count++, m);
+      if (k.spring) springPts.push({ x, z, r: k.spring * sc });
     }
     mesh.count = count;
     mesh.instanceMatrix.needsUpdate = true;
@@ -126,11 +181,13 @@ export function buildFlora(layout: CuscoLayout, toon: ToonCache, quality: Qualit
     if (k.make === ichu) mesh.layers.set(NO_OUTLINE_LAYER);
     group.add(mesh);
   }
+  const removeSprings = springs.add(springPts);
   return {
     group,
     dispose() {
+      removeSprings();
       for (const g of geos) g.dispose();
-      mat.dispose();
+      for (const mt of mats) mt.dispose();
       for (const c of group.children) (c as THREE.InstancedMesh).dispose?.();
     },
   };

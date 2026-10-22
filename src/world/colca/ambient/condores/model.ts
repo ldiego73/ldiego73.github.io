@@ -9,6 +9,7 @@
 import * as THREE from "three";
 import { condorParts } from "../../../fauna-models";
 import { mergeColored, vertexToon } from "../../../merge-colors";
+import { paintStrength } from "../../../style-gl";
 
 export interface CondorPose {
   x: number;
@@ -33,7 +34,8 @@ export class CondorFlock {
   private wingR: THREE.InstancedMesh;
   private wingL: THREE.InstancedMesh;
   private geos: THREE.BufferGeometry[] = [];
-  private mat = vertexToon();
+  /** No painted blotches: world-space patches would slide over a flying bird. */
+  private mat = paintStrength(vertexToon(), 0);
   private shoulder: THREE.Vector3;
   private root = new THREE.Matrix4();
   private m = new THREE.Matrix4();

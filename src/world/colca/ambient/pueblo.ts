@@ -6,13 +6,21 @@
  * with an arched gate. A carved sign names the village. Scenic only (its stamp is the station visit); the
  * villagers are ./gente.ts and the hummingbirds at the kantu ./picaflores.ts.
  *
- * Positions: ./pueblo/logic.ts (plaza frame: +z toward the road). One vertex-coloured mesh for all of it, one
- * sign. Houses, the church, the fountain and the bushes are colliders.
+ * Fiesta dress: strings of coloured pennants (banderines) run from the bell towers to two poles at the plaza's
+ * road side and across it, and a Peruvian flag flies from a pole by the road. All of it is one cloth mesh on
+ * the shared wind (../cloth.ts, mode "cloth"): it ripples with the gusts that cross the puna. The kantu bushes
+ * sway as shrubs and shake when brushed (../../style-gl.ts windSway, ../../wind.ts springs).
+ *
+ * Positions: ./pueblo/logic.ts (plaza frame: +z toward the road). One vertex-coloured mesh for the buildings,
+ * one for the kantu bushes, one for the cloth, one sign. Houses, the church, the fountain, the bushes and the poles are colliders.
  */
 import * as THREE from "three";
 import type { CreateAmbient, L } from "../../contract";
 import { vertexToon } from "../../merge-colors";
+import { windSway } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
+import { springs } from "../../wind";
+import { ClothKit, clothMesh } from "../cloth";
 import { signBoard, VKit } from "../kit";
 import type { ColcaLayout } from "../layout";
 import { CHURCH, FLOWERS, FOUNTAIN, HOUSES, toWorld } from "./pueblo/logic";
@@ -26,6 +34,17 @@ const WALL = { white: "#efe9dc", adobe: "#c69d74", stone: "#a49580" } as const;
 const ROOF = { thatch: "#b48a4a", tin: "#9ba1a4", tile: "#b5603f" } as const;
 const WHITE = "#f2ede3";
 const SILLAR = "#dcc7a2";
+/** Fiesta pennants (banderines), in the bright dyes of the valley's embroidery. */
+const PENNANTS = ["#d6306f", "#e9b23a", "#2a9db0", "#3f9a5a", "#e0572f", "#f5f1e8", "#7a3fa0"];
+/** Festival poles at the plaza's road side (plaza frame) and their height; the flagpole by the road. */
+const POLES: ReadonlyArray<readonly [number, number]> = [
+  [-9, 8.5],
+  [9, 8.5],
+];
+const POLE_H = 5.2;
+/** Kantu bush height (u above the plaza) the sway weight is measured against. */
+const BUSH_H = 1.5;
+const FLAGPOLE = { x: 3.2, z: 12.8, h: 7.5 } as const;
 
 export const create: CreateAmbient = (baseEnv) => {
   const env = baseEnv as SuyuEnv;
@@ -53,13 +72,14 @@ export const create: CreateAmbient = (baseEnv) => {
   k.cyl(FOUNTAIN.r - 0.25, FOUNTAIN.r - 0.25, 0.05, FOUNTAIN.x, 0.62, FOUNTAIN.z, "#5f9fa8", 16);
   k.cyl(0.22, 0.28, 1.8, FOUNTAIN.x, 0.6, FOUNTAIN.z, "#b7ab96", 8);
   k.cyl(0.6, 0.3, 0.3, FOUNTAIN.x, 2.3, FOUNTAIN.z, "#b7ab96", 10);
-  // Kantu bushes (green mounds dotted with magenta-red bell flowers).
+  // Kantu bushes (green mounds dotted with magenta-red bell flowers): their own mesh, swaying on the wind.
+  const bk = new VKit().at(pl.x, 0, pl.z, yaw);
   for (const [x, z] of FLOWERS) {
-    k.sphere(1.0, x, 0.55, z, "#5d7f45", 1, 0.8, 8);
-    k.sphere(0.7, x + 0.4, 0.95, z - 0.2, "#6a8c4c", 1, 0.8, 7);
+    bk.sphere(1.0, x, 0.55, z, "#5d7f45", 1, 0.8, 8);
+    bk.sphere(0.7, x + 0.4, 0.95, z - 0.2, "#6a8c4c", 1, 0.8, 7);
     for (let i = 0; i < 9; i++) {
       const a = rand() * Math.PI * 2;
-      k.cyl(
+      bk.cyl(
         0.08,
         0.02,
         0.22,
@@ -178,6 +198,51 @@ export const create: CreateAmbient = (baseEnv) => {
     }
   }
 
+  // The bushes sway as shrubs on the shared wind (mode "tree" with a `flex` weight growing with height above
+  // the plaza: the mesh sits at y0, so heights are local) and shake when brushed (springs).
+  const bushGeo = bk.build();
+  const bp = bushGeo.getAttribute("position") as THREE.BufferAttribute;
+  const bf = new Float32Array(bp.count);
+  for (let i = 0; i < bp.count; i++) bf[i] = Math.min(1, Math.max(0, bp.getY(i) / BUSH_H)) ** 2 * 0.3;
+  bushGeo.setAttribute("flex", new THREE.BufferAttribute(bf, 1));
+  const bushMat = windSway(vertexToon(), { mode: "tree", flex: true, height: BUSH_H });
+  const bushes = new THREE.Mesh(bushGeo, bushMat);
+  bushes.name = "colca-pueblo:kantu";
+  bushes.position.y = y0;
+  bushes.castShadow = true;
+  bushes.receiveShadow = true;
+  env.scene.add(bushes);
+  const removeSprings = springs.add(FLOWERS.map(([x, z]) => ({ ...toWorld(frame, x, z), r: 1.1 })));
+
+  // ------------------------------------------------------------------ fiesta cloth (world space)
+  const ck = new ClothKit();
+  const Wp = (lx: number, ly: number, lz: number) => ({ ...toWorld(frame, lx, lz), y: y0 + ly });
+  const towerX = CHURCH.w / 2 + 1.6;
+  // Tied under the belfry ledge, on the face toward the plaza.
+  const towerTie = (sx: number) => Wp(sx * towerX, CHURCH.towers - 4, front + 0.75);
+  for (const [px, pz] of POLES) {
+    ck.tube(Wp(px, -0.3, pz), Wp(px, POLE_H, pz), 0.07, "#6b4a2e");
+    ck.bunting(towerTie(Math.sign(px)), Wp(px, POLE_H - 0.15, pz), 1.1, 0.8, PENNANTS);
+  }
+  ck.bunting(
+    Wp(POLES[0]![0], POLE_H - 0.15, POLES[0]![1]),
+    Wp(POLES[1]![0], POLE_H - 0.15, POLES[1]![1]),
+    0.7,
+    0.8,
+    PENNANTS,
+  );
+  ck.bunting(towerTie(-1), towerTie(1), 0.9, 0.8, PENNANTS);
+  // The national flag (red, white, red) flying west, the way the up-valley wind blows (../../style.ts WIND).
+  const fp = Wp(FLAGPOLE.x, 0, FLAGPOLE.z);
+  ck.tube({ x: fp.x, y: y0 - 0.3, z: fp.z }, { x: fp.x, y: y0 + FLAGPOLE.h, z: fp.z }, 0.06, "#d8d2c4");
+  ck.flag({ x: fp.x - 0.05, y: y0 + FLAGPOLE.h - 0.2, z: fp.z }, { x: -1, z: 0 }, 1.8, 1.2, [
+    "#c8102e",
+    "#f7f3ea",
+    "#c8102e",
+  ]);
+  const cloth = clothMesh(ck, "colca-pueblo:cloth");
+  env.scene.add(cloth.mesh);
+
   const geo = k.build();
   const mat = vertexToon();
   const mesh = new THREE.Mesh(geo, mat);
@@ -204,6 +269,8 @@ export const create: CreateAmbient = (baseEnv) => {
   env.addCollider({ kind: "circle", ...toWorld(frame, FOUNTAIN.x, FOUNTAIN.z), r: FOUNTAIN.r + 0.15 });
   for (const [x, z] of FLOWERS) env.addCollider({ kind: "circle", ...toWorld(frame, x, z), r: 1.1 });
   env.addCollider({ kind: "circle", ...toWorld(frame, -6, pl.r - 0.8), r: 0.35 });
+  for (const [px, pz] of POLES) env.addCollider({ kind: "circle", ...toWorld(frame, px, pz), r: 0.3 });
+  env.addCollider({ kind: "circle", ...toWorld(frame, FLAGPOLE.x, FLAGPOLE.z), r: 0.3 });
 
   return {
     update() {},
@@ -211,6 +278,12 @@ export const create: CreateAmbient = (baseEnv) => {
       mesh.removeFromParent();
       geo.dispose();
       mat.dispose();
+      cloth.mesh.removeFromParent();
+      cloth.dispose();
+      removeSprings();
+      bushes.removeFromParent();
+      bushGeo.dispose();
+      bushMat.dispose();
       sign.mesh.removeFromParent();
       sign.dispose();
     },

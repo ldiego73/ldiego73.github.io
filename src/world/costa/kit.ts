@@ -4,9 +4,15 @@
  * BufferGeometry drawn with one shared vertex-toon material (../merge-colors.ts vertexToon), or the geometry of
  * one InstancedMesh. Colours are sRGB hex in, linear vertex colours out (as merge-colors does). No env needed,
  * so scenery and ambients share it.
+ *
+ * Cloth inside a merged model: while `cloth` is set, every part added gets a `flex` weight along one axis of
+ * the model's own frame (0 at the pinned edge → 1 at the free edge, as ../style-gl.ts `clothFlex` writes it);
+ * every other part gets 0. Drawn with `windSway(mat, { mode: "cloth", flex: true })`, the banners, awnings and
+ * hangings of a model then wave in the shared wind while the rest of the same mesh (same draw call) stays put.
  */
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { clothFlex } from "../style-gl";
 
 const tmpM = new THREE.Matrix4();
 const tmpQ = new THREE.Quaternion();
@@ -31,6 +37,12 @@ export class Geo {
   private protos = new Map<string, THREE.BufferGeometry>();
   /** Optional transform applied after each part's own (places a sub-model in a frame). */
   post: THREE.Matrix4 | null = null;
+  /**
+   * While set, parts are cloth: `flex` along `axis` of the model frame (before `post`), 0 at `pinned` → 1 at
+   * `free` (see the header). Set it around the cloth parts only, then back to null.
+   */
+  cloth: { axis: "x" | "y" | "z"; pinned: number; free: number } | null = null;
+  private anyCloth = false;
 
   private proto(key: string, make: () => THREE.BufferGeometry) {
     let g = this.protos.get(key);
@@ -59,6 +71,10 @@ export class Geo {
     for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
     tmpQ.setFromEuler(tmpE.set(rx, ry, rz));
     g.applyMatrix4(tmpM.compose(tmpP.set(x, y, z), tmpQ, tmpS.set(sx, sy, sz)));
+    if (this.cloth) {
+      clothFlex(g, this.cloth.axis, this.cloth.pinned, this.cloth.free);
+      this.anyCloth = true;
+    }
     if (this.post) g.applyMatrix4(this.post);
     g.computeVertexNormals();
     const n = g.getAttribute("position").count;
@@ -87,19 +103,11 @@ export class Geo {
     rx = 0,
     rz = 0,
   ) {
-    return this.add(
-      this.proto("box", () => new THREE.BoxGeometry(1, 1, 1)),
-      color,
-      x,
-      y + h / 2,
-      z,
-      rx,
-      ry,
-      rz,
-      w,
-      h,
-      d,
-    );
+    // Cloth boxes are subdivided so the wave can run along them (a plain box would only swing its free edge).
+    const proto = this.cloth
+      ? this.proto("box:cloth", () => new THREE.BoxGeometry(1, 1, 1, 6, 6, 6))
+      : this.proto("box", () => new THREE.BoxGeometry(1, 1, 1));
+    return this.add(proto, color, x, y + h / 2, z, rx, ry, rz, w, h, d);
   }
 
   /** Cylinder / cone frustum with its base at y. */
@@ -195,11 +203,17 @@ export class Geo {
 
   /** Merge into one geometry (position, normal, color) and free the parts. */
   build(): THREE.BufferGeometry {
+    // Every part needs the same attributes to merge: rigid parts get flex 0 when the model has cloth.
+    if (this.anyCloth)
+      for (const g of this.list)
+        if (!g.getAttribute("flex"))
+          g.setAttribute("flex", new THREE.BufferAttribute(new Float32Array(g.getAttribute("position").count), 1));
     const merged = this.list.length ? mergeGeometries(this.list, false) : new THREE.BufferGeometry();
     for (const g of this.list) g.dispose();
     for (const g of this.protos.values()) g.dispose();
     this.list = [];
     this.protos.clear();
+    this.anyCloth = false;
     merged.computeBoundingSphere();
     return merged;
   }

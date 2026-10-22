@@ -8,11 +8,19 @@
  *  - boulders at the foot of the cliffs and on the rocky points.
  * Placement is seeded (stable between visits) and keeps off the road, plazas, water and steep slopes; the
  * station footprints are left clear by distance to the plazas. About six draw calls.
+ *
+ * Wind (the shared field, ../../style-gl.ts `windSway`): totora and crops bend as grass (gust fronts roll
+ * across them off the sea, and they part round the traveler and the animals); huarangos rock as trees
+ * (trunk, branches, leaf flutter); the lomas shrubs and their amancae flowers sway as small bushes. Shrubs
+ * and huarangos are registered as springs, so brushing past one shakes it. Cacti and boulders stay put.
+ * One material per sway mode: the same draw calls as before, only more vertex work.
  */
 import * as THREE from "three";
 import type { Quality } from "../../engine";
 import { vertexToon } from "../../merge-colors";
+import { windSway } from "../../style-gl";
 import { noOutline } from "../../toon";
+import { type SpringPoint, springs } from "../../wind";
 import { Geo, rng } from "../kit";
 import { type CostaLayout, noise } from "../layout";
 
@@ -20,6 +28,12 @@ export interface Flora {
   group: THREE.Group;
   dispose(): void;
 }
+
+/** Sway reference heights (object units, instance scale ~1): crown of a huarango, tip of a reed / a crop, a shrub. */
+const HUARANGO_H = 3.2;
+const TOTORA_H = 2.6;
+const CROP_H = 1.5;
+const SHRUB_H = 0.8;
 
 function huarango(): THREE.BufferGeometry {
   const g = new Geo();
@@ -120,6 +134,15 @@ export function buildFlora(L: CostaLayout, quality: Quality): Flora {
   const group = new THREE.Group();
   group.name = "costa-flora";
   const mat = vertexToon();
+  // Sway materials (see the header). Amplitudes: the sea breeze is steady and strong (WIND.costa), so the
+  // tall reeds get a little less than full grass bend; the stiff huarango a little more than the template.
+  const sway = {
+    tree: windSway(vertexToon(), { mode: "tree", height: HUARANGO_H, amp: 1.4 }),
+    reed: windSway(vertexToon(), { mode: "grass", height: TOTORA_H, amp: 0.75 }),
+    crop: windSway(vertexToon(), { mode: "grass", height: CROP_H, amp: 0.8 }),
+    shrub: windSway(vertexToon(), { mode: "tree", height: SHRUB_H, amp: 3 }),
+  };
+  const springPts: SpringPoint[] = [];
   const high = quality === "high";
   const R = rng(0xc057);
   const b = L.bounds;
@@ -139,6 +162,8 @@ export function buildFlora(L: CostaLayout, quality: Quality): Flora {
     scale: [number, number],
     shadow = true,
     ink = true,
+    material: THREE.Material = mat,
+    spring = 0,
   ) => {
     const pts: Array<{ x: number; y: number; z: number; s: number; a: number }> = [];
     for (let tries = 0; pts.length < count && tries < count * 60; tries++) {
@@ -154,7 +179,8 @@ export function buildFlora(L: CostaLayout, quality: Quality): Flora {
     }
     geos.push(geo);
     if (!pts.length) return;
-    const mesh = new THREE.InstancedMesh(geo, mat, pts.length);
+    const mesh = new THREE.InstancedMesh(geo, material, pts.length);
+    if (spring > 0) for (const p of pts) springPts.push({ x: p.x, z: p.z, r: spring * p.s });
     mesh.name = `costa-flora:${name}`;
     pts.forEach((p, i) => {
       q.setFromAxisAngle(up, p.a);
@@ -187,6 +213,10 @@ export function buildFlora(L: CostaLayout, quality: Quality): Flora {
       return { x, z };
     },
     [0.85, 1.35],
+    true,
+    true,
+    sway.tree,
+    0.25,
   );
   // Cacti: desert hills inland and the cliff tops.
   scatter(
@@ -223,6 +253,7 @@ export function buildFlora(L: CostaLayout, quality: Quality): Flora {
     [0.8, 1.2],
     false,
     false,
+    sway.reed,
   );
   // Crops on the valley floors (in their plots: a jittered grid).
   scatter(
@@ -245,6 +276,7 @@ export function buildFlora(L: CostaLayout, quality: Quality): Flora {
     [0.75, 1.1],
     false,
     false,
+    sway.crop,
   );
   // Lomas shrubs on the seaward hills.
   scatter(
@@ -261,6 +293,10 @@ export function buildFlora(L: CostaLayout, quality: Quality): Flora {
       return { x, z };
     },
     [0.7, 1.3],
+    true,
+    true,
+    sway.shrub,
+    0.6,
   );
   // Boulders at the cliff feet and the rocky points.
   scatter(
@@ -277,11 +313,15 @@ export function buildFlora(L: CostaLayout, quality: Quality): Flora {
     [0.6, 2.2],
   );
 
+  const removeSprings = springs.add(springPts);
+
   return {
     group,
     dispose() {
+      removeSprings();
       for (const g of geos) g.dispose();
       mat.dispose();
+      for (const m of Object.values(sway)) m.dispose();
       group.removeFromParent();
     },
   };

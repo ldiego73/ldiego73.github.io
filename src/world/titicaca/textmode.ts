@@ -23,7 +23,7 @@ import { TITICACA_WILDLIFE } from "./wildlife";
 const COPY = {
   es: {
     title: "Collasuyu · el camino del lago Titicaca",
-    lede: "Un camino por la orilla sur del lago Titicaca, en el altiplano, a unos 3800 metros: el lago muy azul a un lado, totorales en el agua, puna dorada, chacras con muros de piedra y colinas con andenes al otro, y al fondo, cruzando el lago, los picos nevados de la Cordillera Real. Es una maqueta compacta: las distancias reales son mucho mayores. Este mundo guarda lo que sé: mis habilidades en las islas flotantes de los uros, y mi formación y certificaciones en Taquile.",
+    lede: "Un camino por la orilla sur del lago Titicaca, en el altiplano, a unos 3800 metros: el lago muy azul a un lado, totorales en el agua, puna dorada, chacras con muros de piedra y colinas con andenes al otro, y al fondo, cruzando el lago, los picos nevados de la Cordillera Real. Sopla fuerte el viento del altiplano, desde el lago hacia la orilla: sus ráfagas se ven cruzar como olas por los totorales y el ichu, oscurecen el agua a su paso y agitan las banderas de las islas, la vela de la balsa y los tejidos colgados en Taquile. Es una maqueta compacta: las distancias reales son mucho mayores. Este mundo guarda lo que sé: mis habilidades en las islas flotantes de los uros, y mi formación y certificaciones en Taquile.",
     toc: "Paradas del camino",
     close: "Cerrar",
     skip: "Saltar al modo texto",
@@ -47,7 +47,7 @@ const COPY = {
       "En la isla más alejada, un muelle de totora sale al agua, y ahí espera una balsa de totora con proa de cabeza de puma y vela de estera. En la punta del muelle, «E · Subir a la balsa» te sube a bordo; vas de pie, empujando con una pértiga larga como los uros. Adelante avanza, atrás frena y retrocede, y los lados giran, también quieto (teclado, joystick o mando); correr la hace ir más rápido. Puedes navegar por todo el lago abierto, sin pasar por la orilla, las islas, la pasarela ni los muelles. Cerca de cualquiera de los dos muelles (el de la isla o el de madera bajo Taquile), yendo despacio, «E · Bajar aquí» o Esc te deja en él. Llegar al otro muelle da un sello. Si llegas a un muelle a pie y la balsa está lejos, el balsero ya la trajo.",
     taquileTitle: "Taquile, isla de tejedores",
     taquile:
-      "Más adelante, una colina con andenes entra al lago: Taquile. Desde el camino, un sendero sube y pasa bajo un arco de piedra con un pequeño techo de lajas y un letrero hasta la plaza del pueblo: casas de piedra con techo de paja y puertas azules, y al norte el taller de los tejedores, con un telar de pedales frente a la puerta y un cordel con chullos y fajas colgados. En la plaza, hombres sentados tejen chullos a palitos y mujeres hilan con la pushka. Junto al telar, «E · Ver formación» abre un panel tejido como una faja de Taquile:",
+      "Más adelante, una colina con andenes entra al lago: Taquile. Desde el camino, un sendero sube y pasa bajo un arco de piedra con un pequeño techo de lajas y un letrero hasta la plaza del pueblo: casas de piedra con techo de paja y puertas azules, y al norte el taller de los tejedores, con un telar de pedales frente a la puerta y un cordel con chullos, fajas y una manta a franjas colgados. En la plaza, hombres sentados tejen chullos a palitos y mujeres hilan con la pushka. Junto al telar, «E · Ver formación» abre un panel tejido como una faja de Taquile:",
     education: "Formación",
     certs: "Certificaciones",
     sunken:
@@ -76,7 +76,7 @@ const COPY = {
   },
   en: {
     title: "Collasuyu · the Lake Titicaca road",
-    lede: "A road along the southern shore of Lake Titicaca, on the altiplano at some 3,800 metres: the very blue lake on one side, reed beds in the water, golden puna, stone-walled fields and terraced hills on the other, and far across the lake the snowy peaks of the Cordillera Real. It is a compact model: the real distances are much larger. This world holds what I know: my skills on the Uros floating islands, and my education and certifications on Taquile.",
+    lede: "A road along the southern shore of Lake Titicaca, on the altiplano at some 3,800 metres: the very blue lake on one side, reed beds in the water, golden puna, stone-walled fields and terraced hills on the other, and far across the lake the snowy peaks of the Cordillera Real. The altiplano wind blows hard, off the lake toward the shore: its gusts can be seen rolling like waves across the reed beds and the ichu, darkening the water as they pass, and they shake the islands' flags, the reed boat's sail and the weavings hung out on Taquile. It is a compact model: the real distances are much larger. This world holds what I know: my skills on the Uros floating islands, and my education and certifications on Taquile.",
     toc: "Stops on the road",
     close: "Close",
     skip: "Skip to the text mode",
@@ -100,7 +100,7 @@ const COPY = {
       "On the farthest island, a reed jetty runs out into the water, and a totora boat waits there, with a puma-head prow and a reed-mat sail. At the jetty's tip, “E · Board the reed boat” takes you aboard; you stand, pushing with a long pole like the Uros. Forward moves ahead, back brakes and backs, and the sides turn, even at rest (keyboard, joystick or gamepad); running makes it faster. You can sail all over the open lake, never through the shore, the islands, the boardwalk or the piers. Near either pier (the island's or the wooden one below Taquile), going slowly, “E · Get off here” or Esc puts you on it. Reaching the other pier gives a stamp. If you walk to a pier and the boat is far away, the boatman has already brought it.",
     taquileTitle: "Taquile, island of weavers",
     taquile:
-      "Further on, a terraced hill runs out into the lake: Taquile. From the road a path climbs and passes under a stone arch with a little slab roof and a sign, up to the village plaza: stone houses with thatched roofs and blue doors, and on the north side the weavers' workshop, with a pedal loom in front of the door and a line of chullos and belts hung out. On the plaza, seated men knit chullos on needles and women spin with the pushka. By the loom, “E · See education” opens a panel woven like a Taquile belt:",
+      "Further on, a terraced hill runs out into the lake: Taquile. From the road a path climbs and passes under a stone arch with a little slab roof and a sign, up to the village plaza: stone houses with thatched roofs and blue doors, and on the north side the weavers' workshop, with a pedal loom in front of the door and a line of chullos, belts and a striped manta hung out. On the plaza, seated men knit chullos on needles and women spin with the pushka. By the loom, “E · See education” opens a panel woven like a Taquile belt:",
     education: "Education",
     certs: "Certifications",
     sunken:

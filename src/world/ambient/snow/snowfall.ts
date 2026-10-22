@@ -1,23 +1,26 @@
 /**
  * Light snowfall: soft round flakes in a box that wraps around the camera entirely in the vertex shader
- * (static buffers, one draw call, no CPU work per flake), drifting and swaying as they fall.
+ * (static buffers, one draw call, no CPU work per flake), drifting and swaying as they fall. The drift is the
+ * world's shared wind at the traveler (wind.ts `liveWind`): a gust front crossing the slope pushes the flakes
+ * sideways and stirs their sway.
  */
 import * as THREE from "three";
 import { noOutline } from "../../toon";
+import { liveWind } from "../../wind";
 
 const BOX = new THREE.Vector3(32, 18, 32);
 
 const VERT = /* glsl */ `
 attribute float aSeed;
 uniform vec3 uCenter, uOffset, uBox;
-uniform float uTime, uSize, uAlpha;
+uniform float uTime, uSize, uAlpha, uStir;
 varying float vA;
 void main() {
   vec3 hb = uBox * 0.5;
   vec3 p = position + uOffset;
-  // Each flake sways on its own little circle.
-  p.x += sin(uTime * (0.6 + aSeed * 0.7) + aSeed * 40.0) * 0.6;
-  p.z += cos(uTime * (0.5 + aSeed * 0.6) + aSeed * 23.0) * 0.6;
+  // Each flake sways on its own little circle (wider while a gust passes).
+  p.x += sin(uTime * (0.6 + aSeed * 0.7) + aSeed * 40.0) * 0.6 * uStir;
+  p.z += cos(uTime * (0.5 + aSeed * 0.6) + aSeed * 23.0) * 0.6 * uStir;
   p = mod(p - uCenter + hb, uBox) + uCenter - hb;
   float r = length(p.xz - uCenter.xz) / hb.x;
   vA = uAlpha * (1.0 - smoothstep(0.6, 1.0, r)) * (1.0 - smoothstep(0.75, 1.0, abs(p.y - uCenter.y) / hb.y));
@@ -72,6 +75,7 @@ export function createSnowfall(max: number, count: number): Snowfall {
       uTime: { value: 0 },
       uSize: { value: 3 },
       uAlpha: { value: 0 },
+      uStir: { value: 1 },
       uColor: { value: new THREE.Color() },
     },
     vertexShader: VERT,
@@ -92,6 +96,9 @@ export function createSnowfall(max: number, count: number): Snowfall {
   setCount(count);
   const WHITE = new THREE.Color(1, 1, 1);
   let t = 0;
+  let gust = 0;
+  /** Keeps a wrapped offset in [0, size) whatever the sign of the step (float precision never degrades). */
+  const wrap = (v: number, size: number) => ((v % size) + size) % size;
   return {
     object: points,
     setCount,
@@ -99,10 +106,13 @@ export function createSnowfall(max: number, count: number): Snowfall {
       points.visible = amount > 0.02;
       if (!points.visible) return;
       t += dt;
-      const wind = 0.5 + Math.sin(t * 0.07) * 0.4;
-      off.x = (off.x + wind * dt) % BOX.x;
-      off.y = (((off.y - 1.1 * dt) % BOX.y) + BOX.y) % BOX.y;
-      off.z = (off.z + 0.25 * dt) % BOX.z;
+      const w = liveWind.sample(center.x, center.z, center.y);
+      gust += (w.gust - gust) * Math.min(1, dt * 2);
+      // Flakes are light: they ride most of the wind's speed (still air: they fall straight).
+      off.x = wrap(off.x + w.x * 0.75 * dt, BOX.x);
+      off.y = wrap(off.y - 1.1 * dt, BOX.y);
+      off.z = wrap(off.z + w.z * 0.75 * dt, BOX.z);
+      U.uStir!.value = 1 + gust * 0.6;
       U.uTime!.value = t;
       U.uSize!.value = 3.2 * pixelRatio;
       (U.uCenter!.value as THREE.Vector3).copy(center);

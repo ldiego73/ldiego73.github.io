@@ -1,7 +1,8 @@
 /**
  * Totora models of the lake, built into a shared `Build` (./build.ts): the Uros islands' layered reed floors,
  * their reed huts and watchtower, the floating reed boardwalk, and the balsa de totora (two big bundles with
- * upturned ends, a puma-head prow and a reed-mat sail). Local frames: +z forward / toward the front door, y 0 at
+ * upturned ends, a puma-head prow and a reed-mat sail). The flags and the sail are cloth on the shared wind
+ * (./build.ts `cloth`, `kitMaterial`). Local frames: +z forward / toward the front door, y 0 at
  * the lake surface unless said otherwise. Pure geometry helpers, no state.
  */
 import * as THREE from "three";
@@ -138,13 +139,21 @@ export function watchtower(b: Build, x: number, y: number, z: number, h = 4.2) {
   b.cyl(0.01, 1.15, 0.95, x, y + h + 1.0, z, REED.deep, 4, 0, 0, Math.PI / 4);
 }
 
-/** A flag on a reed pole (the island's dye). */
+/** A flag on a reed pole (the island's dye, a white band): cloth held along the pole, flying on the wind. */
 export function bannerPole(b: Build, x: number, y: number, z: number, dye: string, yaw = 0) {
   b.cyl(0.05, 0.06, 3.4, x, y, z, REED.wood, 5);
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
-  b.box(0.04, 0.55, 0.9, x + s * 0.47, y + 2.75, z + c * 0.47, dye, yaw);
-  b.box(0.045, 0.1, 0.9, x + s * 0.47, y + 2.95, z + c * 0.47, "#efe6d6", yaw);
+  // The panel's local x runs along the frame's +z (yaw − π/2), so its "left" edge is the one at the pole.
+  const fy = yaw - Math.PI / 2;
+  b.cloth(0.9, 0.55, x + s * 0.47, y + 3.0, z + c * 0.47, dye, { pin: "left", yaw: fy, segs: [8, 3] });
+  // The band: a hair thicker, the same flex across, so it rides the flag's ripple.
+  b.cloth(0.9, 0.1, x + s * 0.47, y + 3.0, z + c * 0.47, "#efe6d6", {
+    pin: "left",
+    yaw: fy,
+    thick: 0.036,
+    segs: [8, 1],
+  });
 }
 
 /** Three cooking stones on a flat slab (the Uros cook on stones over the reeds). */
@@ -201,12 +210,18 @@ export function balsaBoat(b: Build, scale = 1, sail = true) {
   b.sph(0.22 * scale, 0.22 * scale, 0.22 * scale, 0, 1.05 * scale, -L * 0.95, REED.dark, 0);
   if (sail) {
     b.cyl(0.05 * scale, 0.06 * scale, 3.4 * scale, 0, 0.5 * scale, 0.35 * scale, REED.wood, 5);
-    // Reed-mat sail: vertical bundles side by side, a yard on top.
+    // Reed-mat sail: vertical strips side by side between the yard and the boom, a stiff mat that bellies in
+    // the gusts (cloth held at both ends; a reed mat gives less than a flag, hence the low free flex).
     const w = 1.6 * scale;
     const n = 9;
     for (let k = 0; k < n; k++) {
       const x = -w / 2 + (k + 0.5) * (w / n);
-      b.box(w / n - 0.01, 2.1 * scale, 0.06 * scale, x, 1.3 * scale, 0.42 * scale, k % 2 ? REED.mat : REED.light);
+      b.cloth(w / n - 0.01, 2.1 * scale, x, 2.35 * scale, 0.42 * scale, k % 2 ? REED.mat : REED.light, {
+        pin: "ends",
+        flex: [0, 0.55],
+        thick: 0.06 * scale,
+        segs: [1, 6],
+      });
     }
     b.box(w + 0.3 * scale, 0.07 * scale, 0.07 * scale, 0, 3.42 * scale, 0.42 * scale, REED.wood);
     b.box(w + 0.1 * scale, 0.06 * scale, 0.06 * scale, 0, 1.28 * scale, 0.42 * scale, REED.wood);

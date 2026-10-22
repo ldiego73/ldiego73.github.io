@@ -2,6 +2,12 @@
  * Sky + day/night: gradient dome (fades to the title "void"), toon sun and moon discs, stars,
  * the key light that follows the sun (or moon), hemisphere fill, fog, ink and cloud tint.
  * Time: 0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset.
+ *
+ * Cel pintado andino (./style.ts): `setStyle` saturates the dome and turns on a layer of hard-edged,
+ * two-tone stylised clouds (thresholded value noise on a sky plane, shaded on the side away from the sun),
+ * drifting along the shared wind (`setWind`, fed by ./style-runtime.ts). The layer draws at the far plane
+ * after the stars and before every world transparent, so it hides stars but never covers terrain, mist or
+ * particles; weather cover thickens it and fog thins it. Without `setStyle` the sky is as before.
  */
 import * as THREE from "three";
 import { loadPassport } from "../lib/passport";
@@ -10,6 +16,7 @@ import { arcDir, createMoonDisc, moonlight } from "./ambient/sky/moon";
 import { festivalOf, type MoonInfo, moonOf, type SeasonInfo, seasonOf } from "./calendar";
 import type { Sky } from "./contract";
 import { WORLD } from "./palette";
+import type { CloudStyle } from "./style";
 import { rng } from "./tex";
 import { noOutline } from "./toon";
 
@@ -112,6 +119,64 @@ const DomeShader = {
     }`,
 };
 
+/** Stylised cloud layer: one upper hemisphere at the far plane (see the header). */
+const CloudShader = {
+  uniforms: {
+    uCloudLit: { value: new THREE.Color() },
+    uCloudShade: { value: new THREE.Color() },
+    uCloudOffset: { value: new THREE.Vector2() },
+    uCloudSun: { value: new THREE.Vector3(0, 1, 0) },
+    uCloudThreshold: { value: 0.6 },
+    uCloudScale: { value: 1 },
+    uCloudEdge: { value: 0.02 },
+    uCloudAlpha: { value: 1 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec3 vDir;
+    void main() {
+      vDir = position;
+      vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      gl_Position = p.xyww;
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform vec3 uCloudLit, uCloudShade, uCloudSun;
+    uniform vec2 uCloudOffset;
+    uniform float uCloudThreshold, uCloudScale, uCloudEdge, uCloudAlpha;
+    varying vec3 vDir;
+    float ch(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+    float cn(vec2 p) {
+      vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(ch(i), ch(i + vec2(1.0, 0.0)), u.x), mix(ch(i + vec2(0.0, 1.0)), ch(i + 1.0), u.x), u.y);
+    }
+    float fbm(vec2 p) {
+      return cn(p) * 0.46 + cn(p * 2.03 + 13.1) * 0.28 + cn(p * 4.07 + 7.7) * 0.16 + cn(p * 8.13 + 3.3) * 0.1;
+    }
+    // Domain-warped so the shapes read as heaped cumulus rather than value-noise worms.
+    float cloud(vec2 p) {
+      vec2 w = vec2(cn(p * 0.45 + 5.2), cn(p * 0.45 + 1.7)) - 0.5;
+      return fbm(p * 0.55 + w * 1.1);
+    }
+    void main() {
+      vec3 d = normalize(vDir);
+      // A flat sky plane seen from below: shapes shrink toward the horizon like real cloud decks.
+      vec2 uv = d.xz / (d.y + 0.22) * (2.2 / uCloudScale) + uCloudOffset;
+      float v = cloud(uv);
+      // Cut-out edge: never softer than the profile's edge, never sharper than a pixel.
+      float e = max(uCloudEdge * 0.25, fwidth(v) * 0.9);
+      float m = smoothstep(uCloudThreshold - e, uCloudThreshold + e, v);
+      // Gone below ~6° elevation: nearer the horizon the plane projection smears the shapes into a soft band that
+      // hid the far snow peaks (Cordillera Real on the lake); the hard two-tone look only holds higher up.
+      float a = m * uCloudAlpha * smoothstep(0.1, 0.28, d.y);
+      if (a < 0.004) discard;
+      // Two tones: shaded where the cloud is still thick a step toward the sun (the far side).
+      vec2 toSun = normalize(uCloudSun.xz + vec2(1e-4)) * 0.16;
+      float v2 = cloud(uv + toSun);
+      float shade = smoothstep(uCloudThreshold + 0.09 - e, uCloudThreshold + 0.09 + e, v2);
+      gl_FragColor = vec4(mix(uCloudLit, uCloudShade, shade), a);
+      #include <colorspace_fragment>
+    }`,
+};
+
 /**
  * Weather hook on the contract `Sky` object (ambients only get `env.sky`): src/world/ambient/weather.ts
  * drives it; sky.ts blends it into fog, dome, key light, stars and the Milky Way so nothing fights over
@@ -155,6 +220,14 @@ export interface SkySystem {
   ink: THREE.Color;
   cloudTint: THREE.Color;
   fog: THREE.Fog;
+  /** The key light (sun by day, moon at night): the style normalizes its shadow mask with it. */
+  light: THREE.DirectionalLight;
+  /** 0 sky … 1 title void (as last set). */
+  voidAmount(): number;
+  /** Cel pintado andino: dome saturation and the stylised cloud layer (./style.ts). */
+  setStyle(s: { saturation: number; zenith?: string; zenithK?: number; clouds: CloudStyle; shadeTint: string }): void;
+  /** Wind for the cloud drift: direction (unit xz) and strength (./wind.ts state). */
+  setWind(dirX: number, dirZ: number, strength: number): void;
   dispose(): void;
 }
 
@@ -225,7 +298,32 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
   // Mayu (the Milky Way) with the Andean dark constellations.
   const milky = createMilkyWay();
   group.add(milky.object);
-  for (const o of [dome, sunDisc, moonDisc, stars]) noOutline(o);
+  // Stylised clouds (setStyle): after the Milky Way, the moon and the stars, before world transparents.
+  const cloudMat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.clone(CloudShader.uniforms),
+    vertexShader: CloudShader.vertexShader,
+    fragmentShader: CloudShader.fragmentShader,
+    side: THREE.BackSide,
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+  });
+  const cloudLayer = new THREE.Mesh(new THREE.SphereGeometry(950, 48, 12, 0, Math.PI * 2, 0, Math.PI / 2), cloudMat);
+  cloudLayer.name = "sky-clouds";
+  cloudLayer.renderOrder = -6;
+  cloudLayer.frustumCulled = false;
+  cloudLayer.visible = false;
+  stars.renderOrder = -7;
+  group.add(cloudLayer);
+  const CU = cloudMat.uniforms as typeof CloudShader.uniforms;
+  let cloudStyle: CloudStyle | null = null;
+  let saturation = 1;
+  let zenithK = 0;
+  const zenith = new THREE.Color();
+  const shadeTint = new THREE.Color(1, 1, 1);
+  const WHITE = new THREE.Color(1, 1, 1);
+  const wind = { x: 1, z: 0, s: 0 };
+  for (const o of [dome, sunDisc, moonDisc, stars, cloudLayer]) noOutline(o);
 
   const hemi = new THREE.HemisphereLight("#ffffff", "#888888", 1);
   const key = new THREE.DirectionalLight("#ffffff", 2);
@@ -349,11 +447,37 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
   const moonCol = new THREE.Color();
   let voidAmt = 0;
 
+  const satC = new THREE.Color();
+  const saturate = (c: THREE.Color, k: number) => {
+    const l = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
+    c.setRGB(Math.max(0, l + (c.r - l) * k), Math.max(0, l + (c.g - l) * k), Math.max(0, l + (c.b - l) * k));
+  };
+
   return {
     sky,
     ink: cur.ink,
     cloudTint: cur.cloud,
     fog,
+    light: key,
+    voidAmount: () => voidAmt,
+    setStyle(st) {
+      saturation = st.saturation;
+      zenithK = st.zenith ? (st.zenithK ?? 0.5) : 0;
+      if (st.zenith) zenith.set(st.zenith);
+      cloudStyle = st.clouds;
+      // Hue only (unit luminance, capped): the cloud shade leans to the world's shadow colour.
+      shadeTint.set(st.shadeTint);
+      const l = Math.max(1e-4, shadeTint.r * 0.2126 + shadeTint.g * 0.7152 + shadeTint.b * 0.0722);
+      shadeTint.multiplyScalar(1 / l);
+      const m = Math.max(shadeTint.r, shadeTint.g, shadeTint.b);
+      if (m > 1.6) shadeTint.lerp(WHITE, 1 - 0.6 / (m - 1));
+      cloudLayer.visible = st.clouds.alpha > 0;
+    },
+    setWind(dx, dz, strength) {
+      wind.x = dx;
+      wind.z = dz;
+      wind.s = strength;
+    },
     toggle() {
       const target = isNight() ? 0.4 : 0.93;
       if (opts.reducedMotion) {
@@ -444,6 +568,13 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
       U.uHorizon.value.copy(cur.horizon).lerp(mistCol, wf * 0.85 + wc * 0.2);
       U.uVoidTop.value.copy(cur.voidTop);
       U.uVoidBottom.value.copy(cur.voidBottom);
+      // Anime zenith: by day the top of the dome leans to the world's deep sky blue.
+      if (zenithK > 0) U.uTop.value.lerp(zenith, zenithK * (1 - night) * (1 - wc * 0.6));
+      if (saturation !== 1) {
+        saturate(U.uTop.value, saturation);
+        // The horizon less so: it meets the fog colour.
+        saturate(U.uHorizon.value, 1 + (saturation - 1) * 0.5);
+      }
       U.uVoid.value = voidAmt;
       U.uSun.value.copy(day ? sunDir : tmp.copy(sunDir).negate());
       U.uGlow.value.copy(cur.key).multiplyScalar((1 - voidAmt) * (1 - wc * 0.7) * (1 + gold * 1.4));
@@ -472,6 +603,24 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
         (0.35 + 0.65 * Math.max(night, 1 - THREE.MathUtils.smoothstep(e, -0.1, 0.25))) * (1 - wc * 0.75),
       );
 
+      // Stylised clouds: drift with the wind, thicken with weather cover, thin in fog and in the title void.
+      if (cloudStyle && cloudLayer.visible) {
+        const cs = cloudStyle;
+        const drift = cs.speed * (0.4 + wind.s) * dt * (opts.reducedMotion ? 0.3 : 1);
+        CU.uCloudOffset.value.x -= wind.x * drift;
+        CU.uCloudOffset.value.y -= wind.z * drift;
+        const cover = Math.min(1, cs.cover + wc * 0.6);
+        CU.uCloudThreshold.value = THREE.MathUtils.lerp(0.7, 0.38, cover);
+        CU.uCloudScale.value = cs.scale;
+        CU.uCloudEdge.value = cs.edge;
+        CU.uCloudAlpha.value = cs.alpha * (1 - voidAmt) * (1 - wf * 0.75) * (1 - night * 0.25);
+        CU.uCloudSun.value.copy(day ? sunDir : moonDir);
+        const lit = CU.uCloudLit.value.copy(cur.cloud).lerp(mistCol, wc * 0.5);
+        satC.copy(lit).multiplyScalar(0.8).lerp(U.uTop.value, 0.3).multiply(shadeTint);
+        CU.uCloudShade.value.copy(lit).lerp(satC, cs.shade);
+        cloudLayer.position.copy(camera.position);
+      }
+
       hemi.color.copy(cur.hemiSky);
       hemi.groundColor.copy(cur.hemiGround);
       hemi.intensity = cur.hemi;
@@ -496,6 +645,8 @@ export function createSky(scene: THREE.Scene, opts: { reducedMotion: boolean; qu
       scene.remove(group, hemi, key, key.target);
       domeMat.dispose();
       dome.geometry.dispose();
+      cloudMat.dispose();
+      cloudLayer.geometry.dispose();
       starGeo.dispose();
       starMat.dispose();
       milky.dispose();

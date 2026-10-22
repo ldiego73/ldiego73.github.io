@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
-import { rigMaterial, swayMaterial } from "./material";
+import { rigMaterial, swayMaterial, treeMaterial } from "./material";
 import {
   alisoModel,
   chusqueaModel,
@@ -75,15 +75,19 @@ function compile(m: THREE.Material) {
 }
 
 describe("vertex-shader materials", () => {
-  test("sway material patches the projection and the ink output", () => {
-    const m = swayMaterial(null, { uTime: { value: 0 }, uWind: { value: 1 } });
-    const s = compile(m);
+  test("sway material rides the shared wind (grass, flex) and stays ink-aware", () => {
+    const m = swayMaterial(null);
     expect(m.allowOverride).toBe(false);
-    expect(s.vertexShader).toContain("attribute float flex");
-    expect(s.vertexShader).not.toContain("#include <project_vertex>");
-    expect(s.vertexShader).toContain("gl_Position = projectionMatrix * mvPosition");
-    expect(s.fragmentShader).toContain("uInkPass > 0.5");
-    expect(s.uniforms.uTime).toBeDefined();
+    expect(m.defines?.KW_WIND).toBe(1);
+    expect(m.defines).toHaveProperty("KW_WIND_FLEX");
+    expect(m.defines).toHaveProperty("KW_INKAWARE");
+    expect(m.vertexColors).toBe(true);
+  });
+  test("tree material sways as trees (height², no flex)", () => {
+    const m = treeMaterial(null);
+    expect(m.defines?.KW_WIND).toBe(2);
+    expect(m.defines).not.toHaveProperty("KW_WIND_FLEX");
+    expect(m.allowOverride).toBe(false);
   });
   test("rig material rotates wings/heads (positions and normals)", () => {
     const m = rigMaterial(

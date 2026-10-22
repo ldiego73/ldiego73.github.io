@@ -9,6 +9,7 @@
 import * as THREE from "three";
 import { type CamelidSpec, camelidParts } from "../../../fauna-models";
 import { mergeColored, vertexToon } from "../../../merge-colors";
+import { paintStrength } from "../../../style-gl";
 
 export interface CamelidPose {
   x: number;
@@ -29,7 +30,8 @@ export class CamelidHerd {
   readonly group = new THREE.Group();
   private meshes: Record<string, THREE.InstancedMesh> = {};
   private geos: THREE.BufferGeometry[] = [];
-  private mat = vertexToon();
+  /** No painted blotches: world-space patches would slide over a walking body. */
+  private mat = paintStrength(vertexToon(), 0);
   private rig: ReturnType<typeof camelidParts>;
   private m = new THREE.Matrix4();
   private root = new THREE.Matrix4();

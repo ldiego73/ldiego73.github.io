@@ -9,8 +9,11 @@
  * themselves — same output as MeshNormalMaterial, but with the animated geometry.
  *
  * Never patches the shared `toon.toon(color)` cache (other systems use those materials).
+ * Ground cover and trees now ride the shared wind of the cel pintado andino style (style-gl.ts `windSway`,
+ * whose ink-aware output replaces the per-mesh flag below for them); the bird rig keeps its own flag.
  */
 import * as THREE from "three";
+import { paintStrength, windSway } from "../style-gl";
 
 /** Shared flag: 1 while the outline prepass draws. Set by `inkAware` meshes right before their draw. */
 const INK = { value: 0 };
@@ -32,57 +35,30 @@ function baseToon(gradientMap: THREE.Texture | null, side: THREE.Side) {
   return m;
 }
 
-export interface SwayUniforms {
-  uTime: { value: number };
-  /** Sway amplitude multiplier (0 = still, e.g. reduced motion). */
-  uWind: { value: number };
+/**
+ * Vertex-colored toon material for ground cover (ichu, lupine, daisies) on the shared wind (../wind.ts,
+ * ../wind-glsl.ts mode "grass"): each vertex bends by its `flex` attribute × instance height scale along the
+ * world's drifting wind, with per-instance phase, the gust fronts rolling across the slope, and bodies near
+ * the traveler parting it. Ink-aware through style-gl.ts (the prepass draws it displaced). Reduced motion is
+ * handled by the wind state (slow, constant sway, no gusts).
+ */
+export function swayMaterial(gradientMap: THREE.Texture | null, side: THREE.Side = THREE.FrontSide) {
+  return windSway(baseToon(gradientMap, side), { mode: "grass", flex: true });
 }
+
+/** Tree height (object units) the trunk bend is measured against: the sierra trees stand 3–7 u. */
+const TREE_H = 5;
 
 /**
- * Vertex-colored toon material with wind sway: each vertex moves by `flex` (attribute) × instance height
- * scale along a slowly turning world wind direction, with per-instance phase (from the instance position)
- * and travelling gusts so a meadow ripples instead of pulsing in sync.
+ * Vertex-colored toon material for instanced trees on the shared wind (mode "tree": trunk bend with
+ * height², branch sway, leaf flutter, spring kicks when the traveler brushes a small one). Ink-aware.
  */
-export function swayMaterial(gradientMap: THREE.Texture | null, u: SwayUniforms, side: THREE.Side = THREE.FrontSide) {
-  const m = baseToon(gradientMap, side);
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = u.uTime;
-    shader.uniforms.uWind = u.uWind;
-    shader.uniforms.uInkPass = INK;
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute float flex;\nuniform float uTime, uWind;")
-      .replace(
-        "#include <project_vertex>",
-        `vec4 mvPosition = vec4( transformed, 1.0 );
-        #ifdef USE_INSTANCING
-          mvPosition = instanceMatrix * mvPosition;
-          vec2 ip = instanceMatrix[3].xz;
-          float isc = length(instanceMatrix[1].xyz);
-        #else
-          vec2 ip = vec2(0.0);
-          float isc = 1.0;
-        #endif
-        // Wind: a gentle prevailing direction that wanders, gusts rolling across the slope.
-        vec2 wdir = normalize(vec2(0.8 + 0.3 * sin(uTime * 0.05), 0.55 + 0.3 * cos(uTime * 0.043)));
-        float along = dot(ip, wdir);
-        float gust = 0.55 + 0.45 * sin(along * 0.09 - uTime * 0.9) * sin(along * 0.023 + uTime * 0.31);
-        float ph = uTime * 1.7 + ip.x * 0.37 + ip.y * 0.29;
-        float sw = (0.6 + 0.4 * sin(ph) + 0.18 * sin(ph * 2.3 + 1.1)) * gust;
-        float k = flex * isc * uWind;
-        mvPosition.xz += wdir * sw * k + vec2(-wdir.y, wdir.x) * sin(ph * 1.3) * 0.25 * k;
-        mvPosition.y -= sw * sw * k * 0.18;
-        mvPosition = modelViewMatrix * mvPosition;
-        gl_Position = projectionMatrix * mvPosition;`,
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", INK_FRAG_PARS)
-      .replace("#include <dithering_fragment>", INK_FRAG_OUT);
-  };
-  m.customProgramCacheKey = () => "kw-flora-sway";
-  return m;
+export function treeMaterial(gradientMap: THREE.Texture | null, side: THREE.Side = THREE.FrontSide) {
+  const m = new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap, side });
+  return windSway(m, { mode: "tree", height: TREE_H, amp: 0.8 });
 }
 
-/** Vertex-colored toon material for static instanced meshes (trees); the regular ink prepass handles them. */
+/** Vertex-colored toon material for static instanced meshes; the regular ink prepass handles them. */
 export function staticMaterial(gradientMap: THREE.Texture | null, side: THREE.Side = THREE.FrontSide) {
   return new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap, side });
 }
@@ -140,5 +116,6 @@ export function rigMaterial(gradientMap: THREE.Texture | null, u: RigUniforms, k
       .replace("#include <dithering_fragment>", INK_FRAG_OUT);
   };
   m.customProgramCacheKey = () => `kw-bird-rig-${key}`;
-  return m;
+  // Birds move: world-space painted blotches would slide over them.
+  return paintStrength(m, 0);
 }

@@ -12,6 +12,7 @@ import { buildSaddledMule } from "../../ambient/mount/mule";
 import { createRideMount } from "../../ambient/mount/ride";
 import type { CreateAmbient } from "../../contract";
 import type { SuyuEnv } from "../../suyu/contract";
+import { unpainted } from "../kit";
 import { ARRIVE_T, roadAt } from "../plan";
 import { MULE, muleStops, parkingDisc, parkingWalk } from "./mounts/logic";
 
@@ -33,7 +34,7 @@ export const create: CreateAmbient = (baseEnv) => {
   const tg = env.trail.tangentAt(MULE.homeT);
   return createRideMount(env, {
     name: "ride-mule",
-    model: buildSaddledMule(env),
+    model: unpainted(buildSaddledMule(env)),
     home: mountHome({
       plaza: disc,
       station: { x: disc.x, z: disc.z },

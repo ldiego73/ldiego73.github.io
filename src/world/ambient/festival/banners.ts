@@ -1,12 +1,15 @@
 /**
  * Inti Raymi dress for the summit plaza: tall poles with waving rainbow banners (seven stripes, as flown in
  * Cusco for the festival) and red cloth banners with a golden Inti, plus flower petals strewn round the
- * ushnu (red and yellow, like the cantuta). Banners wave in the vertex shader (no CPU work), petals are one
- * instanced mesh. Local frame = the summit group's (origin at the plaza center, +Z toward the trail).
+ * ushnu (red and yellow, like the cantuta). Banners ride the world's shared wind as cloth (style-gl.ts
+ * `clothFlex` + `windSway` "cloth": the gust fronts that cross the ichu shake them too, no CPU work, ink-aware so
+ * they keep their outline); petals are one instanced mesh. Local frame = the summit group's (origin at the plaza
+ * center, +Z toward the trail).
  */
 import * as THREE from "three";
 import type { WorldEnv } from "../../contract";
 import { C } from "../../props";
+import { clothFlex, paintStrength, windSway } from "../../style-gl";
 import { gradientMap } from "../../toon";
 
 export interface Banners {
@@ -82,32 +85,20 @@ function sunTex() {
   });
 }
 
-/** A cloth that waves: hangs from x = 0 (the pole), sways more toward the free edge. */
-function clothMaterial(map: THREE.Texture, uTime: { value: number }, hanging: boolean) {
+/**
+ * Cloth on the shared wind: the geometry's `flex` (clothFlex) is 0 at the pole or crossbar and 1 at the free
+ * edge. Woven designs carry no painted blotches (they would slide as the cloth moves). A heavy hanging banner
+ * moves less than a flag flying free (`amp`).
+ */
+function clothMaterial(map: THREE.Texture, amp: number) {
   const m = new THREE.MeshToonMaterial({ map, gradientMap: gradientMap(), side: THREE.DoubleSide });
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = uTime;
-    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTime;").replace(
-      "#include <begin_vertex>",
-      hanging
-        ? `#include <begin_vertex>
-float hk = clamp(-position.y / 1.6, 0.0, 1.0);
-transformed.z += sin(uTime * 1.7 + position.y * 2.1) * 0.12 * hk;`
-        : `#include <begin_vertex>
-float fk = clamp(position.x / 1.5, 0.0, 1.0);
-transformed.z += sin(uTime * 3.2 - position.x * 2.6) * 0.16 * fk + sin(uTime * 5.1 - position.x * 4.0 + position.y) * 0.04 * fk;
-transformed.y -= 0.06 * fk * fk;`,
-    );
-  };
-  m.customProgramCacheKey = () => (hanging ? "festival-hang" : "festival-flag");
-  return m;
+  return paintStrength(windSway(m, { mode: "cloth", flex: true, amp }), 0);
 }
 
 export function createBanners(
   env: WorldEnv,
   toWorld: (lx: number, lz: number, out: THREE.Vector3) => THREE.Vector3,
   yaw: number,
-  animate: boolean,
   petalCount: number,
 ): Banners {
   const group = new THREE.Group();
@@ -115,7 +106,6 @@ export function createBanners(
   const geos: THREE.BufferGeometry[] = [];
   const mats: THREE.Material[] = [];
   const texs: THREE.Texture[] = [];
-  const uTime = { value: 0 };
   const v = new THREE.Vector3();
 
   // ---- poles: two tall ones for the rainbow flags at the plaza's outer corners, two by its entrance.
@@ -140,14 +130,17 @@ export function createBanners(
   const flagTex = rainbowTex();
   const sunT = sunTex();
   texs.push(flagTex, sunT);
-  const flagMat = clothMaterial(flagTex, uTime, false);
-  const hangMat = clothMaterial(sunT, uTime, true);
+  const flagMat = clothMaterial(flagTex, 1.3);
+  const hangMat = clothMaterial(sunT, 0.75);
   mats.push(flagMat, hangMat);
-  const flagGeo = new THREE.PlaneGeometry(1.6, 1.05, 10, 3);
+  // Flag flying from the pole at x = 0 (enough segments for the wave to read as cloth).
+  const flagGeo = new THREE.PlaneGeometry(1.6, 1.05, 12, 4);
   flagGeo.translate(0.8, -0.52, 0);
-  // Hanging banner from a crossbar: top edge at y = 0.
-  const hangGeo = new THREE.PlaneGeometry(0.8, 1.6, 2, 8);
+  clothFlex(flagGeo, "x", 0, 1.6);
+  // Hanging banner from a crossbar: top edge at y = 0, the hem swings.
+  const hangGeo = new THREE.PlaneGeometry(0.8, 1.6, 3, 10);
   hangGeo.translate(0, -0.8, 0);
+  clothFlex(hangGeo, "y", 0, -1.6);
   const barGeo = new THREE.CylinderGeometry(0.035, 0.035, 1.0, 5);
   barGeo.rotateZ(Math.PI / 2);
   geos.push(flagGeo, hangGeo, barGeo);
@@ -164,7 +157,6 @@ export function createBanners(
       // Fly outward, away from the plaza (left pole flies left).
       f.rotation.y = yaw + (p.lx < 0 ? Math.PI : 0);
       f.name = "festival-flag";
-      env.noOutline(f);
       group.add(f);
     } else {
       // Crossbar on the pole, cloth hanging from it, facing the trail (+Z local).
@@ -177,7 +169,6 @@ export function createBanners(
       // Nudge the cloth a little in front of the pole.
       cloth.translateZ(0.09);
       cloth.name = "festival-banner";
-      env.noOutline(cloth);
       group.add(bar, cloth);
     }
   });
@@ -240,13 +231,10 @@ export function createBanners(
     group.add(petals);
   }
 
-  let t = 0;
   return {
     group,
-    update(dt) {
-      if (!animate) return;
-      t += dt;
-      uTime.value = t;
+    update() {
+      // The cloth moves with the shared wind (style-runtime.ts); reduced motion is the wind state's business.
     },
     dispose() {
       for (const g of geos) g.dispose();

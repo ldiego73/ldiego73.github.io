@@ -15,6 +15,7 @@
 import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { on } from "../../events";
+import { paintStrength } from "../../style-gl";
 import { CANOPY_T, SELVA_STATIONS } from "../contract";
 import { AGOUTI_MOUTH, agoutiModel, nutGeometry } from "./wild/critters";
 import { type Crossing, crossingPlan, RoadTracker, SpeedMeter } from "./wild/crossing";
@@ -62,7 +63,11 @@ export const create: CreateAmbient = (env0): Ambient => {
   const n = high ? 2 : 1;
   const model = agoutiModel();
   const set = new RigSet("selva-fauna-anuje-body", model.geo, model.spec, n, ramp(env), { shadow: high });
-  const nutMat = new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: ramp(env) });
+  // Carried in the mouth: no world-space painted blotches sliding over it.
+  const nutMat = paintStrength(
+    new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: ramp(env) }),
+    0,
+  );
   const nuts = new THREE.InstancedMesh(nutGeometry(), nutMat, n);
   nuts.name = "selva-fauna-anuje-nut";
   nuts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);

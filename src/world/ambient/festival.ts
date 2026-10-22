@@ -5,7 +5,8 @@
  * golden sunrise. Reaching the summit during the festival stamps `festival:inti-raymi`.
  * Any other day this module builds nothing, but it re-checks the date (festival/datewatch.ts: every minute,
  * every second in dev) and builds the festival when the date turns June 20 without a reload, tearing it
- * down again after June 24. Reduced motion: still flames and cloth, no embers.
+ * down again after June 24. Reduced motion: still flames, the cloth only in the shared wind's slow, gentle sway,
+ * no embers.
  * Low quality: one light, fewer embers and petals.
  */
 import * as THREE from "three";
@@ -90,7 +91,7 @@ export const create: CreateAmbient = (env, hudRoot) => {
       embersPer: env.reducedMotion ? 0 : high ? 36 : 14,
       animate: !env.reducedMotion,
     });
-    banners = createBanners(env, toWorld, yaw, !env.reducedMotion, high ? 320 : 140);
+    banners = createBanners(env, toWorld, yaw, high ? 320 : 140);
     env.scene.add(bonfires.group, banners.group);
   };
   const teardown = () => {

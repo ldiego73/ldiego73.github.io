@@ -10,6 +10,7 @@ import * as THREE from "three";
 import type { CreateAmbient } from "../../contract";
 import { vizcachaParts } from "../../fauna-models";
 import { mergeColored, vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { VKit } from "../kit";
 import type { ColcaLayout } from "../layout";
@@ -72,7 +73,8 @@ export const create: CreateAmbient = (baseEnv) => {
     { geometry: tail, color: new THREE.Color("#4a3f37") },
   ]) as THREE.BufferGeometry;
   for (const g of [P.body, P.head, P.eyes, P.tail, head, eyes, tail]) g.dispose();
-  const mat = vertexToon();
+  // Moving bodies take no painted blotches (they would slide over them).
+  const mat = paintStrength(vertexToon(), 0);
   const mesh = new THREE.InstancedMesh(geo, mat, spots.length);
   mesh.name = "colca-vizcachas";
   mesh.frustumCulled = false;
