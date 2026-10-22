@@ -4,7 +4,7 @@
  */
 import * as THREE from "three";
 import { DYE } from "../../palette";
-import { hearth, Static } from "../people/models";
+import { hearth, Static } from "../people/site-props";
 import type { P2 } from "./logic";
 
 const WOOD = "#6e4a2e";

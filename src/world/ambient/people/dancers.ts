@@ -9,10 +9,9 @@ import type * as THREE from "three";
 import type { HumanCrowd } from "../../characters/crowd";
 import { PEOPLE, wardrobe } from "../../characters/presets";
 import type { HeldProps } from "../../characters/props";
-import { rng } from "./models";
 import { Npc } from "./npc";
-import { angleDamp, damp } from "./person";
 import type { Ctx, Group } from "./types";
+import { angleDamp, damp, rng } from "./util";
 
 /** Ring radius around the summit plaza center (poles at 3.5, plaza edge 6.2). Bonfires belong outside it. */
 export const DANCE_RING = 4.85;

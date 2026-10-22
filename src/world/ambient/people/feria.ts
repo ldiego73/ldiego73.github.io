@@ -12,10 +12,10 @@ import type { HeldProps } from "../../characters/props";
 import type { Dress } from "../../characters/slots";
 import type { L } from "../../contract";
 import { MARKET, within } from "./logic";
-import { rng, type StallKind, Static, stall } from "./models";
 import { Npc } from "./npc";
-import { damp } from "./person";
+import { type StallKind, Static, stall } from "./site-props";
 import type { Ctx, Group } from "./types";
+import { damp, rng } from "./util";
 
 const GREET: Record<StallKind, L> = {
   textiles: {

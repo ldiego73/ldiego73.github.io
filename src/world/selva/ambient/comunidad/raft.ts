@@ -17,9 +17,8 @@
  */
 import * as THREE from "three";
 import { LOOK_AHEAD, nextCheer, roster, shouldYield } from "../../../ambient/arcade-players/logic";
-import { rng } from "../../../ambient/people/models";
 import type { Npc } from "../../../ambient/people/npc";
-import { damp } from "../../../ambient/people/person";
+import { damp, rng } from "../../../ambient/people/util";
 import type { HumanCrowd } from "../../../characters/crowd";
 import { cabPose, RAFT } from "../arcade/logic";
 import { type Frame, lxOf, lzOf, wx, wz } from "../embarcadero/station";

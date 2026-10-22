@@ -2,10 +2,10 @@
  * Procedural props of the Antisuyu community (the people themselves are shared characters: ./villager.ts,
  * ./dress.ts): the static props merged per site (backstrap loom, painted pottery, palm mats, the elder's
  * stool, the jumping log), the moving boats (a fisherman's dugout, the peque-peque motor canoe) and the cast
- * net. Built with the people kit's merged-part helpers (../../../ambient/people/rig.ts `Part`, `protos`).
+ * net. Built with the merged-part helpers of ../../../ambient/people/site-props.ts (`Part`, `protos`).
  */
 import * as THREE from "three";
-import { Part, type Protos, protos } from "../../../ambient/people/rig";
+import { Part, type Protos, protos } from "../../../ambient/people/site-props";
 import { hullGeometries } from "../embarcadero/amazon";
 
 const WOOD = "#7a4a2b";
@@ -150,7 +150,6 @@ function boatGeometry(build: (p: Part, P: Protos) => void): THREE.BufferGeometry
   const p = new Part();
   build(p, P);
   const g = p.build();
-  g.deleteAttribute("aSlot");
   for (const k of Object.values(P)) k.dispose();
   return g;
 }

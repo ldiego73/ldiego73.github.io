@@ -19,9 +19,8 @@ import { PEOPLE, wardrobe } from "../../characters/presets";
 import type { HeldProps, PropHandle } from "../../characters/props";
 import type { Dress } from "../../characters/slots";
 import { play, playArms } from "../gente/overlay";
-import { rng } from "../people/models";
 import { Npc, type NpcFrame } from "../people/npc";
-import { angleDamp, damp } from "../people/person";
+import { angleDamp, damp, rng } from "../people/util";
 import { type P2, PLAY_HOURS, routeStart, STALL_HOURS, within } from "./plan";
 
 export interface FolkCtx {

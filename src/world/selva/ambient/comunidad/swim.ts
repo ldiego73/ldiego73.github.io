@@ -7,8 +7,9 @@
  * so the canoe bumps around them. Day only. Pure timing and arcs: ./logic.ts (jumpArc, nextStage).
  */
 import * as THREE from "three";
-import { rng, Static } from "../../../ambient/people/models";
 import type { Npc } from "../../../ambient/people/npc";
+import { Static } from "../../../ambient/people/site-props";
+import { rng } from "../../../ambient/people/util";
 import type { HumanCrowd } from "../../../characters/crowd";
 import { creatures, type KeepOut } from "../../../creatures";
 import { type Bar, barF, barPoint, barY, type Ripples } from "../wild/kit";

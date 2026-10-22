@@ -1,13 +1,12 @@
 /**
  * One person on the new characters (../../characters): a crowd member (skinned, instanced, LOD by distance)
- * driven by the human animation controller, plus a creatures Body and the same locomotion helpers the old
- * `Person` (./person.ts) offers: seek with early avoidance, a separation push, facing, places in and out of the
- * world. Behaviours set the speed and an action (`npc.anim.act("sit-ground")`, "wave", "carry-back"…), then
- * call `commit(ctx)` once per frame; the walk cycle follows the real ground speed.
+ * driven by the human animation controller, plus a creatures Body and the locomotion every behaviour uses:
+ * seek with early avoidance, a separation push, facing, places in and out of the world. Behaviours set the
+ * speed and an action (`npc.anim.act("sit-ground")`, "wave", "carry-back"…), then call `commit(ctx)` once per
+ * frame; the walk cycle follows the real ground speed.
  *
- * Migration from `Person`: the locomotion API is the same (`seek`, `resolve`, `face`, `place`, `setActive`,
- * `hide`, `x/z/y/yaw/speed/state/timer/u/v/tx/tz`); instead of writing bone rotations (`p.bones.armR.rotation`)
- * play an action, and instead of `p.gait()` + `p.commit()` call `npc.commit(ctx)`.
+ * Locomotion API: `seek`, `resolve`, `face`, `place`, `setActive`, `hide` and the fields
+ * `x/z/y/yaw/speed/state/timer/u/v/tx/tz`; poses are actions, never bone rotations.
  */
 import * as THREE from "three";
 import { HumanAnimator } from "../../characters/anim-human";
@@ -18,7 +17,7 @@ import type { Dress } from "../../characters/slots";
 import { type Body, creatures } from "../../creatures";
 import { liveWind } from "../../wind";
 import { steer } from "./logic";
-import { angleDamp, damp } from "./person";
+import { angleDamp, damp } from "./util";
 
 const near: Body[] = [];
 const push = { x: 0, z: 0 };

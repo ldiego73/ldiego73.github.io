@@ -7,10 +7,9 @@ import * as THREE from "three";
 import type { HumanCrowd } from "../../characters/crowd";
 import { PEOPLE, wardrobe } from "../../characters/presets";
 import { fleeTarget, PLAY, within } from "./logic";
-import { rng } from "./models";
 import { Npc } from "./npc";
-import { damp } from "./person";
 import type { Ctx, Group } from "./types";
+import { damp, rng } from "./util";
 
 type Game = "tag" | "ball" | "hop";
 const out = { x: 0, z: 0 };

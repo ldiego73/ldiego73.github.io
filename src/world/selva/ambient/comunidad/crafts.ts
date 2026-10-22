@@ -10,8 +10,9 @@
  * One merged vertex-colored mesh for the props (mats, loom, pots, stool, hearth) + the flames at night.
  */
 import * as THREE from "three";
-import { hearth, rng, Static } from "../../../ambient/people/models";
 import type { Npc } from "../../../ambient/people/npc";
+import { hearth, Static } from "../../../ambient/people/site-props";
+import { rng } from "../../../ambient/people/util";
 import type { HumanCrowd } from "../../../characters/crowd";
 import type { HeldProps } from "../../../characters/props";
 import { creatures, type KeepOut } from "../../../creatures";

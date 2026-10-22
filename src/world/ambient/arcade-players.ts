@@ -30,9 +30,8 @@ import { on } from "../events";
 import { cabsFor, LOOK_AHEAD, nextCheer, type Roster, roster, shouldYield } from "./arcade-players/logic";
 import { play, playArms } from "./gente/overlay";
 import { jumped } from "./people/logic";
-import { rng } from "./people/models";
 import { Npc, type NpcFrame } from "./people/npc";
-import { damp } from "./people/person";
+import { damp, rng } from "./people/util";
 
 type State = "off" | "arrive" | "play" | "aside" | "back" | "leave";
 

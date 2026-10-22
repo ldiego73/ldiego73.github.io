@@ -1,6 +1,6 @@
 /**
  * A villager of the Antisuyu community on the shared characters: an `Npc` (../../../ambient/people/npc.ts: a
- * member of the community's one HumanCrowd, the human animation controller, a creatures Body, the old Person
+ * member of the community's one HumanCrowd, the human animation controller, a creatures Body and the
  * locomotion API) dressed from ./dress.ts. Behaviours move it (`seek`, `place`, `face`), pick an action
  * (`p.anim.act("swim")`, "weave", "carry-shoulder"…, with `actArms` for a seated person's hands) and call
  * `p.commit(ctx)` once per frame; tools and loads are held props (`p.hold(props, "paddle")`).

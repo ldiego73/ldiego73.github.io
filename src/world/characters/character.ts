@@ -11,7 +11,7 @@
  *
  * Performance plan (not needed by the prototype): because a whole body is one geometry on ≤ 32 bones with
  * palette slots, a crowd can draw as ONE InstancedMesh per archetype with GPU skinning from a bone DataTexture
- * (row per instance: 32 × 4 texels of matrices), per-instance palette attributes (like people/rig.ts) and a
+ * (row per instance: 32 × 4 texels of matrices), per-instance palette attributes and a
  * per-instance face cell; a far LOD is the same pipeline polygonised at 2–3× the voxel size.
  */
 import * as THREE from "three";

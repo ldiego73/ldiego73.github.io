@@ -11,8 +11,8 @@
  * bumps off them; the peque-peque also slows and stops when the traveler's canoe is near. By day only.
  */
 import * as THREE from "three";
-import { rng } from "../../../ambient/people/models";
 import type { Npc } from "../../../ambient/people/npc";
+import { rng } from "../../../ambient/people/util";
 import type { HumanCrowd } from "../../../characters/crowd";
 import type { HeldProps } from "../../../characters/props";
 import { type Body, creatures } from "../../../creatures";

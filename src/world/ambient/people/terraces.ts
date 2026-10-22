@@ -14,10 +14,10 @@ import type { HeldProps, PropHandle } from "../../characters/props";
 import { RISER_FROM, TERRACE_STEP } from "../../layout";
 import { glowSprite } from "../../props";
 import { alongTread, findTread, jumped, type Tread, WORK, within } from "./logic";
-import { hearth, rng, Static } from "./models";
 import { Npc } from "./npc";
-import { damp } from "./person";
+import { hearth, Static } from "./site-props";
 import type { Ctx, Group } from "./types";
+import { damp, rng } from "./util";
 
 type Role = "plough" | "sow" | "carry";
 

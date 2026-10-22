@@ -206,7 +206,7 @@ The dev hook exposes it as `__kw.style`: `__kw.style.set({ ...__kw.style.profile
 
 - **Cel light** (every `MeshToonMaterial`: `env.toon`, `vertexToon`, merged meshes, instanced meshes, flora, and toon materials with their own `onBeforeCompile`). `lights_toon_pars_fragment` computes a crisp two-tone terminator plus the highlight band from uniforms and keeps a lit mask. `aomap_fragment` mixes the shadow tint into the shaded side and into cast shadows (the mask is normalized by the key light, so a cast shadow counts as shade) and adds the rim.
 - **Painted blotches** (toon). `color_fragment` modulates the albedo with world-space value noise posterized into three soft-edged levels (darker, as is, lighter), fading out past ~160–420 u. Vertex- or instance-coloured materials get `paint.vertex` (terrain, merged scenery, flora); flat ones get `paint.flat` (props).
-  - Moving bodies opt out, because world-space blotches would slide over them. The avatar opts out through `noPaint` in the runtimes. The shared people rig (`ambient/people/rig.ts`), the night-fauna rig, the jungle's wild rig and the bird rig set `paintStrength(m, 0)`.
+  - Moving bodies opt out, because world-space blotches would slide over them. The avatar opts out through `noPaint` in the runtimes. The characters' materials (people and animals, `characters/material.ts`, `crowd-material.ts`, `animals/crowd-material.ts`), the night-fauna rig, the jungle's wild rig and the bird rig set `paintStrength(m, 0)`.
 - **Aerial perspective** (every fogged material, built-in or custom, that uses three's fog chunks). `fog_fragment` first hazes the colour toward a lighter, bluer tint by distance and altitude: the haze takes its brightness from this frame's fog, so day, dusk, night and weather keep working. Then three's fog applies as before.
 - **Ink.** `outline.ts` samples silhouettes `uSil` texels away and creases `uCrease` texels away on the linearly filtered normal buffer, scaled by `uCreaseK`. All three at 1 reproduce the old single-weight ink. The ink colour is the profile's warm brown by day and its night ink after dusk. `inkMask()` and `noOutline()` work as before.
 - **Sky.** `sky.setStyle` saturates the dome, leans the day zenith to the profile's blue and turns on a layer of hard-edged, two-tone stylised clouds: thresholded value noise on a sky plane, shaded on the side away from the sun.
@@ -303,18 +303,17 @@ Colours never live in a spec: every piece paints slots of the shared table `HS` 
 - Reduced motion: no bounce, smaller swings, calmer actions, stiffer springs.
 - Night: every human and animal material carries the same moonlit rim; the world calls `setNightRim(sky.night)` (`characters/index.ts`, from `animals/night.ts`) once per frame.
 
-**Shared people system** (`src/world/ambient/people/`). `npc.ts` `Npc` is a person on the new characters: a crowd member + `HumanAnimator` + a creatures Body, with the old `Person` locomotion API (`seek`, `resolve`, `face`, `place`, `setActive`, `hide`, `x/z/y/yaw/speed/state/timer/u/v/tx/tz`), `hold(props, kind)` for a prop and `commit(ctx)` once per frame (it also glances at the traveler within `lookRange`, or at `npc.lookAt` when set). `hide()` takes a person out of view while active; `show()` or the next `commit` brings them back. The mountain's people (terraces, feria, kids, dancers) run on it: one `HumanCrowd` and one `HeldProps` in `ambient/people.ts`. The legacy rig (`rig.ts` `Crowd`/`Part`, `person.ts` `Person`, `models.ts` parts) stays for the worlds that have not migrated yet.
+**Shared people system** (`src/world/ambient/people/`). `npc.ts` `Npc` is a person on the new characters: a crowd member + `HumanAnimator` + a creatures Body, with a small locomotion API (`seek`, `resolve`, `face`, `place`, `setActive`, `hide`, `x/z/y/yaw/speed/state/timer/u/v/tx/tz`), `hold(props, kind)` for a prop and `commit(ctx)` once per frame (it also glances at the traveler within `lookRange`, or at `npc.lookAt` when set). `hide()` takes a person out of view while active; `show()` or the next `commit` brings them back. Every world's people run on it (the mountain's terraces, feria, kids and dancers share one `HumanCrowd` and one `HeldProps` in `ambient/people.ts`). Beside it: `util.ts` (pure `damp`, `angleDamp`, seeded `rng`; tested), `site-props.ts` (`Part` merges vertex-coloured primitives, `Static`, the feria's `stall` and the `hearth` used by several sites: one draw call per site's props) and `logic.ts` (steering and the children's flee target). The old part rig (`Crowd`, `Person`, the part builders) is gone.
 
 **Traveler** (`avatar.ts`): `createHuman(TRAVELER[outfit], dress(TRAVELER_DRESS[outfit]))` behind the unchanged `Avatar` contract. Riding (`world:mount`): astride ("ride") for the road mounts, paddling for the canoe and the caballito, poling on the balsa; seated (`world:sit`): "sit-bench" or "type" at `SIT_HIP`, the backpack folds away. `RIDER_SEAT` (0.56, the mounts' convention: `seatHeight` = saddle top − 0.56) is where a rider's thighs rest above the feet origin. Landing squash and dust as before.
 
-**Migrating a world's people** (phase B recipe):
+**Adding people to a world:**
 
 1. Pick or add specs in `presets.ts` (`PEOPLE.x`, or `{ ...PEOPLE.x, hat: "…" }`); add a wardrobe if the region needs one. Garments missing? Add a builder in `wear/` and a field to `HumanSpec`, never per-world geometry.
-2. Replace `new Crowd(partSpecs(...), n, paletteMaterial(...), SHADOW_PARTS)` with `new HumanCrowd({ capacity: n })` (+ `new HeldProps()` for tools), and call `crowd.update(env.camera)` and `props.update()` once per frame after the people commit.
-3. Replace `new Person({ crowd, idx: crowd.alloc(), wear, palette, scale, girth })` with `new Npc({ kind, crowd, spec, palette: wardrobe.x(rng), scale, radius, seed })`; keep the behaviour's locomotion code as is.
-4. Replace bone writes (`p.bones.armR.rotation.set(…)`, `p.rest()`, `p.gait()`, `p.sit()`) with actions (`p.anim.act("wave")`), and `p.commit()` with `p.commit(ctx)`. A pose the catalogue lacks goes into `poses.ts` (pure, tested), not into the world.
+2. Create one `new HumanCrowd({ capacity: n })` (+ `new HeldProps()` for tools) per world, and call `crowd.update(env.camera)` and `props.update()` once per frame after the people commit.
+3. Each person is `new Npc({ kind, crowd, spec, palette: wardrobe.x(rng), scale, radius, seed })`, moved with the locomotion API.
+4. Poses are actions (`p.anim.act("wave")`), then `p.commit(ctx)`. A pose the catalogue lacks goes into `poses.ts` (pure, tested), not into the world.
 5. `prefetchHumans([...specs])` at load so the builds start before the traveler arrives.
-6. Delete the world's part builders (`*/gente/parts.ts`, `clothes.ts`, `garments.ts`, `comunidad/models.ts` people parts) once nothing uses them; when every world has migrated, delete `ambient/people/rig.ts`, `person.ts` and the part half of `models.ts`.
 
 **Harness.** `bunx vite --config src/world/characters/dev/vite.config.ts --port 5261`: `?view=lineup` (every preset), `outfits` (the traveler's five), `actions` (one person per action, crowd renderer, props), `crowd&n=60` (stress test with stats), `lod&who=campesina` (LOD 0 / 1 / 2 side by side). `dev/shots.mjs` screenshots each view; `dev/world-shots.mjs <url> <out> <prefix> [vehicle]` checks the traveler (idle, walk, run, jump, ride, sit) in any world harness.
 
@@ -367,7 +366,7 @@ herd.update(dt, t, camera);                                      // poses, LOD, 
 
 ### Dev hook
 
-In dev builds only (`import.meta.env.DEV`), the world host element exposes `__kw`. It provides `setTime`, `setDate`, `teleport(t, side)`, `orbit`, `face`, `walk`, `tour`, `state()`, `creatures`, `scene`, `engine`, `style` (live style and wind tuning) and `drawCalls()`. The screenshot scripts in `src/world/dev/`, `fauna-dev/` and `npc-dev/` drive the world harness through it.
+In dev builds only (`import.meta.env.DEV`), the world host element exposes `__kw`. It provides `setTime`, `setDate`, `teleport(t, side)`, `orbit`, `face`, `walk`, `tour`, `state()`, `creatures`, `scene`, `engine`, `style` (live style and wind tuning) and `drawCalls()`. The screenshot scripts in `src/world/dev/` and `npc-dev/` drive the world harness through it.
 
 ### 2.2 Jungle: Antisuyu (`src/world/selva/`)
 

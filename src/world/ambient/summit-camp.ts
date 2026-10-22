@@ -40,7 +40,7 @@ import { on } from "../events";
 import { glowSprite, localWind } from "../props";
 import { dateWatch } from "./festival/datewatch";
 import { jumped } from "./people/logic";
-import { Static } from "./people/models";
+import { Static } from "./people/site-props";
 import { createFolk, type FolkCtx, type FolkSpots } from "./summit-camp/folk";
 import { createKite } from "./summit-camp/kite";
 import {

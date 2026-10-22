@@ -29,9 +29,8 @@ import { glowSprite } from "../props";
 import { lxOf, lzOf, stationFrame, wx, wz } from "./fields/geo";
 import { play, playArms } from "./gente/overlay";
 import { jumped, within } from "./people/logic";
-import { rng } from "./people/models";
 import { Npc, type NpcFrame } from "./people/npc";
-import { angleDamp, damp } from "./people/person";
+import { angleDamp, damp, rng } from "./people/util";
 import {
   boardDims,
   CORD_Y,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { rng } from "../../../ambient/people/models";
+import { rng } from "../../../ambient/people/util";
 import { CUSHMAS, dressOf, heightJitter, NATURAL, SKIRTS, SPEC, STRIPES, stripeFor, type Who } from "./dress";
 
 const ALL: Who[] = ["man", "crown", "elder", "woman", "teen", "boy", "girl", "swimmer", "youth"];
