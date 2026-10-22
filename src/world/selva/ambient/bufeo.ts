@@ -7,19 +7,18 @@
  * nearest pod comes over and surfaces around the canoe more often, the way curious bufeos follow boats.
  * Day and night alike.
  *
- * Rendering: one rig InstancedMesh (wild/rig.ts: the rear third and flukes bend for the swimming beat; an
- * animal is drawn only while it is near the surface) + a ripple pool → 2 draw calls.
+ * Rendering: one instanced herd on the shared animal core (species "bufeo", pink or grey, wild/beasts.ts: the
+ * arc's pitch is the world's, the spine wave and the flukes are the swim animator's with its own porpoise
+ * arcs off; an animal is drawn only while it is near the surface) + a ripple pool → 2 draw calls.
  * Bodies ("bufeo"): never solid (in the water), parked while submerged; listed for queries.
  * Stamp `selva:fauna:bufeo` after a ~1.5 s good look within 30 u (they surface out on the river).
  */
-import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, PARKED, park } from "../../creatures";
 import { on } from "../../events";
-import { barF, devHook, FAUNA_FAR, idle, Ripples, ramp, rootMatrix, Spotter, sandbars, selvaOf } from "./wild/kit";
+import { createBeasts } from "./wild/beasts";
+import { barF, devHook, FAUNA_FAR, idle, Ripples, Spotter, sandbars, selvaOf } from "./wild/kit";
 import { clamp01, damp, rng, surfaceArc } from "./wild/logic";
-import { dolphinModel } from "./wild/mammals";
-import { RigSet } from "./wild/rig";
 
 interface Pod {
   /** River index range (along layout.river.pts) the pod patrols, and where it is heading. */
@@ -60,7 +59,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   const pts = river.pts;
   const nPts = pts.length;
   const high = env.quality === "high";
-  const rm = env.reducedMotion;
   const R = rng(9203);
 
   /** River sample at float index s: center, unit tangent (downstream) and half width. */
@@ -126,12 +124,14 @@ export const create: CreateAmbient = (env0): Ambient => {
     }
   }
 
-  const model = dolphinModel();
-  const set = new RigSet("selva-fauna-bufeo-body", model.geo, model.spec, dolphins.length, ramp(env));
+  // Mostly pink, a younger one greyer.
+  const set = createBeasts(env, "bufeo", dolphins.length, {
+    variants: ["pink", "grey"],
+    variantOf: (i) => ((dolphins[i]?.scale ?? 1) < 1 ? 1 : 0),
+  });
   const ripples = new Ripples(env, "selva-fauna-bufeo-ripples", 10, lv, 2.2);
-  const root = new THREE.Group();
-  root.name = "selva-fauna-bufeo";
-  root.add(set.mesh, ripples.mesh);
+  const root = set.group;
+  root.add(ripples.mesh);
   env.scene.add(root);
 
   const spot = new Spotter(env, "bufeo", 30);
@@ -146,7 +146,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   const offDev = devHook("bufeo", () =>
     dolphins.map((d) => [d.arc >= 0 ? "up" : "under", +d.x.toFixed(1), +d.z.toFixed(1), +d.s.toFixed(1)]),
   );
-  const m4 = new THREE.Matrix4();
   let clock = 0;
 
   return {
@@ -169,8 +168,9 @@ export const create: CreateAmbient = (env0): Ambient => {
           }
         }
       }
-      let n = 0;
-      for (const d of dolphins) {
+      set.begin();
+      for (let i = 0; i < dolphins.length; i++) {
+        const d = dolphins[i] as Dolphin;
         // Swim along the stretch, turning back at its ends; a lured pod heads for the canoe.
         if (lure === d.pod) {
           const goal = lureS + (d.dir > 0 ? -2 : 2);
@@ -222,18 +222,23 @@ export const create: CreateAmbient = (env0): Ambient => {
           d.x = PARKED;
           continue;
         }
-        // Pose: pitch follows the arc; the flukes beat, a last flick as they go under.
-        const beat = Math.sin(clock * (rm ? 3 : 5) + d.s) * 0.25 + (u > 0.75 ? (u - 0.75) * 2.4 : 0);
-        const headYaw = Math.sin(clock * 1.3 + d.s * 2) * 0.12;
+        // Pose: pitch follows the world's arc; the swim animator beats the flukes. Its own porpoise arcs are
+        // switched off: the surfacing here is timed with the ripples.
         d.body.x = d.x;
         d.body.z = d.z;
         if (spot.view.dist(d.x, d.y, d.z) > FAUNA_FAR * 1.4) continue;
-        rootMatrix(m4, d.x, d.y, d.z, d.yaw, -arc.pitch, 0, d.scale);
-        set.set(n, m4, 0, 0, headYaw, 0, 0, beat, 0, 0);
-        n++;
+        set.put(
+          i,
+          d.x,
+          d.y,
+          d.z,
+          d.yaw,
+          { speed: d.speed, rm: env.reducedMotion, porpoise: false },
+          { pitch: -arc.pitch, scale: d.scale },
+        );
         if (u > 0.2 && u < 0.8) spot.see(d.x, lv + 0.2, d.z, avatar.x, avatar.z, 1.2);
       }
-      set.commit(n);
+      set.end(dt, clock, env.camera);
       ripples.update(dt);
       spot.end(dt);
     },

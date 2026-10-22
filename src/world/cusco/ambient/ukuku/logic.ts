@@ -1,8 +1,8 @@
 /**
  * Pure logic of the midnight ukuku (../ukuku.ts): when it is out (the deep-night band of the sky clock), when
  * it may appear or vanish (only unseen, or on a clock jump such as the T key), its dance routine as joint
- * angles over time (hops, spins, whip swings; a gentle sway with prefers-reduced-motion), the wave of its
- * greeting, the bell's beats, and the bell's loudness and pan by distance. No DOM, no three.js (tested in
+ * steps over time (which human action, the turn and drift on its spot: hops, spins, whip swings; a gentle sway
+ * with prefers-reduced-motion), its greeting, the bell's beats, and the bell's loudness and pan by distance. No DOM, no three.js (tested in
  * logic.test.ts).
  *
  * The ukuku (ukuku: "bear" in Quechua) is the bear-dancer of the Qoyllur Rit'i pilgrimage: a shaggy fleece
@@ -51,51 +51,6 @@ export function nextShown(shown: boolean | null, want: boolean, seen: boolean, j
   return !seen || jumped ? want : shown;
 }
 
-/** Joint angles (radians) and offsets of the rig, all relative to the rest pose. */
-export interface Pose {
-  /** Hips height above the ground (hops). */
-  lift: number;
-  /** Turn added to the facing (spins). */
-  turn: number;
-  /** Small offset of the whole body on its spot (local x, z). */
-  dx: number;
-  dz: number;
-  /** Torso lean forward (x) and sideways (z). */
-  leanX: number;
-  leanZ: number;
-  /** Head tilt (z) and nod (x). */
-  headZ: number;
-  headX: number;
-  /** Arms: forward swing (x, positive raises forward) and out to the side (z, positive raises sideways). */
-  armLX: number;
-  armLZ: number;
-  armRX: number;
-  armRZ: number;
-  /** Legs: forward swing (x) of each leg; knee lift reads through the swing. */
-  legL: number;
-  legR: number;
-  /** Twist of the whip about the right hand (spins the lash). */
-  whip: number;
-}
-
-export const REST: Readonly<Pose> = {
-  lift: 0,
-  turn: 0,
-  dx: 0,
-  dz: 0,
-  leanX: 0,
-  leanZ: 0,
-  headZ: 0,
-  headX: 0,
-  armLX: 0,
-  armLZ: 0.25,
-  armRX: 0,
-  armRZ: 0.25,
-  legL: 0,
-  legR: 0,
-  whip: 0,
-};
-
 export type Move = "hop" | "spin" | "whip";
 /** The routine, looped: steps and their lengths in seconds. */
 export const ROUTINE: ReadonlyArray<{ move: Move; secs: number }> = [
@@ -119,101 +74,86 @@ export function stepAt(t: number): { move: Move; i: number; u: number } {
   return { move: "hop", i: 0, u: 0 };
 }
 
-/** Hops per second (the bell rings on each landing). */
-export const HOP_HZ = 2;
+/**
+ * The human animation controller's actions the ukuku dances with (../../../characters/poses.ts): "hop"
+ * (foot to foot, arms out), "dance" (the huayno step-hop, one arm high: its spins), "whip-circle" (the right
+ * arm overhead circling the whip on a bouncing step), "wave" (the greeting, with the left hand), "hands-hips"
+ * (reduced motion).
+ */
+export type UkukuAction = "hop" | "dance" | "whip-circle" | "wave" | "hands-hips";
+
+/** What the body does at a moment: the action (and its hand) plus the root's turn and offset on its spot. */
+export interface Step {
+  action: UkukuAction;
+  /** 1 = the right hand leads (the whip hand), −1 = the left. */
+  side: 1 | -1;
+  /** Turn added to the facing (spins), radians. */
+  turn: number;
+  /** Small offset of the whole body on its spot (the spot's own frame: x right, z forward). */
+  dx: number;
+  dz: number;
+}
+
+/**
+ * The core "hop" pose bounces on |sin| of a 1.7 Hz wave: 3.4 landings a second. The bell rings on every other
+ * landing (HOP_HZ a second), counted from the start of each step so it stays on the feet.
+ */
+export const HOP_HZ = 1.7;
 const TAU = Math.PI * 2;
 const smooth = (u: number) => u * u * (3 - 2 * u);
 
-/** The dancing pose at time t (seconds of dancing). Reduced motion: a slow sway in place, no hops or spins. */
-export function dancePose(t: number, reduced: boolean, out: Pose = { ...REST }): Pose {
-  Object.assign(out, REST);
+/** The dance at time t (seconds of dancing). Reduced motion: hands on the hips, a slow sway in place. */
+export function danceStep(t: number, reduced: boolean, out?: Step): Step {
+  const o = out ?? { action: "hop", side: 1, turn: 0, dx: 0, dz: 0 };
+  o.side = 1;
+  o.dx = 0;
+  o.dz = 0;
   if (reduced) {
-    const s = Math.sin(t * 1.3);
-    out.leanZ = s * 0.07;
-    out.headZ = -s * 0.1;
-    out.turn = Math.sin(t * 0.65) * 0.18;
-    out.armLZ = 0.45 + Math.sin(t * 1.3 + 0.6) * 0.12;
-    out.armRZ = 0.45 - Math.sin(t * 1.3 + 0.6) * 0.12;
-    out.armRX = 0.3;
-    out.legL = s * 0.06;
-    out.legR = -s * 0.06;
-    return out;
+    o.action = "hands-hips";
+    o.turn = Math.sin(t * 0.65) * 0.18;
+    return o;
   }
   const { move, u } = stepAt(t);
-  // Hop wave: |sin| so every half period is one hop; 0 at each landing.
-  const ph = t * HOP_HZ * Math.PI;
-  const hop = Math.abs(Math.sin(ph));
-  const side = Math.sin(ph) >= 0 ? 1 : -1;
   if (move === "hop") {
-    // Hop from foot to foot, the free leg kicked forward, arms out and pumping, whip trailing low.
-    out.lift = hop * 0.26;
-    out.legL = side > 0 ? 0.7 * hop : -0.15 * hop;
-    out.legR = side < 0 ? 0.7 * hop : -0.15 * hop;
-    out.leanZ = side * 0.12 * hop;
-    out.leanX = 0.12;
-    out.armLZ = 0.9 + hop * 0.35;
-    out.armRZ = 0.9 + hop * 0.35;
-    out.armLX = 0.3 * side;
-    out.armRX = -0.3 * side;
-    out.headZ = -side * 0.15 * hop;
-    out.dx = Math.sin(t * 0.9) * WANDER * 0.6;
-    out.dz = Math.sin(t * 0.55) * WANDER * 0.4;
-    out.whip = t * 3;
+    // Foot to foot, drifting a little about the spot.
+    o.action = "hop";
+    o.turn = Math.sin(t * 0.7) * 0.35;
+    o.dx = Math.sin(t * 0.9) * WANDER * 0.6;
+    o.dz = Math.sin(t * 0.55) * WANDER * 0.4;
   } else if (move === "spin") {
-    // Two whole turns, eased, on small quick hops; arms flung wide.
-    out.turn = smooth(u) * TAU * 2;
-    out.lift = hop * 0.12;
-    out.armLZ = 1.45;
-    out.armRZ = 1.45;
-    out.leanX = -0.08;
-    out.headX = -0.15;
-    out.legL = side > 0 ? 0.35 * hop : 0;
-    out.legR = side < 0 ? 0.35 * hop : 0;
-    out.whip = t * 6;
+    // Two whole turns, eased, on the huayno step.
+    o.action = "dance";
+    o.turn = smooth(u) * TAU * 2;
   } else {
-    // Whip: the right arm raised, circling the lash overhead; the left fist on the hip; a bouncing step.
-    out.lift = hop * 0.08;
-    out.armRX = 2.5 + Math.sin(t * 5) * 0.25;
-    out.armRZ = 0.35 + Math.cos(t * 5) * 0.25;
-    out.armLX = -0.2;
-    out.armLZ = 0.75;
-    out.leanZ = -0.1;
-    out.leanX = 0.05 + hop * 0.05;
-    out.headZ = 0.12;
-    out.headX = -0.25;
-    out.legL = side > 0 ? 0.25 * hop : 0;
-    out.legR = side < 0 ? 0.25 * hop : 0;
-    out.whip = t * 9;
+    // The right arm raised, the lash circling overhead; a slow sway of the body.
+    o.action = "whip-circle";
+    o.turn = Math.sin(t * 1.1) * 0.25;
   }
-  return out;
+  return o;
 }
 
-/** The greeting pose: still, facing the traveler, the left arm waving high, the head cocked (shy, then cheeky). */
-export function greetPose(t: number, reduced: boolean, out: Pose = { ...REST }): Pose {
-  Object.assign(out, REST);
-  const w = reduced ? 0 : Math.sin(t * 9);
-  out.armLZ = 2.5 + w * 0.3;
-  out.armLX = 0.2;
-  out.armRZ = 0.35;
-  out.armRX = 0.25;
-  out.headZ = 0.22 + (reduced ? 0 : Math.sin(t * 2.2) * 0.06);
-  out.leanZ = -0.06;
-  out.lift = reduced ? 0 : Math.abs(Math.sin(t * 4)) * 0.03;
-  return out;
+/** The greeting: still, facing the traveler, the left arm waving high. */
+export function greetStep(out?: Step): Step {
+  const o = out ?? { action: "wave", side: -1, turn: 0, dx: 0, dz: 0 };
+  o.action = "wave";
+  o.side = -1;
+  o.turn = 0;
+  o.dx = 0;
+  o.dz = 0;
+  return o;
 }
 
-/** Blends `cur` toward `target` by k ∈ [0, 1] (the turn wraps the short way). */
-export function blendPose(cur: Pose, target: Pose, k: number): Pose {
-  for (const key of Object.keys(REST) as Array<keyof Pose>) {
-    let d = target[key] - cur[key];
-    if (key === "turn") d = Math.atan2(Math.sin(d), Math.cos(d));
-    cur[key] += d * k;
-  }
-  return cur;
+/**
+ * Bell beats so far (ring when the count changes): while hopping, every other landing counted from the step's
+ * start (HOP_HZ); in the spins and whip swings the same pulse; slower with reduced motion.
+ */
+export function beat(t: number, reduced: boolean): number {
+  if (reduced) return Math.floor(t * 0.7);
+  const loops = Math.floor(t / ROUTINE_SECS);
+  const { i, u } = stepAt(t);
+  const secs = (ROUTINE[i] as { secs: number }).secs;
+  return (loops * ROUTINE.length + i) * 64 + Math.floor(u * secs * HOP_HZ);
 }
-
-/** Bell beats so far: one per hop landing while dancing, slower with reduced motion. Ring when it changes. */
-export const beat = (t: number, reduced: boolean) => Math.floor(reduced ? t * 0.7 : t * HOP_HZ);
 
 /** Beyond this distance the bell is silent. */
 export const BELL_FAR = 28;

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animals harness</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #13151b; font: 13px/1.3 system-ui, sans-serif; }
+  #world { position: fixed; inset: 0; }
+  .kw-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  #labels span { position: absolute; transform: translate(-50%, 0); padding: 2px 6px; border-radius: 4px;
+    background: rgba(19, 21, 27, 0.72); color: #ece8e0; font: 600 11px/1.2 ui-monospace, monospace; white-space: nowrap; }
+  #labels span.new { background: rgba(196, 56, 63, 0.85); color: #fff6f2; }
+  #ui { position: fixed; left: 8px; top: 8px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100vw - 16px); }
+  #ui button { font: 600 12px/1 system-ui, sans-serif; padding: 7px 9px; border-radius: 4px; border: 1px solid #2c303b;
+    background: #1b1e26; color: #ece8e0; cursor: pointer; }
+  #ui button[aria-pressed="true"] { background: #c4383f; border-color: #c4383f; color: #fff6f2; }
+  #stats { position: fixed; right: 8px; bottom: 8px; color: #ece8e0; background: rgba(19, 21, 27, 0.72);
+    padding: 6px 8px; border-radius: 4px; font: 11px/1.4 ui-monospace, monospace; white-space: pre; }
+  body.clean #ui, body.clean #stats { display: none; }
+  body.nolabels #labels { display: none; }
+</style>
+</head>
+<body>
+<div id="world"></div>
+<div id="labels"></div>
+<div id="ui"></div>
+<div id="stats"></div>
+<script type="module" src="./main.ts"></script>
+</body>
+</html>

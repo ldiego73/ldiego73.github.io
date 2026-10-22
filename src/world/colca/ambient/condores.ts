@@ -17,12 +17,13 @@
  * sinks back as the front goes by.
  *
  * Passport: a good look (a condor within 45 u of the traveler, by day) stamps `colca:fauna:condor`.
- * Rendering: ./condores/model.ts, three instanced draw calls for every bird (flying and perched), plus one
- * merged mesh for the two perch rocks. Flying bodies are registered in creatures (never solid).
+ * Rendering: ./condores/model.ts, the shared animals' condor as one herd (one instanced draw per LOD for every
+ * bird, flying and perched), plus one merged mesh for the two perch rocks. Flying bodies are registered in creatures (never solid).
  */
 
 import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
+import { setAnimalNight } from "../../characters/animals/night";
 import type { CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit } from "../../events";
@@ -47,8 +48,11 @@ import {
   thermalFor,
 } from "./condores/logic";
 import { CondorFlock } from "./condores/model";
+import { nightAmount } from "./wild/logic";
 
 const STAMP = "colca:fauna:condor";
+/** The perched pair's headings (./condores/logic.ts perchPose turns about these). */
+const PERCH_YAW = [1.15, -1.3];
 const LOOK_R = 45;
 
 export const create: CreateAmbient = (baseEnv) => {
@@ -56,7 +60,7 @@ export const create: CreateAmbient = (baseEnv) => {
   const layout = env.suyu.layout as ColcaLayout;
   const n = env.quality === "high" ? 6 : 4;
   const nPerched = PERCHES.length * 2;
-  const flock = new CondorFlock("colca-condors", n + nPerched, 0.95);
+  const flock = new CondorFlock("colca-condors", n + nPerched, env.reducedMotion);
   env.scene.add(flock.group);
   const bodies = Array.from({ length: n }, () => creatures.add("condor", 1.2, { solid: false, x: 1e5, z: 1e5 }));
   // Each bird blends toward its current thermal (smoothly, when the morning moves two of them).
@@ -104,8 +108,11 @@ export const create: CreateAmbient = (baseEnv) => {
   };
 
   return {
-    update(dt, avatar) {
+    update(dt, avatar, t) {
       clock += env.reducedMotion ? dt * 0.5 : dt;
+      flock.begin(dt);
+      // The moonlit rim on every animal of the world (one shared uniform; the condors are always here).
+      setAnimalNight(nightAmount(env.sky.time()));
       const time = env.sky.time();
       const out = !flying(time);
       const avS = avatar.z - rimZ(avatar.x);
@@ -167,7 +174,9 @@ export const create: CreateAmbient = (baseEnv) => {
         const g = liveWind.sample(p.x, z).gust;
         lift[i] = (lift[i] as number) + (g * UPDRAFT - (lift[i] as number)) * Math.min(1, dt * 0.7);
         const y = rimY + p.y + (lift[i] as number);
-        flock.set(i, { x: p.x, y, z, yaw: p.yaw, bank: p.bank, pitch: 0, wing: p.wing });
+        // The few deep wingbeats of ./condores/logic.ts onThermal (2.2 s every 45 s; never during a pass).
+        const flap = pass?.i !== i && (clock + i * 13) % 45 < 2.2;
+        flock.set(i, { x: p.x, y, z, yaw: p.yaw, bank: p.bank, flap });
         if (body) {
           body.x = p.x;
           body.z = z;
@@ -180,22 +189,23 @@ export const create: CreateAmbient = (baseEnv) => {
         const r = k >> 1;
         const at = perchAt[r] as { x: number; z: number };
         const pp = perchPose(k & 1, time, clock);
-        // In profile to the road: one faces along the rim each way, glancing over the canyon now and then.
-        const yaw = pp.yaw;
-        const y = (perchTop[r] as number) + 0.2;
+        // In profile to the road: one faces along the rim each way, glancing over the canyon now and then (the
+        // body stays put on the rock, the head turns).
+        const yaw = PERCH_YAW[k & 1] as number;
+        const y = perchTop[r] as number;
         flock.set(n + k, {
           x: at.x + pp.dx,
           y,
           z: at.z,
           yaw,
           bank: 0,
-          pitch: pp.pitch,
-          wing: pp.wing,
-          fold: pp.fold,
+          perched: true,
+          sunning: pp.fold < 0.5,
+          look: pp.yaw - yaw,
         });
         if (!stamped && !out && Math.hypot(at.x - avatar.x, y - avatar.y, at.z - avatar.z) < LOOK_R) stamp();
       }
-      flock.commit();
+      flock.update(dt, t, env.camera);
     },
     dispose() {
       for (const b of bodies) creatures.remove(b);

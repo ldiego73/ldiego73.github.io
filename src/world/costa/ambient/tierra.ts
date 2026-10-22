@@ -4,7 +4,7 @@
  *    huaca, stopping to sniff the ground and turning their heads to a traveler close by;
  *  - burros grazing in the green river valleys (two by the Santa, one by the Lurín), ambling from patch to patch;
  *  - a herd of goats browsing the lomas inland of the road, before the Caral pyramid;
- *  - cañanes, the desert lizards, basking on the sand beside the road; they bob, and when the traveler comes
+ *  - cañanes, the desert lizards, basking on the sand beside the road (now and then a push-up); when the traveler comes
  *    close they dash to their burrow and vanish, coming back out once the traveler has gone (./fauna/logic.ts
  *    stepCrab, the ghost crabs' rule);
  *  - sanderlings running up and down the edge of the water on both caballito beaches, keeping just above the
@@ -15,10 +15,19 @@
  * spots outside keep-out zones (station grounds). No passport stamps; field guide: ../wildlife.ts.
  * Reduced motion: the walkers stand (grazing, looking round), the sanderlings stay put, the boobies hold still
  * in the air; the lizards still hide, without running.
- * Draw calls: three per four-legged species (bodies, heads, legs: ./fauna/herd.ts), one each for the lizards,
- * the sanderlings, the boobies and their splashes; a group far from the camera is not drawn.
+ * The viringos, burros and cañanes are the shared animals (../../characters/animals: continuous skinned bodies,
+ * a herd each; their gait follows the real speed, their idles sniff, graze, chew and look about; the viringo is
+ * the shared dog in bare slate-grey skin). The goats, sanderlings and boobies keep their own small instanced
+ * models (./fauna/land-models.ts, ./fauna/herd.ts) until the shared animals have those species.
+ * Draw calls: the viringos, burros and cañanes (one instanced mesh per LOD in use each), three for the goats
+ * (bodies, heads, legs), one each for the sanderlings, the boobies and their splashes; a
+ * group far from the camera is not drawn.
  */
 import * as THREE from "three";
+import { prefetchAnimals } from "../../characters/animals/assets";
+import { type Herd as AnimalHerd, createHerd } from "../../characters/animals/crowd";
+import type { SpeciesKey } from "../../characters/animals/species";
+import { qpal } from "../../characters/animals/species/mammals";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { vertexToon } from "../../merge-colors";
@@ -29,9 +38,24 @@ import { BEACHES, COMPANY_STOPS, STATION } from "../plan";
 import { seaHeight } from "../scenery/waves";
 import { Herd } from "./fauna/herd";
 import { chase, stepWander, turnToward, type Wanderer, type WanderOpts, wanderer, waterEdge } from "./fauna/land-logic";
-import { boobyGlide, burro, canan, goat, sanderling, viringo } from "./fauna/land-models";
+import { boobyGlide, goat, type QuadModel, sanderling } from "./fauna/land-models";
 import { type Crab, circle, DIVE, dive, prng, stepCrab } from "./fauna/logic";
 import { splash } from "./fauna/models";
+
+/** The cañán's coat on the shared lizard: sandy, with pale spots and a pale belly (Dicrodon guttulatum). */
+const CANAN = qpal({ coat: "#b89a6a", belly: "#efe2c4", spot: "#f2e8d2", hoof: "#7a6446", nose: "#7a6446" });
+
+/** The viringo on the shared dog: bare slate-grey skin with pink blotches (the dog's piebald patches). */
+const VIRINGO = qpal({
+  coat: "#4a4643",
+  hair: "#4a4643",
+  belly: "#57504c",
+  nose: "#1e1614",
+  spot: "#9a7466",
+  inner: "#9a7466",
+});
+/** The cañán is about 1.6× the shared lizard (a Liolaemus): up to a hand and a half long, tail included. */
+const CANAN_SCALE = 1.6;
 
 /** Beyond this distance from the camera a group is not drawn (nor animated). */
 const VIEW = 160;
@@ -89,9 +113,14 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     pitch: number;
     turn: number;
     scale: number;
+    /** Shared animals: grazing already asked of the idles in this rest. */
+    grazing?: boolean;
   }
   interface Group {
-    herd: Herd;
+    /** The old instanced quadruped (species with no shared animal yet) … */
+    herd?: Herd;
+    /** … or a herd of the shared animals (../../characters/animals), one id per walker. */
+    animals?: { herd: AnimalHerd; ids: number[] };
     list: Walker[];
     opts: WanderOpts;
     ok: (x: number, z: number) => boolean;
@@ -102,7 +131,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   }
   const groups: Group[] = [];
   const addGroup = (
-    model: ReturnType<typeof viringo>,
+    model: QuadModel | SpeciesKey,
     name: string,
     kind: string,
     radius: number,
@@ -112,7 +141,14 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     look: { swing: number; stride: number; graze: number },
     scale: () => number = () => 1,
   ) => {
-    const herd = new Herd(model, mat, homes.length, `costa-tierra:${name}`, root);
+    let herd: Herd | undefined;
+    let animals: Group["animals"];
+    if (typeof model === "string") {
+      const h = createHerd(model, { max: homes.length, variants: model === "dog" ? [VIRINGO] : undefined });
+      h.group.name = `costa-tierra:${name}`;
+      root.add(h.group);
+      animals = { herd: h, ids: homes.map((_, i) => h.add({ seed: 17 + i * 11 })) };
+    } else herd = new Herd(model, mat, homes.length, `costa-tierra:${name}`, root);
     const list = homes.map((h) => {
       const w = wanderer(h.x, h.z, h.range, R() * Math.PI * 2);
       w.timer = R() * 4;
@@ -125,7 +161,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         scale: scale(),
       };
     });
-    groups.push({ herd, list, opts, ok, ...look });
+    groups.push({ herd, animals, list, opts, ok, ...look });
     return herd;
   };
 
@@ -139,7 +175,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       { x: market.x - 2.5, z: market.z + 2, range: 7 },
       { x: first.x, z: first.z, range: 5.5 },
     ];
-    addGroup(viringo(), "viringos", "perro-viringo", 0.32, homes, { pace: 1.7, graze: 0.4, rest: [2, 6] }, okDog, {
+    addGroup("dog", "viringos", "perro-viringo", 0.32, homes, { pace: 1.7, graze: 0.4, rest: [2, 6] }, okDog, {
       swing: 0.28,
       stride: 7,
       graze: 0.75,
@@ -159,7 +195,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       }
     });
     if (homes.length)
-      addGroup(burro(), "burros", "burro", 0.55, homes, { pace: 0.7, graze: 0.75, rest: [4, 10] }, okBurro, {
+      addGroup("donkey", "burros", "burro", 0.55, homes, { pace: 0.7, graze: 0.75, rest: [4, 10] }, okBurro, {
         swing: 0.32,
         stride: 2.6,
         graze: 0.95,
@@ -195,7 +231,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         () => 0.9 + R() * 0.2,
       );
       const coats = ["#ffffff", "#c9a27a", "#5a4638", "#efe4d0", "#8a6a50"];
-      for (let k = 0; k < homes.length; k++) herd.tint(k, new THREE.Color(coats[k % coats.length]));
+      for (let k = 0; k < homes.length; k++) herd?.tint(k, new THREE.Color(coats[k % coats.length]));
     }
   }
 
@@ -227,8 +263,11 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       }
     }
   }
-  const lizGeo = canan();
-  const lizMesh = inst(lizGeo, lizards.length, "costa-tierra:canan", false);
+  prefetchAnimals(["dog", "donkey", "lizard"]);
+  const lizHerd = createHerd("lizard", { max: Math.max(1, lizards.length), variants: [CANAN], shadows: false });
+  lizHerd.group.name = "costa-tierra:canan";
+  root.add(lizHerd.group);
+  const lizIds = lizards.map((_, i) => lizHerd.add({ seed: 9 + i * 5 }));
 
   // ------------------------------------------------------------------ sanderlings
   const beach = (t: number) => {
@@ -274,6 +313,12 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     return n * (CYC - HOLD) + c - Math.min(Math.max(c - DIVE.glide, 0), HOLD);
   };
 
+  // Dev hook (screenshots): where the lizards bask.
+  if (import.meta.env?.DEV)
+    (window as Window & { __costaFauna?: unknown }).__costaFauna = {
+      lizards: () => lizards.map((l) => ({ x: l.hx, z: l.hz })),
+    };
+
   // ------------------------------------------------------------------ frame
   const near = (x: number, z: number, r = VIEW) => Math.hypot(x - cam.x, z - cam.z) < r;
   return {
@@ -285,7 +330,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       for (const g of groups) {
         // Groups spread over the map (two plazas, two valleys): drawn while any of them is near.
         const on = g.list.some((a) => near(a.w.x, a.w.z));
-        g.herd.visible = on;
+        if (g.herd) g.herd.visible = on;
+        if (g.animals) g.animals.herd.group.visible = on;
         if (!on) continue;
         g.list.forEach((a, i) => {
           const w = a.w;
@@ -312,7 +358,21 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           const pitch = w.state === "graze" && dTr > 3 ? g.graze : 0;
           a.pitch += (pitch - a.pitch) * Math.min(1, dt * 3);
           a.turn = turnToward(a.turn, turn, dt * 2.5);
-          g.herd.set(i, {
+          if (g.animals) {
+            // The shared animal walks from its real speed and grazes, chews and looks about on its own (its
+            // idles); a grazing rest asks for the head down, a traveler close by for a look.
+            const id = g.animals.ids[i] as number;
+            if (w.state === "graze" && a.grazing !== true && dTr > 3) g.animals.herd.play(id, "graze", 3 + R() * 4);
+            a.grazing = w.state === "graze";
+            g.animals.herd.set(id, w.x, S.groundAt(w.x, w.z), w.z, w.yaw, {
+              speed: w.speed,
+              rm,
+              look: dTr < 5 && w.state !== "walk" ? a.turn : undefined,
+              quiet: env.sky.isNight() && dTr > 8,
+            });
+            return;
+          }
+          g.herd?.set(i, {
             x: w.x,
             y: S.groundAt(w.x, w.z),
             z: w.z,
@@ -324,32 +384,44 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
             scale: a.scale,
           });
         });
-        g.herd.flush();
+        g.herd?.flush();
+        g.animals?.herd.update(dt, t, env.camera);
       }
 
       // Lizards: bask (with the odd push-up), dash to the burrow when the traveler comes close.
       const lizOn = lizards.some((l) => near(l.hx, l.hz));
-      lizMesh.visible = lizOn;
+      lizHerd.group.visible = lizOn;
       if (lizOn) {
         lizards.forEach((l, i) => {
           const n = stepCrab(l, avatar.x, avatar.z, dt * 1.3);
           const next = rm && n.state === "run" ? { ...n, x: n.wx, z: n.wz, state: "hidden" as const, timer: 7 } : n;
           if (next.state === "run") l.yaw = Math.atan2(l.wx - l.hx, l.wz - l.hz);
           Object.assign(l, next);
+          const id = lizIds[i] as number;
           if (l.state === "hidden") {
-            lizMesh.setMatrixAt(i, ZERO);
+            lizHerd.hide(id);
             return;
           }
           const run = l.state === "run";
+          // Basking with the odd push-up (the body lifts and tips back); the dash to the burrow at full tilt.
           const push = !rm && !run ? Math.max(0, Math.sin(t * 2.2 + l.ph)) ** 8 * 0.03 : 0;
-          dummy.position.set(l.x, S.groundAt(l.x, l.z) + push, l.z);
-          dummy.rotation.set(-push * 4, l.yaw + (run ? Math.sin(t * 30 + l.ph) * 0.25 : 0), 0);
-          dummy.scale.setScalar(1.5);
-          dummy.updateMatrix();
-          lizMesh.setMatrixAt(i, dummy.matrix);
+          lizHerd.set(
+            id,
+            l.x,
+            S.groundAt(l.x, l.z) + push,
+            l.z,
+            l.yaw,
+            {
+              speed: run ? lizHerd.spec.speeds.max : 0,
+              rm,
+              look: !run && !rm ? Math.sin(t * 0.4 + l.ph) * 0.5 : undefined,
+            },
+            { scale: CANAN_SCALE, pitch: -push * 4 },
+          );
         });
-        lizMesh.instanceMatrix.needsUpdate = true;
       }
+
+      lizHerd.update(dt, t, env.camera);
 
       // Sanderlings at the water's edge.
       const sandOn = birds.some((b) => near(b.b.x, b.b.z));
@@ -426,12 +498,15 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       }
     },
     dispose() {
+      if (import.meta.env?.DEV) delete (window as Window & { __costaFauna?: unknown }).__costaFauna;
       for (const g of groups) {
         for (const a of g.list) creatures.remove(a.body);
-        g.herd.dispose();
+        g.herd?.dispose();
+        g.animals?.herd.dispose();
       }
       root.removeFromParent();
-      for (const g of [lizGeo, sandGeo, boobyGeo, splashGeo]) g.dispose();
+      lizHerd.dispose();
+      for (const g of [sandGeo, boobyGeo, splashGeo]) g.dispose();
       mat.dispose();
     },
   };

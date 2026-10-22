@@ -1,129 +1,132 @@
 /**
- * Instanced Andean condors for the Kuntisuyu (../condores.ts riding the thermals, ../cruz.ts the finale's
- * rising flock): the shared fauna condor (../../../fauna-models.ts condorParts) merged into three
- * vertex-coloured geometries (body with the white collar and the bare head, right wing with its white
- * band, left wing with its band), one InstancedMesh each: three draw calls however many birds fly. Each frame
- * the owner sets a bird's position, heading, bank, pitch and wing angle; this composes root × shoulder ×
- * wing for the wings.
+ * Andean condors for the Kuntisuyu (../condores.ts riding the thermals and perched on the rim, ../cruz.ts the
+ * finale's rising flock) on the shared animals: one herd of the "condor" species (../../../characters/animals,
+ * a continuous skinned body with lofted, fingered wings, one instanced draw per LOD however many birds fly).
+ *
+ * The world's flight sims stay as they are (./logic.ts: thermals, low passes, perches, the finale's spiral):
+ * each frame the owner sets a bird's position, heading, bank and a few flags, and this turns them into the bird
+ * animator's state. Speed and climb come from the bird's own motion between frames, so the flight state
+ * machine (soar, glide, flap) reads the real flight; the bank becomes the turn the body leans into; a few deep
+ * wingbeats (`flap`) are a short climb at low speed, which is when a condor flaps; a perched bird is grounded,
+ * its head turning by `look`.
  */
-import * as THREE from "three";
-import { condorParts } from "../../../fauna-models";
-import { mergeColored, vertexToon } from "../../../merge-colors";
-import { paintStrength } from "../../../style-gl";
+import type * as THREE from "three";
+import type { BirdState } from "../../../characters/animals/anim-bird";
+import type { AnimalState } from "../../../characters/animals/anim-quad";
+import { createHerd, type Herd, type HerdPose } from "../../../characters/animals/crowd";
 
 export interface CondorPose {
   x: number;
   y: number;
   z: number;
-  /** Heading (models face +Z). */
+  /** Heading (the bird faces +Z at yaw 0). */
   yaw: number;
-  /** Roll into the turn (radians, + right wing down) and nose pitch. */
+  /** Roll into the turn (radians, + right wing down). */
   bank: number;
-  pitch: number;
-  /** Wing angle at the shoulder: 0 flat (soaring), + up. */
-  wing: number;
-  /** 0 spread … 1 folded back along the body (a perched bird); default 0. */
-  fold?: number;
+  /** A few deep wingbeats now. */
+  flap?: boolean;
+  /** On its perch (wings folded, standing). */
+  perched?: boolean;
+  /** Perched and opening its wings to the sun (BirdState.spread). */
+  sunning?: boolean;
+  /** Head turn relative to the body (radians), perched birds. */
+  look?: number;
 }
 
-const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
+/** The bird animator leans the body by turn × 0.35 in the air (anim-bird.ts): the turn that gives `bank`. */
+const BANK_PER_TURN = 0.35;
+
+interface Track {
+  id: number;
+  x: number;
+  y: number;
+  z: number;
+  seen: boolean;
+}
 
 export class CondorFlock {
-  readonly group = new THREE.Group();
-  private body: THREE.InstancedMesh;
-  private wingR: THREE.InstancedMesh;
-  private wingL: THREE.InstancedMesh;
-  private geos: THREE.BufferGeometry[] = [];
-  /** No painted blotches: world-space patches would slide over a flying bird. */
-  private mat = paintStrength(vertexToon(), 0);
-  private shoulder: THREE.Vector3;
-  private root = new THREE.Matrix4();
-  private m = new THREE.Matrix4();
-  private fm = new THREE.Matrix4();
-  private q = new THREE.Quaternion();
-  private e = new THREE.Euler(0, 0, 0, "YXZ");
-  private v = new THREE.Vector3();
-  private s: THREE.Vector3;
+  readonly herd: Herd;
+  readonly group: THREE.Group;
+  private tracks: Track[];
+  private dt = 1 / 60;
+  private pose: HerdPose;
 
+  /** `variants`: coat palettes (the white condor's leucistic one); every bird takes the first. */
   constructor(
     name: string,
     readonly n: number,
-    scale = 0.9,
+    private rm = false,
+    variants?: ReadonlyArray<readonly string[]>,
+    /** Instance scale (the white condor is drawn a touch bigger so it reads as the one to look at). */
+    scale = 1,
   ) {
-    const P = condorParts();
-    const black = new THREE.Color("#1e1b1a");
-    const white = new THREE.Color("#efe9df");
-    const head = new THREE.Color("#8d5f55");
-    const body = mergeColored([
-      { geometry: P.body, color: black },
-      { geometry: P.collar, color: white },
-      { geometry: P.head, color: head },
-    ]) as THREE.BufferGeometry;
-    const wr = mergeColored([
-      { geometry: P.wingR, color: black },
-      { geometry: P.patchR, color: white },
-    ]) as THREE.BufferGeometry;
-    const wl = mergeColored([
-      { geometry: P.wingL, color: black },
-      { geometry: P.patchL, color: white },
-    ]) as THREE.BufferGeometry;
-    for (const g of [P.body, P.collar, P.head, P.wingR, P.wingL, P.patchR, P.patchL]) g.dispose();
-    this.geos.push(body, wr, wl);
-    this.shoulder = P.shoulder;
-    this.s = new THREE.Vector3(scale, scale, scale);
-    const mk = (g: THREE.BufferGeometry, part: string) => {
-      const mesh = new THREE.InstancedMesh(g, this.mat, n);
-      mesh.name = `${name}:${part}`;
-      mesh.frustumCulled = false;
-      mesh.castShadow = true;
-      for (let i = 0; i < n; i++) mesh.setMatrixAt(i, HIDE);
-      this.group.add(mesh);
-      return mesh;
-    };
-    this.body = mk(body, "body");
-    this.wingR = mk(wr, "wing-r");
-    this.wingL = mk(wl, "wing-l");
+    this.pose = { scale };
+    this.herd = createHerd("condor", { max: n, ...(variants ? { variants } : {}) });
+    this.group = this.herd.group;
     this.group.name = name;
+    this.tracks = Array.from({ length: n }, (_, i) => ({
+      id: this.herd.add({ seed: 7 + i * 13 }),
+      x: 0,
+      y: 0,
+      z: 0,
+      seen: false,
+    }));
+  }
+
+  /** Call once per frame before the `set`s (the speeds are measured over this step). */
+  begin(dt: number) {
+    this.dt = Math.max(1e-3, dt);
   }
 
   set(i: number, p: CondorPose) {
-    this.q.setFromEuler(this.e.set(p.pitch, p.yaw, -p.bank));
-    this.root.compose(this.v.set(p.x, p.y, p.z), this.q, this.s);
-    this.body.setMatrixAt(i, this.root);
-    const fold = p.fold ?? 0;
-    for (const side of [1, -1] as const) {
-      const sh = this.shoulder;
-      this.m.makeRotationZ(side * p.wing);
-      if (fold > 0) {
-        // Folded: the wing sweeps back along the flank (about the shoulder's vertical axis) and shortens, so a
-        // perched bird reads as a closed silhouette instead of a plank.
-        this.fm.makeScale(1 - 0.45 * fold, 1, 1);
-        this.m.multiply(this.fm);
-        this.fm.makeRotationY(side * fold * 1.45);
-        this.m.premultiply(this.fm);
-      }
-      this.m.setPosition(side * sh.x, sh.y, sh.z);
-      this.m.premultiply(this.root);
-      (side === 1 ? this.wingR : this.wingL).setMatrixAt(i, this.m);
+    const tr = this.tracks[i];
+    if (!tr) return;
+    const dt = this.dt;
+    let speed = 0;
+    let vy = 0;
+    if (tr.seen) {
+      speed = Math.hypot(p.x - tr.x, p.z - tr.z) / dt;
+      vy = (p.y - tr.y) / dt;
+      // A teleport (a new pass, a jump of the clock) is not a speed.
+      if (speed > 40) speed = 0;
+      if (Math.abs(vy) > 20) vy = 0;
     }
+    tr.x = p.x;
+    tr.y = p.y;
+    tr.z = p.z;
+    tr.seen = true;
+    // A fresh state object per bird: the herd keeps the reference until its update.
+    const s: AnimalState & Partial<BirdState> = { speed: 0, rm: this.rm };
+    if (p.perched) {
+      s.grounded = true;
+      s.speed = 0;
+      s.vy = 0;
+      s.height = 0;
+      s.look = p.look;
+      s.spread = p.sunning ? 1 : 0;
+    } else {
+      s.grounded = false;
+      // Flapping: a condor beats its wings climbing slowly (the flight machine's "flap" for a soarer).
+      s.speed = p.flap ? Math.min(speed, 2.5) : Math.max(speed, 3.2);
+      s.vy = p.flap ? Math.max(vy, 1) : vy;
+      s.height = 60;
+      s.turn = p.bank / BANK_PER_TURN;
+    }
+    this.herd.set(tr.id, p.x, p.y, p.z, p.yaw, s, this.pose);
   }
 
   hide(i: number) {
-    this.body.setMatrixAt(i, HIDE);
-    this.wingR.setMatrixAt(i, HIDE);
-    this.wingL.setMatrixAt(i, HIDE);
+    const tr = this.tracks[i];
+    if (!tr) return;
+    tr.seen = false;
+    this.herd.hide(tr.id);
   }
 
-  commit() {
-    this.body.instanceMatrix.needsUpdate = true;
-    this.wingR.instanceMatrix.needsUpdate = true;
-    this.wingL.instanceMatrix.needsUpdate = true;
+  update(dt: number, t: number, camera: THREE.Camera) {
+    this.herd.update(dt, t, camera);
   }
 
   dispose() {
-    this.group.removeFromParent();
-    for (const m of [this.body, this.wingR, this.wingL]) m.dispose();
-    for (const g of this.geos) g.dispose();
-    this.mat.dispose();
+    this.herd.dispose();
   }
 }

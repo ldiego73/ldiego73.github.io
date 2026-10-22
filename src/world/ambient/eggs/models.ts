@@ -1,30 +1,17 @@
 /**
- * Easter-egg models: the hidden vizcachas (fauna vizcacha parts, cream/grey coat, curled tail),
- * a few boulders to hide behind, the golden khipu and its stone niche, and the squeak bubble sprite.
+ * Easter-egg models: a few boulders to hide behind, the golden khipu and its stone niche, and the squeak
+ * bubble sprite. (The hidden vizcachas themselves are the shared animal, characters/animals, see ../eggs.ts.)
  * Faces +Z, origin at the feet. Geometries are shared between instances; `dispose()` frees them.
  */
 import * as THREE from "three";
 import type { L, WorldEnv } from "../../contract";
-import { merge, vizcachaParts } from "../../fauna-models";
+import { merge } from "../../fauna-models";
 import { DYE, WORLD } from "../../palette";
 import { canvasTex, glowSprite } from "../../props";
-import { noPaint } from "../../style-gl";
 
-const COAT = ["#cfc6b6", "#b9b1a3", "#c7bfb2", "#aca59a", "#d6cdbd"];
-const TAIL = "#5f5a54";
-const EYE = "#1f1a17";
 export const GOLD = "#e8b93a";
 
-export interface Vizcacha {
-  group: THREE.Group;
-  /** Sinks into the burrow when hiding. */
-  body: THREE.Group;
-  head: THREE.Group;
-  tail: THREE.Group;
-}
-
 export interface EggKit {
-  vizcacha(i: number): Vizcacha;
   /** A loose cluster of boulders (hiding cover), in local space around the origin. */
   rocks(seed: number): THREE.Mesh;
   /** Stone niche with the golden khipu inside; `glow` and `sparkles` shimmer when awake. */
@@ -47,40 +34,7 @@ export function createEggKit(env: WorldEnv): EggKit {
     geos.push(g);
     return g;
   };
-  const Z = vizcachaParts();
-  geos.push(Z.body, Z.head, Z.eyes, Z.tail);
-  // Head and tail are modelled in their pivot's space (headPivot / tailPivot).
-  // A cream belly patch so they read "cream/grey" from the path.
-  const bellyGeo = own(new THREE.SphereGeometry(0.13, 8, 6));
-  bellyGeo.scale(0.9, 1.2, 0.6);
-
   const kit: EggKit = {
-    vizcacha(i) {
-      const coat = COAT[i % COAT.length] as string;
-      const group = new THREE.Group();
-      group.name = `egg-vizcacha-${i + 1}`;
-      const body = new THREE.Group();
-      group.add(body);
-      body.add(new THREE.Mesh(Z.body, env.toon(coat)));
-      const belly = new THREE.Mesh(bellyGeo, env.toon("#efe6d6"));
-      belly.position.set(0, 0.27, 0.15);
-      belly.rotation.x = -0.5;
-      body.add(belly);
-      const head = new THREE.Group();
-      head.position.copy(Z.headPivot);
-      head.add(new THREE.Mesh(Z.head, env.toon(coat)));
-      const eyes = new THREE.Mesh(Z.eyes, env.toon(EYE));
-      env.noOutline(eyes);
-      head.add(eyes);
-      body.add(head);
-      const tail = new THREE.Group();
-      tail.position.copy(Z.tailPivot);
-      tail.add(new THREE.Mesh(Z.tail, env.toon(TAIL)));
-      body.add(tail);
-      // They pop up and turn: no world-space painted blotches sliding over the coat (style-gl.ts).
-      noPaint(group);
-      return { group, body, head, tail };
-    },
     rocks(seed) {
       const parts: THREE.BufferGeometry[] = [];
       let a = seed;

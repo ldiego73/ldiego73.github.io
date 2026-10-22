@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { mirrorX, tinamouParts } from "./model";
 import {
   BURST,
   flightHeight,
@@ -49,18 +48,5 @@ describe("perdiz andina sim", () => {
     expect(flightHeight(T * 0.6, T, 2)).toBeGreaterThan(0.6);
     expect(flightHeight(T - 0.001, T, 2)).toBeLessThan(0.1);
     expect(whirr(0.1, T)).toBe(1);
-  });
-  test("model: compact plump bird with painted parts; mirrored wing keeps its size", () => {
-    const p = tinamouParts();
-    p.body.computeBoundingBox();
-    const bb = p.body.boundingBox!;
-    const len = bb.max.z - bb.min.z;
-    expect(len).toBeGreaterThan(0.28);
-    expect(len).toBeLessThan(0.42);
-    expect(bb.max.x - bb.min.x).toBeGreaterThan(0.18);
-    for (const g of [p.body, p.head, p.wing, p.leg]) expect(g.attributes.color).toBeDefined();
-    const l = mirrorX(p.wing);
-    l.computeBoundingBox();
-    expect(l.boundingBox!.min.x).toBeLessThan(-0.25);
   });
 });

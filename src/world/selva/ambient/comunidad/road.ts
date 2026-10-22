@@ -20,26 +20,14 @@
  * one community crowd (one InstancedMesh per body part).
  */
 import * as THREE from "three";
-import { rng } from "../../../ambient/people/models";
-import { damp, type Person } from "../../../ambient/people/person";
-import type { Crowd, Palette } from "../../../ambient/people/rig";
+import type { Npc } from "../../../ambient/people/npc";
+import { damp, rng } from "../../../ambient/people/util";
+import type { HumanCrowd } from "../../../characters/crowd";
+import type { HeldProps } from "../../../characters/props";
+import { BLOUSES, pick, SKIRTS, type Who } from "./dress";
 import { asideOf, atSpanEnd, greeting, isOut, laneOf, partiesFor, respawnT, shouldGiveWay, spanAt } from "./logic";
-import {
-  type AmazonPart,
-  BOY,
-  CUSHMAS,
-  GIRL,
-  MAN,
-  RIBBONS,
-  SHORTS,
-  SKINS,
-  SKIRTS,
-  STRIPES,
-  TEES,
-  WOMAN,
-} from "./models";
 import type { Ctx, Greeter, Group } from "./types";
-import { shoulderPose, strapPose, villager, wavePose } from "./villager";
+import { villager } from "./villager";
 
 interface Party {
   /** Road t of the party, walking direction, the stretch it walks (logic.ts ROAD_SPANS index). */
@@ -51,7 +39,7 @@ interface Party {
 }
 
 interface Walker {
-  p: Person;
+  p: Npc;
   party: Party;
   /** Lane slot (0 inside, 1 beside the partner). */
   k: number;
@@ -68,9 +56,7 @@ const SPEED = 1.15;
 const RECYCLE_EVERY = 4;
 /** Road distance (u) kept between parties brought back into play. */
 const SPACING = 24;
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
-
-export function createWalkers(env: Ctx["env"], crowd: Crowd, n: number): Group {
+export function createWalkers(env: Ctx["env"], crowd: HumanCrowd, props: HeldProps, n: number): Group {
   const R = rng(2626);
   const L = env.selva.layout;
   const trail = L.trail;
@@ -102,38 +88,30 @@ export function createWalkers(env: Ctx["env"], crowd: Crowd, n: number): Group {
               ? "none"
               : "bananas";
       const boy = R() < 0.5;
-      const wear: AmazonPart[] = child ? [...(boy ? BOY : GIRL)] : man ? [...MAN] : [...WOMAN];
-      if (load === "bananas") wear.push("a:bananas");
-      if (load === "basket") wear.push("a:basket");
-      if (role === "man" && load === "none") wear.push("a:crown");
-      const cushma = pick(R, CUSHMAS);
-      const sk = pick(R, SKIRTS);
-      const palette: Palette = child
+      // Men in the cushma (a feather crown on the one walking unladen), women in blouse and kené skirt, young
+      // men in a tee and shorts, children.
+      const who: Who = child
         ? boy
-          ? [pick(R, SKINS), pick(R, SHORTS), pick(R, RIBBONS), pick(R, TEES)]
-          : [pick(R, SKINS), sk[0], sk[1], pick(R, TEES)]
+          ? "boy"
+          : "girl"
         : role === "youth"
-          ? // Young men in a tee and shorts-length cushma colours.
-            [pick(R, SKINS), pick(R, TEES), pick(R, STRIPES), pick(R, SHORTS)]
+          ? "youth"
           : man
-            ? [pick(R, SKINS), cushma, cushma === "#d8cbb0" ? (STRIPES[0] as string) : (STRIPES[2] as string), cushma]
-            : [
-                pick(R, SKINS),
-                sk[0],
-                sk[1],
-                pick(R, RIBBONS) === sk[1] ? "#c2456b" : pick(R, ["#c2456b", "#2a9d8f", "#e07a3a", "#7a3d8f"]),
-              ];
-      const p = villager({
+            ? load === "none"
+              ? "crown"
+              : "man"
+            : "woman";
+      const sk = pick(R, SKIRTS);
+      const p = villager(crowd, {
         kind: child ? "child" : "walker",
-        crowd,
-        idx: crowd.alloc(),
-        wear,
-        palette,
-        scale: child ? 0.6 + R() * 0.06 : man ? 0.96 + R() * 0.06 : 0.92 + R() * 0.05,
-        ...(child ? { headScale: 1.3 } : {}),
+        who,
+        r: R,
+        ...(who === "woman" ? { skirt: sk, top: pick(R, BLOUSES) } : {}),
         radius: child ? 0.26 : 0.34,
         seed: 41 + i * 7.9,
       });
+      if (load === "bananas") p.hold(props, "bananas");
+      if (load === "basket") p.hold(props, "basket-back", pick(R, ["#8a6633", "#c4383f", "#2a9d8f"]));
       const w: Walker = { p, party, k, child, load, yielding: false, wave: 0, greetN: i };
       party.members.push(w);
       walkers.push(w);
@@ -192,22 +170,21 @@ export function createWalkers(env: Ctx["env"], crowd: Crowd, n: number): Group {
     p.y = ground(p.x, p.z);
     p.body.x = p.x;
     p.body.z = p.z;
-    // Pose.
-    p.rest(c.clock, c.rm);
-    p.gait(dt, c.rm, w.load === "none" ? 1 : 0.5);
-    if (w.load === "bananas") shoulderPose(p);
-    if (w.load === "basket") {
-      strapPose(p);
-      p.bones.torso.rotation.x += 0.12;
-    }
+    // Pose: the walk follows the speed; a banana bunch steadied on the shoulder, hands on the basket's straps
+    // (leaning into the load), a wave when greeted, a nod while waiting at the edge.
+    const a = p.anim;
     if (w.wave > 0) {
       w.wave -= dt;
-      wavePose(p, c.clock, c.rm);
-    } else if (w.yielding && p.speed < 0.3 && !c.rm) {
-      // A small nod while waiting.
-      p.bones.head.rotation.x = Math.max(0, Math.sin(c.clock * 2 + p.seed)) * 0.25;
-    }
-    p.commit();
+      a.act("wave", { side: w.load === "bananas" ? -1 : 1 });
+    } else if (w.load === "bananas") a.act("carry-shoulder", { side: 1 });
+    else if (w.load === "basket") a.act("carry-back");
+    else if (w.yielding && p.speed < 0.3) {
+      // A small bow once, then they wait with hands clasped.
+      if (w.child) a.act("hands-back");
+      else if (a.action !== "greet" && a.action !== "hands-clasp") a.act("greet", { next: "hands-clasp" });
+    } else a.act("none");
+    p.lookRange = w.yielding ? 7 : 4;
+    p.commit(c);
   };
 
   /** Moves a party's road t on (the party walks at SPEED unless paused, or held up by a member giving way). */

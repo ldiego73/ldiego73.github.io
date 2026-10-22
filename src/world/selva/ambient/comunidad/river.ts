@@ -11,15 +11,28 @@
  * bumps off them; the peque-peque also slows and stops when the traveler's canoe is near. By day only.
  */
 import * as THREE from "three";
-import type { Person } from "../../../ambient/people/person";
-import type { Crowd } from "../../../ambient/people/rig";
+import type { Npc } from "../../../ambient/people/npc";
+import { rng } from "../../../ambient/people/util";
+import type { HumanCrowd } from "../../../characters/crowd";
+import type { HeldProps } from "../../../characters/props";
 import { type Body, creatures } from "../../../creatures";
 import { buildRoute, type Route, routeAt, yawOf } from "../canoe/logic";
 import { barF, type Ripples, sandbars } from "../wild/kit";
+import { CUSHMAS, RIBBONS, SHORTS, SKINS, SKIRTS, TEES } from "./dress";
 import { castAt, isOut, netShape, riverLane } from "./logic";
-import { CUSHMAS, fishingCanoe, MAN, netMesh, pequePeque, RIBBONS, SKINS, SKIRTS, STRIPES, WOMAN } from "./models";
+import { fishingCanoe, netMesh, pequePeque } from "./models";
 import type { Ctx, Group } from "./types";
 import { villager } from "./villager";
+
+type Person = Npc;
+/**
+ * The fisherman's seed (the per-person time offset of his poses): the "fish-cast" action's cycle runs at 0.22 Hz
+ * with its swing from phase 0.4, so with (seed × 0.22) mod 1 = 0.4 a cast restarted when the world's swing
+ * starts (logic.ts CAST) swings the arms just as the net flies.
+ */
+const FISHER_SEED = 13.4 / 0.22;
+/** Seat heights in the boats (feet origin on the hull floor, river level + this). */
+const FLOOR = 0.02;
 
 /**
  * The far-half lane, cut to the road's t range [t0, t1] (the river extends past both trailheads), clear of
@@ -186,7 +199,8 @@ function seat(p: Person, boat: Boat, lx: number, lz: number, y: number, face: nu
 
 export function createRiver(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
+  props: HeldProps,
   staticMat: THREE.Material,
   route: Route,
   ripples: Ripples,
@@ -196,6 +210,7 @@ export function createRiver(
   const level = L.river.level;
   const groupCenter = new THREE.Vector3();
   const pose = { x: 0, z: 0, tx: 1, tz: 0 };
+  const R = rng(5309);
 
   // ------------------------------------------------------------ fisherman
   let fisher: {
@@ -222,27 +237,28 @@ export function createRiver(
       cx = -cx;
       cz = -cz;
     }
-    const man = villager({
+    const man = villager(crowd, {
       kind: "boatman",
-      crowd,
-      idx: crowd.alloc(),
-      wear: MAN,
-      palette: [SKINS[0] as string, CUSHMAS[3] as string, STRIPES[0] as string, CUSHMAS[3] as string],
-      scale: 0.97,
+      who: "man",
+      r: R,
+      skin: SKINS[0] as string,
+      cushma: CUSHMAS[3] as string,
       radius: 0.35,
-      seed: 61,
+      seed: FISHER_SEED,
     });
-    const mate = villager({
+    man.lookRange = 0;
+    // His son at the stern, in a tee and shorts, holding the canoe with the paddle.
+    const mate = villager(crowd, {
       kind: "boatman",
-      crowd,
-      idx: crowd.alloc(),
-      wear: ["a:leg", "a:arm", "a:top", "a:shorts", "a:head-m", "a:paddle"],
-      palette: [SKINS[3] as string, "#3b3330", "#e8e2d4", "#2f6fb5"],
-      scale: 0.8,
-      headScale: 1.1,
+      who: "boy",
+      r: R,
+      skin: SKINS[3] as string,
+      top: TEES[2] as string,
+      shorts: SHORTS[1] as string,
       radius: 0.35,
       seed: 67,
     });
+    mate.hold(props, "paddle");
     const net = netMesh();
     env.noOutline(net);
     net.visible = false;
@@ -273,24 +289,22 @@ export function createRiver(
   } | null = null;
   if (o.boat) {
     const boat = new Boat(env, pequePeque(), staticMat, "comunidad:peque-peque", 2.4, 1.0);
-    const driver = villager({
+    const driver = villager(crowd, {
       kind: "boatman",
-      crowd,
-      idx: crowd.alloc(),
-      wear: [...MAN],
-      palette: [SKINS[5] as string, CUSHMAS[4] as string, STRIPES[2] as string, CUSHMAS[4] as string],
-      scale: 0.96,
+      who: "man",
+      r: R,
+      skin: SKINS[5] as string,
+      cushma: CUSHMAS[4] as string,
       radius: 0.35,
       seed: 71,
     });
-    const sk = SKIRTS[3] as readonly [string, string];
-    const rider = villager({
+    const rider = villager(crowd, {
       kind: "boatman",
-      crowd,
-      idx: crowd.alloc(),
-      wear: WOMAN,
-      palette: [SKINS[1] as string, sk[0], sk[1], RIBBONS[2] as string],
-      scale: 0.92,
+      who: "woman",
+      r: R,
+      skin: SKINS[1] as string,
+      skirt: SKIRTS[3] as readonly [string, string],
+      top: RIBBONS[2] as string,
       radius: 0.35,
       seed: 73,
     });
@@ -335,58 +349,20 @@ export function createRiver(
     }
     f.lastStage = stage;
     // Fisherman at the bow, turned to the cast; the mate at the stern.
-    seat(f.man, f.boat, 0, 1.1, level + bob + 0.05, 0);
+    seat(f.man, f.boat, 0, 1.1, level + bob + FLOOR, 0);
     f.man.yaw = f.castYaw;
-    const b = f.man.bones;
-    f.man.rest(c.clock, c.rm);
-    switch (stage) {
-      case "coil":
-        b.armL.rotation.set(-0.9, 0, 0.3);
-        b.armR.rotation.set(-1.1 + (c.rm ? 0 : Math.sin(u * 18) * 0.15), 0, -0.2);
-        b.torso.rotation.y = -0.4 * u;
-        b.head.rotation.x = 0.2;
-        break;
-      case "swing":
-        b.torso.rotation.y = -0.6 + 1.2 * u;
-        b.armL.rotation.set(-1.0 - 0.8 * u, 0, 0.5);
-        b.armR.rotation.set(-1.0 - 0.8 * u, 0, -0.5);
-        b.legL.rotation.x = 0.2;
-        b.legR.rotation.x = -0.25;
-        break;
-      case "fly":
-        b.armL.rotation.set(-1.9, 0, 0.7);
-        b.armR.rotation.set(-1.9, 0, -0.7);
-        b.torso.rotation.x = 0.25;
-        b.legL.rotation.x = 0.2;
-        b.legR.rotation.x = -0.25;
-        break;
-      case "sink":
-        b.armR.rotation.set(-0.7, 0, -0.1);
-        b.torso.rotation.x = 0.1;
-        break;
-      case "haul": {
-        const k = c.rm ? 0 : Math.sin(u * Math.PI * 7);
-        b.armL.rotation.set(-1.2 + k * 0.5, 0, 0.2);
-        b.armR.rotation.set(-1.2 - k * 0.5, 0, -0.2);
-        b.torso.rotation.x = 0.18;
-        break;
-      }
-      default:
-        b.armR.rotation.set(-0.4, 0, -0.15);
-    }
-    f.man.commit();
-    // The mate holds the canoe steady: small paddle strokes.
-    seat(f.mate, f.boat, 0, -1.45, level + bob + 0.1, 0);
+    // The cast: the net held in both hands while he coils it, the throw restarted with the world's swing (so
+    // the arms swing as the net flies, see FISHER_SEED), drawing the line in while it sinks and is hauled.
+    const fa = f.man.anim;
+    if (stage === "swing" && fa.action !== "fish-cast") fa.act("fish-cast", { fade: 0.15, restart: true });
+    else if (stage === "coil") fa.act("hands-clasp", { fade: 0.4 });
+    else if (stage === "rest") fa.act("hands-hips", { fade: 0.5 });
+    f.man.commit(c);
+    // The mate holds the canoe steady with small paddle strokes, sitting at the stern.
+    seat(f.mate, f.boat, 0, -1.45, level + bob + FLOOR, 0);
     f.mate.yaw = f.boat.yaw + Math.PI / 2;
-    const m = f.mate.bones;
-    f.mate.rest(c.clock, c.rm);
-    f.mate.sit(c.clock, c.rm, 0.15);
-    const st = c.rm ? 0 : Math.sin(c.clock * 1.4);
-    m.armL.rotation.set(-1.0 + st * 0.3, 0, 0.3);
-    m.armR.rotation.set(-1.3 + st * 0.3, 0, -0.1);
-    m.tool.position.set(-0.25, 0.85, 0.35);
-    m.tool.rotation.set(0.35 + st * 0.35, 0, -0.25);
-    f.mate.commit();
+    f.mate.anim.act("paddle");
+    f.mate.commit(c);
     // The net: from the fisherman's hands to the landing spot.
     const sh = netShape(stage, u);
     const hx = f.man.x + Math.sin(f.castYaw) * 0.45;
@@ -453,16 +429,15 @@ export function createRiver(
       m.driver.setActive(true);
       m.rider.setActive(true);
     }
-    // Driver at the stern, hand on the tiller; passenger under the shade.
-    seat(m.driver, m.boat, 0, -2.6, level + bob + 0.12, 0);
-    m.driver.rest(c.clock, c.rm);
-    m.driver.sit(c.clock, true, 0.1);
-    m.driver.bones.armR.rotation.set(-0.9, 0, -0.2);
-    m.driver.commit();
-    seat(m.rider, m.boat, 0.1, -0.4, level + bob + 0.12, Math.PI / 2);
-    m.rider.rest(c.clock, c.rm);
-    m.rider.sit(c.clock, c.rm, 0.05);
-    m.rider.commit();
+    // Driver at the stern by the tiller; passenger under the shade, sitting across the hull.
+    seat(m.driver, m.boat, 0, -2.6, level + bob + FLOOR, 0);
+    m.driver.anim.act("sit-bench", { seat: 0.3 });
+    // One hand back on the motor's tiller.
+    m.driver.anim.actArms("hold-front", { side: 1 });
+    m.driver.commit(c);
+    seat(m.rider, m.boat, 0.1, -0.4, level + bob + FLOOR, Math.PI / 2);
+    m.rider.anim.act("sit-bench", { seat: 0.3 });
+    m.rider.commit(c);
     // Wake.
     m.wake -= c.dt;
     if (m.speed > 1 && m.wake <= 0 && !c.rm) {

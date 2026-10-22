@@ -10,21 +10,21 @@
  * gallop for the nearest side of the road and is gone. With reduced motion they trot slower, never stop to
  * root, and scatter at a canter instead of a gallop.
  *
- * Rendering: one rig InstancedMesh (wild/rig.ts, trot gait) → 1 draw call while a herd is out, 0 otherwise.
+ * Rendering: the shared animal core (species "sajino", wild/beasts.ts): one instanced herd, its gaits from
+ * the speed (walk, trot, a gallop when they bolt), this year's young drawn smaller; a stop to root plays
+ * "graze". 1 draw per LOD in use while a herd is out, 0 otherwise.
  * Bodies ("sajino"): solid while out (give 0.5), parked while away.
  * Stamp `selva:fauna:sajino` after a ~1.5 s good look within 30 u while one is on the road.
  */
-import * as THREE from "three";
 import { loadPassport } from "../../../lib/passport";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, park } from "../../creatures";
 import { on } from "../../events";
 import { CANOPY_T, SELVA_STATIONS } from "../contract";
-import { peccaryModel } from "./wild/critters";
+import { createBeasts } from "./wild/beasts";
 import { type Crossing, crossingPlan, RoadTracker, SpeedMeter, Trail } from "./wild/crossing";
-import { devHook, FAUNA_FAR, faunaDt, idle, ramp, rootMatrix, Spotter, selvaOf } from "./wild/kit";
+import { devHook, FAUNA_FAR, faunaDt, idle, Spotter, selvaOf } from "./wild/kit";
 import { damp, dayAmount, rng, turnToward, wrapAngle } from "./wild/logic";
-import { RigSet } from "./wild/rig";
 
 type HerdState = "away" | "file" | "bolt";
 
@@ -34,10 +34,10 @@ interface Pig {
   z: number;
   yaw: number;
   speed: number;
-  phase: number;
-  headYaw: number;
-  headPitch: number;
+  /** Set once it has stopped to root (the "graze" idle plays once per stop). */
+  rooted: boolean;
   scale: number;
+  headYaw: number;
   /** Bolt target (the nearest forest edge) and whether it is gone from view. */
   tx: number;
   tz: number;
@@ -57,11 +57,8 @@ export const create: CreateAmbient = (env0): Ambient => {
   const rm = env.reducedMotion;
   const R = rng(8807);
   const n = high ? 7 : 4;
-  const model = peccaryModel();
-  const set = new RigSet("selva-fauna-sajino-body", model.geo, model.spec, n, ramp(env), { shadow: high });
-  const root = new THREE.Group();
-  root.name = "selva-fauna-sajino";
-  root.add(set.mesh);
+  const set = createBeasts(env, "sajino", n);
+  const root = set.group;
   env.scene.add(root);
 
   const pigs: Pig[] = [];
@@ -74,11 +71,10 @@ export const create: CreateAmbient = (env0): Ambient => {
       z: 0,
       yaw: 0,
       speed: 0,
-      phase: R(),
-      headYaw: 0,
-      headPitch: 0.3,
+      rooted: false,
       // The last ones are this year's young, smaller.
       scale: i >= n - (high ? 2 : 1) ? 0.78 + R() * 0.06 : 1.05 + R() * 0.1,
+      headYaw: 0,
       tx: 0,
       tz: 0,
       gone: false,
@@ -110,7 +106,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   const meter = new SpeedMeter();
   const road = new RoadTracker();
   const trail = new Trail(0.2, GAP * n + 6);
-  const m4 = new THREE.Matrix4();
   const want = { x: 0, z: 0 };
   const at = { x: 0, z: 0, yaw: 0 };
   let state: HerdState = "away";
@@ -286,9 +281,10 @@ export const create: CreateAmbient = (env0): Ambient => {
       }
 
       // ---- pose and draw
-      let k = 0;
+      set.begin();
       if (state !== "away") {
-        for (const p of pigs) {
+        for (let i = 0; i < pigs.length; i++) {
+          const p = pigs[i] as Pig;
           if (p.gone) continue;
           p.y = damp(p.y, env.selva.groundAt(p.x, p.z), 12, dt);
           p.body.x = p.x;
@@ -298,29 +294,34 @@ export const create: CreateAmbient = (env0): Ambient => {
             p.z = p.body.z;
           }
           const d = Math.hypot(p.x - avatar.x, p.z - avatar.z);
-          p.phase = (p.phase + (p.speed * dt) / (0.75 * p.scale)) % 1;
-          const swing = Math.min(0.7, p.speed * 0.32);
-          // Snuffling: head low and nodding at the trot, down to the ground while stopped; a glance at a
-          // traveler within 14 u; up and forward at the gallop.
-          const still = p.speed < 0.2;
-          let pitchT = state === "bolt" ? 0.05 : still ? 0.75 : 0.35;
-          const nod = state === "bolt" ? 0 : Math.sin(clock * (still ? 9 : 5) + p.phase * 11) * (still ? 0.12 : 0.08);
+          // A glance at a traveler within 14 u while filing across; rooting at the verge while stopped.
           let yawT = 0;
-          if (state === "file" && d < 14) {
+          if (state === "file" && d < 14)
             yawT = Math.max(-0.9, Math.min(0.9, wrapAngle(Math.atan2(avatar.x - p.x, avatar.z - p.z) - p.yaw)));
-            pitchT = 0.1;
-          }
           p.headYaw = damp(p.headYaw, yawT, 3, dt);
-          p.headPitch = damp(p.headPitch, pitchT, 4, dt);
-          if (spot.view.dist(p.x, p.y, p.z) > FAUNA_FAR) continue;
-          const bob = Math.abs(Math.sin(p.phase * Math.PI * 2)) * Math.min(0.04, p.speed * 0.01);
-          rootMatrix(m4, p.x, p.y + bob, p.z, p.yaw, 0, 0, p.scale);
-          set.set(k++, m4, p.phase, swing, p.headYaw, p.headPitch + nod * (rm ? 0.4 : 1), Math.sin(clock * 6) * 0.3);
+          const still = p.speed < 0.2;
+          if (still && state === "file" && !rm && !p.rooted) {
+            set.play(i, "graze", 1.2 + R() * 0.8);
+            p.rooted = true;
+          } else if (!still) p.rooted = false;
+          if (inside || spot.view.dist(p.x, p.y, p.z) > FAUNA_FAR) continue;
+          set.put(
+            i,
+            p.x,
+            p.y,
+            p.z,
+            p.yaw,
+            {
+              speed: p.speed,
+              rm,
+              look: state === "file" && d < 14 ? p.headYaw : undefined,
+            },
+            { scale: p.scale },
+          );
           if (L.trailQuery(p.x, p.z).d < 5) spot.see(p.x, p.y + 0.4, p.z, avatar.x, avatar.z, 0.7);
         }
       }
-      set.rim.value = (1 - dayAmount(time)) * 0.7;
-      set.commit(inside ? 0 : k);
+      set.end(dt, clock, env.camera);
       spot.end(dt);
     },
     dispose() {

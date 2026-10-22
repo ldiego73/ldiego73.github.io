@@ -1,146 +1,92 @@
 /**
- * Instanced quadruped renderer shared by puma.ts and fox.ts. One InstancedMesh per part type (body,
- * head, upper legs, lower legs, tail segments, eyes): ~6 draw calls per species regardless of count.
- *
- * Material: a vertex-colored toon material (same 3-step ramp as env.toon) with a moonlit rim term and a
- * small night lift, so a tawny cat on a ledge still reads as a silhouette against the night sky. Eyes
- * are unlit and turn into a pale eyeshine glint at night when the head faces the camera.
+ * The night carnivores' renderer, shared by puma.ts and fox.ts: the shared animals (characters/animals) as one
+ * herd per species (one skinned InstancedMesh per LOD, built off the main thread), driven by the ambients' own
+ * sims through the animal state (speed, sit / sleep, head turn), plus the eyeshine: two additive glints per
+ * animal (one Points draw for the pool) that light up at night when the head faces the camera.
+ * Every animal owns a creatures Body, solid only while it is drawn.
  */
 import * as THREE from "three";
+import { createHerd, type Herd } from "../../characters/animals/crowd";
 import type { WorldEnv } from "../../contract";
 import { type Body, creatures, park } from "../../creatures";
-import { paintStrength } from "../../style-gl";
-import { gradientMap } from "../../toon";
-import type { QuadParts, QuadRig } from "./models";
-import { P, type Pose } from "./sim";
+import { noPaint } from "../../style-gl";
 
-export interface RimMaterial {
-  material: THREE.MeshToonMaterial;
-  /** 0..1 rim strength (drive with the night amount). */
-  rim: { value: number };
-  dispose(): void;
-}
-
-/** Vertex-colored toon with a fresnel rim (cool moonlight) that fog still dims with distance. */
-export function rimToon(rimColor: THREE.ColorRepresentation = "#9fb4ff"): RimMaterial {
-  const material = new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: gradientMap() });
-  const rim = { value: 0 };
-  const color = { value: new THREE.Color(rimColor) };
-  material.onBeforeCompile = (sh) => {
-    sh.uniforms.uRim = rim;
-    sh.uniforms.uRimColor = color;
-    sh.fragmentShader = `uniform float uRim;\nuniform vec3 uRimColor;\n${sh.fragmentShader}`.replace(
-      "#include <opaque_fragment>",
-      `#include <opaque_fragment>
-      {
-        float fr = 1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
-        float up = 0.55 + 0.45 * clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
-        gl_FragColor.rgb += uRimColor * uRim * (pow(fr, 2.5) * 0.75 * up + 0.035) * (0.3 + diffuseColor.rgb);
-      }`,
-    );
-  };
-  material.customProgramCacheKey = () => "nightfauna-rim";
-  // Animals move: no world-space painted blotches on them (style-gl.ts).
-  paintStrength(material, 0);
-  return { material, rim, dispose: () => material.dispose() };
-}
-
-const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
-const _e = new THREE.Euler();
-const _q = new THREE.Quaternion();
-const _v = new THREE.Vector3();
-const _s = new THREE.Vector3();
-const _l = new THREE.Matrix4();
-const _root = new THREE.Matrix4();
-const _body = new THREE.Matrix4();
-const _head = new THREE.Matrix4();
-const _up = new THREE.Matrix4();
-const _low = new THREE.Matrix4();
-const _tail = new THREE.Matrix4();
-const _draw = new THREE.Matrix4();
-const _sc = new THREE.Matrix4();
-const _p = new THREE.Vector3();
-const _white = new THREE.Color("#ffffff");
-
-/** out = parent × T(p) × R(pitch, yaw, roll) (YXZ). */
-function child(
-  out: THREE.Matrix4,
-  parent: THREE.Matrix4,
-  px: number,
-  py: number,
-  pz: number,
-  pitch: number,
-  yaw = 0,
-  roll = 0,
-) {
-  _l.makeRotationFromEuler(_e.set(pitch, yaw, roll, "YXZ"));
-  _l.setPosition(px, py, pz);
-  return out.multiplyMatrices(parent, _l);
-}
-
-/** Everything that changes per frame for one animal. */
+/** Everything that changes per frame for one animal (the owner's sim writes it, `draw` reads it). */
 export interface QuadState {
   x: number;
   y: number;
   z: number;
   yaw: number;
-  /** Ground slope under the body (pitch, positive = nose down). */
+  /** Ground slope under the body (pitch, positive = nose down): steadies the gait on slopes. */
   slope: number;
-  pose: Pose;
+  /** Ground speed (units/s): the species' gait follows it. */
+  speed: number;
+  /** Sitting (a lookout), lying curled (asleep), or standing / moving. */
+  mode: "auto" | "sit" | "sleep";
   headYaw: number;
-  tailYaw: number;
-  /** Breathing / idle scale wobble (0 = none). */
-  breathe: number;
   /** 0..1 eyeshine. */
   glint: number;
-  /** 0..1 extra eye size so a far glint still reads (keep 0 up close). */
+  /** 0..1 extra glint size so a far glint still reads (keep 0 up close). */
   eyeBoost: number;
   /** Collision body (set by the owner from QuadSet.bodies): walkToward steers it around others. */
   body?: Body;
 }
 
-export function makeQuadState(pose: Pose): QuadState {
-  return { x: 0, y: -999, z: 0, yaw: 0, slope: 0, pose, headYaw: 0, tailYaw: 0, breathe: 0, glint: 0, eyeBoost: 0 };
+export function makeQuadState(): QuadState {
+  return { x: 0, y: -999, z: 0, yaw: 0, slope: 0, speed: 0, mode: "auto", headYaw: 0, glint: 0, eyeBoost: 0 };
+}
+
+const glintTex = (() => {
+  let t: THREE.CanvasTexture | null = null;
+  return () => {
+    if (t) return t;
+    const c = document.createElement("canvas");
+    c.width = c.height = 32;
+    const ctx = c.getContext("2d") as CanvasRenderingContext2D;
+    const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.35, "rgba(255,255,255,0.6)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 32, 32);
+    t = new THREE.CanvasTexture(c);
+    return t;
+  };
+})();
+
+export interface QuadSetOptions {
+  shadow: boolean;
+  /** Eyeshine colour. */
+  eyeGlow: THREE.ColorRepresentation;
+  /** Eyes in the animal's frame when standing: height and distance ahead of its feet, half the eye gap. */
+  eyes: { y: number; z: number; gap: number };
+  /** Collision body: creatures kind, radius, give (see creatures.ts) and the ground it may be pushed onto. */
+  body: { kind: string; r: number; give: number; ok?: (x: number, z: number) => boolean };
 }
 
 export class QuadSet {
   readonly group = new THREE.Group();
-  readonly body: THREE.InstancedMesh;
-  readonly head: THREE.InstancedMesh;
-  readonly upper: THREE.InstancedMesh;
-  readonly lower: THREE.InstancedMesh;
-  readonly tail: THREE.InstancedMesh;
-  readonly eyes: THREE.InstancedMesh;
-  readonly rig: QuadRig;
-  private readonly meshes: THREE.InstancedMesh[];
-  private readonly nTail: number;
-  private readonly eyeMat: THREE.MeshBasicMaterial;
-  private readonly eyeDark = new THREE.Color();
-  private readonly eyeGlow = new THREE.Color();
-  private readonly eyeTmp = new THREE.Color();
-  /** World position of each animal's head (for facing tests), updated by draw(). */
+  readonly herd: Herd;
+  /** World position and forward of each animal's head (facing tests), updated by draw(). */
   readonly headPos: THREE.Vector3[];
   readonly headFwd: THREE.Vector3[];
   /** One collision body per animal (solid only while drawn). */
   readonly bodies: Body[];
+  private readonly ids: number[];
   private readonly okGround?: (x: number, z: number) => boolean;
+  private readonly glints: THREE.Points;
+  private readonly gPos: Float32Array;
+  private readonly gCol: Float32Array;
+  private readonly glow = new THREE.Color();
+  private readonly eyes: QuadSetOptions["eyes"];
+  private readonly pose = { pitch: 0 };
 
   constructor(
     env: WorldEnv,
-    readonly parts: QuadParts,
+    key: "puma" | "fox",
     readonly count: number,
     name: string,
-    material: THREE.Material,
-    readonly scale: number,
-    opts: {
-      tailTip: THREE.ColorRepresentation;
-      tipFrom: number;
-      eyeDark: string;
-      eyeGlow: string;
-      shadow: boolean;
-      /** Collision body: creatures kind, radius, give (see creatures.ts) and the ground it may be pushed onto. */
-      body: { kind: string; r: number; give: number; ok?: (x: number, z: number) => boolean };
-    },
+    opts: QuadSetOptions,
   ) {
     this.bodies = Array.from({ length: count }, () => {
       const b = creatures.add(opts.body.kind, opts.body.r, { solid: false, give: opts.body.give });
@@ -148,63 +94,50 @@ export class QuadSet {
       return b;
     });
     this.okGround = opts.body.ok;
-    this.rig = parts.rig;
-    this.nTail = parts.rig.tailTaper.length;
+    this.eyes = opts.eyes;
     this.group.name = name;
-    const mk = (geo: THREE.BufferGeometry, n: number, part: string, mat: THREE.Material = material) => {
-      const m = new THREE.InstancedMesh(geo, mat, n);
-      m.name = `${name}-${part}`;
-      m.frustumCulled = false;
-      m.castShadow = opts.shadow && part !== "eyes";
-      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      for (let i = 0; i < n; i++) {
-        m.setMatrixAt(i, ZERO);
-        // Every part carries instance colors (white unless tinted) so they all share one program variant.
-        m.setColorAt(i, _white);
-      }
-      this.group.add(m);
-      return m;
-    };
-    this.body = mk(parts.body, count, "body");
-    this.head = mk(parts.head, count, "head");
-    this.upper = mk(parts.upper, count * 4, "upper");
-    this.lower = mk(parts.lower, count * 4, "lower");
-    this.tail = mk(parts.tail, count * this.nTail, "tail");
-    for (let i = 0; i < count; i++)
-      for (let s = 0; s < this.nTail; s++) {
-        // Dark tip: blend toward the tip color over the last segments.
-        const k = s >= opts.tipFrom ? Math.min(1, (s - opts.tipFrom + 1) / (this.nTail - opts.tipFrom)) : 0;
-        this.eyeTmp.copy(_white).lerp(new THREE.Color(opts.tailTip), k);
-        this.tail.setColorAt(i * this.nTail + s, this.eyeTmp);
-      }
-    if (this.tail.instanceColor) this.tail.instanceColor.needsUpdate = true;
-    this.eyeMat = new THREE.MeshBasicMaterial({ color: "#ffffff" });
-    this.eyeDark.set(opts.eyeDark);
-    this.eyeGlow.set(opts.eyeGlow);
-    this.eyes = mk(parts.eye, count * 2, "eyes", this.eyeMat);
-    for (let i = 0; i < count * 2; i++) this.eyes.setColorAt(i, this.eyeDark);
-    env.noOutline(this.eyes);
-    this.meshes = [this.body, this.head, this.upper, this.lower, this.tail, this.eyes];
+    this.herd = createHerd(key, { max: count, shadows: opts.shadow });
+    // Animals move: no world-space painted blotches sliding over them (style-gl.ts).
+    this.herd.group.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) noPaint(o as THREE.Mesh);
+    });
+    this.group.add(this.herd.group);
+    this.ids = Array.from({ length: count }, (_, i) => this.herd.add({ seed: 17 + i * 13 }));
     this.headPos = Array.from({ length: count }, () => new THREE.Vector3());
     this.headFwd = Array.from({ length: count }, () => new THREE.Vector3());
+    // Eyeshine: two soft additive points per animal (unlit, no ink), dark until the night lights them.
+    this.glow.set(opts.eyeGlow);
+    this.gPos = new Float32Array(count * 6);
+    this.gCol = new Float32Array(count * 6);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(this.gPos, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute("color", new THREE.BufferAttribute(this.gCol, 3).setUsage(THREE.DynamicDrawUsage));
+    this.glints = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({
+        map: glintTex(),
+        size: 0.13,
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    this.glints.name = `${name}-eyeshine`;
+    this.glints.frustumCulled = false;
+    env.noOutline(this.glints);
+    this.group.add(this.glints);
     env.scene.add(this.group);
   }
 
   hide(i: number) {
     const b = this.bodies[i];
     if (b) park(b);
-    this.body.setMatrixAt(i, ZERO);
-    this.head.setMatrixAt(i, ZERO);
-    for (let k = 0; k < 4; k++) {
-      this.upper.setMatrixAt(i * 4 + k, ZERO);
-      this.lower.setMatrixAt(i * 4 + k, ZERO);
-    }
-    for (let s = 0; s < this.nTail; s++) this.tail.setMatrixAt(i * this.nTail + s, ZERO);
-    this.eyes.setMatrixAt(i * 2, ZERO);
-    this.eyes.setMatrixAt(i * 2 + 1, ZERO);
+    this.herd.hide(this.ids[i] as number);
+    this.gCol.fill(0, i * 6, i * 6 + 6);
   }
 
-  draw(i: number, st: QuadState) {
+  draw(i: number, st: QuadState, rm: boolean) {
     // A solid body while on show: eased out of any overlap (a few cm per frame, never into water).
     const body = this.bodies[i];
     if (body) {
@@ -216,73 +149,60 @@ export class QuadSet {
         st.z = body.z;
       }
     }
-    const r = this.rig;
-    const p = st.pose;
-    const S = this.scale;
-    _q.setFromEuler(_e.set(st.slope, st.yaw, 0, "YXZ"));
-    _root.compose(_v.set(st.x, st.y, st.z), _q, _s.set(S, S, S));
-    child(_body, _root, 0, r.bodyY - p[P.drop]!, 0, p[P.pitch]!);
-    const b = 1 + st.breathe;
-    _draw.copy(_body).multiply(_sc.makeScale(1 + (b - 1) * 0.6, b, 1));
-    this.body.setMatrixAt(i, _draw);
-
-    // Head: lifted on the neck, yaw (look) then pitch.
-    child(_head, _body, r.neck.x, r.neck.y + p[P.headLift]!, r.neck.z, p[P.headPitch]!, st.headYaw);
-    this.head.setMatrixAt(i, _head);
-    this.headPos[i]!.setFromMatrixPosition(_head);
-    this.headFwd[i]!.set(_head.elements[8], _head.elements[9], _head.elements[10]).normalize();
-
-    // Legs: FL, FR, HL, HR.
-    for (let k = 0; k < 4; k++) {
-      const hind = k >= 2;
-      const side = k % 2 === 0 ? 1 : -1;
-      const j = hind ? r.hip : r.shoulder;
-      const lu = hind ? r.upperH : r.upperF;
-      const ll = hind ? r.lowerH : r.lowerF;
-      child(_up, _body, side * j.x, j.y, j.z, p[P.legs + k * 2]!);
-      _draw.copy(_up).multiply(_sc.makeScale(hind ? 1.12 : 1, lu / r.upperGeo, hind ? 1.12 : 1));
-      this.upper.setMatrixAt(i * 4 + k, _draw);
-      child(_low, _up, 0, -lu, 0, p[P.legs + k * 2 + 1]!);
-      _draw.copy(_low).multiply(_sc.makeScale(1, ll / r.lowerGeo, 1));
-      this.lower.setMatrixAt(i * 4 + k, _draw);
-    }
-
-    // Tail: a chain hanging from the rump; each joint adds curl, the sway fades toward the tip.
-    child(_tail, _body, r.tailBase.x, r.tailBase.y, r.tailBase.z, p[P.tailPitch]!, st.tailYaw);
-    for (let s = 0; s < this.nTail; s++) {
-      const t = r.tailTaper[s]!;
-      _draw.copy(_tail).multiply(_sc.makeScale(t, t, 1));
-      this.tail.setMatrixAt(i * this.nTail + s, _draw);
-      child(_tail, _tail, 0, 0, -r.tailSeg, p[P.tailCurl]! * (0.6 + s * 0.15), st.tailYaw * 0.35);
-    }
-
-    // Eyes: a touch larger when shining so the glint survives distance.
-    const er = r.eyeR * (1 + st.eyeBoost * 1.2);
-    this.eyeTmp.copy(this.eyeDark).lerp(this.eyeGlow, st.glint);
-    for (let e = 0; e < 2; e++) {
-      _p.set((e === 0 ? 1 : -1) * r.eye.x, r.eye.y, r.eye.z);
-      _draw
-        .copy(_head)
-        .multiply(_l.makeTranslation(_p.x, _p.y, _p.z))
-        .multiply(_sc.makeScale(er, er, er * 0.7));
-      this.eyes.setMatrixAt(i * 2 + e, _draw);
-      this.eyes.setColorAt(i * 2 + e, this.eyeTmp);
+    // Pitched to the ground's slope (eased by `settle`), so a cat on a ledge lies along it.
+    this.pose.pitch = st.slope;
+    this.herd.set(
+      this.ids[i] as number,
+      st.x,
+      st.y,
+      st.z,
+      st.yaw,
+      { speed: st.speed, mode: st.mode, look: st.headYaw, rm },
+      this.pose,
+    );
+    // Head and eyes (approximate: the standing head, a little lower when lying, turned by the look).
+    const e = this.eyes;
+    const low = st.mode === "sleep" ? 0.45 : st.mode === "sit" ? 1.05 : 1;
+    const a = st.yaw + st.headYaw * 0.8;
+    const fx = Math.sin(a);
+    const fz = Math.cos(a);
+    const hx = st.x + Math.sin(st.yaw) * e.z;
+    const hz = st.z + Math.cos(st.yaw) * e.z;
+    const hy = st.y + e.y * low;
+    this.headPos[i]?.set(hx, hy, hz);
+    this.headFwd[i]?.set(fx, -Math.sin(st.slope) * 0.3, fz).normalize();
+    const k = st.mode === "sleep" ? 0 : st.glint * (1 + st.eyeBoost * 0.8);
+    for (let s = 0; s < 2; s++) {
+      const side = s === 0 ? 1 : -1;
+      const o = i * 6 + s * 3;
+      this.gPos[o] = hx + fx * 0.06 + fz * e.gap * side;
+      this.gPos[o + 1] = hy;
+      this.gPos[o + 2] = hz + fz * 0.06 - fx * e.gap * side;
+      this.gCol[o] = this.glow.r * k;
+      this.gCol[o + 1] = this.glow.g * k;
+      this.gCol[o + 2] = this.glow.b * k;
     }
   }
 
-  flush() {
-    for (const m of this.meshes) m.instanceMatrix.needsUpdate = true;
-    if (this.eyes.instanceColor) this.eyes.instanceColor.needsUpdate = true;
+  /** A one-shot idle on animal `i` (a fox sniffing the ground: "graze"). */
+  play(i: number, a: Parameters<Herd["play"]>[1], seconds?: number) {
+    this.herd.play(this.ids[i] as number, a, seconds);
+  }
+
+  /** Pose and upload (call once per frame after every draw / hide). */
+  flush(dt: number, t: number, camera: THREE.Camera) {
+    this.herd.update(dt, t, camera);
+    const g = this.glints.geometry;
+    (g.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
+    (g.getAttribute("color") as THREE.BufferAttribute).needsUpdate = true;
   }
 
   dispose(scene: THREE.Scene) {
     for (const b of this.bodies) creatures.remove(b);
     scene.remove(this.group);
-    for (const m of this.meshes) {
-      m.geometry.dispose();
-      m.dispose();
-    }
-    this.eyeMat.dispose();
+    this.herd.dispose();
+    this.glints.geometry.dispose();
+    (this.glints.material as THREE.Material).dispose();
   }
 }
 

@@ -18,7 +18,8 @@
  * (../../travel.ts) and back to the site.
  *
  * Draw calls: the platform, frame, poles and banners (one vertex-coloured mesh), the ring (one, glowing), the
- * burst (one instanced, only during it), the flock (one instanced, only during it), braziers' glows at night.
+ * burst (one instanced, only during it), the flock of pelicans (one instanced per LOD in use, only during it),
+ * braziers' glows at night.
  */
 import * as THREE from "three";
 import { getMusic } from "../../../audio";
@@ -26,6 +27,7 @@ import { SITE } from "../../../data/site";
 import { CATALOG } from "../../../lib/passport";
 import { createFieldPanel, el, linkButton } from "../../ambient/fields/panel";
 import { arcDir } from "../../ambient/sky/moon";
+import { createHerd } from "../../characters/animals/crowd";
 import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { decks } from "../../decks";
@@ -200,24 +202,17 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   if (bits.instanceColor) bits.instanceColor.needsUpdate = true;
   group.add(bits);
 
-  // Flock: seabirds gliding past in a long V (pelicans: white below, grey-brown wings, a long bill).
-  const bird = new Geo();
-  bird.blob(0.22, 0.2, 0.62, 0, 0, 0, "#d9d2c6", 1);
-  bird.blob(0.13, 0.13, 0.16, 0, 0.12, 0.6, "#efe9dc", 1);
-  bird.box(0.07, 0.07, 0.62, 0, 0.08, 0.95, "#c99a4a");
-  bird.box(2.6, 0.05, 0.42, 0, 0.05, 0, "#7a6e62");
-  bird.box(0.9, 0.06, 0.3, 0, 0.02, -0.55, "#8a7e70");
-  const birdGeo = bird.build();
+  // Flock: Peruvian pelicans gliding past in a long V (the shared animals, ../../characters/animals: one
+  // flock, posed by the flight state machine from their motion). In world coordinates (the herd picks its LODs
+  // by distance to the camera), so it lives in the scene, not in the platform's group.
   const FLOCK = 13;
-  const flock = new THREE.InstancedMesh(birdGeo, mat, FLOCK);
-  flock.name = "costa-finale:flock";
-  flock.frustumCulled = false;
-  flock.visible = false;
+  const flock = createHerd("pelican", { max: FLOCK });
+  flock.group.name = "costa-finale:flock";
+  const flockIds = Array.from({ length: FLOCK }, (_, i) => flock.add({ seed: 201 + i * 7 }));
+  let flockOn = false;
   // Moving bodies: no world-space paint sliding over them.
-  noPaint(flock);
   noPaint(bits);
-  group.add(flock);
-  env.scene.add(group);
+  env.scene.add(group, flock.group);
 
   // ------------------------------------------------------------------ walkable tiers, colliders
   const plat = toWorld(f, 0, PLAT.z);
@@ -330,7 +325,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       // The burst starts at the ring (platform-centred coordinates: z relative to the platform's centre).
       for (const b of state) b.z += RING.z - PLAT.z;
       bits.visible = true;
-      flock.visible = true;
+      flockOn = true;
     }
     openIn = env.reducedMotion ? 0.4 : PANEL_DELAY;
   };
@@ -348,7 +343,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     if (age > BURST.life + 6) {
       age = -1;
       bits.visible = false;
-      flock.visible = false;
+      flockOn = false;
+      for (const id of flockIds) flock.hide(id);
       return;
     }
     for (const b of state) stepBit(b, Math.min(dt, 0.05), age, floor, wind);
@@ -371,14 +367,22 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       const lx = -70 + u * 150 - row * 2.2;
       const lz = 26 + side * row * 1.9;
       const ly = 15 + Math.sin(age * 0.8 + i) * 0.4 - row * 0.15;
-      dummy.position.set(lx, ly, lz);
-      dummy.rotation.set(0, Math.PI / 2, Math.sin(age * 0.7 + i * 0.5) * 0.12);
-      const s = u >= 1 ? 0 : 1;
-      dummy.scale.setScalar(s);
-      dummy.updateMatrix();
-      flock.setMatrixAt(i, dummy.matrix);
+      const id = flockIds[i] as number;
+      if (!flockOn || u >= 1) {
+        flock.hide(id);
+        continue;
+      }
+      // Platform-local → world (the platform's frame: at f, turned by f.yaw).
+      const wx = f.x + lx * cy + lz * sy;
+      const wz = f.z - lx * sy + lz * cy;
+      flock.set(id, wx, f.y + ly, wz, f.yaw + Math.PI / 2, {
+        speed: 150 / 11,
+        rm: false,
+        grounded: false,
+        vy: Math.cos(age * 0.8 + i) * 0.32,
+        height: ly,
+      });
     }
-    flock.instanceMatrix.needsUpdate = true;
   };
   if (import.meta.env?.DEV)
     (window as Window & { __finale?: unknown }).__finale = {
@@ -425,6 +429,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       (halo.material as THREE.SpriteMaterial).opacity = g0 * 0.85;
       stepAll(dt);
       if (age >= 0 && !env.reducedMotion) draw();
+      flock.update(dt, t, env.camera);
       if (n !== night) {
         night = n;
         for (const s of glows) s.visible = n;
@@ -465,7 +470,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       ringMat.dispose();
       bitGeo.dispose();
       bitMat.dispose();
-      birdGeo.dispose();
+      flock.dispose();
       (halo.material as THREE.SpriteMaterial).dispose();
       for (const s of glows) (s.material as THREE.SpriteMaterial).dispose();
     },

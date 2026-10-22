@@ -1,7 +1,7 @@
 /**
  * The caballito de totora ride: a reed boat drawn up on the sand below the Huanchaco market (the south beach)
  * and the beach past the headland (the north beach), with the fishermen's boats standing upright on both
- * beaches to dry and three fishermen kneeling on theirs beyond the surf.
+ * beaches to dry and three or four fishermen sitting in theirs beyond the surf, paddling.
  *
  * "E · Subir al caballito" by the beached boat launches it through the shallows and hands it to the traveler
  * (`world:mount {riding, vehicle: "caballito"}` + the runtime's ride hook, ../../suyu/ride.ts): the stick turns
@@ -13,10 +13,14 @@
  * beach the boat is not at, and it is far out of sight, it is waiting there (another fisherman brought it).
  * Reduced motion: no bobbing or pitching (the sea is still too), the ride itself works the same.
  *
- * Draw calls: the boat, the paddle, the drying boats (instanced), the fishermen's boats (instanced).
+ * The fishermen beyond the surf are people of the coast's crowd (./gente/crowd.ts): barefoot, straw-hatted,
+ * sitting in the stern hollow of their boats and paddling (the "paddle" action, a paddle prop).
+ * Draw calls: the boat, the paddle, the drying boats (instanced), the fishermen's boats (instanced); the
+ * fishermen themselves are in the coast's crowd (no draw call of their own) plus the paddle prop (one).
  */
 import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
+import { Npc, type NpcFrame } from "../../ambient/people/npc";
 import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit, on } from "../../events";
@@ -29,7 +33,9 @@ import type { CostaLayout } from "../layout";
 import { BEACHES } from "../plan";
 import { crest, seaHeight } from "../scenery/waves";
 import { type Boat, dockingEnd, earnsStamp, idleLanding, type Landing, stepBoat, type Water } from "./caballito/logic";
-import { boatGeometry, fishingBoatGeometry, paddleGeometry } from "./caballito/model";
+import { boatGeometry, paddleGeometry } from "./caballito/model";
+import { coastCrowd } from "./gente/crowd";
+import { COAST_PEOPLE, coastDress } from "./gente/dress";
 
 const T_BOARD: L = { es: "E · Subir al caballito", en: "E · Board the reed boat" };
 const T_LAND: L = { es: "E · Bajar en la playa", en: "E · Land on the beach" };
@@ -38,6 +44,12 @@ const RANGE = 2.6;
 /** How far out the ride area reaches (offshore distance) and past each beach along the coast. */
 const OUT = 95;
 const PAST = 28;
+/** The fishermen's seat in the hollow at the stern (boat-local z) and the height of their feet origin over the
+ * boat's waterline origin (the "paddle" pose sits the pelvis on the reeds, legs forward along the boat). */
+const SEAT_Z = -0.75;
+const SEAT_Y = 0.12;
+/** Beyond this distance from the camera the fishermen at sea are not drawn (their boats still are). */
+const FISHER_VIEW = 150;
 
 type Phase =
   | { kind: "moored"; at: 0 | 1 }
@@ -188,19 +200,42 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   root.add(rackMesh);
 
   // ------------------------------------------------------------------ fishermen beyond the surf
-  const fishGeo = fishingBoatGeometry("#d8d2c4");
-  const fishers = Array.from({ length: env.quality === "high" ? 4 : 3 }, (_, i) => ({
-    cx: landings[0].bx + landings[0].nx * (34 + i * 9) + -landings[0].nz * (i * 14 - 18),
-    cz: landings[0].bz + landings[0].nz * (34 + i * 9) + landings[0].nx * (i * 14 - 18),
-    r: 6 + i * 2.5,
-    w: (0.05 + i * 0.012) * (i % 2 ? 1 : -1),
-    ph: i * 1.9,
-  }));
-  const fishMesh = new THREE.InstancedMesh(fishGeo, mat, fishers.length);
+  // Their boats are instances of the same reed boat; each fisherman sits in the hollow at the stern, paddling
+  // (a member of the coast's crowd, ./gente/crowd.ts, with a paddle prop).
+  const people = coastCrowd(env.scene, env.quality === "low");
+  const FR = rng(0xf15e);
+  const fishers = Array.from({ length: env.quality === "high" ? 4 : 3 }, (_, i) => {
+    const man = new Npc({
+      kind: "costa-fisher",
+      crowd: people.crowd,
+      spec: COAST_PEOPLE.fisher,
+      palette: coastDress("fisher", FR),
+      scale: 0.98 + FR() * 0.05,
+      radius: 0.3,
+      seed: 41 + i * 3.7,
+    });
+    man.lookRange = 0;
+    man.hold(people.props, "paddle");
+    man.setActive(true);
+    // Out at sea: nobody steps round them.
+    man.body.solid = false;
+    return {
+      cx: landings[0].bx + landings[0].nx * (34 + i * 9) + -landings[0].nz * (i * 14 - 18),
+      cz: landings[0].bz + landings[0].nz * (34 + i * 9) + landings[0].nx * (i * 14 - 18),
+      r: 6 + i * 2.5,
+      w: (0.05 + i * 0.012) * (i % 2 ? 1 : -1),
+      ph: i * 1.9,
+      man,
+      drawn: true,
+    };
+  });
+  const fishMesh = new THREE.InstancedMesh(boatGeo, mat, fishers.length);
   fishMesh.name = "costa-caballito:fishermen";
   fishMesh.frustumCulled = false;
   fishMesh.castShadow = true;
   root.add(fishMesh);
+  const frame: NpcFrame = { dt: 0, clock: 0, rm, avatar: new THREE.Vector3() };
+  const cam = new THREE.Vector3();
 
   // ------------------------------------------------------------------ state
   const entry = CATALOG.find((s) => s.id === STAMP);
@@ -341,20 +376,20 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       const tl = phase.kind === "moored" ? { pitch: 0.04, roll: 0 } : tilt(b.x, b.z, b.yaw);
       boat.position.set(b.x, y + 0.05, b.z);
       boat.rotation.set(tl.pitch, b.yaw, tl.roll, "YXZ");
-      // Rider: standing a little aft of amidships, on the reeds.
+      // Rider: sitting in the stern hollow like the fishermen (the traveler paddles seated, ../../avatar.ts).
       if (ride.active) {
         const fx = Math.sin(b.yaw);
         const fz = Math.cos(b.yaw);
-        ride.pose.x = b.x - fx * 0.55;
-        ride.pose.z = b.z - fz * 0.55;
-        ride.pose.y = y + 0.32;
+        ride.pose.x = b.x + fx * SEAT_Z;
+        ride.pose.z = b.z + fz * SEAT_Z;
+        ride.pose.y = y + 0.05 + SEAT_Y;
         ride.pose.yaw = b.yaw;
       }
       // Paddle: alternate strokes while paddling, across the hull otherwise.
       if (ride.active && phase.kind === "riding" && stroke > 0) {
         const side = Math.sin(stroke * 0.5) >= 0 ? 1 : -1;
         const sw = Math.sin(stroke * Math.PI);
-        paddle.position.set(side * 0.35, 1.55, -0.2);
+        paddle.position.set(side * 0.35, 1.05, SEAT_Z + 0.35);
         paddle.rotation.set(-0.3 + sw * (rm ? 0.12 : 0.5), 0, side * 0.35);
       } else {
         paddle.position.set(0.05, 0.42, -0.2);
@@ -364,19 +399,39 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       body.z = b.z;
       body.solid = phase.kind === "moored";
 
-      // Fishermen beyond the surf: slow circles, riding the swell.
+      // Fishermen beyond the surf: slow circles, riding the swell, paddling.
+      frame.dt = dt;
+      frame.clock += dt;
+      frame.avatar.copy(avatar);
+      env.camera.getWorldPosition(cam);
       fishers.forEach((f, i) => {
         const a = f.ph + t * f.w * (rm ? 0 : 1);
         const x = f.cx + Math.cos(a) * f.r;
         const z = f.cz + Math.sin(a) * f.r;
         const yaw = Math.atan2(-Math.sin(a), Math.cos(a)) * Math.sign(f.w || 1) + (f.w < 0 ? Math.PI : 0);
         const tt = tilt(x, z, yaw);
-        dummy.position.set(x, seaY(x, z) + 0.05, z);
+        const y = seaY(x, z) + 0.05;
+        dummy.position.set(x, y, z);
         dummy.rotation.set(tt.pitch, yaw, tt.roll, "YXZ");
         dummy.updateMatrix();
         fishMesh.setMatrixAt(i, dummy.matrix);
+        // The man in the hollow at the stern (boat-local z SEAT_Z), on the reeds.
+        const m = f.man;
+        const near = Math.hypot(x - cam.x, z - cam.z) < FISHER_VIEW;
+        if (near !== f.drawn) {
+          f.drawn = near;
+          if (near) m.show();
+          else m.hide();
+        }
+        if (!near) return;
+        m.place(x + Math.sin(yaw) * SEAT_Z, z + Math.cos(yaw) * SEAT_Z, yaw);
+        m.y = y + SEAT_Y + Math.sin(tt.pitch) * -SEAT_Z;
+        m.speed = 0;
+        m.anim.act("paddle", { fade: 0 });
+        m.commit(frame);
       });
       fishMesh.instanceMatrix.needsUpdate = true;
+      people.frame(env.camera);
     },
     prompt() {
       if (modal > 0) return null;
@@ -402,10 +457,11 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         emit("world:mount", { riding: false, speedMul: 1, seatHeight: 0 });
       }
       creatures.remove(body);
+      for (const f of fishers) f.man.dispose();
+      people.release();
       root.removeFromParent();
       boatGeo.dispose();
       paddleGeo.dispose();
-      fishGeo.dispose();
       rackGeo.dispose();
       mat.dispose();
     },

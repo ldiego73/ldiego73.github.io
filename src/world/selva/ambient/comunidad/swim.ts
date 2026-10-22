@@ -7,15 +7,19 @@
  * so the canoe bumps around them. Day only. Pure timing and arcs: ./logic.ts (jumpArc, nextStage).
  */
 import * as THREE from "three";
-import { rng, Static } from "../../../ambient/people/models";
-import type { Person } from "../../../ambient/people/person";
-import type { Crowd, Palette } from "../../../ambient/people/rig";
+import type { Npc } from "../../../ambient/people/npc";
+import { Static } from "../../../ambient/people/site-props";
+import { rng } from "../../../ambient/people/util";
+import type { HumanCrowd } from "../../../characters/crowd";
 import { creatures, type KeepOut } from "../../../creatures";
 import { type Bar, barF, barPoint, barY, type Ripples } from "../wild/kit";
 import { isOut, jumpArc, nextStage, SWIM_SPEED, SWIM_TIMES, type SwimStage } from "./logic";
-import { BOY, GIRL, jumpLog, SHORTS, SKINS, SKIRTS, TEES } from "./models";
+import { jumpLog } from "./models";
 import type { Ctx, Group } from "./types";
-import { balancePose, swimPose, villager } from "./villager";
+import { villager } from "./villager";
+
+/** Feet origin below the river level while swimming (the "swim" pose lays the body flat at the root). */
+const SWIM_SINK = 0.08;
 
 /** World points of the swimming place (see `findSwimSpot`). */
 export interface SwimSpot {
@@ -82,7 +86,7 @@ export function findSwimSpot(env: Ctx["env"], bar: Bar, toward: { x: number; z: 
 }
 
 interface Swimmer {
-  p: Person;
+  p: Npc;
   stage: SwimStage;
   /** Progress 0..1 of the current stage, and its duration. */
   u: number;
@@ -92,11 +96,9 @@ interface Swimmer {
   splash: number;
 }
 
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
-
 export function createSwimmers(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
   staticMat: THREE.Material,
   spot: SwimSpot,
   n: number,
@@ -123,22 +125,15 @@ export function createSwimmers(
   const zone: KeepOut = creatures.keepOut(spot.center.x, spot.center.z, spot.reach - 4);
 
   const kids: Swimmer[] = Array.from({ length: n }, (_, i) => {
-    const boy = i % 2 === 0;
-    const sk = pick(R, SKIRTS);
-    const palette: Palette = boy
-      ? [pick(R, SKINS), pick(R, SHORTS), pick(R, SHORTS), pick(R, TEES)]
-      : [pick(R, SKINS), sk[0], sk[1], pick(R, TEES)];
-    const p = villager({
+    // Boys swim bare-chested in their shorts, girls in their blouse and small skirt.
+    const p = villager(crowd, {
       kind: "child",
-      crowd,
-      idx: crowd.alloc(),
-      wear: boy ? BOY : GIRL,
-      palette,
-      scale: 0.6 + R() * 0.08,
-      headScale: 1.3,
+      who: i % 2 === 0 ? "swimmer" : "girl",
+      r: R,
       radius: 0.26,
       seed: 3 + i * 9.7,
     });
+    p.lookRange = 0;
     // Staggered round the loop.
     const stages: SwimStage[] = ["wait", "swim", "climb"];
     const st = stages[i % stages.length] as SwimStage;
@@ -215,7 +210,7 @@ export function createSwimmers(
         const dx = 2 * (1 - u) * (mx - spot.land.x) + 2 * u * (spot.shore.x - mx);
         const dz = 2 * (1 - u) * (mz - spot.land.z) + 2 * u * (spot.shore.z - mz);
         p.place(x, z, Math.atan2(dx, dz));
-        p.y = level - 0.32 * p.scale;
+        p.y = level - SWIM_SINK * p.scale;
         break;
       }
       case "climb": {
@@ -251,7 +246,8 @@ export function createSwimmers(
       // The traveler's canoe near the landing spot: nobody jumps.
       const blocked = Math.hypot(c.avatar.x - spot.land.x, c.avatar.z - spot.land.z) < 5.5;
       const dt = c.dt;
-      for (const k of kids) {
+      for (let i = 0; i < kids.length; i++) {
+        const k = kids[i] as Swimmer;
         if (!k.p.active) continue;
         // Far away: only the schedule runs (cheap), the loop resumes where it was.
         if (!visible) continue;
@@ -277,41 +273,28 @@ export function createSwimmers(
         k.p.body.solid = k.stage !== "under" && k.stage !== "jump";
         k.p.body.x = k.p.x;
         k.p.body.z = k.p.z;
-        // Pose.
+        // Pose: walking the trunk and the sand, ready on the tip, the cannonball, a crawl back to the bank.
         const p = k.p;
-        const b = p.bones;
-        p.rest(c.clock, c.rm);
+        const a = p.anim;
         if (k.stage === "log" || k.stage === "climb") {
           p.speed = k.stage === "log" ? SWIM_SPEED.log : SWIM_SPEED.climb;
-          p.gait(dt, c.rm, 1);
-          if (k.stage === "log") balancePose(p, c.clock, c.rm);
-          else b.torso.rotation.x = 0.08;
+          a.act("none");
+          // Arms out for balance along the trunk.
+          a.actArms(k.stage === "log" ? "balance" : "none");
         } else if (k.stage === "tip") {
-          // Bouncing on the knees, arms swinging, ready to jump.
-          if (!c.rm) b.hips.position.y = -Math.abs(Math.sin(c.clock * 5 + p.seed)) * 0.06;
-          b.armL.rotation.set(0.5 + (c.rm ? 0 : Math.sin(c.clock * 5) * 0.4), 0, 0.2);
-          b.armR.rotation.set(0.5 + (c.rm ? 0 : Math.sin(c.clock * 5) * 0.4), 0, -0.2);
-        } else if (k.stage === "jump") {
-          // Cannonball: knees up, arms hugging them.
-          b.legL.rotation.x = -1.5;
-          b.legR.rotation.x = -1.5;
-          b.hips.position.y = 0.3;
-          b.armL.rotation.set(-1.2, 0, 0.1);
-          b.armR.rotation.set(-1.2, 0, -0.1);
-          b.torso.rotation.x = 0.4;
-        } else if (k.stage === "swim") {
-          swimPose(p, c.clock + p.seed, c.rm);
+          a.actArms("none");
+          a.act("crouch", { fade: 0.4 });
+        } else if (k.stage === "jump") a.act("jump", { fade: 0.1 });
+        else if (k.stage === "swim") {
+          a.act("swim", { fade: 0.35 });
           k.splash -= dt;
           if (k.splash <= 0 && !c.rm) {
             k.splash = 0.7;
             ripples.spawn(p.x, p.z, 0.45);
           }
-        } else if (k.stage === "wait") {
-          b.armR.rotation.set(-0.3, 0, -0.2);
-          if (!c.rm) b.head.rotation.y = Math.sin(c.clock * 0.7 + p.seed) * 0.4;
-        }
+        } else if (k.stage === "wait") a.act(i % 2 ? "hands-hips" : "hands-back", { fade: 0.4 });
         if (k.stage === "under") p.hide();
-        else p.commit();
+        else p.commit(c);
       }
     },
     dev: {

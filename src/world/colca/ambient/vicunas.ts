@@ -4,15 +4,16 @@
  * herd's ground and grazes when it stops; if the traveler comes within FLEE_R the whole herd trots off
  * together (./wild/logic.ts fleeFrom), staying on its ground, and settles again. They lie down at night.
  *
- * Passport: within 26 u of a vicuña stamps `colca:fauna:vicuna`. Rendering: ./wild/camelids.ts (VICUNA:
- * cinnamon back, white underparts), three instanced draw calls. Bodies in creatures (solid).
+ * Passport: within 26 u of a vicuña stamps `colca:fauna:vicuna`. Rendering: the shared animals' vicuña
+ * (cinnamon back, white belly and chest bib) as one herd, one instanced draw per LOD; their gait follows the
+ * real speed (walk, then the trot and gallop of a flight). Bodies in creatures (solid).
  */
+import { prefetchAnimals } from "../../characters/animals/assets";
+import { createHerd } from "../../characters/animals/crowd";
 import type { CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
-import { VICUNA } from "../../fauna-models";
 import type { SuyuEnv } from "../../suyu/contract";
 import { roadSide, STATION_T } from "../plan";
-import { CamelidHerd } from "./wild/camelids";
 import { fleeFrom, seenWithin } from "./wild/logic";
 import { faunaStamp } from "./wild/stamp";
 
@@ -25,10 +26,9 @@ export const create: CreateAmbient = (baseEnv) => {
   const per = high ? 6 : 4;
   const homes = [roadSide(STATION_T.pueblo + 0.07, 1, 52), roadSide(0.9, -1, 46)];
   const n = per * homes.length;
-  const herd = new CamelidHerd("colca-vicunas", VICUNA, n, ["#ffffff", "#f6efe6", "#fff8ee"], null, {
-    body: "#c58e55",
-    belly: "#f2e8d4",
-  });
+  prefetchAnimals(["vicuna"]);
+  const herd = createHerd("vicuna", { max: n });
+  herd.group.name = "colca-vicunas";
   env.scene.add(herd.group);
   const stamp = faunaStamp("vicuna");
   let seed = 0x71c;
@@ -52,14 +52,13 @@ export const create: CreateAmbient = (baseEnv) => {
       tz: z,
       wait: rand() * 6,
       speed: 0,
-      phase: rand() * 6,
-      graze: 0,
       body: creatures.add("vicuna", 0.5, { x, z }),
+      id: herd.add({ seed: 3 + i * 7 }),
     };
   });
   const flee = homes.map(() => 0);
   return {
-    update(dtIn, avatar) {
+    update(dtIn, avatar, t) {
       const dt = Math.min(dtIn, 0.05);
       const night = env.sky.isNight();
       homes.forEach((h, k) => {
@@ -69,9 +68,9 @@ export const create: CreateAmbient = (baseEnv) => {
           flee[k] = 4;
           for (const a of animals)
             if (a.home === h) {
-              const t = fleeFrom(a, avatar, h, RANGE, 18);
-              a.tx = t.x + (rand() - 0.5) * 3;
-              a.tz = t.z + (rand() - 0.5) * 3;
+              const to = fleeFrom(a, avatar, h, RANGE, 18);
+              a.tx = to.x + (rand() - 0.5) * 3;
+              a.tz = to.z + (rand() - 0.5) * 3;
               a.wait = 0;
             }
         }
@@ -107,20 +106,16 @@ export const create: CreateAmbient = (baseEnv) => {
         }
         a.body.x = a.x;
         a.body.z = a.z;
-        if (!env.reducedMotion) a.phase += dt * a.speed * 3.4;
-        a.graze += ((a.speed < 0.2 && !night ? 1 : 0) - a.graze) * Math.min(1, dt * 1.5);
-        herd.set(i, {
-          x: a.x,
-          y: ground(a.x, a.z),
-          z: a.z,
-          yaw: a.yaw,
-          phase: a.phase,
-          walk: Math.min(1, a.speed / 1.1),
-          graze: a.graze * (0.55 + 0.15 * Math.sin(a.phase * 0.2 + i)),
-          lying: night && a.speed < 0.2,
+        // Lying down (kush) at night once settled; sleep allowed then, nobody near.
+        const lying = night && a.speed < 0.2;
+        herd.set(a.id, a.x, ground(a.x, a.z), a.z, a.yaw, {
+          speed: a.speed,
+          rm: env.reducedMotion,
+          mode: lying ? "sit" : "auto",
+          quiet: lying && !seenWithin(a, avatar, FLEE_R),
         });
       }
-      herd.commit();
+      herd.update(dt, t, env.camera);
     },
     dispose() {
       for (const a of animals) creatures.remove(a.body);

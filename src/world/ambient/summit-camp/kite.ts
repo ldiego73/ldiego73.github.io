@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { DYE } from "../../palette";
 import { paintStrength, windSway } from "../../style-gl";
 import { liveWind } from "../../wind";
-import { Part, protos } from "../people/rig";
+import { GearKit } from "../gente/bone-batch";
 import { kiteSway } from "./plan";
 
 const SEG = 18;
@@ -22,8 +22,7 @@ function tri(a: number[], b: number[], c: number[]) {
 }
 
 function kiteGeometry() {
-  const P = protos();
-  const p = new Part();
+  const p = new GearKit();
   const top = [0, 0.62, 0];
   const bot = [0, -0.62, 0];
   const l = [-0.44, 0.16, 0];
@@ -39,34 +38,33 @@ function kiteGeometry() {
   for (const [a, b, col] of quads) {
     const g = tri(c, a, b);
     tris.push(g);
-    p.add(g, col);
+    p.addGeometry(g, col);
   }
   // A woven diamond (tocapu) at the center and a cotton border.
   const d = tri([0, 0.36, 0.004], [-0.12, 0.16, 0.004], [0.12, 0.16, 0.004]);
   const d2 = tri([0, -0.04, 0.004], [0.12, 0.16, 0.004], [-0.12, 0.16, 0.004]);
   tris.push(d, d2);
-  p.add(d, DYE.cotton).add(d2, DYE.cotton);
+  p.addGeometry(d, DYE.cotton).addGeometry(d2, DYE.cotton);
   // Cane cross.
-  p.add(P.box, "#c9a46a", 0, 0, -0.02, 0, 0, 0, 0.025, 1.26, 0.02);
-  p.add(P.box, "#c9a46a", 0, 0.16, -0.02, 0, 0, 0, 0.9, 0.022, 0.02);
+  p.add("box", "#c9a46a", 0, 0, -0.02, 0, 0, 0, 0.025, 1.26, 0.02);
+  p.add("box", "#c9a46a", 0, 0.16, -0.02, 0, 0, 0, 0.9, 0.022, 0.02);
   // Tail: a string of bows hanging below the bottom corner.
   for (let k = 0; k < 6; k++) {
     const y = -0.75 - k * 0.3;
     const x = Math.sin(k * 0.9) * 0.08;
-    p.add(P.box, "#3a2a22", x, y + 0.13, 0, 0, 0, Math.sin(k * 0.9 + 0.5) * 0.25, 0.008, 0.3, 0.008);
+    p.add("box", "#3a2a22", x, y + 0.13, 0, 0, 0, Math.sin(k * 0.9 + 0.5) * 0.25, 0.008, 0.3, 0.008);
     const col = k % 2 ? DYE.cotton : DYE.red;
-    p.add(P.cone, col, x - 0.07, y, 0, 0, 0, Math.PI / 2, 0.05, 0.13, 0.015);
-    p.add(P.cone, col, x + 0.07, y, 0, 0, 0, -Math.PI / 2, 0.05, 0.13, 0.015);
+    p.add("cone", col, x - 0.07, y, 0, 0, 0, Math.PI / 2, 0.05, 0.13, 0.015);
+    p.add("cone", col, x + 0.07, y, 0, 0, 0, -Math.PI / 2, 0.05, 0.13, 0.015);
   }
   const g = p.build();
-  g.deleteAttribute("aSlot");
   // Cloth weight: the diamond and the cross are rigid, the tail ripples more toward its end.
   const pos = g.getAttribute("position");
   const flex = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) flex[i] = Math.min(1, Math.max(0, (-0.62 - pos.getY(i)) / 1.9));
   g.setAttribute("flex", new THREE.BufferAttribute(flex, 1));
   for (const t of tris) t.dispose();
-  for (const v of Object.values(P)) v.dispose();
+  p.dispose();
   return g;
 }
 

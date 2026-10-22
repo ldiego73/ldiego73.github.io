@@ -54,3 +54,13 @@ export function hoverPlan(
   const k = u * cycle < stay ? 0 : (u * cycle - stay) / dart;
   return { from, to, k };
 }
+
+/**
+ * How much night it is (0 by day … 1 at full night) from the sky time (0.25 sunrise, 0.75 sunset): from the
+ * sun just above the horizon to well below it. Drives the animals' moonlit rim (setAnimalNight).
+ */
+export function nightAmount(time: number): number {
+  const sun = Math.sin((time - 0.25) * Math.PI * 2);
+  const k = Math.min(1, Math.max(0, (0.05 - sun) / 0.25));
+  return k * k * (3 - 2 * k);
+}

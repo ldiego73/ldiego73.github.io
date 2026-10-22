@@ -1,34 +1,42 @@
 /**
- * Saddled llama for the trailhead ride: the fauna llama (camelidParts(LLAMA)) dressed with a woven
- * Andean blanket (canvas-striped), a saddle pad with cinch, yarn tassels along the blanket hem and
- * pompoms tied to the banana ears. Faces +Z, origin at the feet. Pivots are exposed for the trot.
+ * Saddled llama for the trailhead ride and the lake road: the shared animal "llama" (the approved one-surface
+ * llama from ../../characters/animals/: woolly barrel and neck, banana ears with yarn t'ikas, big lashed eyes)
+ * dressed with a woven Andean blanket (canvas-striped aguayo) with side drapes, a saddle pad with cinch, a
+ * dyed collar and yarn tassels along the blanket hem. Faces +Z, origin at the feet.
+ *
+ * Its gait is the llama's own (lateral walk, then the pace), driven by the ground speed. Two ways to drive it:
+ *  - `animate(frame)` (./llama.ts on the road mount, ./ride.ts): speed and head look given each frame;
+ *  - the legacy pivots (`body`, `legs`, `neck`, `head`, `tail`, `tassels`) that ../llama-mount.ts poses:
+ *    when nobody calls `animate`, the model reads its own ground speed from how far its group moved between
+ *    renders and its head look from `neck.rotation.y`, and poses itself just before three updates the
+ *    matrices (so the colour pass, the ink prepass and the shadows all see the same pose). The tassels are
+ *    real (that module swings them in the wind); the other pivots are placeholders.
  */
 import * as THREE from "three";
 import type { WorldEnv } from "../../contract";
-import { camelidParts, LLAMA } from "../../fauna-models";
 import { DYE } from "../../palette";
 import { canvasTex, toonMapped } from "../../props";
+import { mountAnimal } from "./animal";
+import type { MountFrame } from "./gait";
 
-const COAT = "#f1ebe0";
-const COAT_2 = "#e4d6bf";
-const PATCH = "#7a4e33";
-const LEG = "#e9dcc4";
-const EYE = "#1f1a17";
-
+/** Blanket top above the feet (the new llama's back, ../../characters/animals/species/camelids.ts). */
+const BACK = 1.15;
 /** Saddle top above the feet; the rider's feet sit this high (hip pivot 0.56 → hips on the pad). */
-export const SEAT_HEIGHT = 0.85;
+export const SEAT_HEIGHT = BACK + 0.09 - 0.56;
 
 export interface LlamaModel {
   group: THREE.Group;
-  /** Bob/sway node (everything but the root). */
+  /** Bob/sway node (placeholder: the gait moves the body). */
   body: THREE.Group;
-  /** Front-left, front-right, back-left, back-right hip pivots. */
+  /** Front-left, front-right, back-left, back-right hip pivots (placeholders). */
   legs: THREE.Group[];
   neck: THREE.Group;
   head: THREE.Group;
   tail: THREE.Group;
   /** Hanging tassels (swing with the trot). */
   tassels: THREE.Group[];
+  /** Pose for this frame (the road mount); without it the model drives itself from its motion. */
+  animate(f: MountFrame): void;
   dispose(): void;
 }
 
@@ -69,144 +77,132 @@ function blanketTexture() {
 }
 
 export function buildSaddledLlama(env: WorldEnv): LlamaModel {
-  const P = camelidParts(LLAMA);
-  const rig = P.rig;
-  const geos: THREE.BufferGeometry[] = [P.body, P.belly, P.neck, P.head, P.eyes, P.leg, P.tail];
-  // Unused pack parts from the shared builder.
-  P.tassel.dispose();
-  P.packCloth.dispose();
-  P.packBags.dispose();
-  const own = <T extends THREE.BufferGeometry>(g: T) => {
-    geos.push(g);
-    return g;
-  };
-  const toon = (c: string) => env.toon(c);
-
-  const group = new THREE.Group();
+  const m = mountAnimal("llama", { variant: "white", seed: 3, features: { tika: true, pack: false } });
+  const group = m.group;
   group.name = "ride-llama";
-  const body = new THREE.Group();
-  group.add(body);
-  body.add(new THREE.Mesh(P.body, toon(COAT)));
-  body.add(new THREE.Mesh(P.belly, toon(COAT_2)));
+  const toon = (c: string) => env.toon(c);
+  const part = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0) => {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    parent.add(mesh);
+    return mesh;
+  };
+  const r = m.rest;
+  const bz = r.body?.z ?? -0.04;
 
-  // Neck → head (with eyes and ear pompoms).
-  const neck = new THREE.Group();
-  neck.position.copy(rig.neck);
-  neck.add(new THREE.Mesh(P.neck, toon(COAT)));
-  body.add(neck);
-  const head = new THREE.Group();
-  head.position.copy(rig.headOnNeck);
-  head.add(new THREE.Mesh(P.head, toon(COAT)));
-  const eyes = new THREE.Mesh(P.eyes, toon(EYE));
-  env.noOutline(eyes);
-  head.add(eyes);
-  // A brown face patch so the head reads from afar.
-  const hr = LLAMA.neckR * 1.15;
-  const patch = new THREE.Mesh(own(new THREE.SphereGeometry(hr * 0.75, 8, 6)), toon(PATCH));
-  patch.scale.set(0.9, 0.7, 1.2);
-  patch.position.set(0, hr * 0.15, hr * 1.55);
-  head.add(patch);
-  // Ear pompoms: yarn balls tied mid-ear on the banana ears, with a short hanging cord.
-  const pomGeo = own(new THREE.IcosahedronGeometry(hr * 0.42, 0));
-  const cordGeo = own(new THREE.CylinderGeometry(hr * 0.08, hr * 0.08, hr * 0.9, 4));
-  cordGeo.translate(0, -hr * 0.45, 0);
-  for (const side of [-1, 1]) {
-    const pom = new THREE.Mesh(pomGeo, toon(side < 0 ? DYE.red : DYE.turq));
-    pom.position.set(side * hr * 0.5, hr * 2.5, -hr * 0.35);
-    head.add(pom);
-    const cord = new THREE.Mesh(cordGeo, toon(side < 0 ? DYE.ochre : DYE.red));
-    cord.position.set(side * hr * 0.62, hr * 2.4, -hr * 0.35);
-    head.add(cord);
-    const pom2 = new THREE.Mesh(pomGeo, toon(side < 0 ? DYE.indigo : DYE.ochre));
-    pom2.scale.setScalar(0.7);
-    pom2.position.set(side * hr * 0.62, hr * 1.45, -hr * 0.35);
-    head.add(pom2);
-  }
-  neck.add(head);
-  // Collar with a dyed band at the neck base.
-  const collar = new THREE.Mesh(own(new THREE.TorusGeometry(LLAMA.neckR * 1.1, 0.03, 5, 12)), toon(DYE.red));
-  collar.rotation.x = Math.PI / 2 - 0.22;
-  collar.position.set(0, LLAMA.neckLen * 0.25, LLAMA.neckLen * 0.06);
-  neck.add(collar);
-
-  // Legs.
-  const legs: THREE.Group[] = [];
-  for (const hip of rig.hips) {
-    const p = new THREE.Group();
-    p.position.copy(hip);
-    p.add(new THREE.Mesh(P.leg, toon(LEG)));
-    body.add(p);
-    legs.push(p);
-  }
-  const tail = new THREE.Group();
-  tail.position.copy(rig.tail);
-  tail.add(new THREE.Mesh(P.tail, toon(COAT)));
-  body.add(tail);
-
-  // Blanket: a woven cloth over the back with side drapes, then a saddle pad and cinch.
+  // ---- Blanket over the back with side drapes (textured: kept apart from the merged tack), pad and cinch.
+  const body = m.tack("body");
   const tex = blanketTexture();
   const cloth = toonMapped(env, tex);
-  const top = rig.bodyY + LLAMA.bodyR * 1.0;
-  const bw = LLAMA.bodyR * 2.2;
-  const bl = LLAMA.bodyLen * 1.35;
-  const blanket = new THREE.Mesh(own(new THREE.BoxGeometry(bw, 0.05, bl)), cloth);
-  blanket.position.set(0, top, 0);
-  body.add(blanket);
-  const drapeH = 0.32;
-  const drapeGeo = own(new THREE.BoxGeometry(0.04, drapeH, bl));
-  for (const side of [-1, 1]) {
-    const d = new THREE.Mesh(drapeGeo, cloth);
-    d.position.set(side * (bw / 2 - 0.005), top - drapeH / 2 + 0.02, 0);
-    d.rotation.z = side * 0.12;
-    body.add(d);
+  const bw = 0.56;
+  const bl = 0.56;
+  const blanketGroup = new THREE.Group();
+  body.add(blanketGroup);
+  part(blanketGroup, m.own(new THREE.BoxGeometry(bw, 0.045, bl)), cloth, 0, BACK, bz);
+  const drapeH = 0.3;
+  const drapeGeo = m.own(new THREE.BoxGeometry(0.04, drapeH, bl));
+  for (const s of [-1, 1]) {
+    const d = part(blanketGroup, drapeGeo, cloth, s * (bw / 2 - 0.01), BACK - drapeH / 2 + 0.02, bz);
+    d.rotation.z = s * 0.16;
   }
-  const pad = new THREE.Mesh(own(new THREE.BoxGeometry(bw * 0.62, 0.07, bl * 0.48)), toon("#6b3a2a"));
-  pad.position.set(0, top + 0.055, -0.02);
-  body.add(pad);
-  const horn = new THREE.Mesh(own(new THREE.CylinderGeometry(0.03, 0.04, 0.1, 6)), toon("#4a2e1c"));
-  horn.position.set(0, top + 0.12, bl * 0.2);
-  body.add(horn);
-  const cinch = new THREE.Mesh(
-    own(new THREE.TorusGeometry(LLAMA.bodyR * 1.08, 0.025, 4, 16, Math.PI)),
+  part(body, m.own(new THREE.BoxGeometry(bw * 0.62, 0.07, bl * 0.5)), toon("#6b3a2a"), 0, BACK + 0.055, bz - 0.02);
+  part(body, m.own(new THREE.CylinderGeometry(0.03, 0.04, 0.1, 6)), toon("#4a2e1c"), 0, BACK + 0.12, bz + bl * 0.2);
+  const cinch = part(
+    body,
+    m.own(new THREE.TorusGeometry(0.29, 0.025, 4, 16, Math.PI)),
     toon(DYE.indigo),
+    0,
+    (r.body?.y ?? 0.85) + 0.02,
+    bz + 0.08,
   );
-  cinch.rotation.y = Math.PI / 2;
-  cinch.scale.set(1, 1.05, 1);
-  cinch.position.set(0, rig.bodyY + 0.02, 0.06);
-  cinch.rotation.z = Math.PI;
-  body.add(cinch);
+  cinch.rotation.set(0, Math.PI / 2, Math.PI);
+  cinch.scale.set(1, 1.02, 0.95);
 
-  // Tassels along both drape hems (cord + yarn ball), alternating dyes.
-  const tCord = own(new THREE.CylinderGeometry(0.008, 0.008, 0.1, 4));
+  // ---- Collar with a dyed band at the neck base.
+  const neck0 = m.tack("neck0");
+  const n0 = r.neck0 ?? new THREE.Vector3(0, 0.97, 0.37);
+  const collar = part(
+    neck0,
+    m.own(new THREE.TorusGeometry(0.15, 0.03, 5, 12)),
+    toon(DYE.red),
+    n0.x,
+    n0.y + 0.04,
+    n0.z + 0.03,
+  );
+  collar.rotation.x = Math.PI / 2 - 0.5;
+
+  // ---- Tassels along both drape hems (cord + yarn ball), alternating dyes.
+  const tCord = m.own(new THREE.CylinderGeometry(0.008, 0.008, 0.1, 4));
   tCord.translate(0, -0.05, 0);
-  const tBall = own(new THREE.IcosahedronGeometry(0.03, 0));
+  const tBall = m.own(new THREE.IcosahedronGeometry(0.03, 0));
   tBall.translate(0, -0.11, 0);
   const dyes = [DYE.red, DYE.ochre, DYE.turq, DYE.indigo];
   const tassels: THREE.Group[] = [];
   let k = 0;
-  for (const side of [-1, 1]) {
+  for (const s of [-1, 1]) {
     for (let i = 0; i < 5; i++) {
       const tg = new THREE.Group();
-      const z = -bl / 2 + 0.04 + (i / 4) * (bl - 0.08);
-      tg.position.set(side * (bw / 2 + 0.03), top - drapeH + 0.02, z);
-      tg.add(new THREE.Mesh(tCord, toon(DYE.cotton)));
-      tg.add(new THREE.Mesh(tBall, toon(dyes[k++ % dyes.length] as string)));
+      const z = bz - bl / 2 + 0.04 + (i / 4) * (bl - 0.08);
+      tg.position.set(s * (bw / 2 + 0.035), BACK - drapeH + 0.03, z);
+      part(tg, tCord, toon(DYE.cotton));
+      part(tg, tBall, toon(dyes[k++ % dyes.length] as string));
       body.add(tg);
       tassels.push(tg);
     }
   }
+  m.flatten();
+  for (const t of tassels) m.merge(t);
+
+  // ---- Legacy pivots (../llama-mount.ts writes them; see the header).
+  const proxy = () => {
+    const p = new THREE.Group();
+    group.add(p);
+    return p;
+  };
+  const pBody = proxy();
+  const legs = [proxy(), proxy(), proxy(), proxy()];
+  const neck = proxy();
+  const head = proxy();
+  const tail = proxy();
+
+  // Self-driven mode: pose from the group's own motion just before three updates the matrices.
+  let driven = false;
+  let lastT = -1;
+  const lastPos = new THREE.Vector3();
+  const pos = new THREE.Vector3();
+  let clock = 0;
+  const update = group.updateMatrixWorld.bind(group);
+  group.updateMatrixWorld = (force?: boolean) => {
+    if (!driven) {
+      const now = performance.now() / 1000;
+      const dt = lastT < 0 ? 0 : Math.min(0.1, now - lastT);
+      if (dt > 0.001 || lastT < 0) {
+        pos.copy(group.position);
+        const sp = dt > 0 ? Math.hypot(pos.x - lastPos.x, pos.z - lastPos.z) / dt : 0;
+        lastPos.copy(pos);
+        lastT = now;
+        clock += dt;
+        m.update(dt, clock, { speed: sp > 30 ? 0 : sp, look: neck.rotation.y / 0.6, rm: env.reducedMotion });
+      }
+    }
+    update(force);
+  };
 
   return {
     group,
-    body,
+    body: pBody,
     legs,
     neck,
     head,
     tail,
     tassels,
+    animate(f) {
+      driven = true;
+      m.update(f.dt, f.t, { speed: f.speed, look: f.look, rm: f.rm });
+    },
     dispose() {
-      group.removeFromParent();
-      for (const g of geos) g.dispose();
+      m.dispose();
       tex.dispose();
       cloth.dispose();
     },

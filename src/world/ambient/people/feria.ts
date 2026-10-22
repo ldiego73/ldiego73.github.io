@@ -5,25 +5,17 @@
  * greeting ("E · Saludar") with a short bilingual line in a speech bubble.
  */
 import * as THREE from "three";
+import type { HumanSpec } from "../../characters/archetype";
+import type { HumanCrowd } from "../../characters/crowd";
+import { PEOPLE, wardrobe } from "../../characters/presets";
+import type { HeldProps } from "../../characters/props";
+import type { Dress } from "../../characters/slots";
 import type { L } from "../../contract";
 import { MARKET, within } from "./logic";
-import {
-  DARKS,
-  MAN,
-  type PartName,
-  POLLERAS,
-  PONCHOS,
-  rng,
-  SKINS,
-  type StallKind,
-  Static,
-  stall,
-  WEAVES,
-  WOMAN,
-} from "./models";
-import { damp, Person } from "./person";
-import type { Crowd, Palette } from "./rig";
+import { Npc } from "./npc";
+import { type StallKind, Static, stall } from "./site-props";
 import type { Ctx, Group } from "./types";
+import { damp, rng } from "./util";
 
 const GREET: Record<StallKind, L> = {
   textiles: {
@@ -47,7 +39,7 @@ interface Stand {
   vendor: THREE.Vector3;
   front: THREE.Vector3;
   yaw: number;
-  p: Person;
+  p: Npc;
   wave: number;
 }
 
@@ -60,11 +52,10 @@ export interface FeriaFrame {
   side: number;
 }
 
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
-
 export function createFeria(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
+  props: HeldProps,
   staticMat: THREE.Material,
   frame: FeriaFrame,
   nStalls: number,
@@ -95,21 +86,18 @@ export function createFeria(
           [6.95, 1.2],
         ];
   const center = toWorld(frame.side * 6, 0);
-  const vendorWear: PartName[][] = [];
-  const shopperWear: PartName[][] = [];
-  for (let i = 0; i < nStalls; i++)
-    vendorWear.push(i === 1 ? [...MAN, "chullo"] : [...WOMAN, i === 0 ? "montera" : "sombrero"]);
-  for (let i = 0; i < nShoppers; i++)
-    shopperWear.push(
-      i % 2 ? [...MAN, i === 3 ? "sombrero" : "chullo"] : [...WOMAN, i === 0 ? "sombrero" : "montera", "basket"],
-    );
-
-  const outfit = (man: boolean): Palette => [
-    pick(R, SKINS),
-    man ? pick(R, PONCHOS) : pick(R, POLLERAS),
-    pick(R, WEAVES),
-    pick(R, DARKS),
-  ];
+  const vendorSpec = (i: number): [HumanSpec, boolean] =>
+    i === 1 ? [PEOPLE.campesino, false] : i === 0 ? [PEOPLE.campesina, false] : [PEOPLE.campesinaFelt, true];
+  const shopperSpec = (i: number): [HumanSpec, boolean] =>
+    i % 2
+      ? i === 3
+        ? [PEOPLE.campesinoFelt, true]
+        : [PEOPLE.campesino, false]
+      : i === 0
+        ? [PEOPLE.campesinaFelt, true]
+        : [PEOPLE.campesina, false];
+  const outfit = (spec: HumanSpec, felt: boolean): Dress =>
+    spec.sex === "m" ? wardrobe.andeanMan(R, false, felt) : wardrobe.andeanWoman(R, false, felt);
 
   // ---- stalls (one merged static mesh) + colliders
   const st = new Static();
@@ -136,14 +124,13 @@ export function createFeria(
       return env.heightAt(wx, wz) - base;
     });
     env.addCollider({ kind: "circle", x: c.x, z: c.z, r: 1.05 });
-    const p = new Person({
+    const [vs, vf] = vendorSpec(i);
+    const p = new Npc({
       kind: "vendor",
       crowd,
-      idx: crowd.alloc(),
-      wear: vendorWear[i] as PartName[],
-      palette: outfit(i === 1),
-      scale: i === 1 ? 1.02 : 0.94,
-      girth: i === 1 ? 1.05 : 1.04,
+      spec: vs,
+      palette: outfit(vs, vf),
+      scale: i === 1 ? 1.02 : 0.98,
       radius: 0.36,
       seed: 31 + i * 5.3,
     });
@@ -159,17 +146,17 @@ export function createFeria(
 
   // ---- shoppers
   const shoppers = Array.from({ length: nShoppers }, (_, i) => {
-    const p = new Person({
+    const [ss, sf] = shopperSpec(i);
+    const p = new Npc({
       kind: "shopper",
       crowd,
-      idx: crowd.alloc(),
-      wear: shopperWear[i] as PartName[],
-      palette: outfit(i % 2 === 1),
-      scale: i % 2 ? 1.0 : 0.92 + R() * 0.04,
-      girth: 1.02,
+      spec: ss,
+      palette: outfit(ss, sf),
+      scale: 0.96 + R() * 0.06,
       radius: 0.34,
       seed: 77 + i * 9.1,
     });
+    if (ss.sex === "f") p.hold(props, "basket-hand", ["#c4383f", "#2a9d8f"][i % 2] as string);
     const s = stands[i % stands.length] as Stand;
     p.place(s.front.x + (R() - 0.5), s.front.z + (R() - 0.5));
     p.u = i % stands.length;
@@ -187,16 +174,10 @@ export function createFeria(
   let visibleNow = true;
   const tgt = new THREE.Vector3();
 
-  const animate = (p: Person, c: Ctx, talk: number) => {
-    const b = p.bones;
-    p.rest(c.clock, c.rm);
-    p.gait(c.dt, c.rm);
-    if (talk > 0) {
-      // Wave back with a little bow of the head.
-      b.armR.rotation.set(-2.5 + Math.sin(c.clock * 9) * (c.rm ? 0 : 0.18), 0, -0.25);
-      b.head.rotation.x = 0.12 * Math.min(1, talk);
-    }
-    p.commit();
+  /** Pose: wave back with a little bow while greeted, else the behaviour's action. */
+  const animate = (p: Npc, c: Ctx, talk: number, act: Parameters<Npc["anim"]["act"]>[0]) => {
+    p.anim.act(talk > 0 ? "wave" : act, { fade: 0.3 });
+    p.commit(c);
   };
 
   const group: Group = {
@@ -269,14 +250,11 @@ export function createFeria(
         }
         p.face(fx, fz, c.dt, 3);
         p.resolve(0);
-        animate(p, c, s.wave);
-        // Tend the goods now and then (arms forward over the table).
-        if (s.wave <= 0 && !c.rm && Math.sin(c.clock * 0.35 + p.seed) > 0.6) {
-          p.bones.armL.rotation.x = -0.9;
-          p.bones.armR.rotation.x = -0.8 + Math.sin(c.clock * 2.4) * 0.12;
-          p.bones.torso.rotation.x = 0.25;
-          p.commit();
-        }
+        // Tend the goods now and then (arms forward over the table), talk to a shopper, or wait.
+        const k = Math.sin(c.clock * 0.35 + p.seed);
+        const tend = !c.rm && k > 0.6;
+        const chat = bd < 3.2 && k < -0.2;
+        animate(p, c, s.wave, tend ? "stir" : chat ? "talk" : p.member.spec.sex === "f" ? "hands-clasp" : "hands-back");
       }
       for (const p of shoppers) {
         if (!p.active) continue;
@@ -313,16 +291,10 @@ export function createFeria(
           }
         }
         p.y = env.extra.groundAt(p.x, p.z);
-        animate(p, c, 0);
-        if (p.state === "browse" && p.u >= 0 && !c.rm) {
-          // Look over the goods: point, weigh a potato, nod.
-          const k = Math.sin(c.clock * 0.8 + p.seed);
-          if (k > 0.3) {
-            p.bones.armL.rotation.x = -0.75 - (k - 0.3) * 0.5;
-            p.bones.head.rotation.x = 0.2;
-            p.commit();
-          }
-        }
+        // Look over the goods: point at them now and then; the basket hangs in the other hand.
+        const k = Math.sin(c.clock * 0.8 + p.seed);
+        const browsing = p.state === "browse" && p.u >= 0 && !c.rm && k > 0.3;
+        animate(p, c, 0, browsing ? "point" : p.member.spec.sex === "f" ? "carry-hand" : "none");
       }
     },
     prompt(c) {

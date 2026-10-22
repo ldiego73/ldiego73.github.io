@@ -4,8 +4,9 @@
  * a child peeking over the first player's shoulder and jumping along, and (high tier) a teenager leaning on
  * the side rail watching. The three middle cabinets always stay free for the traveler.
  *
- * The schedule and the poses are the mountain arcade tambo's (../../../ambient/arcade-players/logic.ts and
- * poses.ts, shared people helpers with no mountain-only imports): the raft is busy by day and evening, the
+ * The schedule is the mountain arcade tambo's (../../../ambient/arcade-players/logic.ts, a shared people helper
+ * with no mountain-only imports); the poses are actions of the shared characters (hands at the controls,
+ * a hop for a win, the child on its toes): the raft is busy by day and evening, the
  * players stay on as night owls late at night (both on the high tier, one on low / phones), the child and the
  * watcher only by day; before dawn the raft is empty. People switch on and off only while unseen.
  *
@@ -16,20 +17,19 @@
  */
 import * as THREE from "three";
 import { LOOK_AHEAD, nextCheer, roster, shouldYield } from "../../../ambient/arcade-players/logic";
-import { cheerPose, playPose, watchPose } from "../../../ambient/arcade-players/poses";
-import { rng } from "../../../ambient/people/models";
-import { damp, type Person } from "../../../ambient/people/person";
-import type { Crowd, Palette } from "../../../ambient/people/rig";
+import type { Npc } from "../../../ambient/people/npc";
+import { damp, rng } from "../../../ambient/people/util";
+import type { HumanCrowd } from "../../../characters/crowd";
 import { cabPose, RAFT } from "../arcade/logic";
 import { type Frame, lxOf, lzOf, wx, wz } from "../embarcadero/station";
-import { BLOUSES, BOY, MAN, SHORTS, SKINS, SKIRTS, TEES, WOMAN } from "./models";
+import { BLOUSES, SHORTS, SKINS, SKIRTS, TEES } from "./dress";
 import type { Ctx, Group } from "./types";
 import { villager } from "./villager";
 
 type Role = "player" | "kid" | "watcher";
 
 interface Who {
-  p: Person;
+  p: Npc;
   role: Role;
   /** Order of arrival (players: rank 0 is the night owl). */
   rank: number;
@@ -54,7 +54,7 @@ const STAND = 0.72;
 
 export function createRaftPlayers(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
   f: Frame,
   cabinets: number,
   n: { players: number; kids: number; watcher: boolean },
@@ -71,19 +71,27 @@ export function createRaftPlayers(
     const fz = Math.cos(c.yaw);
     const woman = rank === 1;
     const sk = SKIRTS[(rank * 3) % SKIRTS.length] as readonly [string, string];
-    const palette: Palette = woman
-      ? [SKINS[3] as string, sk[0], sk[1], BLOUSES[rank * 2] as string]
-      : [SKINS[0] as string, TEES[2] as string, TEES[3] as string, SHORTS[0] as string];
-    const p = villager({
-      kind: "player",
-      crowd,
-      idx: crowd.alloc(),
-      wear: woman ? WOMAN : MAN,
-      palette,
-      scale: 0.9 + R() * 0.05,
-      radius: 0.3,
-      seed: 11 + rank * 9.3,
-    });
+    const p = woman
+      ? villager(crowd, {
+          kind: "player",
+          who: "woman",
+          r: R,
+          skin: SKINS[3] as string,
+          skirt: sk,
+          top: BLOUSES[rank * 2] as string,
+          radius: 0.3,
+          seed: 11 + rank * 9.3,
+        })
+      : villager(crowd, {
+          kind: "player",
+          who: "youth",
+          r: R,
+          skin: SKINS[0] as string,
+          top: TEES[2] as string,
+          shorts: SHORTS[0] as string,
+          radius: 0.3,
+          seed: 11 + rank * 9.3,
+        });
     // Aside: the raft's front corner on the cabinet's side, clear of the roof posts and the boardwalk landing.
     const side = Math.sign(c.x) || 1;
     people.push({
@@ -112,14 +120,13 @@ export function createRaftPlayers(
     const inward = -(Math.sign(c.x) || 1);
     const hx = lead.hx + fx * 0.5 + fz * inward * 0.45;
     const hz = lead.hz + fz * 0.5 - fx * inward * 0.45;
-    const p = villager({
+    const p = villager(crowd, {
       kind: "child",
-      crowd,
-      idx: crowd.alloc(),
-      wear: BOY,
-      palette: [SKINS[5] as string, SHORTS[2] as string, "#e8b631", TEES[1] as string],
-      scale: 0.62,
-      headScale: 1.3,
+      who: "boy",
+      r: R,
+      skin: SKINS[5] as string,
+      top: TEES[1] as string,
+      shorts: SHORTS[2] as string,
       radius: 0.24,
       seed: 5.5,
     });
@@ -144,14 +151,13 @@ export function createRaftPlayers(
     // A teenager leaning on the left side rail, watching the row of cabinets.
     const hx = RAFT.x0 + 0.5;
     const hz = -8.6;
-    const p = villager({
+    const p = villager(crowd, {
       kind: "child",
-      crowd,
-      idx: crowd.alloc(),
-      wear: WOMAN,
-      palette: [SKINS[1] as string, SKIRTS[1]?.[0] ?? "#2b3550", SKIRTS[1]?.[1] ?? "#efe3c8", BLOUSES[1] as string],
-      scale: 0.8,
-      headScale: 1.1,
+      who: "teen",
+      r: R,
+      skin: SKINS[1] as string,
+      skirt: SKIRTS[1] as readonly [string, string],
+      top: BLOUSES[1] as string,
       radius: 0.28,
       seed: 3.3,
     });
@@ -198,34 +204,29 @@ export function createRaftPlayers(
     const tz = wz(f, w.aside ? w.ax : w.hx, w.aside ? w.az : w.hz);
     const d = p.seek(tx, tz, 0.9, dt, 5);
     p.y = ground(p.x, p.z);
-    p.rest(c.clock, c.rm);
-    p.gait(dt, c.rm);
+    const a = p.anim;
     const settled = d < 0.3 && p.speed < 0.25;
-    if (!settled) {
-      p.commit();
-      return;
-    }
-    if (w.aside) {
-      // Waiting in the corner, watching the traveler play.
+    p.lookRange = w.aside ? 8 : 0;
+    if (!settled) a.act("none");
+    else if (w.aside) {
+      // Waiting at the raft's corner, watching the traveler play.
       p.face(c.avatar.x, c.avatar.z, dt, 4);
-      if (w.role === "kid") watchPose(p, c.clock, 0, 0, c.rm);
+      a.act(w.role === "kid" ? "hands-back" : "arms-crossed", { fade: 0.4 });
     } else {
       p.yaw = damp(p.yaw, w.hyaw, 6, dt);
       if (w.role === "player") {
-        if (w.cheer > 0) cheerPose(p, c.clock, 1 - w.cheer / 1.8, c.rm);
-        else playPose(p, c.clock, c.rm);
+        // Hands on the controls; a hop with the arms up for a win.
+        a.act(w.cheer > 0 ? "hop" : "play-arcade", { fade: 0.25 });
       } else if (w.role === "kid") {
-        const excited = lead && lead.cheer > 0 ? Math.min(1, lead.cheer) : 0;
-        watchPose(p, c.clock, 1, excited, c.rm);
+        const excited = lead && lead.cheer > 0;
+        a.act(excited ? "cheer" : "hands-clasp", { fade: 0.25 });
       } else {
-        // The watcher leans back on the rail, arms folded, head following the games.
-        p.bones.torso.rotation.x = -0.12;
-        p.bones.armL.rotation.set(-1.2, 0, -0.9);
-        p.bones.armR.rotation.set(-1.2, 0, 0.9);
-        if (!c.rm) p.bones.head.rotation.y = Math.sin(c.clock * 0.4 + p.seed) * 0.35;
+        // The teenager leaning on the rail, arms folded, looking round now and then.
+        a.act("arms-crossed", { fade: 0.4 });
+        p.lookRange = 10;
       }
     }
-    p.commit();
+    p.commit(c);
   };
 
   return {

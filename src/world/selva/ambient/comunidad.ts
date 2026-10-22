@@ -21,11 +21,14 @@
  * own "E" spots) shows a short bilingual greeting in a speech bubble (the mountain feria's bubble style,
  * ../../ambient/people/people.css): generic lines about the place, never claims about the site's owner.
  *
- * Rendering: one crowd (../../ambient/people/rig.ts): one InstancedMesh per body part for every villager, so
- * the draw calls stay flat however many groups are in view (≈ 8–14 parts shown near a group, plus their
- * shadow and ink passes); people out of the view distance are not drawn (per group or per person). Props: one
- * merged mesh per site, the two boats, the net, the ball, the wake/splash rings. Phones and the low tier get
- * fewer people and a shorter view distance (comunidad/logic.ts headcount).
+ * Rendering: the shared characters (../../characters): every villager is a member of ONE HumanCrowd (continuous
+ * skinned bodies, GPU skinning, LOD by distance: two draw calls for all bodies and cloth, plus their shadow
+ * and ink passes) animated by the human animation controller (walk cycle from the speed, actions such as
+ * "weave", "swim", "carry-shoulder", "fish-cast", "paddle", "wave"; comunidad/villager.ts, dress.ts). Banana
+ * bunches, back baskets, the paddle, the potter's pot and brush are held props (one instanced draw per kind).
+ * People out of the view distance are not drawn (per group or per person). Props: one merged mesh per site,
+ * the two boats, the net, the ball, the wake/splash rings. Phones and the low tier get fewer people and a
+ * shorter view distance (comunidad/logic.ts headcount); the archetypes are prefetched at load (worker builds).
  * Every villager is a creatures body (kinds "child", "villager", "walker", "boatman"); the work and swim
  * places are keep-out zones for the fauna while people are there.
  */
@@ -33,7 +36,9 @@ import "../../ambient/people/people.css";
 import * as THREE from "three";
 import { GAMES } from "../../../games/registry";
 import { jumped } from "../../ambient/people/logic";
-import { Crowd, paletteMaterial } from "../../ambient/people/rig";
+import { HumanCrowd } from "../../characters/crowd";
+import { prefetchHumans } from "../../characters/pipeline";
+import { HeldProps } from "../../characters/props";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { on } from "../../events";
 import { detectDevice } from "../../quality";
@@ -42,9 +47,9 @@ import type { SelvaEnv } from "../contract";
 import { ride } from "../ride";
 import { raftGames } from "./arcade/logic";
 import { type CraftSpot, createCrafts } from "./comunidad/crafts";
+import { ALL_SPECS } from "./comunidad/dress";
 import { createFinale } from "./comunidad/finale";
 import { headcount } from "./comunidad/logic";
-import { ALL_PARTS, amazonSpecs, SHADOW_PARTS } from "./comunidad/models";
 import { createPlazaKids } from "./comunidad/plaza";
 import { createRaftPlayers } from "./comunidad/raft";
 import { boatLane, createRiver } from "./comunidad/river";
@@ -74,10 +79,9 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   const level = env.selva.layout.river.level;
 
   const ramp = env.toon("#ffffff").gradientMap;
-  const mat = paletteMaterial(ramp);
   const staticMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp });
   // Props that move (the kids' ball, the fishing canoe, the peque-peque): no world-space painted blotches,
-  // they would slide over a moving body (style-gl.ts; the villagers' rig already opts out).
+  // they would slide over a moving body (style-gl.ts; the characters' materials already opt out).
   const movingMat = paintStrength(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp }), 0);
 
   // ------------------------------------------------------------ greeting bubble
@@ -125,9 +129,14 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     raft.kids +
     (raft.watcher ? 1 : 0) +
     n.finale;
-  const crowd = new Crowd(amazonSpecs(ALL_PARTS), total, mat, SHADOW_PARTS);
-  crowd.group.name = "comunidad:crowd";
+  const crowd = new HumanCrowd({ capacity: total, name: "comunidad:crowd", lodDist: low ? [7, 20] : [9, 26] });
   env.scene.add(crowd.group);
+  const props = new HeldProps(Math.max(8, total));
+  props.group.name = "comunidad:props";
+  env.scene.add(props.group);
+  // Start the archetype builds now (worker, far LODs first) so the villagers are ready when the traveler
+  // reaches them.
+  prefetchHumans(ALL_SPECS);
   const ripples = new Ripples(env, "comunidad:ripples", 24, level, 1.8);
   env.scene.add(ripples.mesh);
   const groups: Group[] = [];
@@ -161,7 +170,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       potter: at(-3.7, -2.0, -1.0, 0.8),
       elder: at(-2.5, -1.4, -0.2, 1.4),
     };
-    return createCrafts(env, crowd, staticMat, spot, n.crafts);
+    return createCrafts(env, crowd, props, staticMat, spot, n.crafts);
   });
   // The boats keep well clear of the swimming place.
   const swimZone: Array<{ x: number; z: number; r: number }> = [];
@@ -174,15 +183,15 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     swimZone.push({ x: s.land.x, z: s.land.z, r: 12 }, { x: s.tip.x, z: s.tip.z, r: 12 });
     return createSwimmers(env, crowd, staticMat, s, n.swimmers, ripples);
   });
-  tryAdd("road", () => createWalkers(env, crowd, n.walkers));
+  tryAdd("road", () => createWalkers(env, crowd, props, n.walkers));
   tryAdd("raft", () => createRaftPlayers(env, crowd, stationFrame(env, "arcade"), raftGames(GAMES).length, raft));
-  tryAdd("finale", () => createFinale(env, crowd, staticMat, n.finale));
+  tryAdd("finale", () => createFinale(env, crowd, props, staticMat, n.finale));
   tryAdd("river", () => {
     // The peque-peque runs from just below the embarcadero to short of the collpa: upstream of 0.45 the river
     // narrows past the embarcadero's moored canoe and the swimmers' sandbar (no room on the far half).
     const lane = boatLane(env, swimZone, BOAT_T[0], BOAT_T[1]);
     return lane
-      ? createRiver(env, crowd, movingMat, lane, ripples, { fisher: n.fisher, boat: n.boat, slow: swimZone })
+      ? createRiver(env, crowd, props, movingMat, lane, ripples, { fisher: n.fisher, boat: n.boat, slow: swimZone })
       : null;
   });
 
@@ -238,7 +247,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
         g.update(ctx, Math.min(d, da) < ctx.view);
         if (!greeter && !ride.active && (!onPlaza || g.name === "crafts")) greeter = g.greeter?.(ctx) ?? null;
       }
-      crowd.flush();
+      crowd.update(env.camera);
+      props.update();
       ripples.update(dt);
       if (bubbleT > 0) {
         bubbleT -= dt;
@@ -266,8 +276,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       for (const g of groups) g.dispose();
       groups.length = 0;
       crowd.dispose();
+      props.dispose();
       ripples.dispose();
-      mat.dispose();
       staticMat.dispose();
       movingMat.dispose();
       layer.remove();
@@ -277,7 +287,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   if (import.meta.env?.DEV) {
     (window as unknown as { __comunidad?: unknown }).__comunidad = {
       groups: () => groups.map((g) => ({ name: g.name, people: g.people(), points: g.points?.() ?? [] })),
-      drawCalls: () => crowd.drawCalls(),
+      drawCalls: () => crowd.drawCalls() + props.drawCalls(),
+      crowd: () => crowd.stats(),
       dev: (group: string, cmd: string, ...args: number[]) =>
         groups.find((g) => g.name === group)?.dev?.[cmd]?.(...args),
     };

@@ -4,6 +4,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
+import { openCompileGate } from "./compile-gate";
 import { InkOutlinePass } from "./outline";
 import { installStyleShaders } from "./style-gl";
 import { NO_OUTLINE_LAYER } from "./toon";
@@ -44,6 +45,9 @@ export function createEngine(host: HTMLElement, opts: { quality: Quality }): Eng
   canvas.setAttribute("aria-hidden", "true");
   host.prepend(canvas);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+  // Reading every program's info logs forces the driver to finish compiling on the spot: a frame-long stall per
+  // new shader. Production skips it (shaders are fixed and tested); dev keeps the readable errors.
+  renderer.debug.checkShaderErrors = import.meta.env.DEV;
   // Neutral keeps the flat toon hues close to the palette (ACES shifts greens and teals).
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.toneMappingExposure = 1;
@@ -60,6 +64,8 @@ export function createEngine(host: HTMLElement, opts: { quality: Quality }): Eng
   const output = new OutputPass();
   composer.addPass(renderPass);
   composer.addPass(outline);
+  // Characters and animals compile their shaders off the main thread before they first draw (./compile-gate.ts).
+  const closeGate = openCompileGate(renderer, scene, camera);
   composer.addPass(fxaa);
   composer.addPass(output);
 
@@ -171,6 +177,7 @@ export function createEngine(host: HTMLElement, opts: { quality: Quality }): Eng
     size: () => ({ w, h }),
     dispose() {
       stop();
+      closeGate();
       document.removeEventListener("visibilitychange", onVis);
       ro.disconnect();
       listeners.clear();

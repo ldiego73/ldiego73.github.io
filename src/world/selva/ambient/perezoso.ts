@@ -8,20 +8,19 @@
  *
  * The cecropias are brought by this module (wild/trees.ts) so the sloth hangs from a real branch: one static
  * merged mesh per site, drawn only within ~170 u of the camera (wild/kit.ts SiteProps). Rendering: the near
- * site's tree + one rig InstancedMesh for the sloths (flipped under the limb, frustum-culled as a whole) →
- * 1–2 draw calls. Bodies ("perezoso"): listed for queries, never solid (up in the tree).
+ * site's tree + the sloths as one instanced herd on the shared animal core (species "sloth", wild/beasts.ts:
+ * the "hang" mode turns it upside down under the limb, the herd pose pitches it along the limb) → 1–2 draw
+ * calls. Bodies ("perezoso"): listed for queries, never solid (up in the tree).
  * Stamp `selva:fauna:perezoso` after a ~1.5 s good look within 14 u.
  */
-import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { on } from "../../events";
 import { GeoBuilder } from "../../flora/geom";
 import { CANOPY_T } from "../contract";
-import { devHook, FAUNA_FAR, idle, ramp, rootMatrix, SiteProps, Spotter, selvaOf } from "./wild/kit";
-import { damp, nightAmount, rng, roadFrame, treeSites, wrapAngle } from "./wild/logic";
-import { slothModel } from "./wild/mammals";
-import { RigSet } from "./wild/rig";
+import { createBeasts } from "./wild/beasts";
+import { devHook, FAUNA_FAR, idle, SiteProps, Spotter, selvaOf } from "./wild/kit";
+import { damp, rng, roadFrame, treeSites, wrapAngle } from "./wild/logic";
 import { cecropia, type LimbSeg, limbPoint } from "./wild/trees";
 
 /** Stylized a little larger than life (≈ 0.9 u body) so the shaggy shape reads under its limb. */
@@ -36,7 +35,6 @@ interface Sloth {
   phase: number;
   speed: number;
   headYaw: number;
-  headPitch: number;
   x: number;
   y: number;
   z: number;
@@ -91,7 +89,6 @@ export const create: CreateAmbient = (env0): Ambient => {
       phase: R(),
       speed: 0,
       headYaw: 0,
-      headPitch: 0,
       x: 0,
       y: 0,
       z: 0,
@@ -113,11 +110,8 @@ export const create: CreateAmbient = (env0): Ambient => {
   );
   if (high) plant(0.66, 0.7, 1, 7.5, 10, () => 3.8, 4.8);
 
-  const model = slothModel();
-  const set = new RigSet("selva-fauna-perezoso-body", model.geo, model.spec, sloths.length, ramp(env));
-  const root = new THREE.Group();
-  root.name = "selva-fauna-perezoso";
-  root.add(set.mesh);
+  const set = createBeasts(env, "sloth", sloths.length, { scale: SCALE });
+  const root = set.group;
   root.add(props.group);
   env.scene.add(root);
 
@@ -129,18 +123,19 @@ export const create: CreateAmbient = (env0): Ambient => {
   const offDev = devHook("perezoso", () =>
     sloths.map((s) => [+s.x.toFixed(1), +s.y.toFixed(1), +s.z.toFixed(1), +s.u.toFixed(2)]),
   );
-  const m4 = new THREE.Matrix4();
   const p = { x: 0, y: 0, z: 0 };
+  let clock = 0;
 
   return {
     update(dt, avatar) {
       dt = Math.min(dt, 0.05);
-      set.rim.value = nightAmount(env.sky.time()) * 0.6;
+      clock += dt;
       spot.begin();
+      set.begin();
       props.update(spot.view.cam);
       const slow = rm ? 0.6 : 1;
-      let n = 0;
-      for (const s of sloths) {
+      for (let i = 0; i < sloths.length; i++) {
+        const s = sloths[i] as Sloth;
         const l = s.limb;
         const len = Math.hypot(l.bx - l.ax, l.by - l.ay, l.bz - l.az);
         // Creep toward the next spot on the limb, then hang still for a long while.
@@ -175,16 +170,13 @@ export const create: CreateAmbient = (env0): Ambient => {
         const toAv = Math.atan2(avatar.x - s.x, avatar.z - s.z);
         const look = d < 9 ? -Math.max(-1.3, Math.min(1.3, wrapAngle(toAv - yaw))) : Math.sin(s.phase * 6.28) * 0.15;
         s.headYaw = damp(s.headYaw, look, 0.35 * slow, dt);
-        s.headPitch = damp(s.headPitch, d < 9 ? 0.35 : -0.1, 0.3 * slow, dt);
         s.body.x = s.x;
         s.body.z = s.z;
-        if (spot.view.dist(s.x, s.y, s.z) > FAUNA_FAR) continue;
-        rootMatrix(m4, s.x, s.y, s.z, yaw, pitch, Math.PI, SCALE);
-        set.set(n, m4, s.phase, 0.35 * Math.min(1, s.speed / 0.02), s.headYaw, s.headPitch, 0, 0, 0.12, -0.12);
-        n++;
+        if (inside || spot.view.dist(s.x, s.y, s.z) > FAUNA_FAR) continue;
+        set.put(i, s.x, s.y, s.z, yaw, { speed: s.speed, rm, mode: "hang", look: s.headYaw }, { pitch, scale: SCALE });
         spot.see(s.x, s.y - 0.4, s.z, avatar.x, avatar.z, 0.6);
       }
-      set.commit(inside ? 0 : n);
+      set.end(dt, clock, env.camera);
       spot.end(dt);
     },
     dispose() {

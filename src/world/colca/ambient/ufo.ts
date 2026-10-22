@@ -22,15 +22,18 @@
  * live (unlocked, not muted), hushed while a game is open, built only during a pass.
  *
  * Draw calls: hull 1 + dome 1 + two light sets + belly glow, beam 1, ground spot 1, rings 3 (only with the
- * beam), alpaca 3 (instanced rig, ./wild/camelids.ts), stars 3 (only while dizzy).
+ * beam), alpaca 1 (the shared animals' alpaca as a herd of one: lifted, spun, tumbled and shrunk through the
+ * herd pose; built off the main thread at load), stars 3
+ * (only while dizzy).
  */
 import * as THREE from "three";
 import type { AudioOutput } from "../../../audio/contract";
 import { getMusic } from "../../../audio/player";
+import { prefetchAnimals } from "../../characters/animals/assets";
+import { createHerd } from "../../characters/animals/crowd";
 import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit, on } from "../../events";
-import { ALPACA, camelidRig } from "../../fauna-models";
 import { noPaint } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import {
@@ -48,7 +51,6 @@ import {
   saucerOffset,
 } from "./ufo/logic";
 import { BELLY_Y, buildSaucer } from "./ufo/model";
-import { CamelidHerd } from "./wild/camelids";
 
 const LABEL: L = { es: "OVNI en la pampa", en: "UFO over the pampa" };
 const STAMP = "colca:egg:ufo";
@@ -83,28 +85,30 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const hoverY = gy + HOVER_H;
 
   // ---------------------------------------------------------------- the souvenir alpaca
-  const herd = new CamelidHerd("colca-ufo:alpaca", ALPACA, 1, ["#ffffff"], null, {
-    body: "#efe3cf",
-    belly: "#fbf6ec",
-  });
+  // A white alpaca (the shared animals' alpaca) inside a root that lifts, spins and tumbles it.
   const alpaca = new THREE.Group();
   alpaca.name = "colca-ufo:alpaca-root";
-  alpaca.add(herd.group);
   alpaca.position.set(SPOT.x, gy, SPOT.z);
   // Grazing broadside to the road and the tower (they lie south-east of the spot), so its silhouette reads.
   const baseYaw = 0.35;
   alpaca.rotation.order = "YXZ";
   alpaca.rotation.y = baseYaw;
-  const rig = camelidRig(ALPACA);
-  /** Head in the alpaca's own frame (neck pivot + head on the neck), where the dizzy stars circle. */
-  const headLocal = new THREE.Vector3().copy(rig.neck).add(rig.headOnNeck);
-  const pose = { x: 0, y: 0, z: 0, yaw: 0, phase: 0, walk: 0, graze: 0, lying: false };
+  // The alpaca itself is a herd of one in world space; `alpaca` is only the frame it is posed in (and that the
+  // dizzy stars ride), copied into the herd pose every frame.
+  prefetchAnimals(["alpaca"]);
+  const herd = createHerd("alpaca", { max: 1, variants: ["white"] });
+  herd.group.name = "colca-ufo:alpaca";
+  const alpacaId = herd.add({ seed: 17 });
+  env.scene.add(herd.group);
+  const herdPose = { scale: 1, pitch: 0, roll: 0 };
+  /** Head in the alpaca's own frame (feet at the origin, facing +z), where the dizzy stars circle. */
+  const headLocal = new THREE.Vector3(0, 1.3, 0.5);
   const body = creatures.add("alpaca", 0.5, { x: SPOT.x, z: SPOT.z });
   const keep = creatures.keepOut(SPOT.x, SPOT.z, 4);
 
   // ---------------------------------------------------------------- saucer and effects
   const M = buildSaucer(env);
-  // A flying, spinning body: no painted blotches (the alpaca's herd material has none either).
+  // A flying, spinning body: no painted blotches.
   noPaint(M.saucer);
   const group = new THREE.Group();
   group.name = "colca-ufo";
@@ -248,7 +252,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   let seed = (Date.now() & 0xffff) ^ 0x0f0;
   let inPass = false;
   let spin = 0;
-  let legPhase = 0;
+  const gait: { speed: number; rm: boolean; look?: number } = { speed: 0, rm };
   let seenFor = 0;
   let stamped = false;
   const ndc = new THREE.Vector3();
@@ -262,11 +266,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     if (lifted) {
       // Spinning slowly, tumbling a little, legs paddling in the air.
       spin += dt * 1.8;
-      legPhase += dt * 9;
       alpaca.rotation.set(Math.sin(t * 1.7) * 0.18 * up, baseYaw + spin, Math.sin(t * 2.3) * 0.28 * up);
-      pose.walk = 1;
-      pose.phase = legPhase;
-      pose.graze = 0;
+      // Legs paddling: the walk cycle on the spot.
+      gait.speed = 1.6;
+      gait.look = Math.sin(t * 2.6) * 0.5;
     } else if (phase === "dizzy") {
       // Staggering in place: a lurching sway that settles, the head bobbing.
       const k = Math.sqrt(1 - u);
@@ -275,17 +278,24 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         baseYaw + spin + Math.sin(t * 3.1) * 0.5 * k,
         Math.sin(t * 6.5) * 0.16 * k,
       );
-      pose.walk = 0;
-      pose.graze = 0.15 + Math.sin(t * 4) * 0.25 * k;
+      gait.speed = 0;
+      gait.look = Math.sin(t * 4) * 0.7 * k;
     } else {
       // Grazing: the head goes down and up now and then.
       spin = spin % TAU;
       alpaca.rotation.set(0, baseYaw + spin, 0);
-      pose.walk = 0;
-      pose.graze = rm ? 0.6 : Math.max(0, Math.min(1, 0.5 + Math.sin(t * 0.35) * 0.9));
+      // Grazing: the idles put the head down to the pampa's grass and up again, chew and look about.
+      gait.speed = 0;
+      gait.look = undefined;
     }
-    herd.set(0, pose);
-    herd.commit();
+    gait.rm = rm;
+    if (alpaca.visible) {
+      herdPose.scale = alpaca.scale.x;
+      herdPose.pitch = alpaca.rotation.x;
+      herdPose.roll = alpaca.rotation.z;
+      herd.set(alpacaId, alpaca.position.x, alpaca.position.y, alpaca.position.z, alpaca.rotation.y, gait, herdPose);
+    } else herd.hide(alpacaId);
+    herd.update(dt, t, env.camera);
     const dizzy = !rm && phase === "dizzy" && u < 0.92;
     for (let i = 0; i < M.stars.length; i++) {
       const s = M.stars[i] as THREE.Sprite;

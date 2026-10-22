@@ -2,19 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { createCreatureRegistry } from "./creatures";
 import {
   type Agent,
-  BOUND,
   type FlockParams,
   flockStep,
   type GroundRules,
-  gaitAmp,
-  gaitPhase,
   goodGround,
   herdSizes,
-  hopArc,
-  legSwing,
   moveAgent,
   mulberry,
-  PACE,
   pointHash,
   shouldStep,
   turnToward,
@@ -93,41 +87,6 @@ describe("flockStep", () => {
     moveAgent(a, 1, (x) => x <= 0); // wall at x > 0
     expect(a.x).toBe(0);
     expect(a.z).toBe(1);
-  });
-});
-
-describe("gait", () => {
-  test("phase advances one cycle per stride and wraps to [0,1)", () => {
-    expect(gaitPhase(0, 2, 0.25, 1)).toBeCloseTo(0.5, 6);
-    expect(gaitPhase(0.9, 2, 0.1, 1)).toBeCloseTo(0.1, 6);
-    expect(gaitPhase(0.3, 0, 1, 1)).toBe(0.3);
-  });
-  test("amplitude is zero at rest and scales with speed up to max", () => {
-    expect(gaitAmp(0, 1.2, 0.5)).toBe(0);
-    expect(gaitAmp(0.6, 1.2, 0.5)).toBeCloseTo(0.25, 6);
-    expect(gaitAmp(9, 1.2, 0.5)).toBe(0.5);
-    expect(legSwing(0.37, 2, 0)).toBe(0);
-  });
-  test("camelids pace: same-side legs swing together, opposite sides opposed", () => {
-    for (const ph of [0.1, 0.33, 0.72]) {
-      const fl = legSwing(ph, 0, 1, PACE);
-      const fr = legSwing(ph, 1, 1, PACE);
-      const hl = legSwing(ph, 2, 1, PACE);
-      expect(Math.sign(fl) * Math.sign(fr)).toBeLessThanOrEqual(0);
-      expect(Math.abs(fl - hl)).toBeLessThan(0.45);
-    }
-  });
-  test("bound pairs the front legs and the hind legs", () => {
-    const f = legSwing(0.2, 0, 1, BOUND);
-    const h = legSwing(0.2, 2, 1, BOUND);
-    expect(Math.abs(f - legSwing(0.2, 1, 1, BOUND))).toBeLessThan(0.5);
-    expect(Math.sign(f)).toBe(-Math.sign(h));
-  });
-  test("hop arc lands where it starts and peaks mid-air", () => {
-    expect(hopArc(0, 1).y).toBe(0);
-    expect(hopArc(1, 1).y).toBeCloseTo(0, 6);
-    expect(hopArc(0.5, 0.3).y).toBeCloseTo(0.3, 6);
-    expect(hopArc(0.5, 0.3).squash).toBeGreaterThan(1);
   });
 });
 

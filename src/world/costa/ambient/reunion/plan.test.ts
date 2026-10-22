@@ -3,7 +3,19 @@ import { arcDir } from "../../../ambient/sky/moon";
 import { buildCostaLayout, ROAD_HALF } from "../../layout";
 import { finaleFrame, PLATFORM, SUNSET } from "../finale/logic";
 import { toWorld } from "../huacas/logic";
-import { HOURS, KIDS, OFFERING, PLATFORM_CLEAR, reunionSpots, SOLIDS, SPOTS, STALL, WALK, within } from "./plan";
+import {
+  HOURS,
+  KIDS,
+  OFFERING,
+  PLATFORM_CLEAR,
+  reunionAction,
+  reunionSpots,
+  SOLIDS,
+  SPOTS,
+  STALL,
+  WALK,
+  within,
+} from "./plan";
 
 const L = buildCostaLayout({ cells: 200 });
 const end = L.trail.pointAt(1);
@@ -53,5 +65,19 @@ describe("gathering at the road's end", () => {
     expect(within(SUNSET, HOURS)).toBe(true);
     expect(within(0.9, HOURS)).toBe(false);
     expect(within(0.1, HOURS)).toBe(false);
+  });
+});
+
+describe("what they do", () => {
+  test("each role has its action; walking back to a spot is plain walking", () => {
+    const by = (role: (typeof SPOTS)[number]["role"]) => SPOTS.find((s) => s.role === role) as (typeof SPOTS)[number];
+    expect(reunionAction(by("offer"), false, 0)).toBe("carry-head");
+    expect(reunionAction(by("sit-offer"), false, 0)).toBe("kneel");
+    expect(reunionAction(by("vendor"), false, 0.5)).toBe("stir");
+    expect(reunionAction(by("vendor"), false, 3)).toBe("hands-clasp");
+    expect(reunionAction({ role: "family", man: true }, false, 0)).toBe("hands-back");
+    expect(reunionAction({ role: "family", man: false }, false, 0)).toBe("hands-clasp");
+    expect(reunionAction(by("kid"), false, 0)).toBe("none");
+    expect(reunionAction(by("offer"), true, 0)).toBe("none");
   });
 });

@@ -10,8 +10,10 @@
  * toward the traveler. The first sighting comes within a minute or so of walking at night; after that, every
  * minute or two until the passport has its stamp, then only every few minutes.
  *
- * Rendering: one rig InstancedMesh (wild/rig.ts, vertex-painted rosettes, moonlit rim) + the eyeshine dots
- * → 2 draw calls, both hidden while no jaguar is out. Body ("jaguar"): solid while on show (give 0.25: it
+ * Rendering: the shared animal core (species "jaguar", one skinned animal, wild/beasts.ts solo: painted
+ * rosettes, a calm round-pupil eye; walk and trot from the speed, the head turned by `look`) + the eyeshine
+ * dots at the head bone, drawn only while the eyes catch the light → 2 draw calls, both hidden while no
+ * jaguar is out. Body ("jaguar"): solid while on show (give 0.25: it
  * holds its line; the traveler slides around it), parked otherwise.
  * Stamp `selva:fauna:jaguar` after a ~1.5 s good look within 34 u.
  */
@@ -21,23 +23,13 @@ import type { Ambient, CreateAmbient } from "../../contract";
 import { creatures, park } from "../../creatures";
 import { on } from "../../events";
 import { CANOPY_T, SELVA_STATIONS } from "../contract";
-import {
-  type Bar,
-  barF,
-  barPoint,
-  barY,
-  devHook,
-  Eyes,
-  idle,
-  ramp,
-  rootMatrix,
-  Spotter,
-  sandbars,
-  selvaOf,
-} from "./wild/kit";
+import { createBeasts } from "./wild/beasts";
+import { type Bar, barF, barPoint, barY, devHook, Eyes, idle, Spotter, sandbars, selvaOf } from "./wild/kit";
 import { damp, jaguarHours, nightAmount, quietT, rng, roadFrame, turnToward, wrapAngle } from "./wild/logic";
-import { jaguarModel } from "./wild/mammals";
-import { headPoint, RigSet } from "./wild/rig";
+
+/** The eyes in the head bone's frame (bind frame: +Z forward, +Y up), and the eyeshine dot radius. */
+const EYES = [new THREE.Vector3(0.075, 0.035, 0.13), new THREE.Vector3(-0.075, 0.035, 0.13)];
+const EYE_R = 0.022;
 
 type State = "away" | "walk" | "look" | "leave";
 
@@ -50,15 +42,10 @@ export const create: CreateAmbient = (env0): Ambient => {
   const lv = L.river.level;
   const rm = env.reducedMotion;
   const R = rng(1709);
-  const model = jaguarModel();
-  const set = new RigSet("selva-fauna-jaguar-body", model.geo, model.spec, 1, ramp(env), {
-    shadow: env.quality === "high",
-    rimColor: "#a9b8ff",
-  });
+  const set = createBeasts(env, "jaguar", 1, { solo: true });
   const eyes = new Eyes(env, "selva-fauna-jaguar-eyes", 2, "#3a2a12", "#d8f27a");
-  const root = new THREE.Group();
-  root.name = "selva-fauna-jaguar";
-  root.add(set.mesh, eyes.mesh);
+  const root = set.group;
+  root.add(eyes.mesh);
   env.scene.add(root);
   const body = creatures.add("jaguar", 0.6, { solid: false, give: 0.25 });
   park(body);
@@ -93,10 +80,7 @@ export const create: CreateAmbient = (env0): Ambient => {
     walked: 0,
     unseen: 0,
     speed: 0,
-    phase: 0,
     headYaw: 0,
-    headPitch: 0,
-    tail: 0,
   };
   // Cool-down before the next sighting (s of night walking), shorter until the stamp is in the passport.
   let cool = 25 + R() * 20;
@@ -117,6 +101,7 @@ export const create: CreateAmbient = (env0): Ambient => {
   });
   const m4 = new THREE.Matrix4();
   const eye = new THREE.Vector3();
+  const headDir = new THREE.Vector3();
   const toCam = new THREE.Vector3();
 
   const groundY = (x: number, z: number) => {
@@ -198,7 +183,6 @@ export const create: CreateAmbient = (env0): Ambient => {
       clock += dt;
       const time = env.sky.time();
       const nightK = nightAmount(time);
-      set.rim.value = nightK;
       trackClock += dt;
       if (trackClock > 0.4) {
         const t = L.trail.nearestT(avatar.x, avatar.z);
@@ -282,7 +266,6 @@ export const create: CreateAmbient = (env0): Ambient => {
             cat.z = nz;
           }
           cat.speed = damp(cat.speed, speed, 5, dt);
-          cat.phase = (cat.phase + (cat.speed * dt) / 1.5) % 1;
           const g = groundY(cat.x, cat.z);
           // In the river at the end of a bar: swimming low, gone a moment later.
           cat.y = damp(cat.y, Math.max(g, lv - 0.55), 10, dt);
@@ -296,26 +279,32 @@ export const create: CreateAmbient = (env0): Ambient => {
           // Head: on the traveler during the look (and a glance while close), else forward and low.
           const rel = Math.max(-1.3, Math.min(1.3, wrapAngle(toAv - cat.yaw)));
           cat.headYaw = damp(cat.headYaw, lookAt || d < 18 ? rel : 0, lookAt ? 3 : 2, dt);
-          cat.headPitch = damp(cat.headPitch, lookAt ? -0.1 : 0.15, 3, dt);
-          const swing = Math.min(0.55, cat.speed * 0.28);
-          cat.tail = Math.sin(clock * 1.1) * 0.25 * mot;
-          rootMatrix(m4, cat.x, cat.y, cat.z, cat.yaw, 0, 0, 1);
-          set.set(0, m4, cat.phase, swing, cat.headYaw, cat.headPitch, cat.tail, -0.35, 0, 0);
-          set.commit(1);
-          // Eyeshine when the head faces the camera.
-          headPoint(eye, m4, model.spec.head, cat.headYaw, cat.headPitch, model.eyes[0]);
-          toCam.subVectors(spot.view.cam, eye);
-          const dc = toCam.length();
-          const hdx = Math.sin(cat.yaw + cat.headYaw);
-          const hdz = Math.cos(cat.yaw + cat.headYaw);
-          const facing = dc > 0 ? (hdx * toCam.x + hdz * toCam.z) / dc : 0;
-          const glint = nightK * THREE.MathUtils.smoothstep(facing, 0.4, 0.9);
-          const size = model.eyeR * (1 + glint * Math.min(1.6, dc / 16));
-          for (let e = 0; e < 2; e++) {
-            headPoint(eye, m4, model.spec.head, cat.headYaw, cat.headPitch, model.eyes[e]!);
-            eyes.set(e, eye, size, glint);
+          set.begin();
+          if (!inside)
+            set.put(0, cat.x, cat.y, cat.z, cat.yaw, {
+              speed: cat.speed,
+              rm,
+              look: lookAt || d < 18 ? cat.headYaw : undefined,
+              mode: cat.y < g - 0.2 ? "swim" : "auto",
+            });
+          set.end(dt, clock, env.camera);
+          // Eyeshine when the head faces the camera (dots over the painted eyes, only while they glint).
+          let ne = 0;
+          if (set.boneMatrix(0, "head", m4)) {
+            eye.copy(EYES[0] as THREE.Vector3).applyMatrix4(m4);
+            toCam.subVectors(spot.view.cam, eye);
+            const dc = toCam.length();
+            headDir.set(0, 0, 1).transformDirection(m4);
+            const facing = dc > 0 ? headDir.dot(toCam) / dc : 0;
+            const glint = nightK * THREE.MathUtils.smoothstep(facing, 0.4, 0.9);
+            const size = EYE_R * (1 + glint * Math.min(1.6, dc / 16));
+            if (glint > 0.05)
+              for (const e of EYES) {
+                eye.copy(e).applyMatrix4(m4);
+                eyes.set(ne++, eye, size, glint);
+              }
           }
-          eyes.commit(1 * 2);
+          eyes.commit(ne);
           // Only a look in the open counts (on the road, on a bar, or the pause to look back): the frustum test
           // cannot tell a cat still hidden in the undergrowth from one in plain sight.
           const open = cat.state === "look" || cat.bar !== null || L.trailQuery(cat.x, cat.z).d < 4;
@@ -323,7 +312,8 @@ export const create: CreateAmbient = (env0): Ambient => {
         }
       }
       if (cat.state === "away") {
-        set.commit(0);
+        set.begin();
+        set.end(dt, clock, env.camera);
         eyes.commit(0);
       }
       spot.end(dt);

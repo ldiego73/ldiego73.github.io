@@ -4,53 +4,35 @@
  * then darts to another bush (./wild/logic.ts hoverPlan). Out by day. Drawn a little larger than life so
  * they read at walking distance.
  *
- * Passport: within 7 u of one stamps `colca:fauna:picaflor`. Two instanced draw calls (bodies, wings).
+ * Passport: within 7 u of one stamps `colca:fauna:picaflor`. Rendering: the shared animals' hummingbird in the
+ * giant's dull olive and cinnamon, one herd (one instanced draw per LOD), each bird scaled up by the herd pose;
+ * built off the main thread. The bird animator's flight machine reads the hover and the dart from the speed.
  */
 import * as THREE from "three";
+import { prefetchAnimals } from "../../characters/animals/assets";
+import { createHerd } from "../../characters/animals/crowd";
+import { bpal } from "../../characters/animals/species/birds";
 import type { CreateAmbient } from "../../contract";
-import { mergeColored, vertexToon } from "../../merge-colors";
-import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import type { ColcaLayout } from "../layout";
 import { FLOWERS, toWorld } from "./pueblo/logic";
 import { hoverPlan, seenWithin } from "./wild/logic";
 import { faunaStamp } from "./wild/stamp";
 
-const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
-const SCALE = 1.7;
-
-function bodyGeo(): THREE.BufferGeometry {
-  const body = new THREE.SphereGeometry(0.07, 8, 6);
-  body.scale(0.9, 0.9, 1.6);
-  const belly = new THREE.SphereGeometry(0.055, 8, 6);
-  belly.scale(0.9, 0.8, 1.3);
-  belly.translate(0, -0.02, 0.01);
-  const head = new THREE.SphereGeometry(0.05, 8, 6);
-  head.translate(0, 0.03, 0.1);
-  const beak = new THREE.CylinderGeometry(0.006, 0.01, 0.14, 5);
-  beak.rotateX(Math.PI / 2);
-  beak.translate(0, 0.03, 0.2);
-  const tail = new THREE.BoxGeometry(0.06, 0.01, 0.1);
-  tail.translate(0, -0.01, -0.15);
-  const out = mergeColored([
-    { geometry: body, color: new THREE.Color("#5f6a3f") },
-    { geometry: belly, color: new THREE.Color("#c4875a") },
-    { geometry: head, color: new THREE.Color("#55613a") },
-    { geometry: beak, color: new THREE.Color("#1f1a17") },
-    { geometry: tail, color: new THREE.Color("#4a5232") },
-  ]) as THREE.BufferGeometry;
-  for (const g of [body, belly, head, beak, tail]) g.dispose();
-  return out;
-}
-
-function wingGeo(): THREE.BufferGeometry {
-  // A narrow wing from the shoulder outward (+x), pivot at the origin.
-  const g = new THREE.BoxGeometry(0.17, 0.006, 0.05);
-  g.translate(0.085, 0, 0);
-  const out = mergeColored([{ geometry: g, color: new THREE.Color("#3e4530") }]) as THREE.BufferGeometry;
-  g.dispose();
-  return out;
-}
+/** Larger than life (the giant hummingbird is ≈ 0.2 m; the shared bird is ≈ 0.15 u long). */
+const SCALE = 2.6;
+/** Patagona gigas: olive-brown back, cinnamon belly, a dark tail and wings, a long black bill. */
+const GIANT = bpal({
+  back: "#626b40",
+  head: "#5a6338",
+  bill: "#1a1818",
+  legs: "#1a1818",
+  belly: "#c4875a",
+  coverts: "#5a6238",
+  flight: "#3e4530",
+  tail: "#4a5232",
+  face: "#5a6338",
+});
 
 export const create: CreateAmbient = (baseEnv) => {
   const env = baseEnv as SuyuEnv;
@@ -63,37 +45,27 @@ export const create: CreateAmbient = (baseEnv) => {
     return { ...w, y: env.heightAt(w.x, w.z) + 1.1 };
   });
   const n = env.quality === "high" ? 3 : 2;
-  // Moving bodies take no painted blotches (they would slide over them).
-  const mat = paintStrength(vertexToon(), 0);
-  const bGeo = bodyGeo();
-  const wGeo = wingGeo();
-  const bodies = new THREE.InstancedMesh(bGeo, mat, n);
-  const wings = new THREE.InstancedMesh(wGeo, mat, n * 2);
-  bodies.name = "colca-picaflores";
-  wings.name = "colca-picaflores:wings";
-  bodies.frustumCulled = false;
-  wings.frustumCulled = false;
-  env.scene.add(bodies, wings);
+  prefetchAnimals(["hummingbird"]);
+  const herd = createHerd("hummingbird", { max: n, variants: [GIANT] });
+  herd.group.name = "colca-picaflores";
+  env.scene.add(herd.group);
+  const ids = Array.from({ length: n }, (_, i) => herd.add({ seed: 21 + i * 5 }));
+  const pose = { scale: SCALE };
   const stamp = faunaStamp("picaflor");
-  const root = new THREE.Matrix4();
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const e = new THREE.Euler(0, 0, 0, "YXZ");
-  const v = new THREE.Vector3();
-  const sc = new THREE.Vector3(SCALE, SCALE, SCALE);
-  const flipY = new THREE.Matrix4().makeRotationY(Math.PI);
+  const prev = Array.from({ length: n }, () => new THREE.Vector3(Number.NaN, 0, 0));
   let t = 0;
   return {
-    update(dt, avatar) {
+    update(dtIn, avatar, clock) {
+      const dt = Math.min(dtIn, 0.05);
       t += dt;
       const time = env.sky.time();
       const day = time > 0.28 && time < 0.72;
       const nearby = Math.hypot(env.camera.position.x - pl.x, env.camera.position.z - pl.z) < 120;
       for (let i = 0; i < n; i++) {
+        const id = ids[i] as number;
         if (!day || !nearby) {
-          bodies.setMatrixAt(i, HIDE);
-          wings.setMatrixAt(i * 2, HIDE);
-          wings.setMatrixAt(i * 2 + 1, HIDE);
+          herd.hide(id);
+          (prev[i] as THREE.Vector3).x = Number.NaN;
           continue;
         }
         const plan = hoverPlan(env.reducedMotion ? 0 : t, flowers.length, i + 1);
@@ -115,31 +87,18 @@ export const create: CreateAmbient = (baseEnv) => {
           a.y + (b.y - a.y) * k + Math.sin(k * Math.PI) * 1.2 + (env.reducedMotion ? 0 : Math.sin(t * 3 + i) * 0.05);
         // Facing the flower while hovering, the way it flies while darting.
         const yaw = plan.k > 0 ? Math.atan2(pb.x - pa.x, pb.z - pa.z) : Math.atan2(a.x - pa.x, a.z - pa.z);
-        q.setFromEuler(e.set(plan.k > 0 ? 0.1 : -0.35, yaw, 0));
-        root.compose(v.set(x, y, z), q, sc);
-        bodies.setMatrixAt(i, root);
-        const flap = env.reducedMotion ? 0.3 : Math.sin(t * 70 + i) * 0.9;
-        for (const side of [1, -1] as const) {
-          // The left wing is the right one turned half round (no mirroring: it would flip the faces).
-          m.makeRotationZ(flap);
-          if (side === -1) m.premultiply(flipY);
-          m.setPosition(side * 0.05, 0.03, 0.01);
-          m.premultiply(root);
-          wings.setMatrixAt(i * 2 + (side === 1 ? 0 : 1), m);
-        }
+        const p = prev[i] as THREE.Vector3;
+        // Speed and climb in the bird's own size (the animator reads a 0.15 u bird; this one is SCALE × that).
+        const speed = Number.isNaN(p.x) ? 0 : Math.hypot(x - p.x, z - p.z) / dt / SCALE;
+        const vy = Number.isNaN(p.x) ? 0 : (y - p.y) / dt / SCALE;
+        p.set(x, y, z);
+        herd.set(id, x, y, z, yaw, { speed, rm: env.reducedMotion, grounded: false, vy, height: 1 }, pose);
         if (seenWithin({ x, z }, avatar, 7)) stamp();
       }
-      bodies.instanceMatrix.needsUpdate = true;
-      wings.instanceMatrix.needsUpdate = true;
+      herd.update(dt, clock, env.camera);
     },
     dispose() {
-      bodies.removeFromParent();
-      wings.removeFromParent();
-      bodies.dispose();
-      wings.dispose();
-      bGeo.dispose();
-      wGeo.dispose();
-      mat.dispose();
+      herd.dispose();
     },
   };
 };

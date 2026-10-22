@@ -11,9 +11,12 @@
  * roost away at night.
  *
  * Bars come from the scenery's placement plan (wild/kit.ts `sandbars`), so the animals stand on the sand the
- * scenery draws. Rendering: one rig InstancedMesh for the capybaras (wild/rig.ts), one bird-rig mesh for the
- * egrets and a ripple pool → 3 draw calls. Bodies ("ronsoco", "garza"): capybaras solid on the sand (moderate
- * give), not solid while swimming; egrets never solid.
+ * scenery draws. Rendering: the shared animal core (wild/beasts.ts): the capybara family as one instanced herd
+ * (species "capybara", each at its own size, the pups about half: walk from the speed, "graze", lying down to
+ * rest as "sleep", the "swim" mode paddling), the egrets as a flock (species "heron", white "egret" coat: the
+ * flight state machine flaps, glides and lands from the world's flight path, a stab at a fish is the "graze"
+ * peck) and a ripple pool. Bodies ("ronsoco", "garza"): capybaras solid on the sand (moderate give), not solid
+ * while swimming; egrets never solid.
  * Stamp `selva:fauna:ronsoco` after a ~1.5 s good look within 36 u (the bars lie across the water from the
  * landings; from the canoe they are much closer).
  */
@@ -21,7 +24,7 @@ import * as THREE from "three";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures, PARKED, park } from "../../creatures";
 import { on } from "../../events";
-import { egretModel, FOLDED, WingSet } from "./wild/birds";
+import { createBeasts } from "./wild/beasts";
 import {
   type Bar,
   barF,
@@ -32,15 +35,11 @@ import {
   FAUNA_FAR,
   idle,
   Ripples,
-  ramp,
-  rootMatrix,
   Spotter,
   sandbars,
   selvaOf,
 } from "./wild/kit";
 import { clamp01, damp, diurnal, nightAmount, rng, TAU, turnToward, wrapAngle } from "./wild/logic";
-import { capybaraModel } from "./wild/mammals";
-import { RigSet } from "./wild/rig";
 
 type CapyState = "graze" | "rest" | "alert" | "flee" | "swim" | "return";
 type EgretState = "stand" | "step" | "strike" | "fly" | "away";
@@ -69,10 +68,12 @@ interface Capy {
   timer: number;
   speed: number;
   phase: number;
-  headPitch: number;
   headYaw: number;
   rest: number;
   wet: number;
+  /** Index in its set (the adults' herd or the pups' singles). */
+  k: number;
+  pup: boolean;
   body: Body;
 }
 
@@ -84,11 +85,9 @@ interface Egret {
   z: number;
   yaw: number;
   timer: number;
-  headPitch: number;
   headYaw: number;
-  wing: number;
-  fold: number;
-  flap: number;
+  /** Vertical speed (for the flight state machine). */
+  vy: number;
   fx: number;
   fy: number;
   fz: number;
@@ -157,10 +156,11 @@ export const create: CreateAmbient = (env0): Ambient => {
         timer: R() * 4,
         speed: 0,
         phase: R(),
-        headPitch: 0.6,
         headYaw: 0,
         rest: 0,
         wet: 0,
+        k: 0,
+        pup,
         body: creatures.add("ronsoco", pup ? 0.25 : 0.45, { give: 0.6, x: p.x, z: p.z }),
       };
       if (!pup) adults.push(c);
@@ -176,11 +176,8 @@ export const create: CreateAmbient = (env0): Ambient => {
         z: 0,
         yaw: R() * TAU,
         timer: 2 + R() * 3,
-        headPitch: 0,
         headYaw: 0,
-        wing: FOLDED,
-        fold: 1,
-        flap: R() * TAU,
+        vy: 0,
         fx: 0,
         fy: 0,
         fz: 0,
@@ -209,15 +206,16 @@ export const create: CreateAmbient = (env0): Ambient => {
     e.timer = 1 + R() * 3;
   }
 
-  const capySet = (() => {
-    const m = capybaraModel();
-    return new RigSet("selva-fauna-ronsoco-body", m.geo, m.spec, capys.length, ramp(env), { shadow: high });
-  })();
-  const egretSet = new WingSet(env, "selva-fauna-garza", egretModel(), egrets.length);
+  capys.forEach((c, i) => {
+    c.k = i;
+  });
+  // The whole family in one herd, each at its own size (the pups about half).
+  const capySet = createBeasts(env, "capybara", capys.length);
+  const egretSet = createBeasts(env, "heron", egrets.length, { variants: ["egret"], shadows: false });
   const ripples = new Ripples(env, "selva-fauna-ronsoco-ripples", high ? 14 : 8, lv, 1.8);
   const root = new THREE.Group();
   root.name = "selva-fauna-ronsoco";
-  root.add(capySet.mesh, egretSet.mesh, ripples.mesh);
+  root.add(capySet.group, egretSet.group, ripples.mesh);
   env.scene.add(root);
 
   const spot = new Spotter(env, "ronsoco", 36);
@@ -225,7 +223,6 @@ export const create: CreateAmbient = (env0): Ambient => {
   const offInterior = on("world:interior", (d) => {
     inside = !!d?.inside;
   });
-  const m4 = new THREE.Matrix4();
   const want = { x: 0, z: 0 };
   let lastAx = Number.NaN;
   let lastAz = 0;
@@ -284,7 +281,6 @@ export const create: CreateAmbient = (env0): Ambient => {
       lastAx = avatar.x;
       lastAz = avatar.z;
       const running = avSpeed > 5.5;
-      capySet.rim.value = night * 0.8;
       spot.begin();
       const mot = rm ? 0.6 : 1;
 
@@ -310,7 +306,7 @@ export const create: CreateAmbient = (env0): Ambient => {
       }
 
       // ---- capybaras
-      let n = 0;
+      capySet.begin();
       for (const c of capys) {
         const g = c.g;
         const bar = g.bar;
@@ -445,25 +441,34 @@ export const create: CreateAmbient = (env0): Ambient => {
           c.z = c.body.z;
         }
 
-        if (spot.view.dist(c.x, c.y, c.z) > FAUNA_FAR) continue;
-        // Pose.
-        c.phase = (c.phase + (c.speed * dt) / (0.9 * c.scale)) % 1;
-        const swing = Math.min(0.55, c.speed * 0.35) * (c.wet > 0.5 ? 0.7 : 1);
+        if (inside || spot.view.dist(c.x, c.y, c.z) > FAUNA_FAR) continue;
+        // Pose: heads turned to a watched traveler, a mouthful of grass now and then, lying down to rest.
+        const set = capySet;
         const relYaw = look ? Math.max(-1, Math.min(1, wrapAngle(toAv - c.yaw))) : 0;
         c.headYaw = damp(c.headYaw, relYaw, 3, dt);
-        c.headPitch = damp(c.headPitch, pitchT, 3, dt);
-        const nib = c.headPitch > 0.5 ? Math.sin(clock * 7 + c.phase * 9) * 0.05 * mot : 0;
-        const lie = c.rest;
-        rootMatrix(m4, c.x, c.y - lie * 0.24 * c.scale, c.z, c.yaw, c.wet > 0.5 ? -0.12 : 0, 0, c.scale);
-        capySet.set(n, m4, c.phase, swing, c.headYaw, c.headPitch + nib, 0, 0, -lie * 1.3, lie * 1.35);
-        n++;
+        if (pitchT > 0.6 && c.speed < 0.2 && R() < dt * 0.5) set.play(c.k, "graze", 1.5 + R() * 2.5);
+        set.put(
+          c.k,
+          c.x,
+          c.y,
+          c.z,
+          c.yaw,
+          {
+            speed: c.speed,
+            rm,
+            mode: c.wet > 0.5 ? "swim" : c.rest > 0.5 ? "sleep" : "auto",
+            look: look ? c.headYaw : undefined,
+          },
+          { scale: c.scale, pitch: c.wet > 0.5 ? -0.12 : 0 },
+        );
         spot.see(c.x, c.y + 0.5, c.z, avatar.x, avatar.z, 0.7);
       }
-      capySet.commit(inside ? 0 : n);
+      capySet.end(dt, clock, env.camera);
 
       // ---- egrets
-      let ne = 0;
-      for (const e of egrets) {
+      egretSet.begin();
+      for (let i = 0; i < egrets.length; i++) {
+        const e = egrets[i] as Egret;
         if (!egretsOut || inside) {
           if (e.state !== "away") {
             e.state = "away";
@@ -479,9 +484,7 @@ export const create: CreateAmbient = (env0): Ambient => {
         const d = Math.hypot(e.x - avatar.x, e.z - avatar.z);
         const spooked = d < (running ? 13 : 9) || groups.some((g) => g.bar === e.bar && g.alarm > 0);
         if (e.state !== "fly" && spooked && R() < dt * 3) flyEgret(e);
-        let pitchT = 0;
-        let wingT = FOLDED;
-        let foldT = 1;
+        const y0 = e.y;
         switch (e.state) {
           case "stand": {
             e.timer -= dt;
@@ -496,7 +499,6 @@ export const create: CreateAmbient = (env0): Ambient => {
                 e.yaw += (R() - 0.5) * 1.6;
               } else e.timer = 1.5 + R() * 3;
             }
-            pitchT = 0.35; // peering at the water
             break;
           }
           case "step": {
@@ -512,13 +514,13 @@ export const create: CreateAmbient = (env0): Ambient => {
               e.state = "stand";
               e.timer = 1 + R() * 3;
             }
-            pitchT = 0.3;
             break;
           }
           case "strike": {
+            // The stab: the "graze" peck, started with the strike.
+            if (e.timer >= 0.6) egretSet.play(i, "graze", 0.6);
             e.timer -= dt;
             const k = 1 - e.timer / 0.6;
-            pitchT = k < 0.35 ? 1.25 : 1.25 * (1 - (k - 0.35) / 0.65);
             if (k > 0.3 && k < 0.36 && R() < 0.5)
               ripples.spawn(e.x + Math.sin(e.yaw) * 0.5, e.z + Math.cos(e.yaw) * 0.5, 0.5);
             if (e.timer <= 0) {
@@ -540,10 +542,6 @@ export const create: CreateAmbient = (env0): Ambient => {
             e.x = px;
             e.y = py;
             e.z = pz;
-            foldT = u > 0.85 ? 0.4 : 0;
-            e.flap += dt * (u < 0.15 || u > 0.85 ? 7 : 4.2) * mot;
-            wingT = rm ? 0.35 + Math.sin(e.flap) * 0.3 : Math.sin(e.flap) * 0.85 + 0.15;
-            pitchT = 0.2;
             if (u >= 1) {
               if (e.dest) landEgret(e, e.dest);
               else {
@@ -555,19 +553,25 @@ export const create: CreateAmbient = (env0): Ambient => {
           }
         }
         if ((e.state as EgretState) === "away") continue;
-        e.headPitch = damp(e.headPitch, pitchT, e.state === "strike" ? 18 : 4, dt);
-        e.wing = e.state === "fly" ? wingT : damp(e.wing, wingT, 8, dt);
-        e.fold = damp(e.fold, foldT, 8, dt);
         const lookE = d < 16 && e.state !== "fly" ? wrapAngle(Math.atan2(avatar.x - e.x, avatar.z - e.z) - e.yaw) : 0;
         e.headYaw = damp(e.headYaw, Math.max(-1, Math.min(1, lookE)), 3, dt);
-        const pitch = e.state === "fly" ? 0.75 : 0;
+        e.vy = dt > 0 ? damp(e.vy, (e.y - y0) / dt, 8, dt) : e.vy;
         e.body.x = e.x;
         e.body.z = e.z;
         if (spot.view.dist(e.x, e.y, e.z) > FAUNA_FAR) continue;
-        egretSet.set(ne, e.x, e.y, e.z, e.yaw, pitch, 0, 1.05, e.wing, e.headYaw, e.headPitch, e.fold);
-        ne++;
+        // The flight state machine reads the world's flight: airborne height above the bar or the water.
+        const fly = e.state === "fly";
+        const under = fly ? Math.max(lv, L.heightAt(e.x, e.z)) : e.y;
+        egretSet.put(i, e.x, e.y, e.z, e.yaw, {
+          speed: fly ? 6 : e.state === "step" ? 0.25 * mot : 0,
+          rm,
+          look: d < 16 && !fly ? e.headYaw : undefined,
+          grounded: !fly,
+          vy: fly ? e.vy : 0,
+          height: fly ? e.y - under : 0,
+        });
       }
-      egretSet.commit(ne);
+      egretSet.end(dt, clock, env.camera);
       ripples.update(dt);
       spot.end(dt);
     },

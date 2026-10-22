@@ -2,10 +2,12 @@
  * Andean fauna (ambient system): vicuña and alpaca herds on the grassy slopes, vizcacha colonies by the
  * big rocks, condors circling over the gorge and the summit, and a small llama caravan on the Qhapaq Ñan.
  *
- * - Rendering: one InstancedMesh per species × body part on a white toon material with per-instance coat
- *   colors (same pattern as the rocks/ichu), so the whole bestiary is ~30 draw calls and keeps the ink.
- * - Motion: leader-follow boids (fauna-sim.ts) + procedural pacing gaits; necks pitch to graze and turn
- *   to watch the traveler; herds drift away and bolt if the traveler runs at them.
+ * - Rendering: the shared animals (characters/animals): each species is one herd (createHerd: one skinned
+ *   InstancedMesh per LOD, built off the main thread, coat variants per animal), so the whole bestiary is a
+ *   handful of draw calls per pass and keeps the ink.
+ * - Motion: leader-follow boids (fauna-sim.ts) drive each animal's speed, heading and head turn; the
+ *   species animator does the gaits (pace, gallop, the vizcacha's hop, the condor's soaring) and the idles
+ *   (grazing, looking around); animals watch the traveler; herds drift away and bolt if the traveler runs.
  * - Budget: ≈55 animals on high, ≈32 on low; herds farther than 120 u (70 u on phones) step at 4 Hz.
  * - Interact: E right next to an alpaca shows a tiny text bubble; anything else returns false.
  * - Bodies (creatures.ts): every animal registers ("vicuna", "alpaca", "llama", "vizcacha", "condor" — the
@@ -14,27 +16,23 @@
  *   grazing herd is never shoved over a terrace wall or onto the path. Caravan llamas only yield sideways.
  */
 import * as THREE from "three";
+import { nightAmount } from "./ambient/nightfauna/sim";
+import { prefetchAnimals } from "./characters/animals/assets";
+import { type Herd as AnimalHerd, createHerd, type HerdPose } from "./characters/animals/crowd";
+import { setAnimalNight } from "./characters/animals/night";
 import type { Ambient, CreateAmbient, WorldEnv } from "./contract";
 import { type Body, creatures } from "./creatures";
-import { ALPACA, type CamelidSpec, camelidParts, condorParts, LLAMA, VICUNA, vizcachaParts } from "./fauna-models";
 import {
   type Agent,
-  BOUND,
   clamp,
   damp,
   type FlockParams,
   flockStep,
   type GroundRules,
-  gaitAmp,
-  gaitPhase,
   goodGround,
   herdSizes,
-  hopArc,
-  legLift,
-  legSwing,
   moveAgent,
   mulberry,
-  PACE,
   pointHash,
   shouldStep,
   TAU,
@@ -60,26 +58,19 @@ type Species = "vicuna" | "alpaca" | "llama";
 interface Beast extends Agent {
   y: number;
   yaw: number;
-  pitch: number;
-  phase: number;
-  amp: number;
-  bound: number;
-  neckPitch: number;
-  neckYaw: number;
-  headPitch: number;
   graze: boolean;
   grazeT: number;
+  /** Head turn toward the traveler (radians, body frame), or undefined to let the idles look around. */
+  look: number | undefined;
   scale: number;
-  slot: number;
-  tail: number;
-  hop: number;
+  /** Instance in its species' herd renderer. */
+  id: number;
   seed: number;
   body: Body;
 }
 
 interface Herd {
   species: Species;
-  spec: CamelidSpec;
   members: Beast[];
   home: { x: number; z: number };
   leash: number;
@@ -90,13 +81,9 @@ interface Herd {
   rules: GroundRules;
 }
 
-// Coat palettes (flat toon colors).
-const VICUNA_COAT = ["#c58d55", "#c99358", "#bd8650"];
-const ALPACA_COAT = ["#efe6d6", "#e8dcc4", "#8a5a3b", "#6f4a33", "#2e2a27", "#9a948c", "#c9a27a"];
-const LLAMA_COAT = ["#f1ebe0", "#7a4e33", "#3a302b", "#b98a5e"];
-const DYES = ["#c4383f", "#3446a6", "#dda63c", "#2a9d8f"];
-const BELLY = "#f1e7d6";
-const EYE = "#1f1a17";
+/** Coat variants (characters/animals/species/camelids.ts) a member picks from. */
+const ALPACA_COATS = ["white", "white", "fawn", "brown", "grey", "black", "fawn"];
+const LLAMA_COATS = ["white", "brown", "black", "cafe"];
 
 const HELLO = {
   es: ["¡Hola!", "Mmm-hmm… ♪", "¡Qué tal, viajero!"],
@@ -104,83 +91,19 @@ const HELLO = {
 };
 const PROMPT = { es: "E · Saludar", en: "E · Say hi" };
 
-/** One InstancedMesh per part, colored per instance. */
-class Part {
-  mesh: THREE.InstancedMesh;
-  constructor(env: WorldEnv, geo: THREE.BufferGeometry, count: number, name: string, shadow: boolean) {
-    this.mesh = new THREE.InstancedMesh(geo, env.toon("#ffffff"), Math.max(1, count));
-    this.mesh.name = `fauna-${name}`;
-    // Animals move: no world-space painted blotches sliding over them (style-gl.ts).
-    noPaint(this.mesh);
-    this.mesh.count = count;
-    this.mesh.frustumCulled = false;
-    this.mesh.castShadow = shadow;
-    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    const white = new THREE.Color("#ffffff");
-    for (let i = 0; i < Math.max(1, count); i++) this.mesh.setColorAt(i, white);
-  }
-  set(i: number, m: THREE.Matrix4) {
-    this.mesh.setMatrixAt(i, m);
-  }
-  color(i: number, c: THREE.ColorRepresentation) {
-    this.mesh.setColorAt(i, new THREE.Color(c));
-  }
-  flush() {
-    this.mesh.instanceMatrix.needsUpdate = true;
-  }
-  commitColors() {
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
-  }
-}
-
-// ---------------------------------------------------------------- matrix helpers (shared temporaries)
-const _e = new THREE.Euler();
-const _q = new THREE.Quaternion();
-const _v = new THREE.Vector3();
-const _s = new THREE.Vector3();
-const _l = new THREE.Matrix4();
-const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
-
-function rootMatrix(
-  out: THREE.Matrix4,
-  x: number,
-  y: number,
-  z: number,
-  yaw: number,
-  pitch: number,
-  roll: number,
-  s: number,
-  sy = s,
-) {
-  _q.setFromEuler(_e.set(pitch, yaw, roll, "YXZ"));
-  return out.compose(_v.set(x, y, z), _q, _s.set(s, sy, s));
-}
-/** out = parent × T(p) × R(yaw, pitch, roll). */
-function child(out: THREE.Matrix4, parent: THREE.Matrix4, p: THREE.Vector3, pitch: number, yaw = 0, roll = 0) {
-  _l.makeRotationFromEuler(_e.set(pitch, yaw, roll, "YXZ"));
-  _l.setPosition(p);
-  return out.multiplyMatrices(parent, _l);
-}
-
 export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement): Ambient => {
   const R = mulberry(7319);
   const high = env.quality === "high";
   const rm = env.reducedMotion;
   const motion = rm ? 0.5 : 1;
   /** Herds within this distance step every frame (phones: nearer, the rest at 4 Hz). */
-  const near = detectDevice().phone ? 70 : NEAR;
+  const phone = detectDevice().phone;
+  const near = phone ? 70 : NEAR;
   const group = new THREE.Group();
   group.name = "fauna";
   env.scene.add(group);
-  const geos: THREE.BufferGeometry[] = [];
-  const parts: Part[] = [];
-  const part = (geo: THREE.BufferGeometry, count: number, name: string, shadow = false) => {
-    geos.push(geo);
-    const p = new Part(env, geo, count, name, shadow && high);
-    parts.push(p);
-    group.add(p.mesh);
-    return p;
-  };
+  // Start the builds now (worker, far LODs first): the herds show up at once and sharpen as they arrive.
+  prefetchAnimals(["vicuna", "alpaca", "llama", "vizcacha", "condor"]);
 
   // ---------------------------------------------------------------- ground rules
   const trail = env.trail;
@@ -362,19 +285,11 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     vz: 0,
     y: env.heightAt(x, z),
     yaw: R() * TAU,
-    pitch: 0,
-    phase: R(),
-    amp: 0,
-    bound: 0,
-    neckPitch: 0,
-    neckYaw: 0,
-    headPitch: 0,
     graze: R() < 0.6,
     grazeT: 2 + R() * 6,
+    look: undefined,
     scale,
-    slot,
-    tail: 0,
-    hop: 0,
+    id: slot,
     seed: R() * 100,
     body: creatures.add(species, BODY_R[species] * scale, { x, z, give: 1 }),
   });
@@ -389,7 +304,6 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     }
     herds.push({
       species,
-      spec: species === "vicuna" ? VICUNA : ALPACA,
       members,
       home,
       leash: species === "vicuna" ? 16 : 9,
@@ -564,7 +478,8 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     hide: number;
     crouch: number;
     headYaw: number;
-    headPitch: number;
+    /** Smoothed ground speed (hop runs). */
+    speed: number;
     twitch: number;
     homeA: number;
     rock: Rock;
@@ -593,7 +508,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
         hide: 0,
         crouch: 0,
         headYaw: 0,
-        headPitch: 0,
+        speed: 0,
         twitch: 0,
         homeA: a,
         rock,
@@ -623,190 +538,97 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       r0: 26 + i * 7,
       a: R() * TAU,
       w: (i % 2 ? -1 : 1) * 1,
-      flap: 0,
-      flapT: 3 + R() * 6,
       swoop: 0,
       swoopT: 20 + R() * 20,
       yaw: 0,
-      bank: 0,
-      wing: 0.12,
+      turn: 0,
       x: 0,
       y: 0,
       z: 0,
+      vy: 0,
+      /** Head turn (glancing down at the slopes). */
+      look: 0,
+      id: 0,
       seed: R() * 100,
       // Always on the wing: listed for queries (soundscape, text mode), never an obstacle.
       body: creatures.add("condor", 0.9, { solid: false }),
     };
   });
 
-  // ---------------------------------------------------------------- meshes
-  const V = camelidParts(VICUNA);
-  const A = camelidParts(ALPACA);
-  const L = camelidParts(LLAMA);
+  // ---------------------------------------------------------------- renderers (one herd per species)
   const nV = counts.vicuna;
   const nA = counts.alpaca;
   const nL = counts.llama;
-  const mk = (pfx: string, g: ReturnType<typeof camelidParts>, n: number, belly: boolean) => ({
-    body: part(g.body, n, `${pfx}-body`, true),
-    belly: belly ? part(g.belly, n, `${pfx}-belly`) : null,
-    neck: part(g.neck, n, `${pfx}-neck`, true),
-    head: part(g.head, n, `${pfx}-head`, true),
-    eyes: part(g.eyes, n, `${pfx}-eyes`),
-    legs: part(g.leg, n * 4, `${pfx}-legs`, true),
-    tail: part(g.tail, n, `${pfx}-tail`),
-  });
-  const vP = mk("vicuna", V, nV, true);
-  const aP = mk("alpaca", A, nA, false);
-  const lP = mk("llama", L, nL, true);
-  const tassel = part(A.tassel, nA, "alpaca-tassels");
-  const packCloth = part(L.packCloth, nL, "llama-pack-cloth", true);
-  const packBags = part(L.packBags, nL, "llama-pack-bags", true);
-  // Species-specific extras the others don't use.
-  for (const g of [V.tassel, V.packCloth, V.packBags, A.belly, A.packCloth, A.packBags, L.tassel]) g.dispose();
-
-  // Coats.
-  const tasseled = new Set<number>();
+  // Phones pick the coarser LODs a little nearer.
+  const lodScale = phone ? 0.8 : 1;
+  const shadows = high;
+  const herdOf = (key: string, max: number, variants?: string[], features?: Record<string, boolean>) => {
+    const h = createHerd(key, { max: Math.max(1, max), variants, lodScale, shadows, features });
+    h.group.name = `fauna-${key}`;
+    // Animals move: no world-space painted blotches sliding over them (style-gl.ts).
+    h.group.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) noPaint(o as THREE.Mesh);
+    });
+    group.add(h.group);
+    return h;
+  };
+  const rV = herdOf("vicuna", nV);
+  const rA = herdOf("alpaca", nA, ALPACA_COATS);
+  // Caravan llamas carry their packs (dyed cloth and bags) and the tika tassels in their ears.
+  const rL = herdOf("llama", nL, LLAMA_COATS, { pack: true });
   for (const h of herds)
     for (const b of h.members) {
-      if (h.species === "vicuna") {
-        const c = VICUNA_COAT[Math.floor(R() * VICUNA_COAT.length)] as string;
-        for (const p of [vP.body, vP.neck, vP.head, vP.tail]) p.color(b.slot, c);
-        vP.belly?.color(b.slot, BELLY);
-        for (let k = 0; k < 4; k++) vP.legs.color(b.slot * 4 + k, c);
-        vP.eyes.color(b.slot, EYE);
-      } else {
-        const c = ALPACA_COAT[Math.floor(R() * ALPACA_COAT.length)] as string;
-        for (const p of [aP.body, aP.neck, aP.head, aP.tail]) p.color(b.slot, c);
-        for (let k = 0; k < 4; k++) aP.legs.color(b.slot * 4 + k, c);
-        aP.eyes.color(b.slot, c === "#2e2a27" ? "#0d0b0a" : EYE);
-        if (R() < 0.4) {
-          tasseled.add(b.slot);
-          tassel.color(b.slot, DYES[Math.floor(R() * DYES.length)] as string);
-        }
-      }
+      const r = h.species === "vicuna" ? rV : rA;
+      const alpaca = h.species === "alpaca";
+      // About 40 % of the alpacas wear dyed t'ika tassels in their ears (the herders' marks).
+      b.id = r.add({
+        seed: b.seed,
+        variant: alpaca ? Math.floor(R() * ALPACA_COATS.length) : 0,
+        features: alpaca ? { tika: R() < 0.4 } : undefined,
+      });
     }
-  caravan.llamas.forEach((b, i) => {
-    const c = LLAMA_COAT[i % LLAMA_COAT.length] as string;
-    for (const p of [lP.body, lP.neck, lP.head, lP.tail]) p.color(b.slot, c);
-    lP.belly?.color(b.slot, i % 2 ? "#e9dcc4" : c);
-    for (let k = 0; k < 4; k++) lP.legs.color(b.slot * 4 + k, c);
-    lP.eyes.color(b.slot, EYE);
-    packCloth.color(b.slot, DYES[i % DYES.length] as string);
-    packBags.color(b.slot, "#8a5a3b");
+  caravan.llamas.forEach((l, i) => {
+    l.id = rL.add({ seed: l.seed, variant: i % LLAMA_COATS.length });
   });
-
-  const Z = vizcachaParts();
-  const nZ = vizs.length;
-  const zBody = part(Z.body, nZ, "vizcacha-body", true);
-  const zHead = part(Z.head, nZ, "vizcacha-head", true);
-  const zEyes = part(Z.eyes, nZ, "vizcacha-eyes");
-  const zTail = part(Z.tail, nZ, "vizcacha-tail");
-  for (const v of vizs) {
-    const c = R() < 0.5 ? "#9b968e" : "#a8a197";
-    zBody.color(v.slot, c);
-    zHead.color(v.slot, c);
-    zTail.color(v.slot, "#5f5a54");
-    zEyes.color(v.slot, EYE);
-  }
-
-  const C = condorParts();
-  const cBody = part(C.body, condorN, "condor-body");
-  const cCollar = part(C.collar, condorN, "condor-collar");
-  const cHead = part(C.head, condorN, "condor-head");
-  const cWingR = part(C.wingR, condorN, "condor-wing-r");
-  const cWingL = part(C.wingL, condorN, "condor-wing-l");
-  const cPatchR = part(C.patchR, condorN, "condor-patch-r");
-  const cPatchL = part(C.patchL, condorN, "condor-patch-l");
-  for (let i = 0; i < condorN; i++) {
-    for (const p of [cBody, cWingR, cWingL]) p.color(i, "#1f1d1f");
-    for (const p of [cCollar, cPatchR, cPatchL]) p.color(i, "#f3efe6");
-    cHead.color(i, "#a06a5c");
-  }
-  for (const p of parts) p.commitColors();
+  const rZ = herdOf("vizcacha", vizs.length);
+  for (const z of vizs) z.slot = rZ.add({ seed: z.seed });
+  const rC = herdOf("condor", condorN);
+  condors.forEach((c, i) => {
+    c.id = rC.add({ seed: c.seed + i });
+  });
+  const renderers = [rV, rA, rL, rZ, rC];
 
   // ---------------------------------------------------------------- traveler tracking
   const prev = new THREE.Vector3();
   let havePrev = false;
   let travelerSpeed = 0;
 
-  // ---------------------------------------------------------------- per-animal pose + matrices
-  const mRoot = new THREE.Matrix4();
-  const mNeck = new THREE.Matrix4();
-  const mHead = new THREE.Matrix4();
-  const mTmp = new THREE.Matrix4();
+  // ---------------------------------------------------------------- per-animal state
   const headWorld = new THREE.Vector3();
+  let clock = 0;
 
-  /** Shared camelid locomotion + head behavior. `look` = traveler to watch (or null). */
-  const animateBeast = (
-    b: Beast,
-    spec: CamelidSpec,
-    dt: number,
-    look: THREE.Vector3 | null,
-    alarm: number,
-    stride: number,
-  ) => {
+  /** Shared camelid behavior: heading from the velocity, grazing bouts, watching the traveler. */
+  const animateBeast = (r: AnimalHerd, b: Beast, dt: number, look: THREE.Vector3 | null, alarm: number) => {
     const speed = Math.hypot(b.vx, b.vz);
     if (speed > 0.12) b.yaw = turnToward(b.yaw, Math.atan2(b.vx, b.vz), dt * (2.5 + speed));
     b.y = env.heightAt(b.x, b.z);
-    const e = spec.bodyLen + 0.2;
-    const fx = Math.sin(b.yaw) * e;
-    const fz = Math.cos(b.yaw) * e;
-    const slope = Math.atan2(env.heightAt(b.x - fx, b.z - fz) - env.heightAt(b.x + fx, b.z + fz), e * 2);
-    b.pitch = damp(b.pitch, clamp(slope, -0.4, 0.4), 6, dt);
-    b.phase = gaitPhase(b.phase, speed, dt, stride * b.scale);
-    b.amp = damp(b.amp, gaitAmp(speed, 1.2, speed > 3 ? 0.75 : 0.5), 8, dt);
-    b.bound = damp(b.bound, speed > 3 ? 1 : 0, 4, dt);
     // Grazing toggles while resting; alert animals hold the head high and watch.
     b.grazeT -= dt;
     if (b.grazeT <= 0) {
       b.graze = !b.graze;
       b.grazeT = b.graze ? 4 + R() * 8 : 2 + R() * 4;
+      if (b.graze && speed < 0.25) r.play(b.id, "graze", b.grazeT);
     }
-    let np = 0.05;
-    let ny = Math.sin(b.seed + performance.now() * 0.0004) * 0.25;
-    let headAbs = 0.18;
-    if (look && (alarm > 0.02 || Math.hypot(look.x - b.x, look.z - b.z) < 14)) {
-      ny = clamp(wrapAngle(Math.atan2(look.x - b.x, look.z - b.z) - b.yaw), -1.2, 1.2);
-      np = -0.1;
-      headAbs = 0.05;
-    } else if (b.graze && speed < 0.25) {
-      np = spec.fluffy ? 2.3 : 2.7;
-      ny = Math.sin(b.seed + performance.now() * 0.0007) * 0.18;
-      headAbs = 1.25;
-    }
-    b.neckPitch = damp(b.neckPitch, np, 2.6, dt);
-    b.neckYaw = damp(b.neckYaw, ny, 3, dt);
-    b.headPitch = headAbs - b.neckPitch;
-    b.tail = Math.sin(performance.now() * 0.006 + b.seed) * (speed > 0.3 ? 0.35 : 0.08);
+    b.look =
+      look && (alarm > 0.02 || Math.hypot(look.x - b.x, look.z - b.z) < 14)
+        ? clamp(wrapAngle(Math.atan2(look.x - b.x, look.z - b.z) - b.yaw), -1.2, 1.2)
+        : undefined;
   };
-
-  type CamelidMeshes = ReturnType<typeof mk>;
-  const writeBeast = (
-    b: Beast,
-    P: CamelidMeshes,
-    rig: ReturnType<typeof camelidParts>["rig"],
-    extras?: (root: THREE.Matrix4, head: THREE.Matrix4) => void,
-  ) => {
-    const offs = b.bound > 0.5 ? BOUND : PACE;
-    let lift = 0;
-    for (let k = 0; k < 4; k++) lift += legLift(b.phase, k, offs);
-    const bob = b.amp * 0.05 * (lift / 2 - 0.5) + b.hop;
-    // Grazing dips the front a touch (forelegs splay).
-    const dip = clamp(b.neckPitch / 2.6, 0, 1) * 0.18;
-    rootMatrix(mRoot, b.x, b.y + bob, b.z, b.yaw, b.pitch + dip, 0, b.scale);
-    P.body.set(b.slot, mRoot);
-    P.belly?.set(b.slot, mRoot);
-    child(mNeck, mRoot, rig.neck, b.neckPitch, b.neckYaw);
-    P.neck.set(b.slot, mNeck);
-    child(mHead, mNeck, rig.headOnNeck, b.headPitch);
-    P.head.set(b.slot, mHead);
-    P.eyes.set(b.slot, mHead);
-    for (let k = 0; k < 4; k++) {
-      const sw = legSwing(b.phase, k, b.amp, offs) - (k < 2 ? dip : 0);
-      P.legs.set(b.slot * 4 + k, child(mTmp, mRoot, rig.hips[k] as THREE.Vector3, sw));
-    }
-    P.tail.set(b.slot, child(mTmp, mRoot, rig.tail, 0.2, b.tail));
-    extras?.(mRoot, mHead);
+  const beastPose: HerdPose = { scale: 1 };
+  const writeBeast = (r: AnimalHerd, b: Beast) => {
+    // Each animal keeps its own size (±10 %); the gait's stride is per unit of size.
+    beastPose.scale = b.scale;
+    r.set(b.id, b.x, b.y, b.z, b.yaw, { speed: Math.hypot(b.vx, b.vz) / b.scale, look: b.look, rm }, beastPose);
   };
 
   // ---------------------------------------------------------------- late zones
@@ -905,7 +727,6 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     // Dev (collision tests): `window.__faunaCalm = true` keeps herds from fleeing the traveler.
     const calm = import.meta.env?.DEV && (window as unknown as { __faunaCalm?: boolean }).__faunaCalm;
     const alarm = flockStep(h.members, calm ? null : h.goal, calm ? null : threat, h.params, dt, steerMember);
-    const stride = h.species === "vicuna" ? 1.15 : 0.85;
     groundRules = h.rules;
     for (const [i, b] of h.members.entries()) {
       offGround = !goodGround(h.rules, b.x, b.z);
@@ -918,7 +739,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
         b.x = b.body.x;
         b.z = b.body.z;
       }
-      animateBeast(b, h.spec, dt, av, alarm[i] ?? 0, stride);
+      animateBeast(h.species === "vicuna" ? rV : rA, b, dt, av, alarm[i] ?? 0);
     }
   };
 
@@ -1006,7 +827,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       l.z = nz;
       l.body.x = nx;
       l.body.z = nz;
-      animateBeast(l, LLAMA, dt, close ? av : null, close ? 0.1 : 0, 1.2);
+      animateBeast(rL, l, dt, close ? av : null, close ? 0.1 : 0);
       // Face the walking direction even when paused.
       if (Math.hypot(l.vx, l.vz) < 0.12)
         l.yaw = turnToward(l.yaw, Math.atan2(tg.x * caravan.dir, tg.z * caravan.dir), dt * 2);
@@ -1096,12 +917,14 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     }
     z.y = env.heightAt(z.x, z.z);
     z.crouch = damp(z.crouch, z.hide > 0 && !z.hopping ? 1 : 0, 6, dt);
+    // Hops come in quick runs: a smoothed speed keeps the hop gait going between them.
+    const hopV = z.hopping ? Math.hypot(z.to.x - z.from.x, z.to.z - z.from.z) / hopDur : 0;
+    z.speed = damp(z.speed, hopV, z.hopping ? 14 : 5, dt);
     // Head: twitch and scan; when the traveler is near (but before hiding) stare at them.
     z.twitch -= dt;
     if (z.twitch <= 0) {
       z.twitch = (0.4 + R() * 2.2) / motion;
       z.headYaw = (R() - 0.5) * 1.2;
-      z.headPitch = (R() - 0.6) * 0.4;
     }
     if (dAv < 16 && !z.hopping && z.hide <= 0) {
       z.headYaw = clamp(wrapAngle(Math.atan2(av.x - z.x, av.z - z.z) - z.yaw), -1.1, 1.1);
@@ -1109,22 +932,17 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     }
   };
   const writeViz = (z: Viz) => {
-    const u = z.hopping ? Math.min(1, z.hopT) : 1;
-    const arc = z.hopping ? hopArc(u, 0.32) : { y: 0, squash: 1 };
-    const s = 1.35;
-    const sq = arc.squash * (1 - z.crouch * 0.28);
-    rootMatrix(mRoot, z.x, z.y + arc.y, z.z, z.yaw, z.hopping ? -0.35 * Math.sin(Math.PI * u) : 0, 0, s, s * sq);
-    zBody.set(z.slot, mRoot);
-    // Nose/ear twitch: a tiny fast jitter on the head.
-    const jit = Math.sin(performance.now() * 0.05 + z.seed) * 0.03 * motion;
-    child(mHead, mRoot, Z.headPivot, z.headPitch + jit - z.crouch * 0.3, z.headYaw);
-    zHead.set(z.slot, mHead);
-    zEyes.set(z.slot, mHead);
-    zTail.set(z.slot, child(mTmp, mRoot, Z.tailPivot, z.hopping ? 0.5 : 0, 0));
+    // Hiding: crouched low by the rock (the species' sit); otherwise the head scans or watches the traveler.
+    rZ.set(z.slot, z.x, z.y, z.z, z.yaw, {
+      speed: z.speed,
+      mode: z.crouch > 0.5 ? "sit" : "auto",
+      look: z.hopping ? 0 : z.headYaw,
+      rm,
+    });
   };
 
   // ---------------------------------------------------------------- condor step
-  const stepCondor = (c: (typeof condors)[number], i: number, dt: number, time: number) => {
+  const stepCondor = (c: (typeof condors)[number], dt: number, time: number) => {
     const v = (rm ? 3.2 : 6.5) * (0.9 + 0.1 * Math.sin(time * 0.1 + c.seed));
     const r = c.r0 + 6 * Math.sin(time * 0.07 + c.seed);
     const w = (c.w * v) / r;
@@ -1150,37 +968,25 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     const yaw = Math.atan2(vx, vz);
     const yawRate = dt > 0 ? wrapAngle(yaw - c.yaw) / dt : 0;
     c.yaw = yaw;
-    c.bank = damp(c.bank, clamp(yawRate * 1.6, -0.6, 0.6), 2, dt);
-    // Flaps: a few slow strokes now and then (more while climbing out of a swoop).
-    c.flapT -= dt;
-    if (c.flapT <= 0) {
-      c.flap = rm ? 1.5 : 2.6;
-      c.flapT = 7 + R() * 9;
-    }
-    let wing = 0.1 + Math.sin(time * 0.6 + c.seed) * 0.03;
-    if (c.flap > 0) {
-      c.flap -= dt;
-      wing += Math.sin(c.flap * (rm ? 3 : 5.5)) * (rm ? 0.25 : 0.5);
-    }
-    if (c.swoop > 0 && c.swoop < 0.5) wing -= 0.35 * Math.sin(Math.PI * c.swoop * 2);
-    c.wing = wing;
-    const divePitch = c.swoop > 0 ? Math.sin(TAU * c.swoop) * 0.35 : 0;
+    c.turn = damp(c.turn, clamp(yawRate, -0.6, 0.6), 2, dt);
+    c.vy = damp(c.vy, dt > 0 && c.y !== 0 ? (y - c.y) / dt : 0, 3, dt);
     c.x = x;
     c.y = y;
     c.z = z;
     c.body.x = x;
     c.body.z = z;
-    rootMatrix(mRoot, x, y, z, yaw, divePitch, c.bank, 1.45);
-    cBody.set(i, mRoot);
-    cCollar.set(i, mRoot);
-    cHead.set(i, child(mTmp, mRoot, _v.set(0, 0, 0), 0, Math.sin(time * 0.4 + c.seed) * 0.3));
-    const sh = C.shoulder;
-    child(mTmp, mRoot, _v.set(sh.x, sh.y, sh.z), 0, 0, wing);
-    cWingR.set(i, mTmp);
-    cPatchR.set(i, mTmp);
-    child(mTmp, mRoot, _v.set(-sh.x, sh.y, sh.z), 0, 0, -wing);
-    cWingL.set(i, mTmp);
-    cPatchL.set(i, mTmp);
+    c.look = rm ? 0 : Math.sin(time * 0.4 + c.seed) * 0.3;
+    // Soaring on the thermal (the animator's soarer style: soar, glide in the swoops, flap out of them).
+    // The animal's origin is at its feet: the body (the old flight point) rides ~0.64 u above them.
+    rC.set(c.id, x, y - 0.64, z, yaw, {
+      speed: v,
+      rm,
+      look: c.look,
+      turn: c.turn,
+      grounded: false,
+      vy: c.vy,
+      height: y - env.heightAt(x, z),
+    });
   };
 
   // ---------------------------------------------------------------- hello bubble (alpacas)
@@ -1218,11 +1024,10 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       return;
     }
     const b = bubbleFor;
-    const rig = A.rig;
-    rootMatrix(mRoot, b.x, b.y, b.z, b.yaw, b.pitch, 0, b.scale);
-    child(mNeck, mRoot, rig.neck, b.neckPitch, b.neckYaw);
-    child(mHead, mNeck, rig.headOnNeck, b.headPitch);
-    headWorld.set(0, 0.45, 0).applyMatrix4(mHead).project(env.camera);
+    // Above the head: an alpaca's head stands ~1.35 u up, ~0.45 u ahead of its feet.
+    headWorld
+      .set(b.x + Math.sin(b.yaw) * 0.45 * b.scale, b.y + 1.75 * b.scale, b.z + Math.cos(b.yaw) * 0.45 * b.scale)
+      .project(env.camera);
     const w = hudRoot.clientWidth || innerWidth;
     const h = hudRoot.clientHeight || innerHeight;
     if (headWorld.z > 1) {
@@ -1265,28 +1070,19 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     }
     stepCaravan(dt, avatar);
     for (const z of vizs) stepViz(z, dt, avatar);
-    condors.forEach((c, i) => {
-      stepCondor(c, i, dt, t);
-    });
+    for (const c of condors) stepCondor(c, dt, t);
 
-    // Matrices.
+    // Hand the poses to the renderers (they animate, pick LODs and upload once per frame).
     for (const h of herds) {
-      const isV = h.species === "vicuna";
-      for (const b of h.members) {
-        if (isV) writeBeast(b, vP, V.rig);
-        else
-          writeBeast(b, aP, A.rig, (_root, head) => {
-            tassel.set(b.slot, tasseled.has(b.slot) ? head : ZERO);
-          });
-      }
+      const r = h.species === "vicuna" ? rV : rA;
+      for (const b of h.members) writeBeast(r, b);
     }
-    for (const l of caravan.llamas)
-      writeBeast(l, lP, L.rig, (root) => {
-        packCloth.set(l.slot, root);
-        packBags.set(l.slot, root);
-      });
+    for (const l of caravan.llamas) writeBeast(rL, l);
     for (const z of vizs) writeViz(z);
-    for (const p of parts) p.flush();
+    clock += dt;
+    // The moonlit rim on every shared animal (this ambient owns the mountain's call, once per frame).
+    setAnimalNight(nightAmount(env.sky.time()));
+    for (const r of renderers) r.update(dt, clock, env.camera);
 
     // Alpaca hello.
     nearest = null;
@@ -1380,8 +1176,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
       for (const z of vizs) creatures.remove(z.body);
       for (const c of condors) creatures.remove(c.body);
       env.scene.remove(group);
-      for (const p of parts) p.mesh.dispose();
-      for (const g of geos) g.dispose();
+      for (const r of renderers) r.dispose();
       bubble.remove();
     },
   };

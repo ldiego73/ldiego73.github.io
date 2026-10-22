@@ -6,14 +6,15 @@
  * festival is on (even mid-session) and `enable(false)` takes them out of the world when it ends.
  */
 import type * as THREE from "three";
-import { FESTIVE, MAN, type PartName, rng, SKINS, WEAVES, WOMAN } from "./models";
-import { angleDamp, damp, Person } from "./person";
-import type { Crowd, Palette } from "./rig";
+import type { HumanCrowd } from "../../characters/crowd";
+import { PEOPLE, wardrobe } from "../../characters/presets";
+import type { HeldProps } from "../../characters/props";
+import { Npc } from "./npc";
 import type { Ctx, Group } from "./types";
+import { angleDamp, damp, rng } from "./util";
 
 /** Ring radius around the summit plaza center (poles at 3.5, plaza edge 6.2). Bonfires belong outside it. */
 export const DANCE_RING = 4.85;
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
 
 /**
  * Festival dressing on the summit plaza (ambient/festival.ts, summit-local frame: +Z toward the trail):
@@ -51,16 +52,16 @@ export interface DancerGroup extends Group {
 }
 
 /**
- * `slots`: crowd slots reserved up front (the crowd is sized at load and can't grow), so the dancers can be
- * built whenever the festival starts. Without them, slots are allocated now.
+ * The crowd is sized at load (people.ts keeps room for the dancers), so they can be built whenever the festival
+ * starts.
  */
 export function createDancers(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
+  props: HeldProps,
   center: THREE.Vector3,
   yaw: number,
   n: number,
-  slots?: readonly number[],
 ): DancerGroup {
   const cy = Math.cos(yaw);
   const sy = Math.sin(yaw);
@@ -70,29 +71,19 @@ export function createDancers(
     return { a: Math.atan2(z, x), r: Math.hypot(x, z), s };
   });
   const R = rng(624);
-  const wears: PartName[][] = Array.from({ length: n }, (_, i) =>
-    i % 2 ? [...MAN, "chullo", "panuelo"] : [...WOMAN, "montera-fiesta", "panuelo"],
-  );
-  const dancers = wears.map((w, i) => {
+  const dancers = Array.from({ length: n }, (_, i) => {
     const man = i % 2 === 1;
-    const main = FESTIVE[(i * 2 + 1) % FESTIVE.length] as string;
-    const palette: Palette = [
-      pick(R, SKINS),
-      main,
-      pick(R, WEAVES),
-      man ? "#1f1b2e" : (FESTIVE[(i + 3) % FESTIVE.length] as string),
-    ];
-    const p = new Person({
+    const p = new Npc({
       kind: "dancer",
       crowd,
-      idx: slots?.[i] ?? crowd.alloc(),
-      wear: w,
-      palette,
-      scale: man ? 1.02 : 0.95,
-      girth: 1.02,
+      spec: man ? PEOPLE.dancerMan : PEOPLE.dancerWoman,
+      palette: man ? wardrobe.andeanMan(R, true) : wardrobe.andeanWoman(R, true),
+      scale: man ? 1.0 + R() * 0.04 : 0.97 + R() * 0.05,
       radius: 0.36,
       seed: 3 + i * 2.9,
     });
+    p.hold(props, "panuelo", "#c4383f");
+    p.lookRange = 0;
     p.u = (i / n) * Math.PI * 2;
     p.v = 0;
     p.setActive(true);
@@ -151,22 +142,11 @@ export function createDancers(
         const along = Math.atan2(-Math.sin(p.u), Math.cos(p.u));
         p.yaw = angleDamp(p.yaw, along, 6, dt) + 0;
         p.y = env.extra.groundAt(p.x, p.z);
-        // Huayno: quick step-hop on the beat, the handkerchief waves overhead.
-        const b = p.bones;
-        p.rest(c.clock, c.rm);
-        const beat = c.clock * 2.4 * Math.PI + p.seed;
-        const s = Math.sin(beat);
-        const amp = c.rm ? 0.3 : 1;
-        b.legL.rotation.x = Math.max(0, s) * -0.6 * amp;
-        b.legR.rotation.x = Math.max(0, -s) * -0.6 * amp;
-        b.hips.position.y = Math.abs(s) * 0.09 * amp;
-        b.torso.rotation.z = s * 0.08 * amp;
-        b.armR.rotation.set(-2.6 + Math.sin(beat * 0.5) * 0.35 * amp, 0, -0.35);
-        b.armL.rotation.set(-0.5, 0, 0.55 + Math.max(0, s) * 0.2 * amp);
-        b.head.rotation.z = -s * 0.06 * amp;
+        // Huayno: the step-hop and the handkerchief overhead are the "dance" action.
+        p.anim.act("dance", { side: 1 });
         const yaw = p.yaw;
         p.yaw = yaw + spin;
-        p.commit();
+        p.commit(c);
         p.yaw = yaw;
       }
     },

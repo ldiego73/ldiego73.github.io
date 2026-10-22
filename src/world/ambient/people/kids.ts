@@ -4,45 +4,38 @@
  * little skip, look back and carry on. Day only.
  */
 import * as THREE from "three";
+import type { HumanCrowd } from "../../characters/crowd";
+import { PEOPLE, wardrobe } from "../../characters/presets";
 import { fleeTarget, PLAY, within } from "./logic";
-import { DARKS, MAN, type PartName, POLLERAS, PONCHOS, rng, SKINS, WEAVES, WOMAN } from "./models";
-import { damp, Person } from "./person";
-import type { Crowd, Palette } from "./rig";
+import { Npc } from "./npc";
 import type { Ctx, Group } from "./types";
+import { damp, rng } from "./util";
 
 type Game = "tag" | "ball" | "hop";
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
 const out = { x: 0, z: 0 };
+type Person = Npc;
 
 export function createKids(
   env: Ctx["env"],
-  crowd: Crowd,
+  crowd: HumanCrowd,
   staticMat: THREE.Material,
   center: THREE.Vector3,
   area: number,
   n: number,
 ): Group {
   const R = rng(9001);
-  const wears: PartName[][] = Array.from({ length: n }, (_, i) => (i % 2 ? [...MAN, "chullo"] : [...WOMAN]));
-  const kids = wears.map((w, i) => {
+  const kids = Array.from({ length: n }, (_, i) => {
     const boy = i % 2 === 1;
-    const palette: Palette = [
-      pick(R, SKINS),
-      boy ? pick(R, PONCHOS) : pick(R, POLLERAS),
-      pick(R, WEAVES),
-      pick(R, DARKS),
-    ];
-    const p = new Person({
+    const p = new Npc({
       kind: "child",
       crowd,
-      idx: crowd.alloc(),
-      wear: w,
-      palette,
-      scale: 0.6 + R() * 0.08,
-      headScale: 1.3,
+      spec: boy ? PEOPLE.wawaBoy : PEOPLE.wawaGirl,
+      palette: boy ? wardrobe.andeanMan(R) : wardrobe.andeanWoman(R),
+      scale: 0.92 + R() * 0.14,
       radius: 0.26,
       seed: 5 + i * 11.3,
     });
+    p.lookRange = 0;
     const a = (i / n) * Math.PI * 2;
     p.place(center.x + Math.cos(a) * area * 0.5, center.z + Math.sin(a) * area * 0.5);
     p.state = "play";
@@ -225,27 +218,18 @@ export function createKids(
         k.body.x = k.x;
         k.body.z = k.z;
         k.y = env.extra.groundAt(k.x, k.z);
-        // Pose.
-        const b = k.bones;
-        k.rest(cx.clock, cx.rm);
-        k.gait(dt, cx.rm, 1.2);
+        // Pose: skipping when running about, the hop game, a giggle when peeking, a kick at the ball.
         const playing = k.state !== "peek";
-        if (!cx.rm && playing && (game === "hop" || k.state === "flee" || k.speed > 1.8)) {
-          // Skips: a bounce on every step, arms up on the hop game.
-          const h = Math.abs(Math.sin(k.phase)) * (game === "hop" && k.state === "play" ? 0.22 : 0.1);
-          b.hips.position.y += h;
-          if (game === "hop" && k.state === "play") {
-            b.armL.rotation.set(-0.3, 0, 1.0);
-            b.armR.rotation.set(-0.3, 0, -1.0);
-          }
-        }
         if (k.state === "peek") {
-          // Giggle: shoulders bob, a hand to the mouth.
-          b.armR.rotation.set(-2.1, 0, 0.5);
-          if (!cx.rm) b.torso.rotation.x = 0.1 + Math.abs(Math.sin(cx.clock * 14)) * 0.08;
+          k.anim.act("giggle", { side: i % 2 ? 1 : -1 });
+          k.lookRange = 8;
+        } else {
+          k.lookRange = 0;
+          if (k === ballKid && k.timer > 0) k.anim.act("kick", { fade: 0.1, side: 1 });
+          else if (game === "hop" && playing && k.state === "play") k.anim.act("hop");
+          else if (k.anim.action !== "kick") k.anim.act("none");
         }
-        if (k === ballKid && k.timer > 0 && !cx.rm) b.legR.rotation.x = -0.9 * (k.timer / 0.4);
-        k.commit();
+        k.commit(cx);
       }
       // Ball physics: rolls with friction, hops a little, stays in the play area.
       if (game === "ball" || by > 0 || bv.lengthSq() > 0.01) {

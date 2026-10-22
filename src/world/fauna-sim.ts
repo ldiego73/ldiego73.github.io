@@ -1,6 +1,6 @@
 /**
- * Pure fauna helpers (no three.js): herd steering (leader-follow boids), procedural gaits,
- * terrain validity and small math. Unit-tested in fauna.test.ts; fauna.ts turns the results into matrices.
+ * Pure fauna helpers (no three.js): herd steering (leader-follow boids), terrain validity and small math.
+ * Unit-tested in fauna.test.ts; fauna.ts hands the results (speed, heading, look) to the shared animals.
  */
 
 export const TAU = Math.PI * 2;
@@ -181,47 +181,6 @@ export function moveAgent(a: Agent, dt: number, ok: (x: number, z: number) => bo
   a.vx = 0;
   a.vz = 0;
   return false;
-}
-
-// ---------------------------------------------------------------- gaits
-
-/**
- * Advances a gait phase (in cycles, kept in [0, 1)) by distance travelled: one cycle per `stride` units.
- * A stopped animal's phase holds; the swing amplitude (see gaitAmp) fades the legs to rest instead.
- */
-export function gaitPhase(phase: number, speed: number, dt: number, stride: number): number {
-  const p = phase + (Math.abs(speed) * dt) / Math.max(1e-3, stride);
-  return p - Math.floor(p);
-}
-
-/** Leg swing amplitude for a speed: 0 at rest, ramping to `max` by `full` units/s. */
-export function gaitAmp(speed: number, full: number, max: number): number {
-  return max * clamp(Math.abs(speed) / full, 0, 1);
-}
-
-/**
- * Leg phase offsets (cycles) by leg index: 0 front-left, 1 front-right, 2 hind-left, 3 hind-right.
- * Camelids pace (same-side legs together); a fleeing vicuña bounds (pairs front/hind).
- */
-export const PACE = [0, 0.5, 0.06, 0.56] as const;
-export const BOUND = [0, 0.08, 0.5, 0.58] as const;
-
-/** Swing angle (radians about the hip) for leg `leg` at `phase` with amplitude `amp`. */
-export function legSwing(phase: number, leg: number, amp: number, offsets: readonly number[] = PACE): number {
-  return amp * Math.sin(TAU * (phase + (offsets[leg] ?? 0)));
-}
-
-/** Foot lift (0..1) during the forward half of the swing; used to bend lower legs / bob. */
-export function legLift(phase: number, leg: number, offsets: readonly number[] = PACE): number {
-  return Math.max(0, Math.cos(TAU * (phase + (offsets[leg] ?? 0))));
-}
-
-/** A vizcacha hop: 0..1 progress → height (parabola) and squash (stretch mid-air, squash on landing). */
-export function hopArc(u: number, height: number): { y: number; squash: number } {
-  const c = clamp(u, 0, 1);
-  const y = 4 * height * c * (1 - c);
-  const squash = c < 0.12 ? 1 - (0.12 - c) * 1.6 : c > 0.88 ? 1 - (c - 0.88) * 1.6 : 1 + 0.12 * Math.sin(Math.PI * c);
-  return { y, squash };
 }
 
 // ---------------------------------------------------------------- ground

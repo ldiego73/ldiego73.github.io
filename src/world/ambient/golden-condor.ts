@@ -2,15 +2,17 @@
  * Secret: the golden condor. Only at dawn (sky time 0.20–0.30, i.e. ~36 s of the 6-minute day) a gilded
  * condor glides a wide loop around the summit, a few metres above the plateau and out over the cliffs,
  * leaving a faint trail of sparks. Getting a good look (within ~25 u of the traveler and on screen for a
- * moment) stamps `egg:golden-condor`. Built from the same condor geometry as the fauna (fauna-models.ts),
- * gold toon with a soft halo (no outline on the glow/sparks). Registered in `creatures` (kind "condor",
- * not solid).
+ * moment) stamps `egg:golden-condor`. The shared condor (characters/animals, built off the main thread) in a
+ * gilded coat, a little larger than the fauna's, with a soft halo (no outline on the glow/sparks); the flight
+ * state machine reads its soaring from the motion. Registered in `creatures` (kind "condor", not solid).
  */
 import * as THREE from "three";
+import type { Animal } from "../characters/animals/animal";
+import { loadAnimal } from "../characters/animals/assets";
+import { bpal } from "../characters/animals/species/birds";
 import type { Ambient, CreateAmbient, L } from "../contract";
 import { creatures } from "../creatures";
 import { emit } from "../events";
-import { condorParts } from "../fauna-models";
 import { noPaint } from "../style-gl";
 
 const DAWN0 = 0.2;
@@ -19,7 +21,25 @@ const LOOK_R = 25;
 /** Seconds on screen within range before it counts as a good look. */
 const LOOK_HOLD = 0.6;
 const LABEL: L = { es: "Cóndor dorado", en: "Golden condor" };
-const SCALE = 1.6;
+/** A little larger than the fauna's condors (the shared condor is life-size: ~3 m across). */
+const SCALE = 1.15;
+/** Wingtip in the bird's frame (half span ≈ 1.55 u), where the sparks shed from. */
+const TIP_X = 1.55;
+/** Body centre above the animal's origin (its feet). */
+const BODY_Y = 0.64;
+/** Gilded plumage on the condor's palette slots (back, head, bill, legs, belly, coverts, flight, tail…). */
+const GOLD = bpal({
+  back: "#d9a531",
+  head: "#e6a24c",
+  bill: "#b5832a",
+  legs: "#a87a2c",
+  belly: "#e3b442",
+  coverts: "#efc95a",
+  flight: "#fff0b3",
+  tail: "#c99429",
+  face: "#e6a24c",
+  collar: "#fff4cc",
+});
 
 const TAU = Math.PI * 2;
 const wrap = (a: number) => {
@@ -49,25 +69,19 @@ export const create: CreateAmbient = (env) => {
   const summit = env.trail.pointAt(1);
 
   // ---------------------------------------------------------------- bird
-  const C = condorParts();
-  const gold = env.toon("#d9a531", { emissive: "#6b4708", emissiveIntensity: 0.55 });
-  const pale = env.toon("#fff0b3", { emissive: "#7a6020", emissiveIntensity: 0.5 });
-  const headMat = env.toon("#e6a24c", { emissive: "#5a3206", emissiveIntensity: 0.4 });
   const root = new THREE.Group();
   root.name = "golden-condor";
   root.scale.setScalar(SCALE);
-  root.rotation.order = "YXZ";
-  const body = new THREE.Mesh(C.body, gold);
-  const collar = new THREE.Mesh(C.collar, pale);
-  const head = new THREE.Mesh(C.head, headMat);
-  const wingR = new THREE.Group();
-  const wingL = new THREE.Group();
-  wingR.position.copy(C.shoulder);
-  wingL.position.set(-C.shoulder.x, C.shoulder.y, C.shoulder.z);
-  wingR.add(new THREE.Mesh(C.wingR, gold), new THREE.Mesh(C.patchR, pale));
-  wingL.add(new THREE.Mesh(C.wingL, gold), new THREE.Mesh(C.patchL, pale));
-  root.add(body, collar, head, wingR, wingL);
-  for (const m of [body, collar, head]) m.castShadow = false;
+  let bird: Animal | null = null;
+  let disposed = false;
+  void loadAnimal("condor", { variant: GOLD, seed: 9, shadows: false }).then((a) => {
+    if (disposed) return a.dispose();
+    a.group.position.y = -BODY_Y;
+    root.add(a.group);
+    // It flies: no world-space painted blotches sliding over the gold (style-gl.ts).
+    noPaint(a.group);
+    bird = a;
+  });
 
   // Soft halo (no outline) so it reads as "special" against the dawn sky.
   const haloTex = haloTexture();
@@ -79,7 +93,7 @@ export const create: CreateAmbient = (env) => {
     opacity: 0.55,
   });
   const halo = new THREE.Sprite(haloMat);
-  halo.scale.set(3.2, 2.2, 1);
+  halo.scale.set(4.4, 3, 1);
   halo.position.set(0, 0.05, 0.1);
   env.noOutline(halo);
   root.add(halo);
@@ -111,8 +125,6 @@ export const create: CreateAmbient = (env) => {
   const group = new THREE.Group();
   group.name = "golden-condor-secret";
   group.add(root, sparks);
-  // It flies: no world-space painted blotches sliding over the gold (style-gl.ts).
-  noPaint(root);
   group.visible = false;
   env.scene.add(group);
 
@@ -125,6 +137,9 @@ export const create: CreateAmbient = (env) => {
   let phase = 0;
   let yawPrev = 0;
   let bank = 0;
+  let yPrev = 0;
+  let vy = 0;
+  let lodT = 0;
   let active = false;
   let seenFor = 0;
   let stamped = false;
@@ -183,13 +198,24 @@ export const create: CreateAmbient = (env) => {
       yawPrev = yaw;
       bank += (THREE.MathUtils.clamp(yawRate * 1.4, -0.55, 0.55) - bank) * (1 - Math.exp(-dt * 2));
       root.position.copy(pos);
-      root.rotation.set(rm ? 0 : Math.sin(t * 0.5) * 0.04, yaw, rm ? 0 : -bank);
-      // Glide: wings almost flat with a slow breathing dihedral, a rare lazy stroke.
-      const stroke = rm ? 0 : Math.max(0, Math.sin(t * 0.45)) ** 12 * Math.sin(t * 5.5) * 0.45;
-      const w = 0.1 + (rm ? 0 : Math.sin(t * 0.6) * 0.03) + stroke;
-      wingR.rotation.z = w;
-      wingL.rotation.z = -w;
-      head.rotation.y = rm ? 0 : Math.sin(t * 0.4) * 0.25;
+      root.rotation.y = yaw;
+      vy += ((dt > 0 && yPrev ? (pos.y - yPrev) / dt : 0) - vy) * (1 - Math.exp(-dt * 3));
+      yPrev = pos.y;
+      // Soaring: the flight state machine reads glide/soar from the climb rate; the body banks into the turn.
+      bird?.update(dt, t, {
+        speed: SPEED / SCALE,
+        rm,
+        grounded: false,
+        vy,
+        height: pos.y - env.heightAt(pos.x, pos.z),
+        turn: bank,
+        look: rm ? 0 : Math.sin(t * 0.4) * 0.25,
+      });
+      lodT -= dt;
+      if (bird && lodT <= 0) {
+        lodT = 0.25;
+        bird.autoLod(env.camera, SCALE);
+      }
       haloMat.opacity = rm ? 0.5 : 0.45 + 0.12 * Math.sin(t * 2.4);
 
       body0.x = pos.x;
@@ -201,7 +227,7 @@ export const create: CreateAmbient = (env) => {
         sparkClock = rm ? 0.16 : 0.07;
         const side = sparkHead % 2 ? 1 : -1;
         root.updateWorldMatrix(true, false);
-        tip.set(side * 2.1, 0, 0.1).applyMatrix4(root.matrixWorld);
+        tip.set(side * TIP_X, 0, 0.1).applyMatrix4(root.matrixWorld);
         sparkPos[sparkHead * 3] = tip.x;
         sparkPos[sparkHead * 3 + 1] = tip.y;
         sparkPos[sparkHead * 3 + 2] = tip.z;
@@ -235,7 +261,9 @@ export const create: CreateAmbient = (env) => {
     dispose() {
       creatures.remove(body0);
       group.removeFromParent();
-      for (const g of [C.body, C.collar, C.head, C.wingR, C.wingL, C.patchR, C.patchL, sparkGeo]) g.dispose();
+      disposed = true;
+      bird?.dispose();
+      sparkGeo.dispose();
       sparkMat.dispose();
       haloMat.dispose();
       haloTex.dispose();

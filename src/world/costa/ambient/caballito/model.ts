@@ -1,11 +1,10 @@
 /**
  * Models of the caballito de totora (the reed boat of Huanchaco, used on this coast for thousands of years):
  * two tapered bundles of totora lashed side by side, the bow sweeping up into a point, a shallow hollow at the
- * stern where the fisherman kneels, cords binding it every hand's width. Plus the split-cane paddle and a
- * kneeling fisherman (for the boats out at sea). Built along +Z (bow), origin at the waterline amidships.
+ * stern where the fisherman sits, cords binding it every hand's width. Plus the split-cane paddle. Built along
+ * +Z (bow), origin at the waterline amidships. (The fishermen are people of the coast's crowd, ../gente/crowd.ts.)
  */
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Geo } from "../../kit";
 
 const REED = "#c7b064";
@@ -60,34 +59,4 @@ export function paddleGeometry(): THREE.BufferGeometry {
   g.cyl(0.035, 0.035, 2.2, 0, -1.1, 0, "#c9b07a", 6);
   g.box(0.06, 0.6, 0.16, 0, -1.25, 0, "#b89a5e");
   return g.build();
-}
-
-/** The fisherman alone (kneeling astride the stern), vertex coloured; placed on the boat by the caller. */
-export function fishermanGeometry(shirt: string): THREE.BufferGeometry {
-  const g = new Geo();
-  const skin = "#9a6440";
-  // Legs folded under (kneeling), the torso upright, arms forward on the paddle.
-  g.box(0.42, 0.22, 0.6, 0, 0.3, -0.75, "#2f3557");
-  g.box(0.42, 0.62, 0.3, 0, 0.45, -0.78, shirt);
-  g.blob(0.15, 0.17, 0.15, 0, 1.22, -0.76, skin, 1);
-  // Straw hat.
-  g.cyl(0.32, 0.32, 0.03, 0, 1.33, -0.76, "#d8c07a", 10);
-  g.cyl(0.12, 0.15, 0.14, 0, 1.35, -0.76, "#cdb26a", 8);
-  g.box(0.1, 0.1, 0.42, -0.22, 0.85, -0.55, shirt, 0, -0.35);
-  g.box(0.1, 0.1, 0.42, 0.22, 0.85, -0.55, shirt, 0, -0.35);
-  // The paddle held across the boat.
-  g.cyl(0.03, 0.03, 1.9, 0, 0.82, -0.36, "#c9b07a", 6, 0, Math.PI / 2 - 0.25);
-  g.box(0.5, 0.06, 0.14, 0.95, 0.6, -0.36, "#b89a5e", 0, 0, -0.25);
-  return g.build();
-}
-
-/** A boat with its kneeling fisherman, one geometry (the instanced boats out at sea). */
-export function fishingBoatGeometry(shirt: string): THREE.BufferGeometry {
-  const boat = boatGeometry();
-  const man = fishermanGeometry(shirt);
-  const out = mergeGeometries([boat, man], false);
-  boat.dispose();
-  man.dispose();
-  out.computeBoundingSphere();
-  return out;
 }

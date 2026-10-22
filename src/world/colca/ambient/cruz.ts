@@ -20,7 +20,7 @@
  * downwind with it (../../wind.ts liveWind).
  *
  * Draw calls: the platform, parapet, pedestal and cross 1, the streamers 1, the sign 1; the bits and the
- * flock (3) only during the celebration. The parapet and the pedestal are colliders; fauna keeps out.
+ * flock (one instanced herd of the shared condor, a draw per LOD in use) only during the celebration. The parapet and the pedestal are colliders; fauna keeps out.
  */
 import * as THREE from "three";
 import { getMusic } from "../../../audio";
@@ -194,7 +194,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
   });
   if (bits.instanceColor) bits.instanceColor.needsUpdate = true;
   env.scene.add(bits);
-  const flock = new CondorFlock("colca-cruz-condors", FLOCK, 0.95);
+  const flock = new CondorFlock("colca-cruz-condors", FLOCK, env.reducedMotion);
   flock.group.visible = false;
   env.scene.add(flock.group);
   const halo = glowSprite(env, "#ffe2a0", 4.5);
@@ -305,7 +305,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
     }
     bits.instanceMatrix.needsUpdate = true;
   };
-  const drawFlock = () => {
+  const drawFlock = (dt: number, t: number) => {
+    flock.begin(dt);
     for (let i = 0; i < FLOCK; i++) {
       const p = riseAt(i, FLOCK, flockAge);
       // Leaving: after ~45 s they widen out over the canyon and climb away.
@@ -319,11 +320,11 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
         z: zc + s,
         yaw: p.yaw,
         bank: p.bank,
-        pitch: 0,
-        wing: p.wing,
+        // Beating up out of the canyon (./condores/logic.ts riseAt: the first ~9 s of each bird's climb).
+        flap: flockAge - (i / FLOCK) * 2.2 < 9,
       });
     }
-    flock.commit();
+    flock.update(dt, t, env.camera);
   };
   if (import.meta.env?.DEV)
     (window as Window & { __cruz?: unknown }).__cruz = {
@@ -334,7 +335,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
           if (openIn >= 0) openIn = Math.max(0, openIn - 1 / 60);
         }
         if (age >= 0) drawBurst();
-        if (flockAge >= 0) drawFlock();
+        if (flockAge >= 0) drawFlock(1 / 60, performance.now() / 1000);
       },
       state: () => ({ age, flockAge, celebrated, open: panel.isOpen(), cross, floorY }),
     };
@@ -364,7 +365,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot) => {
         if (flockAge > FLOCK_LIFE) {
           flockAge = -1;
           flock.group.visible = false;
-        } else drawFlock();
+        } else drawFlock(dt, t);
       }
     },
     prompt() {

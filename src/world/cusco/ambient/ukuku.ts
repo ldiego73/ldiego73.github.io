@@ -14,45 +14,57 @@
  * otherwise. Sound: one-shot Web Audio voices on the music output's sfx bus, quiet, falling off with distance
  * (silent beyond logic.ts BELL_FAR) and panned to its side; hushed while a game is open.
  *
- * Model and rig: ./ukuku/model.ts (seven vertex-coloured meshes on one toon material, ink-outlined).
+ * The dancer is a person on the shared characters (../../characters: `createHuman`, one skinned body moved by
+ * the human animation controller: the "hop", "dance" and "whip-circle" actions, ./ukuku/logic.ts danceStep)
+ * whose spec carries the knitted mask, the belt and bell and the chest doll in the core's generic hook
+ * (./ukuku/costume.ts: `extra` primitives, no painted face, built with the body off the main thread). The shaggy
+ * fleece the hook cannot express rides the same skeleton as one world-local skinned mesh (./ukuku/model.ts),
+ * and the whip is the core's held prop, spinning in the right hand. Three draw calls (body, fleece, whip).
  */
 import "../../ambient/people/people.css";
 import * as THREE from "three";
 import type { AudioOutput } from "../../../audio/contract";
 import { getMusic } from "../../../audio/player";
+import { createHuman } from "../../characters/hero";
+import { prefetchHumans } from "../../characters/pipeline";
+import { HeldProps } from "../../characters/props";
 import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures, park } from "../../creatures";
 import { emit, on } from "../../events";
 import { vertexToon } from "../../merge-colors";
 import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
+import { DANCER_DRESS, ukukuSpec } from "./ukuku/costume";
 import {
   BELL_FAR,
   beat,
   bellGain,
-  blendPose,
   clockJumped,
-  dancePose,
+  danceStep,
   GREET_SECS,
-  greetPose,
+  greetStep,
   isMidnight,
   lineFor,
   nextShown,
   PROMPT_R,
   panFor,
-  REST,
   SPOT,
   STAMP,
+  type Step,
+  stepAt,
   yawTo,
 } from "./ukuku/logic";
-import { buildUkuku, HIPS_Y } from "./ukuku/model";
+import { dressFleece } from "./ukuku/model";
+
+/** The dancer in costume (pure data: it keys the build cache and travels to the worker). */
+const DANCER = ukukuSpec();
 
 const S = {
   prompt: { es: "E · Saludar", en: "E · Say hi" },
 } satisfies Record<string, L>;
 
-/** The bubble hangs above the mask (head top ≈ 1.75 u). */
-const BUBBLE_Y = 2.05;
+/** The bubble hangs above the mask (tassels' top ≈ 1.85 u). */
+const BUBBLE_Y = 2.15;
 /** Bell and voice levels at full gain: quiet, under the music and the ambience. */
 const BELL_LEVEL = 0.05;
 const VOICE_LEVEL = 0.07;
@@ -65,14 +77,40 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   const music = getMusic();
 
   // ------------------------------------------------------------------ model
-  // A dancing body: no world-space paint (it would slide over the fleece).
-  const mat = paintStrength(vertexToon(), 0);
-  const rig = buildUkuku(mat);
+  // The near and mid builds go to the worker now; the far one is built at once (a few ms) so it is there.
+  prefetchHumans([DANCER], [1, 0]);
+  const human = createHuman(DANCER, DANCER_DRESS, { lod: 2, seed: 0 });
+  // The shaggy fleece (world-local lumps on the same skeleton: the core's wool reads as a plain tracksuit).
+  // A dancing body: no world-space paint on it (it would slide over the fleece).
+  const fleeceMat = paintStrength(vertexToon(), 0);
+  const fleece = dressFleece(human, fleeceMat);
+  // The whip: the core's held prop on the right hand (it spins about the hand; calmer with reduced motion).
+  const props = new HeldProps(1);
+  props.rm = rm;
+  env.scene.add(props.group);
+  props.attach(
+    {
+      boneWorld(name, out) {
+        const b = human.inst.bones[name];
+        if (!b) return out.copy(human.group.matrixWorld);
+        b.updateWorldMatrix(true, false);
+        return out.copy(b.matrixWorld);
+      },
+      get shown() {
+        return human.group.visible;
+      },
+    },
+    "whip",
+    "#efe6d6",
+  );
+  const root = human.group;
+  root.name = "cusco-ukuku";
   const groundY = env.suyu.groundAt(SPOT.x, SPOT.z);
-  rig.root.position.set(SPOT.x, groundY, SPOT.z);
-  rig.root.rotation.y = SPOT.yaw;
-  rig.root.visible = false;
-  env.scene.add(rig.root);
+  root.position.set(SPOT.x, groundY, SPOT.z);
+  root.rotation.y = SPOT.yaw;
+  root.visible = false;
+  env.scene.add(root);
+  let lod = 2;
   const body = creatures.add("ukuku", 0.42, { solid: false, give: 0.15 });
   park(body);
 
@@ -105,7 +143,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     bubbleEl.classList.remove("is-on");
   };
   const placeBubble = () => {
-    proj.set(rig.root.position.x, rig.root.position.y + BUBBLE_Y, rig.root.position.z).project(env.camera);
+    proj.set(root.position.x, root.position.y + BUBBLE_Y, root.position.z).project(env.camera);
     const w = hudRoot.clientWidth || innerWidth;
     const h = hudRoot.clientHeight || innerHeight;
     const vis = proj.z < 1 && Math.abs(proj.x) < 1.05 && Math.abs(proj.y) < 1.05;
@@ -238,8 +276,11 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   let facing: number = SPOT.yaw;
   let stamped = false;
   let dist = Number.POSITIVE_INFINITY;
-  const pose = { ...REST };
-  const target = { ...REST };
+  const step: Step = danceStep(0, rm);
+  let stepI = -1;
+  let dx = 0;
+  let dz = 0;
+  let clock = 0;
   const camPos = new THREE.Vector3();
   const seenV = new THREE.Vector3();
   const seen = () => {
@@ -254,7 +295,7 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     const e = env.camera.matrixWorld.elements;
     const l = Math.hypot(e[0] as number, e[2] as number) || 1;
     right.set((e[0] as number) / l, 0, (e[2] as number) / l);
-    return panFor(rig.root.position.x - avatarAt.x, rig.root.position.z - avatarAt.z, right.x, right.z);
+    return panFor(root.position.x - avatarAt.x, root.position.z - avatarAt.z, right.x, right.z);
   };
 
   const greet = () => {
@@ -283,15 +324,17 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       const next = nextShown(shown, isMidnight(time), seen(), jumped, greeting);
       if (next !== shown) {
         shown = next;
-        rig.root.visible = next;
+        root.visible = next;
         if (next) {
           body.solid = true;
           body.x = SPOT.x;
           body.z = SPOT.z;
           danceT = 0;
           lastBeat = 0;
+          stepI = -1;
+          dx = 0;
+          dz = 0;
           facing = SPOT.yaw;
-          Object.assign(pose, REST);
         } else {
           park(body);
           greeting = false;
@@ -300,54 +343,64 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       }
       if (!shown) {
         near = false;
+        props.update(clock);
         return;
       }
-      dist = Math.hypot(avatar.x - rig.root.position.x, avatar.z - rig.root.position.z);
+      clock += dt;
+      dist = Math.hypot(avatar.x - root.position.x, avatar.z - root.position.z);
       near = dist < PROMPT_R;
 
-      // Pose: the dance, or the greeting (facing the traveler) for GREET_SECS.
+      // The dance (or the greeting, facing the traveler, for GREET_SECS): an action of the human controller,
+      // plus the turn and drift of the whole body on its spot.
       let face: number = SPOT.yaw;
       if (greeting) {
         greetT += dt;
-        greetPose(greetT, rm, target);
-        face = yawTo(rig.root.position, avatar);
+        greetStep(step);
+        face = yawTo(root.position, avatar);
         if (greetT >= GREET_SECS || dist > PROMPT_R + 5) {
           greeting = false;
+          stepI = -1;
           // Back to the dance on the beat it left (no bell burst on the resumed count).
           lastBeat = beat(danceT, rm);
         }
       } else {
         danceT += dt;
-        dancePose(danceT, rm, target);
+        danceStep(danceT, rm, step);
         const b = beat(danceT, rm);
         if (b !== lastBeat) {
           lastBeat = b;
           if (dist < BELL_FAR) ring(level(), pan());
         }
       }
-      // Quick blend: crisp hops, but no snap between the dance and the greeting.
-      blendPose(pose, target, 1 - Math.exp(-dt * (greeting ? 8 : 16)));
+      // A new step (or the greeting) restarts its action, so the hops land on the bell's count.
+      const si = greeting ? -2 : rm ? 0 : stepAt(danceT).i;
+      if (si !== stepI) {
+        stepI = si;
+        human.anim.act(step.action, { side: step.side, fade: 0.25, restart: true });
+      }
+      const kd = 1 - Math.exp(-dt * 6);
+      dx += (step.dx - dx) * kd;
+      dz += (step.dz - dz) * kd;
       let df = face - facing;
       df = Math.atan2(Math.sin(df), Math.cos(df));
       facing += df * (1 - Math.exp(-dt * 6));
 
-      const yaw = facing + pose.turn;
       const c = Math.cos(SPOT.yaw);
       const s = Math.sin(SPOT.yaw);
-      // The step offset is in the spot's own frame (local x right, z forward).
-      const x = SPOT.x + pose.dx * c + pose.dz * s;
-      const z = SPOT.z - pose.dx * s + pose.dz * c;
-      rig.root.position.set(x, env.suyu.groundAt(x, z), z);
-      rig.root.rotation.y = yaw;
-      rig.hips.position.y = HIPS_Y + pose.lift;
-      rig.torso.rotation.set(pose.leanX, 0, pose.leanZ);
-      rig.head.rotation.set(pose.headX, 0, pose.headZ);
-      // Left arm on +x (the model faces +z): +z raises it sideways; −x swings it forward. Mirrored on the right.
-      rig.armL.rotation.set(-pose.armLX, 0, pose.armLZ);
-      rig.armR.rotation.set(-pose.armRX, 0, -pose.armRZ);
-      rig.legL.rotation.x = -pose.legL;
-      rig.legR.rotation.x = -pose.legR;
-      rig.whip.rotation.y = pose.whip;
+      // The drift is in the spot's own frame (local x right, z forward).
+      const x = SPOT.x + dx * c + dz * s;
+      const z = SPOT.z - dx * s + dz * c;
+      root.position.set(x, env.suyu.groundAt(x, z), z);
+      root.rotation.y = facing + step.turn;
+      human.anim.look(null);
+      human.update(dt, clock, { speed: 0, rm, expression: "auto" });
+      props.update(clock);
+      // Near LOD only up close (it dances alone; the far LOD is a few thousand triangles).
+      const want = dist < 14 ? 0 : dist < 36 ? 1 : 2;
+      if (want !== lod) {
+        lod = want;
+        human.setLod(want as 0 | 1 | 2);
+      }
       body.x = x;
       body.z = z;
 
@@ -368,8 +421,10 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
     dispose() {
       offGame();
       creatures.remove(body);
-      rig.dispose();
-      mat.dispose();
+      props.dispose();
+      fleece.dispose();
+      fleeceMat.dispose();
+      human.dispose();
       layer.remove();
     },
   };

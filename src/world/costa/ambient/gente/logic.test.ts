@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isDay, laneTarget, respawns, shoreRun, strayed, TRAVEL } from "./logic";
+import { isDay, laneTarget, respawns, SEA_SEAT, shoreRun, strayed, TRAVEL } from "./logic";
 
 describe("coast people", () => {
   test("out by day only", () => {
@@ -50,5 +50,13 @@ describe("travellers", () => {
     const c = respawns(0.04, len, 0.7, 0.2);
     expect(c.length).toBe(1);
     expect(c[0]?.t).toBeGreaterThan(0.04);
+  });
+});
+
+describe("SEA_SEAT", () => {
+  test("a surfer at sea sits on the deck with the legs in the water", () => {
+    // Below the water line, but not by more than the pelvis rests above the feet in the ride pose.
+    expect(SEA_SEAT).toBeLessThan(0);
+    expect(SEA_SEAT).toBeGreaterThan(-0.5);
   });
 });

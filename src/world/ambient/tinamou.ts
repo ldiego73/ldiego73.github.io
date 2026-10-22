@@ -9,19 +9,21 @@
  * of real ichu tufts read from the flora tiles), so an encounter comes regularly at every altitude up to
  * the puna. Day and dusk only; they sleep at night. First flush stamps `fauna:perdiz`.
  *
- * Draw calls: body, head, right wing, left wing, legs, feather puffs (6 InstancedMeshes, zero per-frame
+ * Rendering: the shared tinamou (characters/animals, one herd: a skinned instanced draw per LOD; the flight
+ * state machine reads the burst, the whirr and the glide from the motion) + feather puffs (one instanced
+ * draw; zero per-frame
  * allocations). Bodies ("tinamou", creatures.ts): solid on the ground, not in flight; walks steer around.
  */
 import * as THREE from "three";
 import { sfx } from "../../audio/sfx";
+import { createHerd } from "../characters/animals/crowd";
 import type { Ambient, CreateAmbient } from "../contract";
 import { creatures, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
 import { detectDevice } from "../quality";
 import { paintStrength } from "../style-gl";
-import { gradientMap } from "../toon";
-import { mirrorX, PLUMAGE, tinamouParts } from "./tinamou/model";
+import { featherGeometry, PLUMAGE } from "./tinamou/model";
 import {
   flightHeight,
   flightProgress,
@@ -34,13 +36,14 @@ import {
   NERVE_RADIUS,
   newSpeedMeter,
   RUN_SPEED,
-  whirr,
 } from "./tinamou/sim";
 
 const TAU = Math.PI * 2;
-/** Stylised a touch larger than life (≈0.38 u beak to rump) so the covey reads from the follow camera. */
+/** Feather puff size (a touch larger than life so the puff reads from the follow camera). */
 const S = 1.25;
 const PER_GROUP = 4;
+/** The birds, stylised like the puffs (≈0.38 u beak to rump). */
+const BIRD_POSE = { scale: S };
 
 type St = "away" | "ground" | "freeze" | "fly";
 interface Bird {
@@ -63,8 +66,9 @@ interface Bird {
   tx: number;
   tz: number;
   peak: number;
-  flap: number;
-  tint: number;
+  /** Climb rate in flight and the last height (the flight state machine reads them). */
+  vy: number;
+  py: number;
 }
 interface Group {
   on: boolean;
@@ -88,28 +92,22 @@ export const create: CreateAmbient = (env): Ambient => {
   const NF = rm ? 12 : detectDevice().constrained ? 16 : low ? 28 : 56;
 
   // ---------------------------------------------------------------- meshes
-  const parts = tinamouParts();
-  const wingL = mirrorX(parts.wing);
+  const herd = createHerd("tinamou", { max: N });
+  herd.group.name = "tinamous";
   // Birds move: no world-space painted blotches sliding over the plumage (style-gl.ts).
-  const mat = paintStrength(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: gradientMap() }), 0);
+  herd.group.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) paintStrength((o as THREE.Mesh).material as THREE.Material, 0);
+  });
+  env.scene.add(herd.group);
+  for (let i = 0; i < N; i++) herd.add({ seed: 21 + i * 3 });
+  const featherGeo = featherGeometry();
   const featherMat = new THREE.MeshBasicMaterial({ color: "#ffffff", side: THREE.DoubleSide });
-  const mk = (geo: THREE.BufferGeometry, name: string, count: number, m: THREE.Material = mat) => {
-    const mesh = new THREE.InstancedMesh(geo, m, count);
-    mesh.name = name;
-    mesh.frustumCulled = false;
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    env.scene.add(mesh);
-    return mesh;
-  };
-  const body = mk(parts.body, "tinamou-body", N);
-  const head = mk(parts.head, "tinamou-head", N);
-  const wingsR = mk(parts.wing, "tinamou-wing-r", N);
-  const wingsL = mk(wingL, "tinamou-wing-l", N);
-  const legs = mk(parts.leg, "tinamou-legs", N * 2);
-  const feathers = mk(parts.feather, "tinamou-feathers", NF, featherMat);
+  const feathers = new THREE.InstancedMesh(featherGeo, featherMat, NF);
+  feathers.name = "tinamou-feathers";
+  feathers.frustumCulled = false;
+  feathers.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  env.scene.add(feathers);
   env.noOutline(feathers);
-  const meshes = [body, head, wingsR, wingsL, legs, feathers];
-  const geos = [parts.body, parts.head, parts.wing, wingL, parts.leg, parts.feather];
 
   let seed = 1931;
   const R = () => {
@@ -117,10 +115,8 @@ export const create: CreateAmbient = (env): Ambient => {
     return (seed - 1) / 2147483646;
   };
 
-  // Per-bird plumage tint (subtle: some greyer, some warmer).
-  const tints = ["#ffffff", "#f4ece0", "#fff3e2", "#e9e6e0"];
   const col = new THREE.Color();
-  const birds: Bird[] = Array.from({ length: N }, (_, i) => ({
+  const birds: Bird[] = Array.from({ length: N }, () => ({
     st: "away" as St,
     x: 0,
     y: -999,
@@ -138,18 +134,12 @@ export const create: CreateAmbient = (env): Ambient => {
     tx: 0,
     tz: 0,
     peak: 1.6,
-    flap: R() * TAU,
-    tint: i % tints.length,
+    vy: 0,
+    py: 0,
   }));
-  for (let i = 0; i < N; i++) {
-    col.set(tints[birds[i]!.tint]!);
-    for (const m of [body, head, wingsR, wingsL]) m.setColorAt(i, col);
-    legs.setColorAt(i * 2, col);
-    legs.setColorAt(i * 2 + 1, col);
-  }
   const featherCols = [PLUMAGE.buff, PLUMAGE.streak, PLUMAGE.base, PLUMAGE.mottle, PLUMAGE.breast];
   for (let i = 0; i < NF; i++) feathers.setColorAt(i, col.set(featherCols[i % featherCols.length]!));
-  for (const m of meshes) if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  if (feathers.instanceColor) feathers.instanceColor.needsUpdate = true;
   const groups: Group[] = Array.from({ length: G }, () => ({ on: false, t: 0, ax: 0, az: 0, nerve: 0 }));
 
   // ---------------------------------------------------------------- feather puffs
@@ -402,52 +392,22 @@ export const create: CreateAmbient = (env): Ambient => {
   };
 
   // ---------------------------------------------------------------- matrices
-  const mRoot = new THREE.Matrix4();
-  const mPart = new THREE.Matrix4();
   const mOut = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
   const v = new THREE.Vector3();
-  const ONE = new THREE.Vector3(1, 1, 1);
   const SC = new THREE.Vector3(S, S, S);
   const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
-  const setRoot = (x: number, y: number, z: number, yaw: number, pitch: number, roll: number) => {
-    e.set(pitch, yaw, roll, "YXZ");
-    q.setFromEuler(e);
-    mRoot.compose(v.set(x, y, z), q, SC);
-  };
-  const setPart = (
-    mesh: THREE.InstancedMesh,
-    i: number,
-    px: number,
-    py: number,
-    pz: number,
-    rx: number,
-    ry: number,
-    rz: number,
-  ) => {
-    e.set(rx, ry, rz, "XYZ");
-    q.setFromEuler(e);
-    mPart.compose(v.set(px, py, pz), q, ONE);
-    mesh.setMatrixAt(i, mOut.multiplyMatrices(mRoot, mPart));
-  };
+  let clockH = 0;
   const bodies = birds.map(() => creatures.add("tinamou", 0.22, { solid: false }));
   const dryGround = (x: number, z: number) => !isWater(x, z);
   const steered = { x: 0, z: 0 };
   const hide = (i: number) => {
     park(bodies[i]!);
-    body.setMatrixAt(i, hidden);
-    head.setMatrixAt(i, hidden);
-    wingsR.setMatrixAt(i, hidden);
-    wingsL.setMatrixAt(i, hidden);
-    legs.setMatrixAt(i * 2, hidden);
-    legs.setMatrixAt(i * 2 + 1, hidden);
+    herd.hide(i);
   };
   for (let i = 0; i < N; i++) hide(i);
   for (let i = 0; i < NF; i++) feathers.setMatrixAt(i, hidden);
-  const hp = parts.headPivot;
-  const sh = parts.shoulder;
-  const hip = parts.hip;
 
   // ---------------------------------------------------------------- frame
   return {
@@ -520,13 +480,6 @@ export const create: CreateAmbient = (env): Ambient => {
         }
         const grp = groups[Math.floor(i / PER_GROUP)]!;
         const d = Math.hypot(b.x - avatar.x, b.z - avatar.z);
-        let pitch = 0;
-        let roll = 0;
-        let headPitch = 0;
-        let flapAmp = 0;
-        let fold = 1;
-        let legSwing = 0;
-        let lift = 0;
 
         if (b.st === "ground" || b.st === "freeze") {
           if (b.st === "ground" && d < rFreeze && awake) b.st = "freeze";
@@ -549,8 +502,10 @@ export const create: CreateAmbient = (env): Ambient => {
                 trail.pointAt(trail.nearestT(ex, ez), tmp);
                 if (Math.hypot(ex - tmp.x, ez - tmp.z) < hw + 0.35) b.yaw = toA;
               } else if (r < 0.82) {
+                // Peck: quick dips toward the ground (the species' feeding idle).
                 b.act = 2;
                 b.actT = 0.9 + R() * 1.8;
+                herd.play(i, "graze", b.actT);
               } else {
                 b.act = 0;
                 b.actT = 0.6 + R() * 1.2;
@@ -568,37 +523,18 @@ export const create: CreateAmbient = (env): Ambient => {
                 b.z -= Math.cos(b.yaw) * step;
                 b.actT = 0;
               }
-              b.leg += dt * 9;
-              legSwing = Math.sin(b.leg) * 0.55;
-              lift = Math.abs(Math.sin(b.leg)) * 0.008;
-              // Pigeon-like head bob while walking.
-              headPitch = 0.15 + Math.sin(b.leg * 2) * 0.12;
-            } else if (b.act === 2) {
-              // Peck: quick dips toward the ground.
-              const ph = (b.actT * 2.6) % 1;
-              headPitch = ph < 0.35 ? Math.sin((ph / 0.35) * Math.PI) * 1.25 : 0.1;
-              pitch = headPitch * 0.12;
-            } else {
-              headPitch = -0.15;
             }
-          } else {
-            // Frozen: flattened against the ground, neck drawn in, motionless.
-            headPitch = 0.25;
           }
+          // Frozen (crouch → 1): flattened against the ground, motionless (the species' sit).
           if (b.act === 1 || b.st === "freeze") {
             // Re-ground cheaply only when the bird moves or settles.
             b.y = groundAt(b.x, b.z);
           }
-          pitch += b.crouch * 0.08;
-          lift -= b.crouch * 0.035;
         } else {
           // fly
           if (b.delay > 0) {
             b.delay -= dt;
             b.crouch += (1 - b.crouch) * Math.min(1, dt * 8);
-            lift = -0.035 * b.crouch;
-            pitch = 0.08;
-            headPitch = 0.25;
             if (b.delay <= 0) puff(b.x, b.y + 0.2, b.z, rm ? 1 : low ? 3 : 5);
           } else {
             b.s += dt;
@@ -608,15 +544,6 @@ export const create: CreateAmbient = (env): Ambient => {
             b.z = b.fz + (b.tz - b.fz) * f;
             const base = groundAt(b.x, b.z);
             b.y = base + flightHeight(b.s, b.T, b.peak);
-            const w = whirr(b.s, b.T);
-            b.flap += dt * (rm ? 24 : 72) * (w > 0 ? 1 : 0.2);
-            flapAmp = w;
-            fold = 0;
-            const burst = b.s < 0.4;
-            pitch = burst ? -0.65 * (1 - b.s / 0.4) : b.s > b.T - 0.35 ? -0.4 : 0.05;
-            roll = Math.sin(b.s * 3 + i) * 0.08;
-            headPitch = -0.2;
-            legSwing = -1.25;
             if (b.s >= b.T) {
               // Drop into the grass and stay put a while, crouched.
               b.st = "ground";
@@ -640,21 +567,32 @@ export const create: CreateAmbient = (env): Ambient => {
           b.x = bd.x;
           b.z = bd.z;
         }
-        setRoot(b.x, b.y + lift * S, b.z, b.yaw, pitch, roll);
-        body.setMatrixAt(i, mRoot);
-        setPart(head, i, hp.x, hp.y - 0.03 * b.crouch, hp.z - 0.02 * b.crouch, headPitch, 0, 0);
-        if (fold > 0.5) {
-          wingsR.setMatrixAt(i, hidden);
-          wingsL.setMatrixAt(i, hidden);
-        } else {
-          // Very fast whirr in the burst; stiff, slightly drooped wings in the glide.
-          const beat = flapAmp > 0 ? Math.sin(b.flap) * 1.05 * flapAmp : 0;
-          const z = 0.12 - beat;
-          setPart(wingsR, i, sh.x, sh.y, sh.z, 0, 0, -z);
-          setPart(wingsL, i, -sh.x, sh.y, sh.z, 0, 0, z);
-        }
-        setPart(legs, i * 2, hip.x, hip.y, hip.z, legSwing, 0, 0);
-        setPart(legs, i * 2 + 1, -hip.x, hip.y, hip.z, b.st === "fly" ? legSwing : -legSwing, 0, 0);
+        // Hand the bird to the shared animal: walking and pecking on the ground, pressed flat when frozen,
+        // the explosive flush and glide in the air.
+        const flying = b.st === "fly" && b.delay <= 0;
+        b.vy = flying && dt > 0 ? (b.y - b.py) / dt : 0;
+        b.py = b.y;
+        herd.set(
+          i,
+          b.x,
+          b.y,
+          b.z,
+          b.yaw,
+          {
+            speed: flying
+              ? Math.hypot(b.tx - b.fx, b.tz - b.fz) / Math.max(0.3, b.T) / S
+              : b.act === 1 && b.st === "ground"
+                ? 0.28 / S
+                : 0,
+            rm,
+            look: 0,
+            mode: b.crouch > 0.5 ? "sit" : "auto",
+            grounded: !flying,
+            vy: b.vy,
+            height: flying ? b.y - groundAt(b.x, b.z) : 0,
+          },
+          BIRD_POSE,
+        );
       }
 
       // Feather puffs: drift down with drag and a flutter, spinning; shrink out at the end of life.
@@ -682,17 +620,17 @@ export const create: CreateAmbient = (env): Ambient => {
         SC.set(S, S, S);
       }
 
-      for (const m of meshes) m.instanceMatrix.needsUpdate = true;
+      feathers.instanceMatrix.needsUpdate = true;
+      clockH += dt;
+      herd.update(dt, clockH, env.camera);
     },
     dispose() {
       for (const b of bodies) creatures.remove(b);
       for (const off of offs) off();
-      for (const m of meshes) {
-        env.scene.remove(m);
-        m.dispose();
-      }
-      for (const g of geos) g.dispose();
-      mat.dispose();
+      herd.dispose();
+      env.scene.remove(feathers);
+      feathers.dispose();
+      featherGeo.dispose();
       featherMat.dispose();
     },
   };

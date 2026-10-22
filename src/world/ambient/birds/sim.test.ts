@@ -1,7 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type * as THREE from "three";
 import { rng } from "../../tex";
-import { colibriModel, condorModel, gallitoModel, tangaraModel } from "./models";
 import { flightPoint, newFlight, pickRecord, planFlight, soarPoint, TREE_STRIDE } from "./sim";
 
 describe("bird flight", () => {
@@ -46,41 +44,5 @@ describe("bird flight", () => {
     // Moving counter-clockwise at angle 0 → +Z.
     expect(Math.sin(o.yaw)).toBeCloseTo(0);
     expect(Math.cos(o.yaw)).toBeCloseTo(1);
-  });
-});
-
-describe("bird models", () => {
-  const len = (g: THREE.BufferGeometry) => {
-    g.computeBoundingBox();
-    const b = g.boundingBox as THREE.Box3;
-    return { span: b.max.x - b.min.x, len: b.max.z - b.min.z, h: b.max.y - b.min.y };
-  };
-  test("sizes: colibrí < tangara < gallito, condor wingspan ≈ 3–4 u at ×0.75", () => {
-    const c = len(colibriModel().geo);
-    const t = len(tangaraModel().geo);
-    const g = len(gallitoModel().geo);
-    const k = len(condorModel().geo);
-    expect(c.len).toBeLessThan(t.len);
-    expect(t.len).toBeLessThan(g.len);
-    expect(c.len).toBeGreaterThan(0.08);
-    expect(g.len).toBeLessThan(0.45);
-    expect(k.span * 0.75).toBeGreaterThan(3);
-    expect(k.span * 0.75).toBeLessThan(4.2);
-  });
-  test("rig attribute marks both wings and the head", () => {
-    for (const m of [tangaraModel(), colibriModel(), gallitoModel(), condorModel()]) {
-      const rig = m.geo.attributes.rig as THREE.BufferAttribute;
-      let l = 0;
-      let r = 0;
-      let h = 0;
-      for (let i = 0; i < rig.count; i++) {
-        if (rig.getX(i) < -0.5) l++;
-        if (rig.getX(i) > 0.5) r++;
-        if (rig.getY(i) > 0.5) h++;
-      }
-      expect(l).toBeGreaterThan(0);
-      expect(l).toBe(r);
-      expect(h).toBeGreaterThan(0);
-    }
   });
 });

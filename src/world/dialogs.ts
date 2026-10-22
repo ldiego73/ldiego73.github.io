@@ -103,7 +103,14 @@ export function createModal(host: HTMLElement, labelId: string, onClose: () => v
       open = true;
       restore = document.activeElement as HTMLElement | null;
       el.hidden = false;
-      requestAnimationFrame(() => (focus ?? focusables()[0])?.focus({ preventScroll: true }));
+      // Focus now: a busy world (shader compiles, a slow GPU) can hold the next animation frame for seconds, and
+      // keyboard and screen reader users must land in the dialog at once. The frame callback only re-focuses if
+      // something took focus away in between.
+      const target = () => focus ?? focusables()[0];
+      target()?.focus({ preventScroll: true });
+      requestAnimationFrame(() => {
+        if (open && !panel.contains(document.activeElement)) target()?.focus({ preventScroll: true });
+      });
     },
     close() {
       if (!open) return;

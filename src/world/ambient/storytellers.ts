@@ -11,10 +11,14 @@
  *
  * Nobody stands in the board's E prompt rectangle or on the path to the trail; readers stand behind the frame
  * just outside the cord column, so the cords stay readable from the front. No prompt of its own.
- * Rendering: one Crowd (people/rig.ts, one InstancedMesh per part, ~11 draws) + hearth/seats (1) +
- * flames (2) + glow (1, night). Low quality: 2 children, 1 reader.
+ * Rendering: the shared characters (people/npc.ts on one HumanCrowd: two draws for every body and cloth, the
+ * staff a held prop) + hearth/seats (1) + flames (2) + glow (1, night). Low quality: 2 children, 1 reader.
  */
 import * as THREE from "three";
+import { HumanCrowd } from "../characters/crowd";
+import { prefetchHumans } from "../characters/pipeline";
+import { PEOPLE, wardrobe } from "../characters/presets";
+import { HeldProps, type PropHandle } from "../characters/props";
 import type { Ambient, CreateAmbient } from "../contract";
 import { creatures } from "../creatures";
 import { worldData } from "../data";
@@ -23,22 +27,10 @@ import { on } from "../events";
 import { DYE } from "../palette";
 import { glowSprite } from "../props";
 import { lxOf, lzOf, stationFrame, wx, wz } from "./fields/geo";
+import { play, playArms } from "./gente/overlay";
 import { jumped, within } from "./people/logic";
-import {
-  DARKS,
-  MAN,
-  type PartName,
-  POLLERAS,
-  PONCHOS,
-  partSpecs,
-  rng,
-  SHADOW_PARTS,
-  SKINS,
-  WEAVES,
-  WOMAN,
-} from "./people/models";
-import { angleDamp, damp, Person } from "./people/person";
-import { Crowd, type Palette, paletteMaterial } from "./people/rig";
+import { Npc, type NpcFrame } from "./people/npc";
+import { angleDamp, damp, rng } from "./people/util";
 import {
   boardDims,
   CORD_Y,
@@ -46,38 +38,25 @@ import {
   cordX,
   FIRE_LIT,
   FZ,
-  headYaw,
   type Mode,
   modeAt,
   type P2,
   pointWeight,
   readerCords,
 } from "./storytellers/logic";
-import { circleProps, staffSpec } from "./storytellers/props";
-import { staffInHand } from "./storytellers/staff";
+import { circleProps } from "./storytellers/props";
 
 const STATION = "build-2";
 /** Readers stand this far beside their cord (their bodies stay clear of the cord column seen from the front). */
 const READER_OFF = 0.42;
-const PARTS: PartName[] = [
-  "leg",
-  "m:torso",
-  "m:arm",
-  "m:head",
-  "w:skirt",
-  "w:torso",
-  "w:arm",
-  "w:head",
-  "chullo",
-  "montera",
-  "sombrero",
-];
+/** The flat seat stones' top above the ground (storytellers/props.ts). */
+const STONE_TOP = 0.09;
 
 type Role = "elder" | "reader" | "kid";
 type State = "off" | "walk" | "story" | "fire";
 
 interface Actor {
-  p: Person;
+  p: Npc;
   role: Role;
   /** Reader 0/1, kid index. */
   who: number;
@@ -97,12 +76,9 @@ interface Actor {
   /** Kids: seconds until the next raised hand / seconds the hand stays up (negative). Readers: next cord. */
   timer: number;
   cord: number;
-  /** Smoothed head yaw / torso twist. */
-  gaze: number;
-  twist: number;
+  /** Head target (world). */
+  gaze: THREE.Vector3;
 }
-
-const pick = <T>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length) % a.length] as T;
 
 export const create: CreateAmbient = (envIn): Ambient => {
   const env = envIn as WorldEnvExtra;
@@ -135,39 +111,25 @@ export const create: CreateAmbient = (envIn): Ambient => {
   // ------------------------------------------------------------ people
   const R = rng(4242);
   const ramp = env.toon("#ffffff").gradientMap;
-  const mat = paletteMaterial(ramp);
   const staticMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp });
-  const specs = [...partSpecs(PARTS), staffSpec()];
   const total = 1 + 2 + kidSeats.length;
-  const crowd = new Crowd(specs, total, mat, SHADOW_PARTS);
-  crowd.group.name = "storytellers:crowd";
+  const crowd = new HumanCrowd({ capacity: total, name: "storytellers:crowd" });
   env.scene.add(crowd.group);
+  const held = new HeldProps(2);
+  env.scene.add(held.group);
+  const readerSpec = [PEOPLE.campesina, PEOPLE.campesinoFelt] as const;
+  prefetchHumans([PEOPLE.amauta, ...readerSpec, PEOPLE.wawaBoy, PEOPLE.wawaGirl]);
 
   const actors: Actor[] = [];
   const add = (
     role: Role,
     who: number,
-    wear: PartName[],
-    palette: Palette,
-    scale: number,
-    o: { hi?: boolean; sitter?: boolean; seat: THREE.Vector3; fireSeat?: THREE.Vector3; head?: number; kind: string },
+    body: Npc,
+    o: { hi?: boolean; sitter?: boolean; seat: THREE.Vector3; fireSeat?: THREE.Vector3 },
   ) => {
-    const idx = crowd.alloc();
-    const p = new Person({
-      kind: o.kind,
-      crowd,
-      idx,
-      wear,
-      palette,
-      scale,
-      headScale: o.head ?? 1,
-      girth: role === "kid" ? 1 : 1.04,
-      radius: role === "kid" ? 0.26 : 0.36,
-      seed: 3 + actors.length * 9.7,
-    });
-    if (role === "elder") crowd.wear(idx, [...wear, "staff"], palette);
+    body.lookRange = 0;
     const a: Actor = {
-      p,
+      p: body,
       role,
       who,
       hi: o.hi ?? false,
@@ -181,39 +143,38 @@ export const create: CreateAmbient = (envIn): Ambient => {
       wait: 0,
       timer: 8 + R() * 20,
       cord: 0,
-      gaze: 0,
-      twist: 0,
+      gaze: new THREE.Vector3(),
     };
     actors.push(a);
     return a;
   };
+  const npc = (
+    kind: string,
+    spec: Npc["member"]["spec"],
+    palette: ReturnType<typeof wardrobe.andeanMan>,
+    scale: number,
+    radius: number,
+  ) => new Npc({ kind, crowd, spec, palette, scale, radius, seed: 3 + actors.length * 9.7 });
 
-  const elder = add("elder", 0, [...MAN, "chullo"], [pick(R, SKINS), "#5b4436", DYE.red, "#2a2420"], 0.98, {
-    kind: "elder",
+  const elderPal = wardrobe.andeanMan(R);
+  elderPal.hair = "#8a8178";
+  elderPal.wrap = DYE.red;
+  const elder = add("elder", 0, npc("elder", PEOPLE.amauta, elderPal, 0.98, 0.36), {
     sitter: true,
     seat: elderW,
     fireSeat: fireW[0],
   });
-  // Elder points with the right arm, aimed by yaw after lifting it forward.
-  elder.p.bones.armR.rotation.order = "YXZ";
+  // The walking staff in his right hand (laid down beside him by the fire); he points with the left.
+  const staff: PropHandle = elder.p.hold(held, "staff", "#6e4a2e");
   const readerSpot = (who: 0 | 1, cord: number, out?: THREE.Vector3) =>
     W({ x: cordX(dims, cord) + (who === 0 ? -READER_OFF : READER_OFF), z: L.readerZ }, out);
   const readers = [
-    add(
-      "reader",
-      0,
-      [...WOMAN, "montera"],
-      [pick(R, SKINS), pick(R, POLLERAS), pick(R, WEAVES), pick(R, DARKS)],
-      0.95,
-      {
-        kind: "reader",
-        sitter: true,
-        seat: readerSpot(0, readerCords(dims, 0)[1]),
-        fireSeat: fireW[1],
-      },
-    ),
-    add("reader", 1, [...MAN, "sombrero"], [pick(R, SKINS), pick(R, PONCHOS), pick(R, WEAVES), pick(R, DARKS)], 1.02, {
-      kind: "reader",
+    add("reader", 0, npc("reader", readerSpec[0], wardrobe.andeanWoman(R), 0.95, 0.36), {
+      sitter: true,
+      seat: readerSpot(0, readerCords(dims, 0)[1]),
+      fireSeat: fireW[1],
+    }),
+    add("reader", 1, npc("reader", readerSpec[1], wardrobe.andeanMan(R, false, true), 1.02, 0.36), {
       hi: true,
       seat: readerSpot(1, readerCords(dims, 1)[0]),
     }),
@@ -224,10 +185,14 @@ export const create: CreateAmbient = (envIn): Ambient => {
     return add(
       "kid",
       i,
-      boy ? [...MAN, "chullo"] : [...WOMAN],
-      [pick(R, SKINS), boy ? pick(R, PONCHOS) : pick(R, POLLERAS), pick(R, WEAVES), pick(R, DARKS)],
-      0.6 + R() * 0.08,
-      { kind: "child", hi: i % 2 === 1 && kidSeats.length > 2, seat: W(s), head: 1.3 },
+      npc(
+        "child",
+        boy ? PEOPLE.wawaBoy : PEOPLE.wawaGirl,
+        boy ? wardrobe.andeanMan(R) : wardrobe.andeanWoman(R),
+        0.94 + R() * 0.1,
+        0.26,
+      ),
+      { hi: i % 2 === 1 && kidSeats.length > 2, seat: W(s) },
     );
   });
 
@@ -332,6 +297,9 @@ export const create: CreateAmbient = (envIn): Ambient => {
     p.place(at.x, at.z, yaw);
     p.y = at.y;
     p.state = mode === "fire" ? "fire" : "story";
+    // Snapped (load, clock jump, far away): already seated / standing, no crossfade from a walk.
+    const seated = mode === "fire" || a.role === "kid";
+    p.anim.act(seated ? "sit-stool" : a.role === "elder" ? "talk" : "none", { seat: STONE_TOP, fade: 0 });
   };
 
   /** The schedule changed while in view: walk instead of snapping. */
@@ -416,129 +384,91 @@ export const create: CreateAmbient = (envIn): Ambient => {
     }
   };
 
+  const nf: NpcFrame = { dt: 0, clock: 0, rm: false, avatar: new THREE.Vector3() };
+  /** Animate and draw, the head turned toward `at` (the storyteller, the cords, the fire) or straight ahead. */
+  const commitLooking = (p: Npc, at: THREE.Vector3 | null) => {
+    p.lookAt = at;
+    p.commit(nf);
+  };
+  const lookV = new THREE.Vector3();
+  const headAt = (p: Npc, out: THREE.Vector3) => out.set(p.x, p.y + 1.2 * p.scale, p.z);
+
   const pose = (a: Actor, dt: number, rm: boolean) => {
     const p = a.p;
-    const b = p.bones;
-    p.rest(clock, rm);
     const st = p.state;
+    nf.dt = dt;
+    nf.clock = clock;
+    nf.rm = rm;
     if (st === "walk") {
-      p.gait(dt, rm, a.role === "elder" ? 0.4 : 1);
-      if (a.role === "elder") holdStaff(a);
-      p.commit();
+      play(p, "none");
+      playArms(p, "none");
+      if (a.role === "elder") staff.show(true);
+      commitLooking(p, null);
       return;
     }
     p.speed = damp(p.speed, 0, 6, dt);
     if (st === "fire") {
-      sitDown(p, 0.04);
-      b.armL.rotation.set(-0.95, 0, 0.3);
-      b.armR.rotation.set(-0.95, 0, -0.3);
-      if (!rm) {
-        b.head.rotation.y = Math.sin(clock * 0.25 + p.seed) * 0.3;
-        b.armL.rotation.x += Math.sin(clock * 0.7 + p.seed) * 0.05;
-      }
-      if (a.role === "elder") {
-        // Staff laid on the ground beside him.
-        b.tool.position.set(0.42, 0.49, 0.05);
-        b.tool.rotation.set(Math.PI / 2, 0, 0);
-      }
-      p.commit();
+      // On a flat stone by the hearth, looking into the fire now and then (the staff laid down beside him).
+      play(p, "sit-stool", { seat: STONE_TOP, fade: 0.6 });
+      if (a.role === "elder") staff.show(false);
+      a.gaze.copy(hearthW);
+      a.gaze.y += 0.3;
+      if (!rm) a.gaze.x += Math.sin(clock * 0.25 + p.seed) * 1.5;
+      commitLooking(p, a.gaze);
       return;
     }
     if (a.role === "elder") poseElder(a, dt, rm);
     else if (a.role === "kid") poseKid(a, dt, rm);
-    else poseReader(a, dt, rm);
-    p.commit();
+    else poseReader(a, dt);
   };
-
-  const sitDown = (p: Person, lean: number) => {
-    const b = p.bones;
-    b.hips.position.y = -0.47 * p.scale;
-    b.legL.rotation.set(-1.45, 0, 0.12);
-    b.legR.rotation.set(-1.45, 0, -0.12);
-    b.torso.rotation.x = -lean;
-    b.armL.rotation.set(-0.5, 0, 0.25);
-    b.armR.rotation.set(-0.5, 0, -0.25);
-  };
-
-  // The staff follows the fist through the shoulder turn (storytellers/staff.ts).
-  const holdStaff = (a: Actor) => staffInHand(a.p.bones);
 
   const poseElder = (a: Actor, dt: number, rm: boolean) => {
     const p = a.p;
-    const b = p.bones;
-    p.yaw = angleDamp(p.yaw, elderYaw, 3, dt);
+    staff.show(true);
     const w = rm ? 0 : pointWeight(clock + p.seed);
     const ask = asker && asker.timer < 0 ? asker.p : null;
+    // Facing between the children and the cords; turning a little toward the cords while pointing.
+    const cordYaw = Math.atan2(cordsW.x - p.x, cordsW.z - p.z);
+    p.yaw = angleDamp(p.yaw, ask || w < 0.5 ? elderYaw : elderYaw + (cordYaw - elderYaw) * 0.35, 3, dt);
+    // Telling (the hands explain) or pointing along the cords with the free left hand.
+    if (ask || w < 0.5) play(p, "talk", { fade: 0.5 });
+    else play(p, "point", { side: -1, fade: 0.5 });
     // Head: the children (center, or the one asking), or the cords when pointing.
-    const kidsLook = headYaw(p.yaw, p.x, p.z, ask ? ask.x : center.x, ask ? ask.z : center.z, 1.4);
-    const cordLook = headYaw(p.yaw, p.x, p.z, cordsW.x, cordsW.z, 1.6);
-    const look = ask ? kidsLook : kidsLook + (cordLook - kidsLook) * w;
-    a.twist = angleDamp(a.twist, look * 0.45, 4, dt);
-    a.gaze = angleDamp(a.gaze, look - a.twist, 5, dt);
-    b.torso.rotation.y = a.twist;
-    b.torso.rotation.x = 0.1;
-    b.head.rotation.y = Math.max(-1.0, Math.min(1.0, a.gaze));
-    b.head.rotation.x = -0.05 + (rm ? 0 : Math.sin(clock * 1.3 + p.seed) * 0.04);
-    holdStaff(a);
-    if (ask || w < 0.05) {
-      // Telling: an open hand that rises and turns with the words.
-      const k = rm ? 0 : Math.sin(clock * 1.6 + p.seed);
-      b.armR.rotation.set(-0.7 + k * 0.18, (ask ? 0.2 : 0.35) + k * 0.1, -0.15);
-    } else {
-      // Pointing along the cords: lift forward, then aim toward them (yaw after lift).
-      const aim = cordLook - a.twist;
-      const up = -0.75 - w * 0.75;
-      b.armR.rotation.set(up, Math.max(-1.2, Math.min(0.4, aim)) * w, -0.05);
-      if (!rm) b.armR.rotation.x += Math.sin(clock * 2.2) * 0.04 * w;
-    }
+    if (ask) headAt(ask, a.gaze);
+    else if (w >= 0.5) a.gaze.copy(cordsW);
+    else a.gaze.set(center.x, center.y + 0.6, center.z);
+    commitLooking(p, a.gaze);
   };
 
   const poseKid = (a: Actor, dt: number, rm: boolean) => {
     const p = a.p;
-    const b = p.bones;
-    sitDown(p, 0.1);
+    play(p, "sit-stool", { seat: STONE_TOP, fade: 0.6 });
     p.face(elderW.x, elderW.z, dt, 3);
     const w = rm ? 0 : pointWeight(clock + elder.p.seed);
-    let tx = elder.p.x;
-    let tz = elder.p.z;
-    if (w > 0.5) {
-      tx = cordsW.x;
-      tz = cordsW.z;
-    }
-    a.gaze = angleDamp(a.gaze, headYaw(p.yaw, p.x, p.z, tx, tz, 1.1), 2.2 + a.who * 0.4, dt);
-    b.head.rotation.y = a.gaze;
-    b.head.rotation.x = -0.12;
-    // Hands on the knees; one child at a time raises a hand to ask.
-    b.armL.rotation.set(-0.85, 0, 0.18);
-    b.armR.rotation.set(-0.85, 0, -0.18);
-    if (a.timer < 0) {
-      const k = rm ? 0 : Math.sin(clock * 7 + a.who) * 0.12;
-      b.armR.rotation.set(-2.85, 0, -0.12 + k);
-      b.torso.rotation.x = -0.02;
-    } else if (!rm) b.torso.rotation.x = -0.1 + Math.sin(clock * 1.1 + p.seed) * 0.03;
+    // Eyes on the amauta, or on the cords he points at.
+    if (w > 0.5) lookV.copy(cordsW);
+    else headAt(elder.p, lookV);
+    a.gaze.lerp(lookV, 1 - Math.exp(-(2.2 + a.who * 0.4) * dt));
+    commitLooking(p, a.gaze);
+    // One child at a time raises a hand to ask (the arms layer over the seated pose).
+    playArms(p, a.timer < 0 ? "raise-hand" : "none", { fade: 0.25 });
   };
 
-  const poseReader = (a: Actor, dt: number, rm: boolean) => {
+  const poseReader = (a: Actor, dt: number) => {
     const p = a.p;
-    const b = p.bones;
     const spot = a.seat;
     if (Math.hypot(spot.x - p.x, spot.z - p.z) > 0.12) {
       // Stepping to another cord.
       p.seek(spot.x, spot.z, 0.7, dt);
-      p.gait(dt, rm);
+      play(p, "none", { fade: 0.4 });
+      commitLooking(p, null);
       return;
     }
+    p.speed = 0;
     p.yaw = angleDamp(p.yaw, f.yaw, 4, dt);
-    // A hand traces down the cord from the year knots to the month knots and back up.
-    const k = rm ? 0.4 : 0.5 + 0.5 * Math.cos(clock * 0.32 + p.seed);
-    const armX = -1.95 + k * 0.7;
-    const arm = a.who === 0 ? b.armL : b.armR;
-    const other = a.who === 0 ? b.armR : b.armL;
-    arm.rotation.set(armX, 0, a.who === 0 ? 0.4 : -0.4);
-    other.rotation.set(-0.35, 0, a.who === 0 ? -0.15 : 0.15);
-    b.head.rotation.x = -0.28 + k * 0.42;
-    b.head.rotation.y = a.who === 0 ? 0.18 : -0.18;
-    b.torso.rotation.x = 0.04 + k * 0.08;
+    // A hand traces down the cord from the year knots to the month knots and back up (the cord-side hand).
+    play(p, "read-cord", { side: a.who === 0 ? -1 : 1, fade: 0.5 });
+    commitLooking(p, null);
   };
 
   const stepKids = (dt: number) => {
@@ -587,11 +517,12 @@ export const create: CreateAmbient = (envIn): Ambient => {
     actors: actors.map((a) => ({
       role: a.role,
       state: a.p.state,
+      action: a.p.anim.action,
       mode: a.mode,
       lx: +lxOf(f, a.p.x, a.p.z).toFixed(2),
       lz: +lzOf(f, a.p.x, a.p.z).toFixed(2),
     })),
-    drawCalls: crowd.drawCalls() + 1 + (flames.visible ? 5 : 0),
+    drawCalls: crowd.drawCalls() + held.drawCalls() + 1 + (flames.visible ? 5 : 0),
   });
   if (import.meta.env?.DEV) (window as unknown as { __story?: unknown }).__story = { info: debugInfo };
 
@@ -618,7 +549,8 @@ export const create: CreateAmbient = (envIn): Ambient => {
       if (visible !== visibleNow) {
         visibleNow = visible;
         propsMesh.visible = visible;
-        if (!visible) for (const a of actors) a.p.hide();
+        // Out of view: not drawn (their props follow the holder); back in view: shown again if they are out.
+        for (const a of actors) a.p.member.show(visible && a.p.active);
       }
       flames.visible = visible && lit;
       if (!visible) {
@@ -628,7 +560,6 @@ export const create: CreateAmbient = (envIn): Ambient => {
             const m = modeAt(time, a.sitter);
             if (m !== a.mode || a.p.state === "walk" || (a.p.state === "off" && m !== "home" && enabled(a))) snap(a, m);
           }
-        crowd.flush();
         return;
       }
       for (const a of actors) {
@@ -649,7 +580,8 @@ export const create: CreateAmbient = (envIn): Ambient => {
         p.y = ground(p.x, p.z);
         pose(a, dt, rm);
       }
-      crowd.flush();
+      crowd.update(env.camera);
+      held.update();
       if (flames.visible && !rm) {
         for (let i = 0; i < flameMeshes.length; i++) {
           const m = flameMeshes[i] as THREE.Mesh;
@@ -667,7 +599,7 @@ export const create: CreateAmbient = (envIn): Ambient => {
       creatures.remove(hearthBody);
       creatures.removeKeepOut(keepOut);
       crowd.dispose();
-      mat.dispose();
+      held.dispose();
       staticMat.dispose();
       propsGeo.dispose();
       propsMesh.removeFromParent();

@@ -1,45 +1,47 @@
 /**
- * People of the coast, on the mountain's instanced bipeds (../../ambient/people: one InstancedMesh per body part
- * for all of them) dressed for the coast with ./gente/clothes.ts (cotton shirts, blouses with aprons, straw
- * hats, surfboards, a vendor's cool box), so the mountain's people keep their highland dress:
+ * People of the coast, on the shared characters (../../characters: continuous skinned bodies in one crowd,
+ * ./gente/crowd.ts) dressed for the coast from ./gente/dress.ts (cotton shirts and straw hats, blouses with
+ * bib aprons, tees and shorts, board shorts):
  *  - walkers on the road, each going to and fro along a stretch between two stations (keeping to the right of
  *    the road), stepping round the traveler and each other through the shared creatures registry;
- *  - travellers of the whole road, in both directions, some with a cloth bundle on the back or a basket in
- *    hand: whoever falls far behind the traveler is moved, out of sight, to the road some way ahead or behind
+ *  - travellers of the whole road, in both directions, some with a cloth bundle (q'ipi) on the back or a basket
+ *    in hand: whoever falls far behind the traveler is moved, out of sight, to the road some way ahead or behind
  *    them (./gente/logic.ts `strayed` / `respawns`), so wherever the traveler is people come and go;
  *  - families (two parents and a child, or a parent and two children) strolling between the last huaca, the
  *    Huanchaco market and the north beach, the others keeping beside the one in front;
- *  - the market woman behind the middle stall of the Huanchaco market, looking round at passers-by;
+ *  - the market woman behind the middle stall of the Huanchaco market, hands clasped, looking round at
+ *    passers-by;
  *  - on the Huanchaco beach: children chasing the waves, fishermen by their drying caballitos (one mending a
- *    net, one more on the north beach), surfers carrying their boards along the sand and two more sitting on
+ *    net, one more on the north beach), surfers carrying their boards along the sand and two more sitting astride
  *    their boards beyond the surf, rising and falling with the swell, and a vendor walking the sand with a cool
  *    box, stopping now and then to call out with a raised arm.
  * By day only: at dusk they go home and at dawn they come back, both only while unseen (or at once on the first
- * frame), so nobody vanishes in view. Anyone far from the camera is not drawn. About a dozen draw calls (the
- * crowd's parts; only the parts someone in view wears).
+ * frame), so nobody vanishes in view. Anyone far from the camera is not drawn (nor animated).
+ * Motion is the human animation controller's (walk and run from the real speed; actions "carry-back",
+ * "carry-hand", "hands-clasp", "knit", "ride", "wave"; a glance at the traveler close by). Tools and loads are
+ * held props (q'ipi, basket, surfboard, cool box, net). Draw calls: the coast's crowd (2, shared with the
+ * gathering and the caballito fishermen), one per prop kind in use, and the boards of the surfers at sea (1).
  */
 import * as THREE from "three";
-import { type PartName, partSpecs, SHADOW_PARTS } from "../../ambient/people/models";
-import { Person } from "../../ambient/people/person";
-import { Crowd, type Palette, paletteMaterial } from "../../ambient/people/rig";
+import { Npc, type NpcFrame } from "../../ambient/people/npc";
+import type { PropKind } from "../../characters/props";
 import type { Ambient, CreateAmbient } from "../../contract";
+import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
-import { rng } from "../kit";
+import { Geo, rng } from "../kit";
 import type { CostaLayout } from "../layout";
 import { BEACHES, COSTA_STATIONS, STATION } from "../plan";
 import { seaHeight } from "../scenery/waves";
-import { APRONS, BLOUSES, COAST_SKINS, type CoastPart, coastSpecs, SHIRTS, SKIRTS, TROUSERS } from "./gente/clothes";
-import { isDay, laneTarget, respawns, shoreRun, strayed } from "./gente/logic";
+import { coastCrowd } from "./gente/crowd";
+import { adult, COAST_PEOPLE, type CoastWho, coastDress } from "./gente/dress";
+import { isDay, laneTarget, respawns, SEA_SEAT, shoreRun, strayed } from "./gente/logic";
 import { toWorld } from "./huacas/logic";
 import { STALLS } from "./huacas/market";
 
-type Wear = PartName | CoastPart;
-const MAN: Wear[] = ["leg", "c:shirt", "c:arm", "m:head"];
-const WOMAN: Wear[] = ["leg", "w:skirt", "c:blouse", "c:arm", "w:head"];
-
 type Role = "walker" | "traveller" | "follow" | "vendor" | "kid" | "fisher" | "surfer" | "surfer-sea" | "beach-vendor";
 interface Who {
-  p: Person;
+  p: Npc;
   role: Role;
   /** Walker: road stretch [t0, t1] and direction. Beach walkers: along-shore stretch [t0, t1]. */
   t0: number;
@@ -50,19 +52,27 @@ interface Who {
   pause: number;
   home: { x: number; z: number; yaw: number };
   u: number;
-  /** A fisherman mending a net (bent over, hands working). */
+  /** A fisherman mending a net (head down, hands working). */
   mend?: boolean;
+  /** How they hold what they carry. */
+  carry: "none" | "carry-back" | "carry-hand";
+  /** Drawn this frame (near the camera). */
+  drawn: boolean;
+  /** Surfer at sea: their board's instance. */
+  board?: number;
   /** Family member: who they keep beside, and where (metres to the leader's right, behind). */
   lead?: Who;
   side?: number;
   back?: number;
 }
 
+/** Beyond this distance from the camera nobody is drawn or animated. */
+const VIEW = 140;
+
 export const create: CreateAmbient = (baseEnv): Ambient => {
   const env = baseEnv as SuyuEnv;
   const L = env.suyu.layout as CostaLayout;
   const R = rng(0x9e7e);
-  const pick = <T>(a: readonly T[]) => a[Math.floor(R() * a.length) % a.length] as T;
   const high = env.quality === "high";
   const ground = env.suyu.groundAt;
   const len = L.trail.length;
@@ -78,42 +88,22 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     : [[0.7, 0.775, [false, true]]];
   const surfers = high ? 2 : 1;
   const seaSurfers = high ? 2 : 1;
-  const cap =
-    nWalkers +
-    nTravellers +
-    nKids +
-    1 +
-    3 +
-    surfers +
-    seaSurfers +
-    1 +
-    families.reduce((a, [, , m]) => a + 1 + m.length, 0);
 
-  const ramp = env.toon("#ffffff").gradientMap;
-  const mat = paletteMaterial(ramp);
-  const specs = [...partSpecs(["leg", "m:head", "w:head", "w:skirt", "bundle", "basket"]), ...coastSpecs()];
-  const crowd = new Crowd(specs, cap, mat, new Set([...SHADOW_PARTS, "c:shirt", "c:blouse"]));
-  env.scene.add(crowd.group);
+  const shared = coastCrowd(env.scene, env.quality === "low");
+  const { crowd, props } = shared;
 
-  const make = (man: boolean, kid: boolean, seed: number, hat: boolean, extra: Wear[] = []): Person => {
-    const wear = [...(man ? MAN : WOMAN), ...(hat ? (["c:hat"] as const) : []), ...extra];
-    const palette: Palette = man
-      ? [pick(COAST_SKINS), pick(SHIRTS), pick(APRONS), pick(TROUSERS)]
-      : [pick(COAST_SKINS), pick(BLOUSES), pick(APRONS), pick(SKIRTS)];
-    // The rig's types list the mountain's parts; the coast's crowd also has its own (same Crowd API).
-    return new Person({
-      kind: kid ? "costa-kid" : "costa-person",
+  const make = (who: CoastWho, seed: number, scale: number): Npc =>
+    new Npc({
+      kind: who === "boy" || who === "girl" ? "costa-kid" : "costa-person",
       crowd,
-      idx: crowd.alloc(),
-      wear: wear as unknown as PartName[],
-      palette,
-      scale: kid ? 0.6 + R() * 0.08 : man ? 0.98 + R() * 0.06 : 0.93 + R() * 0.05,
-      headScale: kid ? 1.3 : 1,
-      radius: kid ? 0.26 : 0.34,
+      spec: COAST_PEOPLE[who],
+      palette: coastDress(who, R),
+      scale,
+      radius: who === "boy" || who === "girl" ? 0.26 : 0.34,
       seed,
     });
-  };
-  const who = (p: Person, role: Role, o: Partial<Who> = {}): Who => ({
+  const adultScale = (man: boolean) => (man ? 0.98 + R() * 0.06 : 0.97 + R() * 0.05);
+  const who = (p: Npc, role: Role, o: Partial<Who> = {}): Who => ({
     p,
     role,
     t0: 0,
@@ -124,8 +114,14 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     pause: 0,
     home: { x: 0, z: 0, yaw: 0 },
     u: 0,
+    carry: "none",
+    drawn: true,
     ...o,
   });
+  const hold = (w: Who, kind: PropKind, tint?: string) => {
+    w.p.hold(props, kind, tint);
+    return w;
+  };
 
   const people: Who[] = [];
   // ------------------------------------------------------------------ walkers (stretches between stations)
@@ -134,22 +130,33 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     const k = Math.floor(R() * (stops.length - 1));
     const a = (stops[k] as (typeof stops)[number]).t + 0.012;
     const b = (stops[k + 1] as (typeof stops)[number]).t - 0.012;
-    const p = make(i % 3 !== 1, false, 11 + i * 7.3, R() < 0.6);
+    const man = i % 3 !== 1;
+    const p = make(adult(man, R() < 0.6), 11 + i * 7.3, adultScale(man));
     const t = a + R() * Math.max(0.001, b - a);
     people.push(who(p, "walker", { t0: a, t1: b, dir: R() < 0.5 ? 1 : -1, t, speed: 1 + R() * 0.3, pause: R() * 3 }));
   }
   // ------------------------------------------------------------------ travellers of the whole road
+  const LOADS = ["#c4383f", "#2a9d8f", "#3446a6", "#dda63c"];
   for (let i = 0; i < nTravellers; i++) {
     const man = i % 2 === 0;
-    const load: Wear[] = R() < 0.55 ? ["bundle"] : !man && R() < 0.6 ? ["basket"] : [];
-    const p = make(man, false, 23 + i * 4.1, R() < 0.7, load);
+    const r = R();
+    const load = r < 0.55 ? "qipi" : !man && R() < 0.6 ? "basket-hand" : null;
+    const p = make(adult(man, R() < 0.7), 23 + i * 4.1, adultScale(man));
     // Placed round the player on the first frame (u < 0 marks "not placed yet").
-    people.push(who(p, "traveller", { dir: R() < 0.5 ? 1 : -1, speed: 1.15 + R() * 0.3, u: -1 }));
+    const w = who(p, "traveller", { dir: R() < 0.5 ? 1 : -1, speed: 1.15 + R() * 0.3, u: -1 });
+    if (load === "qipi") {
+      hold(w, "qipi", LOADS[i % LOADS.length]);
+      w.carry = "carry-back";
+    } else if (load === "basket-hand") {
+      hold(w, "basket-hand", LOADS[(i + 1) % LOADS.length]);
+      w.carry = "carry-hand";
+    }
+    people.push(w);
   }
   // ------------------------------------------------------------------ families
   for (const [t0, t1, members] of families) {
     const t = t0 + R() * (t1 - t0);
-    const lead = who(make(true, false, 61 + t0 * 10, true), "walker", {
+    const lead = who(make("manHat", 61 + t0 * 10, adultScale(true)), "walker", {
       t0,
       t1,
       dir: R() < 0.5 ? 1 : -1,
@@ -159,7 +166,9 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     });
     people.push(lead);
     members.forEach((kid, j) => {
-      const p = make(kid ? R() < 0.5 : false, kid, 67 + t0 * 10 + j, false);
+      const p = kid
+        ? make(R() < 0.5 ? "boy" : "girl", 67 + t0 * 10 + j, 0.94 + R() * 0.1)
+        : make("woman", 67 + t0 * 10 + j, adultScale(false));
       people.push(who(p, "follow", { lead, side: j === 0 ? -1.1 : 1.0, back: j === 0 ? 0.3 : 0.9, t }));
     });
   }
@@ -171,8 +180,9 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     // Behind the middle stall's counter (stall-local z −0.4), facing the plaza.
     const sf = { ...toWorld(f, st.x, st.z), y: 0, yaw: f.yaw + st.yaw };
     const at = toWorld(sf, 0, -0.35);
-    const p = make(false, false, 91, true);
+    const p = make("womanHat", 91, 0.99);
     p.body.solid = false;
+    p.lookRange = 8;
     people.push(who(p, "vendor", { home: { x: at.x, z: at.z, yaw: sf.yaw } }));
   }
   // ------------------------------------------------------------------ beaches
@@ -192,7 +202,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const south = beach(BEACHES.south);
   const north = beach(BEACHES.north);
   for (let i = 0; i < nKids; i++) {
-    const p = make(i % 2 === 0, true, 51 + i * 3.1, false);
+    const p = make(i % 2 === 0 ? "boy" : "girl", 51 + i * 3.1, 0.92 + R() * 0.12);
+    p.lookRange = 0;
     // Along the shore, a few metres apart, south of the boats.
     const at = onBeach(south, -3, -10 - i * 4);
     people.push(who(p, "kid", { speed: 2.3 + R() * 0.5, pause: R() * 2, home: { ...at, yaw: 0 }, u: R() * 6 }));
@@ -202,29 +213,58 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     [south, 10.5, 4.6, false],
     [north, -3, 4, false],
   ] as const) {
-    const p = make(true, false, 71 + off, true);
+    const p = make("fisher", 71 + off, adultScale(true));
     const at = onBeach(bch, -back, off);
-    people.push(who(p, "fisher", { home: { ...at, yaw: Math.atan2(bch.nx, bch.nz) }, mend }));
+    const w = who(p, "fisher", { home: { ...at, yaw: Math.atan2(bch.nx, bch.nz) }, mend });
+    if (mend) hold(w, "net");
+    people.push(w);
   }
   // Surfers carrying their boards along the sand (north of the boats), and out on the water beyond the surf.
+  const BOARDS = ["#2a9d8f", "#c4383f", "#dda63c", "#3446a6"];
   for (let i = 0; i < surfers; i++) {
-    const p = make(i === 0, false, 81 + i * 2.3, false, ["c:board"]);
-    people.push(who(p, "surfer", { t0: 15 + i * 3, t1: 34 - i * 2, dir: i ? -1 : 1, t: 20 + i * 8, speed: 1.05 }));
+    const p = make(i === 0 ? "surfer" : "surferWoman", 81 + i * 2.3, adultScale(i === 0));
+    const w = who(p, "surfer", { t0: 15 + i * 3, t1: 34 - i * 2, dir: i ? -1 : 1, t: 20 + i * 8, speed: 1.05 });
+    hold(w, "board", BOARDS[i % BOARDS.length]);
+    w.carry = "carry-hand";
+    people.push(w);
   }
+  const seaAt: Array<{ x: number; z: number; yaw: number; y: number }> = [];
   for (let i = 0; i < seaSurfers; i++) {
-    const p = make(i === 0, false, 85 + i * 1.7, false, ["c:board"]);
+    const p = make(i === 0 ? "surfer" : "surferWoman", 85 + i * 1.7, adultScale(i === 0));
+    p.lookRange = 0;
     const at = onBeach(south, 52 + i * 7, 20 + i * 9);
-    people.push(who(p, "surfer-sea", { home: { ...at, yaw: Math.atan2(south.nx, south.nz) }, u: i * 2.1 }));
+    const home = { ...at, yaw: Math.atan2(south.nx, south.nz) };
+    people.push(who(p, "surfer-sea", { home, u: i * 2.1, board: i }));
+    seaAt.push({ ...home, y: 0 });
   }
   // The beach vendor with his cool box, walking the sand above the waterline.
   {
-    const p = make(true, false, 97, true, ["c:cooler"]);
-    people.push(who(p, "beach-vendor", { t0: -26, t1: 30, dir: 1, t: 0, speed: 0.9, pause: 2 }));
+    const p = make("manHat", 97, 1);
+    const w = who(p, "beach-vendor", { t0: -26, t1: 30, dir: 1, t: 0, speed: 0.9, pause: 2 });
+    hold(w, "cooler", "#e8eef2");
+    people.push(w);
   }
+
+  // ------------------------------------------------------------------ the boards out at sea (not held: floating)
+  const boardGeo = (() => {
+    // A surfboard along +Z, deck up (y 0 at its bottom).
+    const g = new Geo();
+    g.blob(0.25, 0.035, 0.95, 0, 0.03, 0, "#f2efe6", 1);
+    g.blob(0.06, 0.034, 0.9, 0, 0.036, 0, "#2a9d8f", 1);
+    g.blob(0.13, 0.033, 0.2, 0, 0.032, 0.62, "#2a9d8f", 1);
+    return g.build();
+  })();
+  const boardMat = paintStrength(vertexToon(), 0);
+  const boards = new THREE.InstancedMesh(boardGeo, boardMat, Math.max(1, seaSurfers));
+  boards.name = "costa-gente:boards";
+  boards.frustumCulled = false;
+  boards.castShadow = true;
+  env.scene.add(boards);
+  const dummy = new THREE.Object3D();
+  dummy.rotation.order = "YXZ";
 
   // ------------------------------------------------------------------ frame
   let day: boolean | null = null;
-  let clock = 0;
   let playerT = -1;
   let tClock = 1;
   const rm = env.reducedMotion;
@@ -238,6 +278,14 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
   const tgt = { x: 0, z: 0 };
   const vp = new THREE.Vector3();
   const vg = new THREE.Vector3();
+  const frame: NpcFrame = { dt: 0, clock: 0, rm, avatar: new THREE.Vector3() };
+  /** Drawn or not (far from the camera): the body and its props. */
+  const draw = (w: Who, on: boolean) => {
+    if (w.drawn === on) return;
+    w.drawn = on;
+    if (on) w.p.show();
+    else w.p.hide();
+  };
   /** Puts a road walker at road t in their lane. */
   const toLane = (w: Who) => {
     L.trail.pointAt(w.t, vp);
@@ -284,10 +332,27 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     }
   };
 
+  // Dev hook (screenshots): where everyone is and what they are doing.
+  if (import.meta.env?.DEV)
+    (window as Window & { __costaPeople?: unknown }).__costaPeople = () =>
+      people.map((w) => ({
+        role: w.role,
+        x: w.p.x,
+        z: w.p.z,
+        yaw: w.p.yaw,
+        active: w.p.active,
+        drawn: w.drawn,
+        lod: w.p.member.lod,
+        action: w.p.anim.action,
+      }));
+
   return {
     update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
-      clock += dt;
+      frame.dt = dt;
+      frame.clock += dt;
+      frame.avatar.copy(avatar);
+      const clock = frame.clock;
       env.camera.getWorldPosition(cam);
       const isDayNow = isDay(env.sky.time());
       const first = day === null;
@@ -313,6 +378,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         }
         if (p.active !== isDayNow && (first || !seen(p.x, p.z))) {
           p.setActive(isDayNow);
+          w.drawn = isDayNow;
           if (isDayNow) {
             if (w.role === "walker" || w.role === "traveller") toLane(w);
             else if (w.role === "follow" && w.lead) p.place(w.lead.p.x, w.lead.p.z, w.lead.p.yaw);
@@ -325,7 +391,6 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
           }
         }
         if (!p.active) continue;
-        const far = Math.hypot(p.x - cam.x, p.z - cam.z) > 140;
         let floatY: number | null = null;
         switch (w.role) {
           case "walker":
@@ -385,12 +450,17 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
             break;
           }
           case "surfer-sea": {
-            // Sitting on the board beyond the surf, riding the swell, turning a little.
+            // Sitting astride the board beyond the surf, riding the swell, turning a little.
             const tt = rm ? 0 : clock;
             const yaw = w.home.yaw + Math.sin(tt * 0.2 + w.u) * 0.5;
             p.place(w.home.x, w.home.z, yaw);
             p.speed = 0;
             floatY = seaHeight(w.home.x, w.home.z, L.shoreX(w.home.z) - w.home.x, tt);
+            const s = seaAt[w.board ?? 0];
+            if (s) {
+              s.yaw = yaw;
+              s.y = floatY;
+            }
             break;
           }
           default:
@@ -401,49 +471,53 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
             p.z = w.home.z;
         }
         p.y = floatY ?? ground(p.x, p.z);
-        if (far) {
-          p.hide();
-          continue;
+        const near = Math.hypot(p.x - cam.x, p.z - cam.z) < VIEW;
+        draw(w, near);
+        if (!near) continue;
+        // ------------------------------------------------------------ what they do (the walk cycle follows the speed)
+        switch (w.role) {
+          case "vendor":
+            p.anim.act("hands-clasp", { fade: 0.4 });
+            break;
+          case "fisher":
+            // One mends a net (head down, hands working), the others stand with arms crossed looking about.
+            p.anim.act(w.mend ? "knit" : "arms-crossed", { fade: 0.4 });
+            break;
+          case "surfer-sea":
+            // Astride the board, legs down in the water: the seat sits on the deck.
+            p.lift = SEA_SEAT;
+            p.anim.act("ride", { fade: 0 });
+            break;
+          case "beach-vendor":
+            // Calling out with a raised arm (the left: the cool box hangs at the right hip).
+            p.anim.act(w.pause > 0 && p.speed < 0.2 ? "wave" : "none", { side: -1, fade: 0.35 });
+            break;
+          default:
+            p.anim.act(w.carry, { side: 1 });
         }
-        p.rest(clock, rm);
-        const b = p.bones;
-        if (w.role === "vendor" || w.role === "fisher") {
-          if (!rm) b.head.rotation.y = Math.sin(clock * 0.4 + p.seed) * 0.5;
-          if (w.mend) {
-            // Mending a net: bent forward, hands working.
-            b.torso.rotation.x = 0.35;
-            b.armL.rotation.x = -0.9 + (rm ? 0 : Math.sin(clock * 3) * 0.15);
-            b.armR.rotation.x = -0.9 + (rm ? 0 : Math.sin(clock * 3 + 1) * 0.15);
-          }
-        } else if (w.role === "surfer-sea") {
-          // Straddling the board: legs down in the water, hands on the deck, looking out to sea.
-          b.hips.position.y = -0.47;
-          b.legL.rotation.set(-0.35, 0, 0.55);
-          b.legR.rotation.set(-0.35, 0, -0.55);
-          b.armL.rotation.set(-0.25, 0, 0.45);
-          b.armR.rotation.set(-0.25, 0, -0.45);
-          b.tool.position.set(0, 0.54 / p.scale - 0.065, -0.12);
-          if (!rm) b.torso.rotation.z = Math.sin(clock * 0.9 + w.u) * 0.04;
-        } else {
-          p.gait(dt, rm, w.role === "surfer" ? 0.5 : 1);
-          if (w.role === "surfer") {
-            // The board under the right arm, on its edge, nose forward.
-            b.armR.rotation.set(-0.1, 0, -0.32);
-            b.tool.position.set(-0.36, 0.6, 0.05);
-            b.tool.rotation.set(0, 0, Math.PI / 2);
-          } else if (w.role === "beach-vendor" && w.pause > 0 && p.speed < 0.2) {
-            // Calling out with a raised arm.
-            b.armL.rotation.set(-2.6 + (rm ? 0 : Math.sin(clock * 4) * 0.15), 0, 0.2);
-          }
-        }
-        p.commit();
+        p.commit(frame);
       }
-      crowd.flush();
+      // The boards under the surfers at sea.
+      for (const w of people) {
+        if (w.board === undefined) continue;
+        const s = seaAt[w.board] as (typeof seaAt)[number];
+        const on = w.p.active && w.drawn;
+        dummy.position.set(s.x, s.y - 0.02, s.z);
+        dummy.rotation.set(rm ? 0 : Math.sin(clock * 0.9 + w.u) * 0.04, s.yaw, 0);
+        dummy.scale.setScalar(on ? 1 : 0);
+        dummy.updateMatrix();
+        boards.setMatrixAt(w.board, dummy.matrix);
+      }
+      boards.instanceMatrix.needsUpdate = true;
+      shared.frame(env.camera);
     },
     dispose() {
+      if (import.meta.env?.DEV) delete (window as Window & { __costaPeople?: unknown }).__costaPeople;
       for (const w of people) w.p.dispose();
-      crowd.dispose();
-      mat.dispose();
+      shared.release();
+      boards.removeFromParent();
+      boardGeo.dispose();
+      boardMat.dispose();
     },
   };
 };

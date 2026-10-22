@@ -1,18 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  addGait,
-  blendInto,
-  foxPresence,
-  lerpPose,
-  lookoutScore,
-  makePose,
-  nightAmount,
-  P,
-  TROT,
-  turnToward,
-  WALK,
-  wrapAngle,
-} from "./sim";
+import { foxPresence, lookoutScore, nightAmount, turnToward, wrapAngle } from "./sim";
 
 describe("time of day", () => {
   test("night amount: 0 by day, 1 at midnight, ramps at dusk", () => {
@@ -42,37 +29,6 @@ describe("angles", () => {
   test("turnToward takes the short way and clamps the step", () => {
     expect(turnToward(3, -3, 0.1)).toBeCloseTo(3.1, 9);
     expect(turnToward(0, 0.05, 0.1)).toBeCloseTo(0.05, 9);
-  });
-});
-
-describe("poses", () => {
-  const a = makePose([0, 0, 1, 1]);
-  const b = makePose([1, 1, 3, 3]);
-  test("lerp and blend", () => {
-    const out = makePose([]);
-    lerpPose(out, a, b, 0.5);
-    expect(out[0]).toBeCloseTo(0.5);
-    expect(out[P.legs]).toBeCloseTo(2);
-    out.set(a);
-    blendInto(out, b, 1);
-    expect(Array.from(out)).toEqual(Array.from(b));
-    out.set(a);
-    blendInto(out, b, 0);
-    expect(Array.from(out)).toEqual(Array.from(a));
-  });
-  test("gait: legs swing in the right pairs, zero amplitude is a no-op", () => {
-    const p = makePose([]);
-    addGait(p, 0.1, TROT, 0, 0.5, 0.8);
-    expect(Array.from(p).every((v) => v === 0)).toBe(true);
-    addGait(p, 0.1, TROT, 1, 0.5, 0.8);
-    // Trot: diagonal pairs (FL with HR, FR with HL) move together.
-    expect(p[P.legs]).toBeCloseTo(p[P.legs + 6]!, 9);
-    expect(p[P.legs + 2]).toBeCloseTo(p[P.legs + 4]!, 9);
-    expect(p[P.legs]).toBeCloseTo(-p[P.legs + 2]!, 9);
-    const w = makePose([]);
-    addGait(w, 0.3, WALK, 1, 0.4, 0.6);
-    // Walk: four distinct phases.
-    expect(new Set([0, 1, 2, 3].map((k) => w[P.legs + k * 2]!.toFixed(4))).size).toBe(4);
   });
 });
 

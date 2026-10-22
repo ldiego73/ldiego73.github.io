@@ -1,13 +1,14 @@
 /**
  * Static dressing of the summit camp, merged into one vertex-colored geometry in the summit-local frame
- * (people/models.ts `Static`): the travellers' hearth with seat stones, a striped manta and their q'ipi
+ * (people/site-props.ts `Static`): the travellers' hearth with seat stones, a striped manta and their q'ipi
  * bundles; the apacheta (a cairn of stones that travellers raise, one stone each, at high passes); and the
  * api stall — a small table with a woven cloth under a cotton shade, cups set out, and a big clay pot on a
  * three-stone q'uncha (stove). Flames, glow and steam are separate (animated) objects.
  */
 import * as THREE from "three";
 import { DYE } from "../../palette";
-import { hearth, rng, Static } from "../people/models";
+import { hearth, Static } from "../people/site-props";
+import { rng } from "../people/util";
 import { APACHETA, FIRE, SEATS, STALL, STOVE } from "./plan";
 
 const WOOD = "#7a5233";
