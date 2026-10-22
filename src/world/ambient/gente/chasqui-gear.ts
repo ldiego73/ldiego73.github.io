@@ -48,9 +48,10 @@ export function buildGear(k: GearKit, g: Gear | Glow): THREE.BufferGeometry {
   switch (g) {
     case "plume":
       // Three white feathers fanning up and back from the knot of the llawt'u, a dyed bead at the base.
+      // Slim feathers rising from the back of the head, swept back (a crest, not a cap).
       for (let i = -1; i <= 1; i++)
-        k.add("cone", "#f4efe6", i * 0.045, 0.43, -0.2, -0.45, 0, i * 0.32, 0.04, 0.3, 0.035);
-      k.add("ico", DYE.red, 0, 0.31, -0.17, 0, 0, 0, 0.038, 0.038, 0.038);
+        k.add("cone", "#f4efe6", i * 0.03, 0.4, -0.26, -1.05, 0, i * 0.28, 0.018, 0.22, 0.012);
+      k.add("ico", DYE.red, 0, 0.33, -0.2, 0, 0, 0, 0.032, 0.032, 0.032);
       break;
     case "khipuHand":
     case "khipuHip": {

@@ -79,6 +79,7 @@ export class QuadSet {
   private readonly gCol: Float32Array;
   private readonly glow = new THREE.Color();
   private readonly eyes: QuadSetOptions["eyes"];
+  private readonly pose = { pitch: 0 };
 
   constructor(
     env: WorldEnv,
@@ -148,12 +149,17 @@ export class QuadSet {
         st.z = body.z;
       }
     }
-    this.herd.set(this.ids[i] as number, st.x, st.y, st.z, st.yaw, {
-      speed: st.speed,
-      mode: st.mode,
-      look: st.headYaw,
-      rm,
-    });
+    // Pitched to the ground's slope (eased by `settle`), so a cat on a ledge lies along it.
+    this.pose.pitch = st.slope;
+    this.herd.set(
+      this.ids[i] as number,
+      st.x,
+      st.y,
+      st.z,
+      st.yaw,
+      { speed: st.speed, mode: st.mode, look: st.headYaw, rm },
+      this.pose,
+    );
     // Head and eyes (approximate: the standing head, a little lower when lying, turned by the look).
     const e = this.eyes;
     const low = st.mode === "sleep" ? 0.45 : st.mode === "sit" ? 1.05 : 1;

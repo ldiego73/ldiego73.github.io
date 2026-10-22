@@ -42,6 +42,8 @@ const TAU = Math.PI * 2;
 /** Feather puff size (a touch larger than life so the puff reads from the follow camera). */
 const S = 1.25;
 const PER_GROUP = 4;
+/** The birds, stylised like the puffs (≈0.38 u beak to rump). */
+const BIRD_POSE = { scale: S };
 
 type St = "away" | "ground" | "freeze" | "fly";
 interface Bird {
@@ -570,19 +572,27 @@ export const create: CreateAmbient = (env): Ambient => {
         const flying = b.st === "fly" && b.delay <= 0;
         b.vy = flying && dt > 0 ? (b.y - b.py) / dt : 0;
         b.py = b.y;
-        herd.set(i, b.x, b.y, b.z, b.yaw, {
-          speed: flying
-            ? Math.hypot(b.tx - b.fx, b.tz - b.fz) / Math.max(0.3, b.T)
-            : b.act === 1 && b.st === "ground"
-              ? 0.28
-              : 0,
-          rm,
-          look: 0,
-          mode: b.crouch > 0.5 ? "sit" : "auto",
-          grounded: !flying,
-          vy: b.vy,
-          height: flying ? b.y - groundAt(b.x, b.z) : 0,
-        });
+        herd.set(
+          i,
+          b.x,
+          b.y,
+          b.z,
+          b.yaw,
+          {
+            speed: flying
+              ? Math.hypot(b.tx - b.fx, b.tz - b.fz) / Math.max(0.3, b.T) / S
+              : b.act === 1 && b.st === "ground"
+                ? 0.28 / S
+                : 0,
+            rm,
+            look: 0,
+            mode: b.crouch > 0.5 ? "sit" : "auto",
+            grounded: !flying,
+            vy: b.vy,
+            height: flying ? b.y - groundAt(b.x, b.z) : 0,
+          },
+          BIRD_POSE,
+        );
       }
 
       // Feather puffs: drift down with drag and a flutter, spinning; shrink out at the end of life.

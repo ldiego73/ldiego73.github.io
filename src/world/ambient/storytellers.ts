@@ -298,6 +298,9 @@ export const create: CreateAmbient = (envIn): Ambient => {
     p.place(at.x, at.z, yaw);
     p.y = at.y;
     p.state = mode === "fire" ? "fire" : "story";
+    // Snapped (load, clock jump, far away): already seated / standing, no crossfade from a walk.
+    const seated = mode === "fire" || a.role === "kid";
+    p.anim.act(seated ? "sit-stool" : a.role === "elder" ? "talk" : "none", { seat: STONE_TOP, fade: 0 });
   };
 
   /** The schedule changed while in view: walk instead of snapping. */
@@ -515,10 +518,6 @@ export const create: CreateAmbient = (envIn): Ambient => {
       role: a.role,
       state: a.p.state,
       action: a.p.anim.action,
-      mix: JSON.stringify((a.p.anim as unknown as { mixer: unknown }).mixer),
-      hipsY: +(a.p.member.bones.hips?.position.y ?? 0).toFixed(2),
-      lod: a.p.member.lod,
-      shown: a.p.member.shown,
       mode: a.mode,
       lx: +lxOf(f, a.p.x, a.p.z).toFixed(2),
       lz: +lzOf(f, a.p.x, a.p.z).toFixed(2),

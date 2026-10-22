@@ -16,8 +16,10 @@
  *   grazing herd is never shoved over a terrace wall or onto the path. Caravan llamas only yield sideways.
  */
 import * as THREE from "three";
+import { nightAmount } from "./ambient/nightfauna/sim";
 import { prefetchAnimals } from "./characters/animals/assets";
-import { type Herd as AnimalHerd, createHerd } from "./characters/animals/crowd";
+import { type Herd as AnimalHerd, createHerd, type HerdPose } from "./characters/animals/crowd";
+import { setAnimalNight } from "./characters/animals/night";
 import type { Ambient, CreateAmbient, WorldEnv } from "./contract";
 import { type Body, creatures } from "./creatures";
 import {
@@ -577,7 +579,13 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
   for (const h of herds)
     for (const b of h.members) {
       const r = h.species === "vicuna" ? rV : rA;
-      b.id = r.add({ seed: b.seed, variant: h.species === "alpaca" ? Math.floor(R() * ALPACA_COATS.length) : 0 });
+      const alpaca = h.species === "alpaca";
+      // About 40 % of the alpacas wear dyed t'ika tassels in their ears (the herders' marks).
+      b.id = r.add({
+        seed: b.seed,
+        variant: alpaca ? Math.floor(R() * ALPACA_COATS.length) : 0,
+        features: alpaca ? { tika: R() < 0.4 } : undefined,
+      });
     }
   caravan.llamas.forEach((l, i) => {
     l.id = rL.add({ seed: l.seed, variant: i % LLAMA_COATS.length });
@@ -616,8 +624,11 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
         ? clamp(wrapAngle(Math.atan2(look.x - b.x, look.z - b.z) - b.yaw), -1.2, 1.2)
         : undefined;
   };
+  const beastPose: HerdPose = { scale: 1 };
   const writeBeast = (r: AnimalHerd, b: Beast) => {
-    r.set(b.id, b.x, b.y, b.z, b.yaw, { speed: Math.hypot(b.vx, b.vz), look: b.look, rm });
+    // Each animal keeps its own size (±10 %); the gait's stride is per unit of size.
+    beastPose.scale = b.scale;
+    r.set(b.id, b.x, b.y, b.z, b.yaw, { speed: Math.hypot(b.vx, b.vz) / b.scale, look: b.look, rm }, beastPose);
   };
 
   // ---------------------------------------------------------------- late zones
@@ -1069,6 +1080,8 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     for (const l of caravan.llamas) writeBeast(rL, l);
     for (const z of vizs) writeViz(z);
     clock += dt;
+    // The moonlit rim on every shared animal (this ambient owns the mountain's call, once per frame).
+    setAnimalNight(nightAmount(env.sky.time()));
     for (const r of renderers) r.update(dt, clock, env.camera);
 
     // Alpaca hello.

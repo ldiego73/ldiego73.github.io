@@ -15,6 +15,8 @@ import { on } from "../events";
 import { noPaint } from "../style-gl";
 
 const TAU = Math.PI * 2;
+/** Stylised: a touch larger than life so they read from the follow camera. */
+const POSE = { scale: 1.6 };
 
 type State = "ground" | "fly" | "away";
 interface Bird {
@@ -217,13 +219,21 @@ export const create: CreateAmbient = (env): Ambient => {
         // Hops between pecks: a short skip forward (the ground hop reads from the speed).
         const hopping = !flying && b.hop > 0;
         const fl = Math.hypot(b.tx - b.fx, b.tz - b.fz) / 1.4;
-        herd.set(i, b.x, b.y, b.z, b.yaw, {
-          speed: flying ? fl : hopping ? 0.8 : 0,
-          rm,
-          grounded: !flying,
-          vy: flying ? b.vy : 0,
-          height: flying ? b.y - groundAt(b.x, b.z) : 0,
-        });
+        herd.set(
+          i,
+          b.x,
+          b.y,
+          b.z,
+          b.yaw,
+          {
+            speed: (flying ? fl : hopping ? 0.8 : 0) / POSE.scale,
+            rm,
+            grounded: !flying,
+            vy: flying ? b.vy : 0,
+            height: flying ? b.y - groundAt(b.x, b.z) : 0,
+          },
+          POSE,
+        );
       }
       clock += dt;
       herd.update(dt, clock, env.camera);

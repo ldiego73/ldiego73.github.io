@@ -395,12 +395,12 @@ export const create: CreateAmbient = (env0): Ambient => {
           tt.z,
           tt.yaw,
           {
-          speed: tt.swing > 0.1 ? 0.12 + tt.swing * 0.2 : 0,
-          rm,
-          mode: swimming ? "swim" : "auto",
-          look: tt.headYaw,
-          // Basking in the sun: dozing allowed while nobody is near.
-          quiet: tt.state === "bask" && !log.alarm,
+            speed: tt.swing > 0.1 ? 0.12 + tt.swing * 0.2 : 0,
+            rm,
+            mode: swimming ? "swim" : "auto",
+            look: tt.headYaw,
+            // Basking in the sun: dozing allowed while nobody is near.
+            quiet: tt.state === "bask" && !log.alarm,
           },
           // Along the sloping log (or level while swimming), each at its own size.
           { scale: tt.scale, pitch: swimming ? -0.1 : tt.pitch },

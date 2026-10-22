@@ -27,6 +27,7 @@ import { findCrossing, gentleRun, makePath, type PathSample, ribbonCenterline, t
 
 /** Stylised: a touch larger than life so they read from the follow camera. */
 const SIZE = 1.6;
+const DUCK_POSE = { scale: SIZE };
 const STAMP = { id: "fauna:pato", kind: "fauna" as const, label: { es: "Pato de los torrentes", en: "Torrent duck" } };
 
 /** Shortest signed angle from b to a. */
@@ -589,18 +590,26 @@ export const create: CreateAmbient = (env): Ambient => {
     d.pz = d.z;
     const onWater = d.mode === "swim" || d.mode === "float" || d.mode === "pop";
     const air = d.mode === "hop" || d.mode === "run";
-    herd.set(i, d.x, d.y, d.z, d.yaw, {
-      speed: sp,
-      rm,
-      look: a.headYaw,
-      // Resting on the rocks at night: heads tucked.
-      quiet: lastNight && d.mode === "perch",
-      grounded: !air,
-      water: onWater,
-      under: d.mode === "dive",
-      vy: air ? vy : 0,
-      height: air ? 0.3 : 0,
-    });
+    herd.set(
+      i,
+      d.x,
+      d.y,
+      d.z,
+      d.yaw,
+      {
+        speed: sp / SIZE,
+        rm,
+        look: a.headYaw,
+        // Resting on the rocks at night: heads tucked.
+        quiet: lastNight && d.mode === "perch",
+        grounded: !air,
+        water: onWater,
+        under: d.mode === "dive",
+        vy: air ? vy : 0,
+        height: air ? 0.3 : 0,
+      },
+      DUCK_POSE,
+    );
   };
   const A = { roll: 0, headPitch: 0, headYaw: 0, headFwd: 0, headUp: 0, wing: 0, flap: 0, leg: 0, tail: 0 };
 
