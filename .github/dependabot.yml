@@ -2,14 +2,55 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    target-branch: main
     schedule:
       interval: monthly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
+
   - package-ecosystem: bun
     directory: /
+    target-branch: main
     schedule:
       interval: monthly
+    commit-message:
+      prefix: build(deps)
     groups:
+      # Astro 7 drives Vite; both move together or the build and harnesses break.
       astro:
-        patterns: ["astro", "@astrojs/*"]
+        patterns: ["astro", "@astrojs/*", "vite"]
+      three:
+        patterns: ["three", "@types/three"]
+      og:
+        patterns: ["satori", "@resvg/resvg-js", "@fontsource/*"]
       dev:
         dependency-type: development
+        exclude-patterns: ["vite", "@types/three", "satori", "@resvg/resvg-js", "@fontsource/*"]
+    # Critical dependencies get patch/minor PRs only; majors (and 0.x minors,
+    # which break APIs) are bumped by hand after checking the whole site.
+    ignore:
+      - dependency-name: "astro"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@astrojs/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      # Three.js is pinned to r186 (see AGENTS.md); every 0.x minor is a new revision.
+      - dependency-name: "three"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@types/three"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # OG image pipeline: satori 0.x minors change layout output.
+      - dependency-name: "satori"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@resvg/resvg-js"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@biomejs/biome"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@playwright/test"
+        update-types: ["version-update:semver-major"]
