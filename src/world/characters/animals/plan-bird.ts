@@ -436,7 +436,7 @@ function openWing(k: Kit, p: BirdPlan, s: "L" | "R"): GridPiece {
       const pz = le[2] - ch * x * closeTip;
       return [px * side, le[1] + y + Math.sin(a) * 0, pz];
     },
-    { closed: true, flip: s === "R" },
+    { closed: true, flip: s === "L" },
   );
   const cc = C + 1;
   const elbowB = nb("arm");
@@ -512,7 +512,7 @@ function openWing(k: Kit, p: BirdPlan, s: "L" | "R"): GridPiece {
           q[2] + pz * Math.cos(a) * rad,
         ];
       },
-      { closed: true, flip: s === "R" },
+      { closed: true, flip: s === "L" },
     );
     parts.push(fg);
   }
@@ -606,7 +606,7 @@ function foldWing(k: Kit, p: BirdPlan, s: "L" | "R") {
     kind: "field" as const,
     name: `fold${s}`,
     prims,
-    h: p.h * 0.9,
+    h: p.h * 1.15,
     rigid: bone,
     bands: [
       {
@@ -629,17 +629,24 @@ function legsPiece(k: Kit, p: BirdPlan) {
     const shin = k.b(`shin${s}`);
     const foot = k.b(`foot${s}`);
     const [rt, rs] = L.r;
-    // Feathered thigh (hidden mostly in the belly), bare tarsus, toes.
+    // Feathered thigh tucked into the belly feathers, a slim bare shank to the ankle, the tarsus, the toes.
+    const knee = lerp3(L.hip, L.ankle, L.thigh ?? 0.5);
     prims.push({
-      shape: { kind: "cone", a: m(L.hip), b: m(lerp3(L.hip, L.ankle, L.thigh ?? 0.75)), ra: rt, rb: rt * 0.65 },
+      shape: { kind: "cone", a: m(L.hip), b: m(knee), ra: rt, rb: rt * 0.55 },
       bone: thigh,
       blend: 0,
+      slot: B.belly,
+    });
+    prims.push({
+      shape: { kind: "cone", a: m(knee), b: m(L.ankle), ra: Math.max(rs, rt * 0.45), rb: rs },
+      bone: thigh,
+      blend: rs * 0.6,
       slot: L.thigh ? B.belly : B.legs,
     });
     prims.push({
-      shape: { kind: "cone", a: m(L.ankle), b: m(L.foot), ra: rs * 1.15, rb: rs },
+      shape: { kind: "cone", a: m(L.ankle), b: m(L.foot), ra: rs * 0.95, rb: rs * 0.8 },
       bone: shin,
-      blend: rs * 0.8,
+      blend: rs * 0.6,
       slot: B.legs,
     });
     const fp = L.foot;
@@ -659,7 +666,7 @@ function legsPiece(k: Kit, p: BirdPlan) {
       const tl = L.toe * len;
       const end: Vec3 = [fp[0] + Math.sin(ang) * tl, Math.max(rs * 0.5, fp[1] - rs * 1.5), fp[2] + Math.cos(ang) * tl];
       prims.push({
-        shape: { kind: "cone", a: m([fp[0], Math.max(rs, fp[1]), fp[2]]), b: m(end), ra: rs * 0.85, rb: rs * 0.55 },
+        shape: { kind: "cone", a: m([fp[0], Math.max(rs, fp[1]), fp[2]]), b: m(end), ra: rs * 0.62, rb: rs * 0.4 },
         bone: foot,
         blend: rs * 0.6,
         slot: B.legs,

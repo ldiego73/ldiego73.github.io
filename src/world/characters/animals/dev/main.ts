@@ -180,7 +180,7 @@ function lineup() {
     const t0 = performance.now();
     animalItem(k, cx, 0.5, { seed: i + 1 });
     STATS.push(`${k}: ${(performance.now() - t0).toFixed(0)} ms`);
-    oldItem(k, cx, -Math.max(1.2, SPECIES[k].size * 1.1));
+    if (!q.has("noold")) oldItem(k, cx, -Math.max(1.2, SPECIES[k].size * 1.1));
   });
   return x;
 }

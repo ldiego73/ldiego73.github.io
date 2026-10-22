@@ -69,7 +69,7 @@ export const CAIMAN = reptile({
   latin: "Caiman crocodilus",
   size: 2,
   speeds: { walk: 0.4, run: 1.5, max: 4 },
-  h: 0.017,
+  h: 0.02,
   shape: {
     bodyY: 0.15,
     bodyR: [0.16, 0.1],
@@ -181,7 +181,7 @@ export const IGUANA = reptile({
   latin: "Iguana iguana",
   size: 1.2,
   speeds: { walk: 0.3, run: 1.4, max: 3 },
-  h: 0.009,
+  h: 0.011,
   shape: {
     bodyY: 0.12,
     bodyR: [0.075, 0.075],

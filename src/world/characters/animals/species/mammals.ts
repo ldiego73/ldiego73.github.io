@@ -498,7 +498,7 @@ export const BEAR = spec({
   latin: "Tremarctos ornatus",
   size: 1.7,
   speeds: { walk: 1, run: 2.6, max: 8 },
-  h: 0.026,
+  h: 0.031,
   woolNormal: 0.4,
   shape: {
     bodyY: 0.56,
@@ -566,7 +566,7 @@ export const VIZCACHA = spec({
   latin: "Lagidium peruanum",
   size: 0.55,
   speeds: { walk: 0.4, run: 2, max: 4 },
-  h: 0.011,
+  h: 0.013,
   woolNormal: 0.5,
   shape: {
     bodyY: 0.2,
@@ -943,7 +943,7 @@ export const SLOTH = spec({
   latin: "Bradypus variegatus",
   size: 0.65,
   speeds: { walk: 0.08, run: 0.2, max: 0.3 },
-  h: 0.012,
+  h: 0.015,
   woolNormal: 0.35,
   shape: {
     bodyY: 0.33,

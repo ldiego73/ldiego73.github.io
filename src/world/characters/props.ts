@@ -46,6 +46,8 @@ export type PropKind =
 export interface PropHolder {
   /** World matrix of a bone of the person. */
   boneWorld(name: string, out: THREE.Matrix4): THREE.Matrix4;
+  /** False while the person is not drawn (a crowd member's `shown`): their props hide too. */
+  readonly shown?: boolean;
 }
 
 interface PropDef {
@@ -453,7 +455,7 @@ export class HeldProps {
     for (const s of this.slots) {
       const m = this.meshes.get(s.kind);
       if (!m) continue;
-      if (!s.visible) m.mesh.setMatrixAt(s.index, ZERO);
+      if (!s.visible || s.holder.shown === false) m.mesh.setMatrixAt(s.index, ZERO);
       else {
         const def = PROPS[s.kind];
         s.holder.boneWorld(def.bone, tmp);

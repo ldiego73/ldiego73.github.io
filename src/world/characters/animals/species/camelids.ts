@@ -245,7 +245,7 @@ function camelidExtras(k: Kit, p: QuadPlan, c: CamelidShape) {
       kind: "field",
       name: "pack",
       prims,
-      h: 0.018 * s,
+      h: 0.032 * s,
       rigid: bone,
       // Aguayo stripes: bands across the blanket by the angle around the barrel (and the bags stay plain).
       bands: [
@@ -364,7 +364,7 @@ export const ALPACA: AnimalSpec = {
         topknot: 2.1,
       }),
     ),
-    h: 0.026 * 0.86,
+    h: 0.03 * 0.86,
     woolNormal: 0.25,
   }),
   palette: ALPACA_PAL,
