@@ -16,7 +16,6 @@
  */
 import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
-import type { Animal } from "../../characters/animals/animal";
 import type { Herd } from "../../characters/animals/crowd";
 import { setAnimalNight } from "../../characters/animals/night";
 import type { Ambient, CreateAmbient } from "../../contract";
@@ -149,13 +148,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     );
 
   // ------------------------------------------------------------------ the frog
-  let frog: Animal | null = null;
-  herds.one("frog", { variant: "titicaca", lod: 1, seed: 3 }, (a) => {
-    frog = a;
-    a.group.name = "titicaca-orilla:frog";
-    a.group.position.set(FROG_SPOT.x, LEVEL - 0.4, FROG_SPOT.z);
-    a.group.rotation.y = 2.4;
-    a.group.visible = false;
+  // A herd of one: the same instanced, off-the-main-thread path as the others.
+  let frogId = -1;
+  herds.herd("frog", { max: 1, variants: ["titicaca"] }, (h) => {
+    frogId = h.add({ seed: 3 });
   });
   env.scene.add(group);
 
@@ -300,14 +296,12 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       // ----- the frog
       const dFrog = Math.hypot(avatar.x - FROG_SPOT.x, avatar.z - FROG_SPOT.z);
       const up = frogSurface(clock, dFrog < 18);
-      const f = frog as Animal | null;
-      if (f) {
+      const fh = herds.get("frog");
+      if (fh && frogId >= 0) {
         // Its back and eyes just out of the water, sinking back to the lake bed in between.
-        f.group.position.y = LEVEL - 0.3 + up * 0.24 + (rmo ? 0 : Math.sin(clock * 1.7) * 0.01);
-        if (up > 0.01) {
-          f.autoLod(env.camera);
-          f.update(dt, clock, { speed: 0, rm: rmo, mode: "swim" });
-        } else f.group.visible = false;
+        const y = LEVEL - 0.3 + up * 0.24 + (rmo ? 0 : Math.sin(clock * 1.7) * 0.01);
+        if (up > 0.01) fh.set(frogId, FROG_SPOT.x, y, FROG_SPOT.z, 2.4, { speed: 0, rm: rmo, mode: "swim" });
+        else fh.hide(frogId);
       }
       if (looks.rana.update(dt, up > 0.5 && dFrog < 14 && onScreen(FROG_SPOT.x, LEVEL, FROG_SPOT.z)))
         stamp("titicaca:fauna:rana");
