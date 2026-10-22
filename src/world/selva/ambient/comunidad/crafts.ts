@@ -243,6 +243,10 @@ export function createCrafts(
         },
       };
     },
+    dev: {
+      /** Each worker's role, action and arms action (screenshots). */
+      actions: () => workers.map((k) => [k.role, k.p.active, k.p.anim.action, k.p.anim.armsAction]),
+    },
     people: () => workers.filter((k) => k.p.active).length,
     points: () => workers.map((k) => ({ x: k.p.x, z: k.p.z })),
     dispose() {

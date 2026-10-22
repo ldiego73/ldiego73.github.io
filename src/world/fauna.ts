@@ -1081,7 +1081,7 @@ export const createFauna: CreateAmbient = (env: WorldEnv, hudRoot: HTMLElement):
     for (const z of vizs) writeViz(z);
     clock += dt;
     // The moonlit rim on every shared animal (this ambient owns the mountain's call, once per frame).
-    setAnimalNight(0 * nightAmount(env.sky.time()));
+    setAnimalNight(nightAmount(env.sky.time()));
     for (const r of renderers) r.update(dt, clock, env.camera);
 
     // Alpaca hello.
