@@ -11,11 +11,14 @@
  *   Crowds                 new HumanCrowd({ capacity }) (./crowd.ts): everyone in 2 draw calls, LOD by distance
  *   Animation              HumanAnimator (./anim-human.ts): locomotion, act("wave"…), look(), springs, face
  *   Held props             HeldProps (./props.ts): tools and loads in hands, instanced per kind
+ *   Night rim              setNightRim(sky.night) once per frame: the moonlit rim of people and animals alike
  */
 export type { PlayOpts } from "./actions";
 export { ONE_SHOT } from "./actions";
 export type { Expression, HangSpec, HumanState, HumanStyle, Mode } from "./anim-human";
 export { HumanAnimator } from "./anim-human";
+// One shared uniform drives the night rim of every human and animal material (./animals/night.ts).
+export { NIGHT_RIM, setAnimalNight as setNightRim, withNightRim } from "./animals/night";
 export type {
   Age,
   BottomKind,
