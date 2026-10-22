@@ -98,8 +98,8 @@ export const WILDLIFE: readonly Species[] = [
     },
     when: { es: "De día y al atardecer; de noche se retira.", en: "By day and into dusk; at night it retires." },
     does: {
-      es: "Come bromelias sentado en la ladera, camina despacio y trepa a los árboles a descansar. Si te acercas se para sobre las patas traseras a olfatear y luego se aleja con calma. Nunca ataca.",
-      en: "It sits on the slope eating bromeliads, ambles along and climbs trees to rest. If you come close it rears up on its hind legs to sniff, then calmly walks away. Never aggressive.",
+      es: "Come bromelias sentado en la ladera, camina despacio y trepa a los árboles a descansar. Si te acercas se sienta a olfatear y luego se aleja con calma. Nunca ataca.",
+      en: "It sits on the slope eating bromeliads, ambles along and climbs trees to rest. If you come close it sits up to sniff, then calmly walks away. Never aggressive.",
     },
     stamp: "fauna:oso",
   },
@@ -231,8 +231,8 @@ export const WILDLIFE: readonly Species[] = [
     },
     when: { es: "Solo de noche.", en: "Night only." },
     does: {
-      es: "Echado o sentado, vigila el camino; sus ojos brillan con la luz. Cuando te acercas se levanta, te mira un momento y se escabulle. A veces cruza el camino a lo lejos.",
-      en: "Lying or sitting, it watches the trail; its eyes catch the light. As you approach it rises, holds a look and slinks away. Sometimes it crosses the path in the distance.",
+      es: "Sentado, vigila el camino; sus ojos brillan con la luz. Cuando te acercas se levanta, te mira un momento y se escabulle. A veces cruza el camino a lo lejos.",
+      en: "Sitting, it watches the trail; its eyes catch the light. As you approach it rises, holds a look and slinks away. Sometimes it crosses the path in the distance.",
     },
     stamp: "fauna:puma",
   },

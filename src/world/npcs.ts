@@ -646,11 +646,11 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
 
   /** The knotted khipu tied under the traveler's pack while an errand is carried. */
   let carried: { mesh: THREE.Mesh; swing: number } | null = null;
+  /** The traveler's backpack bone (characters: the "pack" spring bone of a worn backpack), if any. */
   const findPack = (traveler: THREE.Object3D) => {
     let pack: THREE.Object3D | null = null;
     traveler.traverse((o) => {
-      if (!pack && o.type === "Group" && Math.abs(o.position.z + 0.25) < 0.02 && Math.abs(o.position.y - 0.28) < 0.02)
-        pack = o;
+      if (!pack && (o as THREE.Bone).isBone && o.name === "pack") pack = o;
     });
     return pack as THREE.Object3D | null;
   };
@@ -676,11 +676,12 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
     });
     for (const g of Object.values(P2)) g.dispose();
     const mesh = p.mesh(mat, "traveler:khipu");
+    // Under the pack (it sways with the pack's spring), or at the small of the back without one.
     if (pack) {
-      mesh.position.set(0, -0.2, -0.11);
+      mesh.position.set(0, -0.2, -0.08);
       pack.add(mesh);
     } else {
-      mesh.position.set(0, 0.62, -0.36);
+      mesh.position.set(0, 0.92, -0.26);
       traveler.add(mesh);
     }
     carried = { mesh, swing: 0 };

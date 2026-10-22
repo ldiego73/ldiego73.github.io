@@ -3,7 +3,8 @@
  * t ≈ 0.15 and 0.6, by day and into dusk. One bear (two on high quality) lives along the path:
  *  - sits on the slope by the trail eating a bromeliad (paws to the mouth), then ambles along the slope;
  *  - walks to an unca / aliso tree (read from the flora's instanced tiles), climbs it, rests, climbs down;
- *  - when the traveler comes within ~10 u it rears up on its hind legs to sniff, then ambles calmly away
+ *  - when the traveler comes within ~10 u it sits up to sniff (rearing on its hind legs once the shared bear
+ *    has a "rear" mode), then ambles calmly away
  *    (to its tree when there is one) — never aggressive.
  * Rare but findable: until the traveler has had a good look (stamp `fauna:oso`), the guide bear is moved,
  * unseen, ahead of the traveler along the trail. Rendering: the shared bear (characters/animals, one herd: a
@@ -413,7 +414,7 @@ export const create: CreateAmbient = (env): Ambient => {
     }
     const p = b.draw;
     const climbing = b.mode === "climbUp" || b.mode === "climbDown" || b.mode === "perch";
-    // Eating sits back on the haunches; standing to sniff rears up (a high sit); trunks are climbed.
+    // Eating sits back on the haunches; standing to sniff sits up too (no rearing mode yet); trunks are climbed.
     herd.set(id, b.rx, b.ry, b.rz, b.yaw, {
       speed: b.mode === "walk" ? b.gs : climbing && b.mode !== "perch" ? 0.5 : 0,
       mode: climbing ? "climb" : b.mode === "eat" || b.mode === "stand" ? "sit" : "auto",

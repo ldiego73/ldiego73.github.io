@@ -186,7 +186,7 @@ export function crowdBodyMaterial(u: CrowdUniforms): THREE.MeshToonMaterial {
   const m = new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: gradientMap() });
   patchColour(m, u, "ch-crowd-body");
   paintStrength(m, 0);
-  return inkAwareMaterial(m);
+  return withNightRim(inkAwareMaterial(m), "ch-night");
 }
 
 /** Double-sided cloth on the shared wind, patterned from the cloth atlas. */
@@ -200,7 +200,7 @@ export function crowdClothMaterial(u: CrowdUniforms, pattern: THREE.Texture, amp
   m.defines = { ...(m.defines ?? {}), CH_CLOTH: "" };
   patchColour(m, { ...u, chCloth: { value: pattern } }, "ch-crowd-cloth");
   paintStrength(m, 0);
-  return windSway(m, { mode: "cloth", flex: true, amp });
+  return withNightRim(windSway(m, { mode: "cloth", flex: true, amp }), "ch-night");
 }
 
 /** Shadow depth with the same skinning (and the same wind for cloth). */

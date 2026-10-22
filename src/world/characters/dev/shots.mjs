@@ -154,7 +154,7 @@ if (want("ride")) {
   await p.context().close();
 }
 if (want("lod")) {
-  for (const who of ["campesina", "campesino", "comunera"]) {
+  for (const who of (process.env.WHO ?? "campesina,campesino,comunera").split(",")) {
     const p = await open(`&view=lod&who=${who}`, { width: 1400, height: 800 });
     await C(p, "setYaw", 0.5);
     await C(p, "view", null, 4.6, 1.2, 0, 0.85);

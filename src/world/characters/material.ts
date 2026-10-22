@@ -16,6 +16,7 @@
 import * as THREE from "three";
 import { paintStrength, windSway } from "../style-gl";
 import { gradientMap } from "../toon";
+import { withNightRim } from "./animals/night";
 import { PALETTE_SIZE } from "./slots";
 
 export { PALETTE_SIZE };
@@ -115,7 +116,7 @@ export function characterUniforms(palette: THREE.Color[], face: THREE.Texture | 
 export function bodyMaterial(u: CharacterUniforms): THREE.MeshToonMaterial {
   const m = new THREE.MeshToonMaterial({ color: "#ffffff", vertexColors: true, gradientMap: gradientMap() });
   patch(m, u, "ch-body");
-  return paintStrength(m, 0);
+  return withNightRim(paintStrength(m, 0), "ch-night");
 }
 
 /** Double-sided cloth on the shared wind (`amp` scales the sway: a heavy wool poncho moves less than a flag). */
@@ -130,5 +131,5 @@ export function clothMaterial(u: CharacterUniforms, pattern: THREE.Texture, amp:
   const cu = { ...u, chCloth: { value: pattern } };
   patch(m, cu, "ch-cloth");
   paintStrength(m, 0);
-  return windSway(m, { mode: "cloth", flex: true, amp });
+  return withNightRim(windSway(m, { mode: "cloth", flex: true, amp }), "ch-night");
 }

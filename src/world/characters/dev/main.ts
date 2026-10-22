@@ -207,6 +207,9 @@ if (view === "lineup") {
     "fish-cast": "net",
     "tend-fire": "stick",
     paint: "brush",
+    photo: "camera",
+    "whip-circle": "whip",
+    "hold-up": "phone",
   };
   for (let i = 0; i < n; i++) {
     const action = (isActions ? list[i] : "none") as Action;
