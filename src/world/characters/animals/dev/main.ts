@@ -20,6 +20,7 @@ import { createWorldStyle } from "../../../style-runtime";
 import { createToonCache } from "../../../toon";
 import { liveWind } from "../../../wind";
 import { type Animal, type AnimalMode, createAnimal } from "../animal";
+import { prefetchAnimals } from "../assets";
 import type { IdleAction } from "../behaviour";
 import { createHerd, type Herd } from "../crowd";
 import type { Lod } from "../lod";
@@ -139,7 +140,7 @@ function animalItem(key: SpeciesKey, x: number, z: number, o: { lod?: Lod; varia
         windX: w.x,
         grounded: !fly && !swim,
         water: swim,
-        vy: 0,
+        vy: Number(q.get("vy") ?? 0),
         height: lift,
       });
     },
@@ -262,6 +263,31 @@ function parts() {
     items.push({ key: `parts-${k}`, label: `fauna-models ${k}`, isNew: true, obj, lift: 0, update() {} });
   });
   return keys.length * 2.2;
+}
+
+// Off-main-thread builds (the default): the lineup's species are built in the worker first while a rAF loop
+// measures the longest main-thread frame meanwhile; `&sync=1` builds on the main thread instead (to compare).
+if (state.view === "lineup" && !q.has("sync")) {
+  const g = q.get("group");
+  const keys = (g ? (GROUPS[g] ?? []) : allKeys).filter((k) => !q.get("only") || q.get("only")?.split(",").includes(k));
+  let worst = 0;
+  let frames = 0;
+  let last = performance.now();
+  let on = true;
+  const tick = () => {
+    const now = performance.now();
+    // Skip the first frames (shader compilation of the stage, not the builds).
+    if (++frames > 4) worst = Math.max(worst, now - last);
+    last = now;
+    if (on) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  const t0 = performance.now();
+  await prefetchAnimals(keys, [0]);
+  on = false;
+  STATS.push(
+    `worker build ${(performance.now() - t0).toFixed(0)} ms for ${keys.length} · longest main-thread frame meanwhile ${worst.toFixed(0)} ms over ${frames} frames`,
+  );
 }
 
 let width = 8;

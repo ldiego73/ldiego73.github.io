@@ -8,6 +8,7 @@
  * Three): runs in tests and in the build worker (./worker.ts).
  */
 import { type Built, buildArchetype, type Piece } from "../build";
+import type { Prim } from "../sdf";
 import { LOD_VOXEL, type Lod } from "./lod";
 import type { AnimalSpec } from "./spec";
 
@@ -22,8 +23,29 @@ export function animalPieces(spec: AnimalSpec, lod: Lod) {
   const pieces: Piece[] = plan.kit
     .pieces({ h: plan.h, ...(plan.woolNormal !== undefined ? { woolNormal: plan.woolNormal } : {}) })
     .filter((p) => lod < 2 || !DETAIL.some((d) => p.name.startsWith(d)))
-    .map((p) => (p.kind === "field" ? { ...p, h: p.h * k, relax: lod ? 1 : (p.relax ?? 2) } : p));
+    .map((p) =>
+      p.kind === "field"
+        ? {
+            ...p,
+            h: p.h * k,
+            relax: lod ? 1 : (p.relax ?? 2),
+            prims: lod ? p.prims.map((q) => thicken(q, p.h * k * 0.6)) : p.prims,
+          }
+        : p,
+    );
   return { plan, bones: plan.kit.skeleton(), pieces };
+}
+
+/**
+ * Coarse voxels lose features thinner than about one voxel (a llama's slim legs would break into a single
+ * spike at LOD 2): far LODs thicken every primitive to at least `min` across, keeping the silhouette whole.
+ */
+export function thicken(p: Prim, min: number): Prim {
+  const s = p.shape;
+  if (s.kind === "cone") return { ...p, shape: { ...s, ra: Math.max(s.ra, min), rb: Math.max(s.rb, min) } };
+  if (s.kind === "ellipsoid")
+    return { ...p, shape: { ...s, r: [Math.max(s.r[0], min), Math.max(s.r[1], min), Math.max(s.r[2], min)] } };
+  return { ...p, shape: { ...s, h: [Math.max(s.h[0], min), Math.max(s.h[1], min), Math.max(s.h[2], min)] } };
 }
 
 /** Build (or reuse) a species at a LOD. */

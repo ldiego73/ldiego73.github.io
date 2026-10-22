@@ -620,16 +620,18 @@ export const CAPYBARA = spec({
     rumpUp: 0.03,
     rumpK: 1.06,
     neck: { len: 0.1, angle: 1.15, r: [0.17, 0.15], arch: 0 },
-    head: { r: [0.11, 0.13, 0.14], muzzle: 0.15, mr: [0.105, 0.095], drop: 0.22 },
+    head: { r: [0.11, 0.125, 0.13], muzzle: 0.15, mr: [0.1, 0.085], drop: 0.42 },
     ears: { len: 0.04, w: 0.035, kind: "round", tilt: 0.3, back: 0.2 },
     legs: { r: [0.07, 0.05, 0.04, 0.045], knee: 0.45, hock: 0.38, hockBack: 0.04 },
     foot: "paw",
     coat: FUR(0.007, 30),
-    eye: { dir: [0.92, 0.42, 0.0], w: 0.045 },
+    eye: { dir: [0.9, 0.45, 0.1], w: 0.06 },
     bellyY: 0.28,
   },
   tune: (p) => {
     p.slots = { muzzle: Q.coat, head: Q.coat };
+    // Only a small rhinarium at the very tip of the blunt snout is dark.
+    p.muzzle.noseAt = (p.muzzle.noseAt ?? 0) + 0.035;
   },
   palette: qpal({ coat: "#8a5a3a", hair: "#7a4e32", belly: "#a87650", nose: "#2e2220", inner: "#6a4430" }),
   eye: { ...DARK_EYE, size: 0.4, lashes: 0 },
@@ -946,33 +948,38 @@ export const SLOTH = spec({
   h: 0.015,
   woolNormal: 0.35,
   shape: {
-    bodyY: 0.33,
-    bodyR: [0.12, 0.14],
-    half: 0.15,
-    neck: { len: 0.08, angle: 0.55, r: [0.1, 0.08], arch: 0 },
-    head: { r: [0.07, 0.065, 0.065], muzzle: 0.028, mr: [0.036, 0.03], drop: 0.1 },
+    // Long gangly arms out to the sides (sloths crawl sprawled on the ground), a small round head.
+    bodyY: 0.22,
+    bodyR: [0.11, 0.12],
+    half: 0.17,
+    rumpK: 0.9,
+    neck: { len: 0.07, angle: 0.95, r: [0.08, 0.066], arch: 0 },
+    head: { r: [0.064, 0.06, 0.062], muzzle: 0.022, mr: [0.033, 0.028], drop: 0.15, up: 0.1 },
     tail: { len: 0.04, r: [0.03, 0.02], angle: -0.8, segs: 1 },
     legs: {
-      r: [0.036, 0.028, 0.024, 0.028],
-      hind: [0.036, 0.028, 0.024, 0.026],
+      r: [0.032, 0.025, 0.021, 0.03],
+      hind: [0.032, 0.025, 0.02, 0.028],
       knee: 0.5,
-      hock: 0.48,
-      hockBack: 0.0,
-      spread: 0.85,
+      hock: 0.5,
+      sprawl: 0.15,
+      spread: 0.8,
     },
     foot: "claw",
     coat: FUR(0.03, 15),
     short: FUR(0.012, 30),
-    eye: { dir: [0.5, 0.25, 0.83], w: 0.045 },
+    eye: { dir: [0.5, 0.25, 0.83], w: 0.075 },
   },
   tune: (p) => {
     p.slots = { head: Q.belly, muzzle: Q.belly, legs: Q.coat };
+    // A small dark nose only; the dark band across the eyes is painted by the eye decal (mask).
+    p.muzzle.noseAt = (p.muzzle.noseAt ?? 0) + 0.012;
   },
   palette: qpal({ coat: "#8a7a62", belly: "#d8c8a8", nose: "#2a201a", hoof: "#3a2e24", points: "#3a2e24" }),
   eye: { ...DARK_EYE, size: 0.34, lashes: 0, patch: { color: "#3a2a20", kind: "mask" } },
   motion: quadMotion({
-    gaits: [{ gait: "walk", speed: 0.08, stride: 0.25 }],
-    idles: { weights: { look: 3, sleep: 3, yawn: 1, groom: 1, scratch: 0.5 }, gap: [3, 8] },
+    gaits: [{ gait: "crawl", speed: 0.08, stride: 0.3 }],
+    idles: { weights: { look: 3, sleep: 3, yawn: 1, groom: 1 }, gap: [3, 8] },
+    sprawl: true,
     nod: 0.01,
     climb: true,
     hang: true,

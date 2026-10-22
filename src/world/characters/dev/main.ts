@@ -498,7 +498,9 @@ const api = {
     const w = walkers[i];
     if (!w) return;
     // Solo: hide everyone else (and their props) so the pose reads on its own.
-    walkers.forEach((o, k) => o.m.show(k === i));
+    walkers.forEach((o, k) => {
+      o.m.show(k === i);
+    });
     controls.target.set(w.x, heightAt(w.x, w.z) + ty, w.z);
     camera.position.set(w.x + Math.sin(a) * d, heightAt(w.x, w.z) + h, w.z + Math.cos(a) * d);
     camera.lookAt(controls.target);

@@ -461,7 +461,7 @@ export function actionPose(a: Action, c: PoseCtx, p: Pose): Pose {
     case "spin": {
       // Drop spindle (pushka): the right hand twirls the spindle low, the left holds the fibre up high.
       const tw = osc(c, 1.4) * A;
-      arm(p, "L", -1.25, 0.35, -1.1, 0, 0.3);
+      arm(p, "L", -1.45, 0.3, -0.4, 0, 0.3);
       arm(p, "R", -0.55, 0.22, -0.7 + tw * 0.15, 0, 0.2 + tw * 0.3);
       set(p, "head", r(0.22, 0.1, 0));
       p.arms = true;
