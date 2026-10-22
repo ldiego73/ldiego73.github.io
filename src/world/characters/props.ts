@@ -15,6 +15,7 @@
  */
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { gateCompile } from "../compile-gate";
 import { paintStrength } from "../style-gl";
 import { gradientMap } from "../toon";
 
@@ -507,6 +508,7 @@ export class HeldProps {
       mesh.frustumCulled = false;
       mesh.count = 0;
       for (let i = 0; i < this.capacity; i++) mesh.setMatrixAt(i, ZERO);
+      gateCompile(mesh);
       const offset = new THREE.Matrix4().compose(
         new THREE.Vector3(...def.pos),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(...(def.rot ?? [0, 0, 0]))),

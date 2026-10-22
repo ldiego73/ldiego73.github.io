@@ -15,6 +15,7 @@
  * per-instance face cell; a far LOD is the same pipeline polygonised at 2–3× the voxel size.
  */
 import * as THREE from "three";
+import { gateCompile } from "../compile-gate";
 import type { Built, GeoData } from "./build";
 import { bodyMaterial, type CharacterUniforms, characterUniforms, clothMaterial, paletteColors } from "./material";
 
@@ -114,6 +115,7 @@ export function createCharacter(asset: CharacterAsset, o: InstanceOpts): Charact
   body.receiveShadow = true;
   body.bind(skeleton, new THREE.Matrix4());
   group.add(body);
+  gateCompile(body);
   let clothMat: THREE.Material | null = null;
   const makeCloth = (geo: THREE.BufferGeometry) => {
     if (!o.pattern) return null;
@@ -124,6 +126,7 @@ export function createCharacter(asset: CharacterAsset, o: InstanceOpts): Charact
     m.receiveShadow = true;
     m.bind(skeleton, new THREE.Matrix4());
     group.add(m);
+    gateCompile(m);
     return m;
   };
   const inst: CharacterInstance = {

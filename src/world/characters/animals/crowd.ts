@@ -20,6 +20,7 @@
  * nearest built one, so a herd shows up at once and sharpens a moment later.
  */
 import * as THREE from "three";
+import { gateCompile } from "../../compile-gate";
 import type { Built } from "../build";
 import type { BirdState } from "./anim-bird";
 import type { AnimalState, Rig } from "./anim-quad";
@@ -186,6 +187,7 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
     group.add(m);
     meshes.push(m);
   }
+  gateCompile(group);
   const attach = (l: Lod, b: Built) => {
     have[l] = b;
     const g = makeGeo(b, l);

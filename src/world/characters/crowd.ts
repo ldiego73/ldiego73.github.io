@@ -20,6 +20,7 @@
  * any mesh; paint blotches are off; cloth sways on the shared wind.
  */
 import * as THREE from "three";
+import { gateCompile } from "../compile-gate";
 import { type HumanSpec, type Lod, rigOf } from "./archetype";
 import type { GeoData } from "./build";
 import { toGeometry } from "./character";
@@ -236,6 +237,7 @@ export class HumanCrowd {
       this.mats.push(depth);
       this.group.add(m);
     }
+    gateCompile(this.group);
     const eb = placeholder(false);
     const ec = placeholder(true);
     this.empty = { body: this.body.addGeometry(eb), cloth: this.cloth.addGeometry(ec) };
