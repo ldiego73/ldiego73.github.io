@@ -566,8 +566,9 @@ function cap(ctx: WearCtx, flap: boolean): Piece[] {
       const el = (f * Math.PI) / 2;
       const dir: Vec3 = [Math.sin(a) * Math.cos(el), Math.sin(el) + 0.25 * (1 - f), Math.cos(a) * Math.cos(el)];
       const start: Vec3 = [hc[0] + dir[0] * 0.3 * s, rimY + (hc[1] + 0.25 * s - rimY) * f, hc[2] + dir[2] * 0.3 * s];
+      // Clear of the hair shell (the head + ~0.02): the cap sits over the hair, not under it.
       const p =
-        f < 1 ? toOffset(ctx.head, start, 0.016 * s) : toOffset(ctx.head, [hc[0], hc[1] + 0.4 * s, hc[2]], 0.02 * s);
+        f < 1 ? toOffset(ctx.head, start, 0.032 * s) : toOffset(ctx.head, [hc[0], hc[1] + 0.4 * s, hc[2]], 0.036 * s);
       ringPts.push(p);
     }
     pts.push(ringPts);
@@ -582,7 +583,7 @@ function cap(ctx: WearCtx, flap: boolean): Piece[] {
       {
         shape: {
           kind: "ellipsoid",
-          c: [hc[0], rimY + 0.0 * s, hc[2] + 0.2 * s],
+          c: [hc[0], rimY + 0.01 * s, hc[2] + 0.23 * s],
           r: [0.135 * s, 0.012 * s, 0.11 * s],
           rot: rotX(0.22),
         },
@@ -591,7 +592,7 @@ function cap(ctx: WearCtx, flap: boolean): Piece[] {
         slot: HS.hatBand,
       },
       {
-        shape: { kind: "ellipsoid", c: [hc[0], hc[1] + 0.235 * s, hc[2]], r: [0.026 * s, 0.014 * s, 0.026 * s] },
+        shape: { kind: "ellipsoid", c: [hc[0], hc[1] + 0.262 * s, hc[2]], r: [0.026 * s, 0.014 * s, 0.026 * s] },
         bone: head,
         blend: 0,
         slot: HS.hatBand,

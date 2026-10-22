@@ -217,7 +217,9 @@ export function bodyPaint(spec: HumanSpec): BodyPaint {
       slots: [HS.top, HS.trim, HS.white, HS.trim, HS.top, HS.skin],
       at: (p) => p[1] + zig(p),
     };
-  } else if (top.kind === "windbreaker") chest = { stops: [1.05, 1.172], slots: [HS.top, HS.trim, HS.skin] };
+  } else if (top.kind === "windbreaker")
+    // Yoke line high enough that only the chest and clavicle primitives meet it (a clean edge).
+    chest = { stops: [1.095, 1.172], slots: [HS.top, HS.trim, HS.skin] };
   else if (top.kind === "cushma") {
     // Vertical warp stripes, plunging below the stops above the neckline (continuous, so no seam).
     chest = {

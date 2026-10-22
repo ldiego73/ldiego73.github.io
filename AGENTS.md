@@ -32,7 +32,8 @@ This is the personal site of Luis Diego, a static Astro site deployed to GitHub 
 | `bunx vite --config src/world/colca/dev/vite.config.ts --port 5251` | Kuntisuyu (Colca and Nazca) harness: `/?lang=es` |
 | `bunx vite --config src/world/cusco/dev/vite.config.ts --port 5221` | Qusqu hub harness (generic suyu runtime): `/?lang=es` (`&from=selva` arrives through that punku) |
 | `bunx vite --config src/world/costa/dev/vite.config.ts --port 5231` | Coast (Chinchaysuyu) harness: `/?lang=es&skip=1` |
-| `bunx vite --config src/world/characters/dev/vite.config.ts --port 5261` | Characters prototype (old vs new, side by side): `/?mode=walk&time=dusk` |
+| `bunx vite --config src/world/characters/dev/vite.config.ts --port 5261` | Characters harness: `/?view=lineup\|outfits\|actions\|crowd\|lod` |
+| `bunx vite --config src/world/characters/animals/dev/vite.config.ts --port 5262` | Animals harness: `/?view=lineup\|strip\|lod\|crowd\|ride\|parts` |
 
 ### Definition of done
 
