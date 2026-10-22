@@ -32,7 +32,8 @@ if (chNight > 0.001) {
   // three.js vViewPosition = -mvPosition: it already points from the fragment toward the camera.
   vec3 chV = normalize(vViewPosition);
   float chF = 1.0 - clamp(dot(normal, chV), 0.0, 1.0);
-  outgoingLight += chNightRim * pow(chF, 3.0) * 0.45 * chNight;
+  // A thin edge only: smooth SDF bodies have broad normals, so a low power reads as a halo up close.
+  outgoingLight += chNightRim * pow(chF, 5.0) * 0.28 * chNight;
 }
 `;
 
