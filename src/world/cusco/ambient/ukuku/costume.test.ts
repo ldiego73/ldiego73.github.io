@@ -7,7 +7,7 @@ describe("ukuku costume", () => {
   const spec = ukukuSpec();
   test("a masked person: no painted face, the costume in the extra hook", () => {
     expect(spec.hideFace).toBe(true);
-    expect(spec.extra?.length).toBeGreaterThan(60);
+    expect(spec.extra?.length).toBeGreaterThan(20);
   });
   test("every primitive rides a bone of the skeleton and paints a palette slot", () => {
     const bones = new Set(rigOf(spec).bones.map((b) => b.name));
@@ -18,10 +18,9 @@ describe("ukuku costume", () => {
     }
     expect(DANCER_DRESS.length).toBe(PALETTE_SIZE);
   });
-  test("fleece on the body, both arms and both legs; the mask on the head", () => {
+  test("the mask on the head, the belt and bell on the hips, the doll on the chest", () => {
     const on = new Set((spec.extra ?? []).map((e) => e.bone));
-    for (const b of ["hips", "chest", "head", "armL", "armR", "foreL", "foreR", "thighL", "thighR", "shinL", "shinR"])
-      expect(on.has(b)).toBe(true);
+    for (const b of ["hips", "chest", "head"]) expect(on.has(b)).toBe(true);
   });
   test("deterministic data (one cache key)", () => {
     expect(specKey(ukukuSpec())).toBe(specKey(spec));

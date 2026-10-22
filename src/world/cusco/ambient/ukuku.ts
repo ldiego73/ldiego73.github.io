@@ -16,9 +16,10 @@
  *
  * The dancer is a person on the shared characters (../../characters: `createHuman`, one skinned body moved by
  * the human animation controller: the "hop", "dance" and "whip-circle" actions, ./ukuku/logic.ts danceStep)
- * whose spec carries the costume in the core's generic hook (./ukuku/costume.ts: the fleece suit, the knitted
- * mask, the doll and the bell as `extra` primitives, built with the body off the main thread, no painted face).
- * The whip is the core's held prop, spinning in the right hand. Two draw calls (body, whip), ink-outlined.
+ * whose spec carries the knitted mask, the belt and bell and the chest doll in the core's generic hook
+ * (./ukuku/costume.ts: `extra` primitives, no painted face, built with the body off the main thread). The shaggy
+ * fleece the hook cannot express rides the same skeleton as one world-local skinned mesh (./ukuku/model.ts),
+ * and the whip is the core's held prop, spinning in the right hand. Three draw calls (body, fleece, whip).
  */
 import "../../ambient/people/people.css";
 import * as THREE from "three";
@@ -30,6 +31,8 @@ import { HeldProps } from "../../characters/props";
 import type { Ambient, CreateAmbient, L } from "../../contract";
 import { creatures, park } from "../../creatures";
 import { emit, on } from "../../events";
+import { vertexToon } from "../../merge-colors";
+import { paintStrength } from "../../style-gl";
 import type { SuyuEnv } from "../../suyu/contract";
 import { DANCER_DRESS, ukukuSpec } from "./ukuku/costume";
 import {
@@ -51,6 +54,7 @@ import {
   stepAt,
   yawTo,
 } from "./ukuku/logic";
+import { dressFleece } from "./ukuku/model";
 
 /** The dancer in costume (pure data: it keys the build cache and travels to the worker). */
 const DANCER = ukukuSpec();
@@ -76,6 +80,10 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
   // The near and mid builds go to the worker now; the far one is built at once (a few ms) so it is there.
   prefetchHumans([DANCER], [1, 0]);
   const human = createHuman(DANCER, DANCER_DRESS, { lod: 2, seed: 0 });
+  // The shaggy fleece (world-local lumps on the same skeleton: the core's wool reads as a plain tracksuit).
+  // A dancing body: no world-space paint on it (it would slide over the fleece).
+  const fleeceMat = paintStrength(vertexToon(), 0);
+  const fleece = dressFleece(human, fleeceMat);
   // The whip: the core's held prop on the right hand (it spins about the hand; calmer with reduced motion).
   const props = new HeldProps(1);
   props.rm = rm;
@@ -414,6 +422,8 @@ export const create: CreateAmbient = (baseEnv, hudRoot): Ambient => {
       offGame();
       creatures.remove(body);
       props.dispose();
+      fleece.dispose();
+      fleeceMat.dispose();
       human.dispose();
       layer.remove();
     },

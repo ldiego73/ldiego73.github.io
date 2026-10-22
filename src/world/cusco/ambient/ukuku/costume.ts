@@ -1,22 +1,21 @@
 /**
  * The ukuku's costume as data (../ukuku.ts dresses a person in it): the bear-dancer of the Qoyllur Rit'i is a
- * person of the shared characters (../../../characters) whose spec carries the costume in the generic hook,
- * `HumanSpec.extra` (signed-distance primitives on named bones, built with the body off the main thread, one
- * rigid field piece per bone in the body's draw) and `hideFace` (the knitted mask covers the face):
- *  - a dark shaggy fleece suit over the body, arms and legs (`wool` gives the lumpy fleece), with a fringe of
- *    tufts at the hem, the wrists and the ankles, and fleece tufts on the shoulders and round the neck;
- *  - a woven belt (chumpi) with a little brass bell at the right of the waist;
- *  - a little doll ukuku on the chest;
+ * person of the shared characters (../../../characters) whose spec carries most of the costume in the core's
+ * generic hook, `HumanSpec.extra` (signed-distance primitives on named bones, built with the body off the main
+ * thread, one rigid field piece per bone in the body's draw) and `hideFace` (the knitted mask covers the face):
  *  - the knitted woollen mask over the whole head: knitted bands round the crown and the chin, a zigzag of
- *    coloured stitches on the brow, eye and mouth holes ringed in red, a knitted nose, two woollen tassels.
- * The whip is the core's held prop ("whip"). Colours are palette slots of the dancer's dress (DANCER_DRESS):
- * the fleece in `top`, `hair` (darker) and `trim` (lighter), the mask's wool in `white`, the stitches in
- * `accent` (red), `accent2` (yellow), `tie` (green) and `bead1` (blue), the holes in `dark`, the bell in `metal`.
+ *    coloured stitches on the brow, eye and mouth holes ringed in red, a knitted nose, two woollen tassels;
+ *  - a woven belt (chumpi) with a little brass bell at the right of the waist;
+ *  - a little doll ukuku on the chest.
+ * The shaggy fleece suit is NOT here: the hook's `wool` is a smooth noise on a surface and read as a plain
+ * tracksuit, so the fleece stays the world-local lumps of ./model.ts. The whip is the core's held prop. Under it
+ * all the base top and trousers are the fleece's brown. Colours are palette slots of DANCER_DRESS: the mask's
+ * wool in `white`, the stitches in `accent` (red), `accent2` (yellow), `tie` (green) and `bead1` (blue), the
+ * holes in `dark`, the bell in `metal`, the doll in `hair`.
  *
  * Coordinates: the body's model space at the bind pose in traveler units (feet at the origin, facing +Z,
  * left = +X; ../../../characters/human.ts: hips 0.8, chest 1.04, head centre 1.43 with radii ≈ 0.22); the core
- * scales them with the body. Limb segments follow the skeleton's own bind positions (rigOf). Pure: no DOM, no
- * three.js (tested in costume.test.ts).
+ * scales them with the body. Pure: no DOM, no three.js (tested in costume.test.ts).
  */
 import { type ExtraPrim, type HumanSpec, rigOf } from "../../../characters/archetype";
 import { dress, HS } from "../../../characters/slots";
@@ -48,9 +47,6 @@ export const DANCER_DRESS = dress({
   metal: "#d6a43a",
 });
 
-/** Fleece: a lumpy wool displacement (amplitude, frequency per unit). */
-const SHAG = { wool: 0.028, woolFreq: 11 } as const;
-
 const ell = (bone: string, c: V3, r: V3, slot: number, o: Partial<ExtraPrim> = {}): ExtraPrim => ({
   bone,
   shape: { kind: "ellipsoid", c, r },
@@ -72,31 +68,6 @@ const cone = (
   ...o,
 });
 
-/** A ring of n downward tufts round (x, y, z) with radii (rx, rz), each `len` long: the shaggy fringe. */
-function fringe(bone: string, n: number, x: number, y: number, z: number, rx: number, rz: number, len: number) {
-  const out: ExtraPrim[] = [];
-  for (let i = 0; i < n; i++) {
-    const th = ((i + 0.5 * (i % 2)) / n) * Math.PI * 2;
-    const l = len * (0.8 + 0.4 * ((i * 7) % 5) * 0.25);
-    const cx = x + Math.cos(th) * rx;
-    const cz = z + Math.sin(th) * rz;
-    out.push(
-      cone(
-        bone,
-        [cx, y, cz],
-        [x + Math.cos(th) * rx * 1.12, y - l, z + Math.sin(th) * rz * 1.12],
-        0.03,
-        0.008,
-        i % 3 ? HS.hair : HS.top,
-        {
-          blend: 0.01,
-        },
-      ),
-    );
-  }
-  return out;
-}
-
 /** The ukuku: the base dancer with the costume in `extra` and no painted face. */
 export function ukukuSpec(): HumanSpec {
   const rig = rigOf(BASE);
@@ -108,51 +79,20 @@ export function ukukuSpec(): HumanSpec {
   };
   const x: ExtraPrim[] = [];
 
-  // ---------------------------------------------------------------- body: a broad, bear-like fleece tunic
+  // A woven belt (chumpi) proud of the fleece (./model.ts lumps reach ≈ 0.26 out), red with a yellow line; the
+  // bell hangs from it at the right of the waist.
   x.push(
-    ell("hips", [0, 0.81, 0], [0.205, 0.12, 0.165], HS.top, SHAG),
-    ell("spine", [0, 0.95, 0.005], [0.205, 0.1, 0.16], HS.top, SHAG),
-    ell("chest", [0, 1.07, 0.005], [0.225, 0.13, 0.165], HS.top, SHAG),
-    // Fleece collar where the mask meets the costume, and tufts on the shoulders.
-    ell("chest", [0, 1.2, -0.01], [0.14, 0.05, 0.12], HS.trim, SHAG),
-    ell("chest", [0.18, 1.13, -0.01], [0.085, 0.07, 0.09], HS.trim, SHAG),
-    ell("chest", [-0.18, 1.13, -0.01], [0.085, 0.07, 0.09], HS.trim, SHAG),
-    ...fringe("hips", 16, 0, 0.72, 0, 0.19, 0.155, 0.15),
+    ell("hips", [0, 0.875, 0], [0.262, 0.034, 0.215], HS.accent, { blend: 0 }),
+    ell("hips", [0, 0.875, 0], [0.266, 0.011, 0.219], HS.accent2, { blend: 0 }),
+    cone("hips", [-0.2, 0.84, 0.17], [-0.21, 0.76, 0.19], 0.012, 0.038, HS.metal, { blend: 0 }),
   );
-  // A woven belt (chumpi) proud of the fleece, red with a yellow line; the bell at the right of the waist.
+  // The little doll ukuku on the chest, outside the fleece: a dark blob with a white mask and two black eyes.
   x.push(
-    ell("hips", [0, 0.875, 0], [0.232, 0.032, 0.188], HS.accent, { blend: 0 }),
-    ell("hips", [0, 0.875, 0], [0.236, 0.01, 0.192], HS.accent2, { blend: 0 }),
-    cone("hips", [-0.17, 0.83, 0.14], [-0.175, 0.76, 0.15], 0.012, 0.036, HS.metal, { blend: 0 }),
+    ell("chest", [0, 1.0, 0.25], [0.05, 0.065, 0.035], HS.hair, { blend: 0, wool: 0.008, woolFreq: 40 }),
+    ell("chest", [0, 1.075, 0.255], [0.036, 0.038, 0.026], HS.white, { blend: 0 }),
+    ell("chest", [0.013, 1.08, 0.279], [0.009, 0.009, 0.006], HS.dark, { blend: 0 }),
+    ell("chest", [-0.013, 1.08, 0.279], [0.009, 0.009, 0.006], HS.dark, { blend: 0 }),
   );
-  // The little doll ukuku on the chest: a fleece blob with a white mask and two black eyes.
-  x.push(
-    ell("chest", [0, 1.0, 0.19], [0.045, 0.06, 0.035], HS.hair, { blend: 0, wool: 0.008, woolFreq: 40 }),
-    ell("chest", [0, 1.07, 0.2], [0.034, 0.036, 0.026], HS.white, { blend: 0 }),
-    ell("chest", [0.012, 1.074, 0.224], [0.008, 0.008, 0.006], HS.dark, { blend: 0 }),
-    ell("chest", [-0.012, 1.074, 0.224], [0.008, 0.008, 0.006], HS.dark, { blend: 0 }),
-  );
-
-  // ---------------------------------------------------------------- limbs
-  for (const s of ["L", "R"] as const) {
-    const sg = s === "L" ? 1 : -1;
-    const arm = at(`arm${s}`);
-    const fore = at(`fore${s}`);
-    const hand = at(`hand${s}`);
-    x.push(
-      cone(`arm${s}`, arm, fore, 0.085, 0.078, HS.top, SHAG),
-      cone(`fore${s}`, fore, [hand[0], hand[1] + 0.03, hand[2]], 0.078, 0.07, HS.top, SHAG),
-      ...fringe(`fore${s}`, 8, hand[0], hand[1] + 0.04, hand[2], 0.06, 0.06, 0.07),
-    );
-    const thigh = at(`thigh${s}`);
-    const shin = at(`shin${s}`);
-    const foot = at(`foot${s}`);
-    x.push(
-      cone(`thigh${s}`, [thigh[0] + 0.01 * sg, thigh[1] - 0.03, thigh[2]], shin, 0.11, 0.098, HS.top, SHAG),
-      cone(`shin${s}`, shin, [foot[0], foot[1] + 0.09, foot[2]], 0.098, 0.09, HS.top, SHAG),
-      ...fringe(`shin${s}`, 9, foot[0], foot[1] + 0.12, foot[2], 0.085, 0.085, 0.08),
-    );
-  }
 
   // ---------------------------------------------------------------- head: the knitted mask
   const h = at("head");
@@ -163,7 +103,7 @@ export function ukukuSpec(): HumanSpec {
   /** The mask's front surface at (x, y), pushed out by `out`. */
   const front = (px: number, py: number, out: number) =>
     hc[2] + mr[2] * Math.sqrt(Math.max(0, 1 - (px / mr[0]) ** 2 - ((py - hc[1]) / mr[1]) ** 2)) + out;
-  x.push(ell("head", hc, mr, HS.white, { wool: 0.004, woolFreq: 60 }));
+  x.push(ell("head", hc, mr, HS.white));
   // Knitted bands: red round the crown, green round the chin (slightly proud of the mask).
   for (const [dy, slot] of [
     [0.14, HS.accent],

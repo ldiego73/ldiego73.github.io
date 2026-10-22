@@ -183,7 +183,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       frame.avatar.copy(avatar);
       env.camera.getWorldPosition(camPos);
       // The moonlit rim of every person and animal in the hub (one shared uniform of the characters).
-      setNightRim(0 * nightAmount(env.sky.time()));
+      setNightRim(nightAmount(env.sky.time()));
       const isDayNow = isDay(env.sky.time());
       const flipped = day !== isDayNow;
       day = isDayNow;
