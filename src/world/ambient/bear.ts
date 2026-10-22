@@ -6,11 +6,14 @@
  *  - when the traveler comes within ~10 u it rears up on its hind legs to sniff, then ambles calmly away
  *    (to its tree when there is one) — never aggressive.
  * Rare but findable: until the traveler has had a good look (stamp `fauna:oso`), the guide bear is moved,
- * unseen, ahead of the traveler along the trail. Instanced: five draw calls for every bear.
+ * unseen, ahead of the traveler along the trail. Rendering: the shared bear (characters/animals, one herd: a
+ * skinned instanced draw per LOD for both) driven from this sim (speed, sitting, climbing, head turn), plus
+ * the bromeliad it eats (one instanced draw).
  * Body ("bear", creatures.ts): solid while on the ground (not hidden or up a trunk); it barely yields
  * (give 0.15), steers its walks around others and is only ever nudged onto dry ground.
  */
 import * as THREE from "three";
+import { createHerd } from "../characters/animals/crowd";
 import type { Ambient, CreateAmbient } from "../contract";
 import { type Body, creatures, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
@@ -33,7 +36,7 @@ import {
   TRUNK_R,
   trunkAxis,
 } from "./bear/logic";
-import { bearGeometries, RIG } from "./bear/model";
+import { propGeometry } from "./bear/model";
 
 const T_MIN = 0.15;
 const T_MAX = 0.6;
@@ -70,6 +73,8 @@ interface Bear {
   /** Trail distance from the traveler to the bear, in the walking direction (refreshed every 0.4 s). */
   ahead: number;
   phase: number;
+  /** Ground speed this frame (the herd's gait follows it). */
+  gs: number;
   clock: number;
   look: number;
   pose: Pose;
@@ -119,25 +124,22 @@ export const create: CreateAmbient = (env): Ambient => {
   const homeTrees = rankTrees(trees, T_MIN - 0.03, T_MAX + 0.02, 30);
 
   // ---------------------------------------------------------------- meshes
-  const geos = bearGeometries();
-  const base = env.toon("#ffffff");
+  const herd = createHerd("bear", { max: n });
+  herd.group.name = "bear";
   // Bears move: no world-space painted blotches sliding over the fur (style-gl.ts).
+  herd.group.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) paintStrength((o as THREE.Mesh).material as THREE.Material, 0);
+  });
+  env.scene.add(herd.group);
+  const ids = Array.from({ length: n }, (_, i) => herd.add({ seed: 5 + i * 11 }));
+  const base = env.toon("#ffffff");
   const mat = paintStrength(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: base.gradientMap }), 0);
-  const mk = (geo: THREE.BufferGeometry, name: string, count: number) => {
-    const mesh = new THREE.InstancedMesh(geo, mat, count);
-    mesh.name = name;
-    mesh.frustumCulled = false;
-    mesh.castShadow = true;
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    env.scene.add(mesh);
-    return mesh;
-  };
-  const torsoMesh = mk(geos.torso, "bear-body", n);
-  const headMesh = mk(geos.head, "bear-head", n);
-  const armMesh = mk(geos.arm, "bear-arms", n * 2);
-  const legMesh = mk(geos.leg, "bear-legs", n * 2);
-  const propMesh = mk(geos.prop, "bear-bromeliad", n);
-  const meshes = [torsoMesh, headMesh, armMesh, legMesh, propMesh];
+  const propMesh = new THREE.InstancedMesh(propGeometry(), mat, n);
+  propMesh.name = "bear-bromeliad";
+  propMesh.frustumCulled = false;
+  propMesh.castShadow = true;
+  propMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  env.scene.add(propMesh);
 
   const bears: Bear[] = Array.from({ length: n }, (_, i) => ({
     guide: i === 0,
@@ -163,6 +165,7 @@ export const create: CreateAmbient = (env): Ambient => {
     cooldown: i * 6,
     ahead: 0,
     phase: R() * 6,
+    gs: 0,
     clock: R() * 20,
     look: 0,
     pose: copyPose({} as Pose, POSES.walk),
@@ -395,63 +398,42 @@ export const create: CreateAmbient = (env): Ambient => {
 
   // ---------------------------------------------------------------- render helpers
   const m4 = new THREE.Matrix4();
-  const root = new THREE.Matrix4();
-  const torsoM = new THREE.Matrix4();
-  const armM = new THREE.Matrix4();
-  const local = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
   const v = new THREE.Vector3();
-  const one = new THREE.Vector3(1, 1, 1);
   const sv = new THREE.Vector3();
   const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
-  const localM = (x: number, y: number, z: number, rx: number, ry: number, rz: number, order: THREE.EulerOrder) =>
-    local.compose(v.set(x, y, z), q.setFromEuler(e.set(rx, ry, rz, order)), one);
 
-  const render = (b: Bear, i: number) => {
+  const render = (b: Bear, i: number, rm: boolean) => {
+    const id = ids[i] as number;
     if (b.mode === "hidden") {
-      torsoMesh.setMatrixAt(i, hidden);
-      headMesh.setMatrixAt(i, hidden);
+      herd.hide(id);
       propMesh.setMatrixAt(i, hidden);
-      for (let k = 0; k < 2; k++) {
-        armMesh.setMatrixAt(i * 2 + k, hidden);
-        legMesh.setMatrixAt(i * 2 + k, hidden);
-      }
       return;
     }
     const p = b.draw;
-    root.compose(v.set(b.rx, b.ry, b.rz), q.setFromEuler(e.set(0, b.yaw, 0, "YXZ")), sv.setScalar(b.size));
-    torsoM.multiplyMatrices(root, localM(0, p.hipY, 0, p.torsoP + b.slope, 0, p.torsoR, "XYZ"));
-    torsoMesh.setMatrixAt(i, torsoM);
-    m4.multiplyMatrices(torsoM, localM(RIG.neck.x, RIG.neck.y, RIG.neck.z, p.headP, p.headYaw, 0, "XYZ"));
-    headMesh.setMatrixAt(i, m4);
-    for (let k = 0; k < 2; k++) {
-      const s = k === 0 ? 1 : -1;
-      const a = k === 0 ? p.armL : p.armR;
-      armM.multiplyMatrices(torsoM, localM(s * RIG.shoulder.x, RIG.shoulder.y, RIG.shoulder.z, a, 0, s * 0.06, "XYZ"));
-      armMesh.setMatrixAt(i * 2 + k, armM);
-      if (k === 1) {
-        if (p.prop > 0.02) {
-          local.compose(
-            v.set(RIG.shoulder.x * 0.9, RIG.paw.y, RIG.paw.z),
-            // Keep the rosette upright in the world, leaning a little toward the snout.
-            q.setFromEuler(e.set(-(p.torsoP + b.slope + p.armR) - 0.35, 0, 0, "XYZ")),
-            sv.setScalar(p.prop),
-          );
-          propMesh.setMatrixAt(i, m4.multiplyMatrices(armM, local));
-        } else propMesh.setMatrixAt(i, hidden);
-      }
-      const l = k === 0 ? p.legL : p.legR;
-      m4.multiplyMatrices(root, localM(s * RIG.legX, p.hipY, 0, l, 0, s * 0.04, "XYZ"));
-      legMesh.setMatrixAt(i * 2 + k, m4);
-    }
+    const climbing = b.mode === "climbUp" || b.mode === "climbDown" || b.mode === "perch";
+    // Eating sits back on the haunches; standing to sniff rears up (a high sit); trunks are climbed.
+    herd.set(id, b.rx, b.ry, b.rz, b.yaw, {
+      speed: b.mode === "walk" ? b.gs : climbing && b.mode !== "perch" ? 0.5 : 0,
+      mode: climbing ? "climb" : b.mode === "eat" || b.mode === "stand" ? "sit" : "auto",
+      look: b.look * (b.mode === "walk" ? 0.4 : 0.85),
+      rm,
+    });
+    // The bromeliad between the paws at the chest of the sitting bear (grows in / out with the pose).
+    if (p.prop > 0.02) {
+      const s = b.size;
+      v.set(b.rx + Math.sin(b.yaw) * 0.42 * s, b.ry + 0.62 * s, b.rz + Math.cos(b.yaw) * 0.42 * s);
+      q.setFromEuler(e.set(-0.35, b.yaw, 0, "YXZ"));
+      propMesh.setMatrixAt(i, m4.compose(v, q, sv.setScalar(p.prop)));
+    } else propMesh.setMatrixAt(i, hidden);
   };
 
   const tgt = copyPose({} as Pose, POSES.walk);
 
-  // Dev / screenshot hook: pin a bear in a state (`scene.getObjectByName("bear-body").userData.debug`).
+  // Dev / screenshot hook: pin a bear in a state (`scene.getObjectByName("bear").userData.debug`).
   if (import.meta.env?.DEV)
-    torsoMesh.userData.debug = {
+    herd.group.userData.debug = {
       bears,
       pin(i: number, mode: Mode, x?: number, z?: number, yaw?: number) {
         const b = bears[i];
@@ -622,49 +604,15 @@ export const create: CreateAmbient = (env): Ambient => {
     b.ry += (b.y - b.ry) * k;
     b.rz += (b.z - b.rz) * k;
 
-    // Overlays on top of the eased posture (gait, chewing, sniffing, climbing).
+    // The eased posture (the bromeliad's scale) and the head turn.
     const p = copyPose(b.draw, b.pose);
     p.headYaw += b.look * (b.mode === "walk" ? 0.4 : 0.85);
-    if (moving > 0.01) {
-      b.phase += dt * Math.PI * 2 * (b.mode === "walk" ? moving / 0.95 : 0.9) * (rm ? 0.7 : 1);
-    }
-    const ph = b.phase;
-    if (b.mode === "walk") {
-      const amp = Math.min(1, moving / 0.7) * 0.5 * motion;
-      p.legL += Math.sin(ph) * amp;
-      p.legR += Math.sin(ph + Math.PI) * amp;
-      p.armL += Math.sin(ph + Math.PI) * amp * 1.1;
-      p.armR += Math.sin(ph) * amp * 1.1;
-      p.hipY += Math.abs(Math.sin(ph)) * 0.035 * amp;
-      p.torsoR += Math.sin(ph) * 0.07 * amp;
-      p.headYaw += Math.sin(ph) * 0.14 * amp;
-      p.headP += Math.cos(ph * 2) * 0.05 * amp;
-    } else if (b.mode === "eat") {
-      // Bring the bromeliad to the mouth, chew, lower it a little, look around now and then.
-      const bite = Math.max(0, Math.sin(b.clock * 1.3)) ** 2 * motion;
-      p.armL -= bite * 0.38;
-      p.armR -= bite * 0.38;
-      p.headP += bite * 0.16 + Math.sin(b.clock * 9) * 0.04 * motion;
-      p.torsoR += Math.sin(b.clock * 0.7) * 0.04 * motion;
-    } else if (b.mode === "stand") {
-      // Sniffing: quick small nods of the raised nose, a slow sway on the hind legs.
-      p.headP += Math.sin(b.clock * 10) * 0.05 * motion - 0.04;
-      p.torsoR += Math.sin(b.clock * 1.4) * 0.05 * motion;
-      p.armL += Math.sin(b.clock * 1.4) * 0.08 * motion;
-      p.armR -= Math.sin(b.clock * 1.4) * 0.08 * motion;
-    } else if (b.mode === "climbUp" || b.mode === "climbDown") {
-      const amp = 0.35 * motion;
-      p.armL += Math.sin(ph) * amp;
-      p.armR += Math.sin(ph + Math.PI) * amp;
-      p.legL += Math.sin(ph + Math.PI) * amp * 0.8;
-      p.legR += Math.sin(ph) * amp * 0.8;
-      p.torsoR += Math.sin(ph) * 0.06 * motion;
-    } else if (b.mode === "perch") {
-      p.headYaw = b.look * 1.1;
-      p.torsoR += Math.sin(b.clock * 0.8) * 0.04 * motion;
-    }
+    b.gs = moving;
+    if (b.mode === "eat" && Math.floor(b.clock / 4) !== Math.floor((b.clock - dt) / 4))
+      herd.play(ids[bears.indexOf(b)] as number, "chew", 2);
   };
 
+  let clock = 0;
   return {
     update(dt, avatar) {
       dt = Math.min(dt, 0.05);
@@ -713,19 +661,20 @@ export const create: CreateAmbient = (env): Ambient => {
             for (const o of bears) o.cooldown = Math.max(o.cooldown, 120);
           }
         }
-        render(b, i);
+        render(b, i, rm);
       }
-      for (const m of meshes) m.instanceMatrix.needsUpdate = true;
+      propMesh.instanceMatrix.needsUpdate = true;
+      clock += dt;
+      herd.update(dt, clock, env.camera);
     },
     dispose() {
       for (const b of bears) creatures.remove(b.body);
       offMount();
       offStamp();
-      for (const m of meshes) {
-        env.scene.remove(m);
-        m.geometry.dispose();
-        m.dispose();
-      }
+      herd.dispose();
+      env.scene.remove(propMesh);
+      propMesh.geometry.dispose();
+      propMesh.dispose();
       mat.dispose();
     },
   };

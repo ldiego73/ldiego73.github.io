@@ -52,13 +52,30 @@ export interface HerdMember {
   features?: Record<string, boolean>;
 }
 
+/** Optional per-instance body pose for `herd.set`: uniform scale (young animals, a bigger-than-life bird; LOD
+ * distances are divided by it) and body pitch / roll (radians, applied after the yaw: a hopping agouti, a
+ * turtle climbing a log, a dolphin's arc, a teal tipping up to feed). */
+export interface HerdPose {
+  scale?: number;
+  pitch?: number;
+  roll?: number;
+}
+
 export interface Herd {
   spec: AnimalSpec;
   group: THREE.Group;
   add(m?: HerdMember): number;
   remove(id: number): void;
   /** Place an instance (feet at x, y, z facing yaw) and give its animator this frame's state. */
-  set(id: number, x: number, y: number, z: number, yaw: number, s: AnimalState & Partial<BirdState>): void;
+  set(
+    id: number,
+    x: number,
+    y: number,
+    z: number,
+    yaw: number,
+    s: AnimalState & Partial<BirdState>,
+    pose?: HerdPose,
+  ): void;
   /** Hide one instance (out of the world's range) without removing it. */
   hide(id: number): void;
   play(id: number, a: Exclude<IdleAction, "none">, seconds?: number): void;
@@ -77,6 +94,9 @@ interface Inst {
   y: number;
   z: number;
   yaw: number;
+  scale: number;
+  pitch: number;
+  roll: number;
   state: AnimalState & Partial<BirdState>;
   visible: boolean;
   lod: Lod | -1;
@@ -197,7 +217,9 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
   const pos = new THREE.Vector3();
-  const one = new THREE.Vector3(1, 1, 1);
+  const scl = new THREE.Vector3(1, 1, 1);
+  const eul = new THREE.Euler();
+  const maxScale = [0, 0, 0];
   const cam = new THREE.Vector3();
   const sphere = [new THREE.Sphere(), new THREE.Sphere(), new THREE.Sphere()];
 
@@ -208,7 +230,7 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
       const id = free.length ? (free.pop() as number) : list.length;
       if (id >= o.max) throw new Error(`animals: herd ${spec.key} is full (${o.max})`);
       const anim = animatorFor(spec, rig, mb.seed ?? id + 1);
-      anim.features = { tika: true, pack: false, ...o.features, ...mb.features };
+      anim.features = { tika: true, pack: false, ...spec.features, ...o.features, ...mb.features };
       list[id] = {
         id,
         anim,
@@ -218,6 +240,9 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
         y: -1e4,
         z: 0,
         yaw: 0,
+        scale: 1,
+        pitch: 0,
+        roll: 0,
         state: { speed: 0, rm: false },
         visible: false,
         lod: -1,
@@ -230,13 +255,16 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
       list[id] = null;
       free.push(id);
     },
-    set(id, x, y, z, yaw, s) {
+    set(id, x, y, z, yaw, s, pose) {
       const it = list[id];
       if (!it) return;
       it.x = x;
       it.y = y;
       it.z = z;
       it.yaw = yaw;
+      it.scale = pose?.scale ?? 1;
+      it.pitch = pose?.pitch ?? 0;
+      it.roll = pose?.roll ?? 0;
       it.state = s;
       it.visible = true;
     },
@@ -257,6 +285,7 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
       lodCount[0] = lodCount[1] = lodCount[2] = 0;
       for (const m of meshes) m.count = 0;
       for (const s of sphere) s.makeEmpty();
+      maxScale.fill(0);
       for (const it of list) {
         if (!it) continue;
         it.acc += dt;
@@ -265,7 +294,7 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
           continue;
         }
         const d = Math.hypot(it.x - cam.x, it.y - cam.y, it.z - cam.z);
-        const want = lodFor(d, spec.size, undefined, o.lodScale ?? 1);
+        const want = lodFor(d / Math.max(0.05, it.scale), spec.size, undefined, o.lodScale ?? 1);
         it.lod = want;
         if (want === -1) continue;
         lodCount[want]++;
@@ -282,9 +311,12 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
         const l = drawn(want);
         const mesh = meshes[l] as THREE.InstancedMesh;
         const k = mesh.count++;
-        q.setFromAxisAngle(up, it.yaw);
+        if (it.pitch || it.roll) q.setFromEuler(eul.set(it.pitch, it.yaw, it.roll, "YXZ"));
+        else q.setFromAxisAngle(up, it.yaw);
         pos.set(it.x, it.y, it.z);
-        m4.compose(pos, q, one);
+        scl.setScalar(it.scale);
+        m4.compose(pos, q, scl);
+        maxScale[l] = Math.max(maxScale[l] as number, it.scale);
         mesh.setMatrixAt(k, m4);
         (rows[l] as THREE.InstancedBufferAttribute).setX(k, it.id);
         (vars[l] as THREE.InstancedBufferAttribute).setX(k, it.variant);
@@ -297,8 +329,10 @@ export function createHerd(key: SpeciesKey | string, o: HerdOptions): Herd {
         m.instanceMatrix.needsUpdate = true;
         for (const a of [rows[l], vars[l], cells[l]]) if (a) a.needsUpdate = true;
         const s = sphere[l] as THREE.Sphere;
-        s.radius += spec.size * 1.2;
-        m.boundingSphere = s.clone();
+        s.radius += spec.size * 1.2 * (maxScale[l] as number);
+        // Kept spheres (no per-frame allocation): the mesh holds its own copy target.
+        m.boundingSphere ??= new THREE.Sphere();
+        m.boundingSphere.copy(s);
       });
     },
     stats: () => ({ count: list.filter(Boolean).length, lod: [...lodCount] as [number, number, number], posed }),

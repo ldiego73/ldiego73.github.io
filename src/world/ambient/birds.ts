@@ -10,22 +10,25 @@
  *  - one or two Andean condors soaring in wide circles high above the summit (above and wider than the
  *    fauna condors, which circle at about +22 over the summit and the gorge).
  *
- * Perches/flowers come from the flora (scene object "flora-perches", see flora/index.ts). Rendering: one
- * InstancedMesh per species with the wings and head animated in the vertex shader from a per-instance
- * `pose` attribute (flora/material.ts rigMaterial) → 4 draw calls, ink-correct. Far birds are moved to
- * free perches near the traveler from time to time, so the climb always has birds around.
+ * Perches/flowers come from the flora (scene object "flora-perches", see flora/index.ts). Rendering: the shared
+ * birds (characters/animals): one herd per species (a skinned instanced draw per LOD), the flight state
+ * machine reading perch, hop, flap, glide, soar and hover from the motion this sim makes; the tanager and the
+ * cock-of-the-rock wear their plumage on the closest shared bodies (sparrow, dove) until they have their own.
+ * Far birds are moved to free perches near the traveler from time to time, so the climb always has birds
+ * around.
  * Reduced motion: no wing-blur flicker, calmer heads, fewer spontaneous flights.
  * `nearestBird()` reports the closest small bird for the soundscape (not wired).
  * Bodies (creatures.ts: "tangara", "colibri", "gallito", "condor"): listed for queries, never solid (they
  * live in the trees, at flowers and in the air, out of the traveler's way).
  */
 import * as THREE from "three";
+import { createHerd, type Herd } from "../characters/animals/crowd";
+import { bpal } from "../characters/animals/species/birds";
 import type { Ambient, CreateAmbient, WorldEnv } from "../contract";
 import { type Body, creatures, PARKED } from "../creatures";
 import type { FloraPerches } from "../flora";
-import { inkAware, rigMaterial } from "../flora/material";
+import { noPaint } from "../style-gl";
 import { rng } from "../tex";
-import { type BirdKind, type BirdModel, colibriModel, condorModel, gallitoModel, tangaraModel } from "./birds/models";
 import {
   damp,
   FLEE_R,
@@ -44,21 +47,41 @@ import {
 } from "./birds/sim";
 
 const TAU = Math.PI * 2;
-/**
- * Perched wing roll: with pose.w = 1 the wing is swept back along the flank with its chord pointing
- * inward; rolling it ~77° about the body axis hangs the chord down over the flank (a closed wing).
- */
-const FOLDED = 1.35;
+export type BirdKind = "tangara" | "colibri" | "gallito" | "condor";
+
+/** Blue-and-yellow tanager (Thraupis / Pipraeidea): blue back and wings, a yellow breast. */
+const TANAGER = bpal({
+  back: "#2f63c4",
+  head: "#3c7fd8",
+  bill: "#2a2420",
+  legs: "#4a4038",
+  belly: "#e8c43a",
+  coverts: "#2a55aa",
+  flight: "#1d2f5a",
+  tail: "#1d2f5a",
+  face: "#3c7fd8",
+  collar: "#e8c43a",
+});
+/** Andean cock-of-the-rock (male): flame-orange body, black wings and tail, pale grey tertials. */
+const ROCK = bpal({
+  back: "#e2501f",
+  head: "#ec6420",
+  bill: "#e8b631",
+  legs: "#c98a2a",
+  belly: "#d9481c",
+  coverts: "#1d1a1a",
+  flight: "#1a1818",
+  tail: "#1a1818",
+  face: "#ec6420",
+  collar: "#b9b6b0",
+});
 /** Tree kinds (flora TREE_KINDS order): quenua 0, aliso 1, unca 2, pisonay 3, chusquea 4. */
 const TANGARA_TREES = [0, 1, 2, 3, 4] as const;
 const GALLITO_TREES = [2] as const;
 
 interface Species {
   kind: BirdKind;
-  mesh: THREE.InstancedMesh;
-  pose: THREE.InstancedBufferAttribute;
-  mat: THREE.Material;
-  scale: number;
+  herd: Herd;
 }
 
 enum Mode {
@@ -77,8 +100,6 @@ interface Bird {
   y: number;
   z: number;
   yaw: number;
-  pitch: number;
-  bank: number;
   f: Flight;
   /** Seconds until the next spontaneous move. */
   timer: number;
@@ -91,9 +112,11 @@ interface Bird {
   hop: number;
   hopTurn: number;
   display: number;
-  wing: number;
-  fold: number;
-  flap: number;
+  /** Last drawn position and climb rate (the flight state machine reads the motion). */
+  px: number;
+  py: number;
+  pz: number;
+  vy: number;
   /** Hover offset direction (colibrí), unit XZ. */
   ox: number;
   oz: number;
@@ -122,20 +145,16 @@ const _b: Vec = { x: 0, y: 0, z: 0 };
 const _t: Vec = { x: 0, y: 0, z: 0 };
 const _soar = { x: 0, y: 0, z: 0, yaw: 0 };
 
-function makeSpecies(env: WorldEnv, kind: BirdKind, model: BirdModel, n: number, scale: number): Species {
-  const gm = env.toon("#ffffff").gradientMap;
-  const mat = rigMaterial(gm, { uShoulder: { value: model.shoulder }, uNeck: { value: model.neck } }, kind);
-  const pose = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * 4), 4);
-  pose.setUsage(THREE.DynamicDrawUsage);
-  model.geo.setAttribute("pose", pose);
-  const mesh = new THREE.InstancedMesh(model.geo, mat, Math.max(1, n));
-  mesh.name = `bird-${kind}`;
-  mesh.count = n;
-  mesh.frustumCulled = false;
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  inkAware(mesh);
-  env.scene.add(mesh);
-  return { kind, mesh, pose, mat, scale };
+function makeSpecies(env: WorldEnv, kind: BirdKind, key: string, n: number, palette?: string[]): Species {
+  const herd = createHerd(key, { max: Math.max(1, n), variants: palette ? [palette] : undefined });
+  herd.group.name = `bird-${kind}`;
+  // They move: no world-space painted blotches sliding over the plumage (style-gl.ts).
+  herd.group.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) noPaint(o as THREE.Mesh);
+  });
+  env.scene.add(herd.group);
+  for (let i = 0; i < n; i++) herd.add({ seed: 7 + i * 13 });
+  return { kind, herd };
 }
 
 export const create: CreateAmbient = (env: WorldEnv): Ambient => {
@@ -152,10 +171,10 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
   const nC = flowers.length ? (high ? 14 : 7) : 0;
   const nG = trees.length ? (high ? 5 : 3) : 0;
   const nK = high ? 3 : 2;
-  const sT = makeSpecies(env, "tangara", tangaraModel(), nT, 1);
-  const sC = makeSpecies(env, "colibri", colibriModel(), nC, 1);
-  const sG = makeSpecies(env, "gallito", gallitoModel(), nG, 1);
-  const sK = makeSpecies(env, "condor", condorModel(), nK, 0.75);
+  const sT = makeSpecies(env, "tangara", "sparrow", nT, TANAGER);
+  const sC = makeSpecies(env, "colibri", "hummingbird", nC);
+  const sG = makeSpecies(env, "gallito", "dove", nG, ROCK);
+  const sK = makeSpecies(env, "condor", "condor", nK);
   const species = [sT, sC, sG, sK];
 
   const birds: Bird[] = [];
@@ -168,8 +187,6 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
     y: 0,
     z: 0,
     yaw: R() * TAU,
-    pitch: 0,
-    bank: 0,
     f: newFlight(),
     timer: 4 + R() * 20,
     headYaw: 0,
@@ -180,9 +197,10 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
     hop: 0,
     hopTurn: 0,
     display: 0,
-    wing: FOLDED,
-    fold: 1,
-    flap: R() * TAU,
+    px: Number.NaN,
+    py: 0,
+    pz: 0,
+    vy: 0,
     ox: 1,
     oz: 0,
     seed: R() * 100,
@@ -266,8 +284,8 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
     r: 42 + i * 24,
     base: summit.y + 16 + i * 12,
     dir: (i % 2 ? -1 : 1) as 1 | -1,
-    flapT: 8 + R() * 10,
-    flap: 0,
+    y: 0,
+    vy: 0,
     seed: R() * 100,
     body: creatures.add("condor", BODY_R.condor, { solid: false, x: PARKED, z: PARKED }),
   }));
@@ -332,21 +350,25 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
 
   let relocateT = 2;
   const ahead = new THREE.Vector3();
-  let frame = 0;
   const pos = new THREE.Vector3();
 
-  const writeBird = (b: Bird, t: number) => {
-    const sc = b.sp.scale;
-    _q.setFromEuler(_e.set(b.pitch, b.yaw, b.bank, "YXZ"));
+  const writeBird = (b: Bird, dt: number) => {
     const hopY = b.hop > 0 ? Math.sin(Math.PI * b.hop) * 0.05 : 0;
-    _m.compose(_p.set(b.x, b.y + hopY, b.z), _q, _s.set(sc, sc, sc));
-    b.sp.mesh.setMatrixAt(b.slot, _m);
-    const arr = b.sp.pose.array as Float32Array;
-    const o = b.slot * 4;
-    arr[o] = b.wing;
-    arr[o + 1] = b.headYaw;
-    arr[o + 2] = b.headPitch + (b.mode === Mode.Hover ? Math.sin(t * 7 + b.seed) * 0.08 : 0);
-    arr[o + 3] = b.fold;
+    const first = Number.isNaN(b.px);
+    const sp = first || dt <= 0 ? 0 : Math.hypot(b.x - b.px, b.z - b.pz) / dt;
+    b.vy = first || dt <= 0 ? 0 : b.vy + ((b.y - b.py) / dt - b.vy) * (1 - Math.exp(-6 * dt));
+    b.px = b.x;
+    b.py = b.y;
+    b.pz = b.z;
+    const air = b.mode !== Mode.Perch;
+    b.sp.herd.set(b.slot, b.x, b.y + hopY, b.z, b.yaw, {
+      speed: b.mode === Mode.Hover ? Math.min(sp, 0.6) : sp,
+      rm,
+      look: b.headYaw,
+      grounded: !air,
+      vy: air ? b.vy : 0,
+      height: air ? b.y - env.heightAt(b.x, b.z) : 0,
+    });
   };
 
   const stepSmall = (b: Bird, dt: number, t: number, av: THREE.Vector3) => {
@@ -363,23 +385,9 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
       flightTangent(f, e, _t);
       const h = Math.hypot(_t.x, _t.z);
       if (h > 1e-4) b.yaw += wrapAngle(Math.atan2(_t.x, _t.z) - b.yaw) * Math.min(1, dt * 12);
-      // Level the perched (nose-up) body in flight, follow the climb / dive of the arc.
-      const climb = -Math.atan2(_t.y, Math.max(h, 1e-4));
-      b.pitch = damp(b.pitch, (isC ? 0.15 : 0.38) + climb * 0.6, 10, dt);
+      // The wings (flap, the small birds' bounding tuck, the landing flare) follow the motion: anim-bird.ts.
       b.headYaw = damp(b.headYaw, 0, 12, dt);
       b.headPitch = damp(b.headPitch, 0, 12, dt);
-      b.fold = damp(b.fold, 0, 18, dt);
-      if (isC) b.wing = rm ? 0.5 + Math.sin(t * 9) * 0.35 : frame % 2 ? 1.05 : -0.55;
-      else {
-        b.flap += dt * TAU * (b.sp.kind === "gallito" ? 7 : 11) * (rm ? 0.5 : 1);
-        const landing = f.u > 0.82;
-        // Small birds fly in bounds: bursts of flaps, then a short tuck.
-        const tuck = b.sp.kind === "tangara" && !landing && Math.sin(f.u * f.dur * 5 + b.seed) < -0.45;
-        if (tuck) {
-          b.fold = damp(b.fold, 0.75, 20, dt);
-          b.wing = damp(b.wing, FOLDED, 20, dt);
-        } else b.wing = landing ? 0.55 + Math.sin(b.flap * 1.3) * 0.35 : Math.sin(b.flap) * 0.95 + 0.1;
-      }
       if (f.u >= 1) {
         b.x = f.x1;
         b.y = f.y1;
@@ -408,9 +416,6 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
       b.y = damp(b.y, _a.y - 0.06 + bob, 8, dt);
       b.z = damp(b.z, _a.z + b.oz * 0.1, 8, dt);
       b.yaw = damp(b.yaw, Math.atan2(-b.ox, -b.oz) + Math.sin(t * 2.3 + b.seed) * 0.15, 6, dt);
-      b.pitch = damp(b.pitch, -0.55, 8, dt);
-      b.fold = 0;
-      b.wing = rm ? 0.45 + Math.sin(t * 8) * 0.3 : frame % 2 ? 1.1 : -0.6;
       b.headYaw = damp(b.headYaw, Math.sin(t * 3.1 + b.seed) * 0.2, 6, dt);
       return;
     }
@@ -420,9 +425,6 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
       takeOff(b, av, near);
       return;
     }
-    b.fold = damp(b.fold, 1, 10, dt);
-    b.pitch = damp(b.pitch, 0, 8, dt);
-    b.bank = 0;
     // Head: quick snaps between glances; watches the traveler when he is close-ish.
     b.headTimer -= dt;
     if (b.headTimer <= 0) {
@@ -439,12 +441,15 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
       if (roll < (rm ? 0.04 : 0.14) && b.hop === 0) {
         b.hop = 1e-3;
         b.hopTurn = (R() - 0.5) * 2.4;
-      } else if (b.sp.kind === "gallito" && roll > (rm ? 0.97 : 0.85) && b.display === 0) b.display = 1e-3;
+      } else if (b.sp.kind === "gallito" && roll > (rm ? 0.97 : 0.85) && b.display === 0) {
+        // The lek display: a bow and a ruffle of the plumage.
+        b.display = 1e-3;
+        b.sp.herd.play(b.slot, "shake", 1.1);
+      }
     }
     const k = rm ? 8 : 32;
     b.headYaw = damp(b.headYaw, b.headYawT, k, dt);
     b.headPitch = damp(b.headPitch, b.headPitchT, k, dt);
-    b.wing = damp(b.wing, FOLDED, 10, dt);
     if (b.hop > 0) {
       const prev = b.hop;
       b.hop = Math.min(1, b.hop + dt / 0.24);
@@ -453,11 +458,7 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
     }
     if (b.display > 0) {
       b.display = Math.min(1, b.display + dt / 1.1);
-      const s = Math.sin(Math.PI * b.display);
-      b.pitch = 0.5 * s;
-      b.headPitch += 0.4 * s;
-      b.fold = 1 - 0.35 * s;
-      b.wing = FOLDED - 0.5 * Math.abs(Math.sin(TAU * b.display * 2)) * s;
+      b.headPitch += 0.4 * Math.sin(Math.PI * b.display);
       if (b.display >= 1) b.display = 0;
     }
   };
@@ -499,10 +500,10 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
 
   // Initial pose.
   for (const b of birds) writeBird(b, 0);
+  let clock = 0;
 
   return {
     update(dt, avatar, t) {
-      frame++;
       dt = Math.min(dt, 0.1);
       pos.copy(avatar);
       relocateT -= dt;
@@ -513,7 +514,7 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
       nearest.d = Number.POSITIVE_INFINITY;
       for (const b of birds) {
         stepSmall(b, dt, t, pos);
-        writeBird(b, t);
+        writeBird(b, dt);
         b.body.x = b.x;
         b.body.z = b.z;
         const d = Math.hypot(b.x - pos.x, b.y - pos.y, b.z - pos.z);
@@ -534,39 +535,26 @@ export const create: CreateAmbient = (env: WorldEnv): Ambient => {
         const y = c.base + Math.sin(t * 0.17 + c.seed) * 3;
         c.body.x = _soar.x;
         c.body.z = _soar.z;
-        c.flapT -= dt;
-        if (c.flapT <= 0 && !rm) {
-          c.flap = 2.4;
-          c.flapT = 14 + R() * 12;
-        }
-        let wing = 0.07 + Math.sin(t * 0.5 + c.seed) * 0.04;
-        if (c.flap > 0) {
-          c.flap -= dt;
-          wing += Math.sin(c.flap * 5.2) * 0.38;
-        }
-        _q.setFromEuler(_e.set(0, _soar.yaw, -c.dir * 0.22, "YXZ"));
-        _m.compose(_p.set(_soar.x, y, _soar.z), _q, _s.setScalar(sK.scale));
-        sK.mesh.setMatrixAt(i, _m);
-        const arr = sK.pose.array as Float32Array;
-        arr[i * 4] = wing;
-        arr[i * 4 + 1] = Math.sin(t * 0.4 + c.seed) * 0.35;
-        arr[i * 4 + 2] = 0.25;
-        arr[i * 4 + 3] = 0;
+        // Soaring on the wind (the soarer's flight state machine), banked into the circle.
+        c.vy = c.vy + ((dt > 0 && c.y ? (y - c.y) / dt : 0) - c.vy) * (1 - Math.exp(-3 * dt));
+        c.y = y;
+        sK.herd.set(i, _soar.x, y - 0.64, _soar.z, _soar.yaw, {
+          speed: v,
+          rm,
+          look: Math.sin(t * 0.4 + c.seed) * 0.35,
+          turn: (c.dir * v) / c.r,
+          grounded: false,
+          vy: c.vy,
+          height: y - env.heightAt(_soar.x, _soar.z),
+        });
       }
-      for (const s of species) {
-        s.mesh.instanceMatrix.needsUpdate = true;
-        s.pose.needsUpdate = true;
-      }
+      clock += dt;
+      for (const s of species) s.herd.update(dt, clock, env.camera);
     },
     dispose() {
       for (const b of birds) creatures.remove(b.body);
       for (const c of condors) creatures.remove(c.body);
-      for (const s of species) {
-        s.mesh.removeFromParent();
-        s.mesh.geometry.dispose();
-        s.mat.dispose();
-        s.mesh.dispose();
-      }
+      for (const s of species) s.herd.dispose();
       birds.length = 0;
       nearest.d = Number.POSITIVE_INFINITY;
     },

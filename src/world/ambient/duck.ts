@@ -6,17 +6,23 @@
  * the traveler comes close. At night they rest on the rocks, heads tucked. Stamp `fauna:pato` on a good look.
  *
  * The stream's centerline (with the exact water height) is read from the "stream" ribbon mesh the terrain
- * builds; the pool from the "waterfall-cliff" group. Instanced: twelve draw calls for everything.
+ * builds; the pool from the "waterfall-cliff" group. Rendering: the shared torrent duck (characters/animals,
+ * one herd: a skinned instanced draw per LOD, the male's striped head and the rufous female as coat variants),
+ * its flight state machine reading perch, waddle, swim, dive and the flutter-run from the motion; plus the
+ * wet rocks, splash rings and drops (instanced).
  * Bodies ("duck", creatures.ts): solid only while perched on a rock; in the water they are not obstacles.
  */
 import * as THREE from "three";
 import { sfx } from "../../audio";
+import { createHerd } from "../characters/animals/crowd";
+import { speciesOf } from "../characters/animals/species";
+import { bpal } from "../characters/animals/species/birds";
 import type { Ambient, CreateAmbient } from "../contract";
 import { creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
 import { noPaint } from "../style-gl";
-import { duckParts, HIP, NECK, PLUMAGE, rockGeometry, SHOULDER, WATERLINE } from "./duck/model";
+import { rockGeometry, WATERLINE } from "./duck/model";
 import { findCrossing, gentleRun, makePath, type PathSample, ribbonCenterline, type WaterPath } from "./duck/path";
 
 /** Stylised: a touch larger than life so they read from the follow camera. */
@@ -91,6 +97,10 @@ interface Duck {
   fx: number;
   cool: number;
   visible: boolean;
+  /** Last drawn position (the animal's speed and climb come from the motion). */
+  px: number;
+  py: number;
+  pz: number;
 }
 
 export const create: CreateAmbient = (env): Ambient => {
@@ -282,6 +292,9 @@ export const create: CreateAmbient = (env): Ambient => {
         headYaw: 0,
         flap: R() * 6,
         wing: 0,
+        px: Number.NaN,
+        py: 0,
+        pz: 0,
         fx: 0,
         cool: 0,
         visible: true,
@@ -297,7 +310,28 @@ export const create: CreateAmbient = (env): Ambient => {
   const bodies = ducks.map((d) => creatures.add("duck", 0.32, { x: d.x, z: d.z, solid: false }));
 
   // ---------------------------------------------------------------- meshes
-  const g = duckParts();
+  // The ducks: the species' palette is the male; the female is rufous below with a plain grey head.
+  const FEMALE = bpal({
+    back: "#6e6863",
+    head: "#8c8680",
+    face: "#8c8680",
+    bill: "#c83a2a",
+    legs: "#c83a2a",
+    belly: "#b8622e",
+    coverts: "#6a645e",
+    flight: "#2a6a5a",
+    tail: "#3a342e",
+  });
+  const herd = createHerd("duck", { max: Math.max(1, n), variants: [speciesOf("duck").palette, FEMALE] });
+  herd.group.name = "ducks";
+  herd.group.traverse((o) => {
+    // Ducks move: no world-space painted blotches sliding over the plumage (style-gl.ts).
+    if ((o as THREE.Mesh).isMesh) noPaint(o as THREE.Mesh);
+  });
+  env.scene.add(herd.group);
+  ducks.forEach((d, i) => {
+    herd.add({ seed: 9 + i * 7, variant: d.male ? 0 : 1 });
+  });
   const white = env.toon("#fffffe");
   const meshes: THREE.InstancedMesh[] = [];
   const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, count: number, name: string) => {
@@ -311,27 +345,7 @@ export const create: CreateAmbient = (env): Ambient => {
     meshes.push(m);
     return m;
   };
-  const body = mk(g.body, white, n, "duck-body");
-  const belly = mk(g.belly, white, n, "duck-belly");
-  const streak = mk(g.streak, white, n, "duck-streaks");
-  const head = mk(g.head, white, n, "duck-head");
-  const stripes = mk(g.stripes, white, n, "duck-stripes");
-  const wings = mk(g.wing, white, n * 2, "duck-wings");
-  const bill = mk(g.bill, env.toon(PLUMAGE.bill), n, "duck-bill");
-  const eyes = mk(g.eyes, env.toon(PLUMAGE.eye), n, "duck-eyes");
-  const legs = mk(g.leg, env.toon(PLUMAGE.leg), n * 2, "duck-legs");
   const col = new THREE.Color();
-  ducks.forEach((d, i) => {
-    const p = d.male ? PLUMAGE.male : PLUMAGE.female;
-    body.setColorAt(i, col.set(p.body));
-    belly.setColorAt(i, col.set(p.belly));
-    streak.setColorAt(i, col.set(p.streak));
-    head.setColorAt(i, col.set(p.head));
-    stripes.setColorAt(i, col.set(p.stripes));
-    wings.setColorAt(i * 2, col.set(p.wing));
-    wings.setColorAt(i * 2 + 1, col.set(p.wing));
-  });
-
   // Wet rocks in the current (static).
   const allRocks = zones.flatMap((z) => z.rocks);
   const rockGeo = rockGeometry(5);
@@ -560,80 +574,33 @@ export const create: CreateAmbient = (env): Ambient => {
   };
 
   // ---------------------------------------------------------------- posing
-  const mRoot = new THREE.Matrix4();
-  const mLoc = new THREE.Matrix4();
   const mOut = new THREE.Matrix4();
   const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
   const pos = new THREE.Vector3();
-  const one = new THREE.Vector3(1, 1, 1);
-  const sz = new THREE.Vector3(SIZE, SIZE, SIZE);
-  const qRoot = new THREE.Quaternion();
-  const qa = new THREE.Quaternion();
-  const qb = new THREE.Quaternion();
-  const qc = new THREE.Quaternion();
-  const eul = new THREE.Euler();
-  const X = new THREE.Vector3(1, 0, 0);
-  const Y = new THREE.Vector3(0, 1, 0);
-  const Z = new THREE.Vector3(0, 0, 1);
-  const piv = new THREE.Vector3();
 
-  const singles = [body, belly, streak, head, stripes, bill, eyes];
-  const hideDuck = (i: number) => {
-    for (const m of singles) m.setMatrixAt(i, hidden);
-    for (let k = 0; k < 2; k++) {
-      wings.setMatrixAt(i * 2 + k, hidden);
-      legs.setMatrixAt(i * 2 + k, hidden);
-    }
-  };
-
-  const pose = (
-    i: number,
-    d: Duck,
-    a: {
-      roll: number;
-      headPitch: number;
-      headYaw: number;
-      headFwd: number;
-      headUp: number;
-      wing: number;
-      flap: number;
-      leg: number;
-      tail: number;
-    },
-  ) => {
-    eul.set(d.pitch + a.tail, d.yaw, a.roll, "YXZ");
-    qRoot.setFromEuler(eul);
-    pos.set(d.x, d.y, d.z);
-    mRoot.compose(pos, qRoot, sz);
-    body.setMatrixAt(i, mRoot);
-    belly.setMatrixAt(i, mRoot);
-    streak.setMatrixAt(i, mRoot);
-    // Head group around the neck base.
-    eul.set(a.headPitch, a.headYaw, 0, "YXZ");
-    qa.setFromEuler(eul);
-    piv.set(NECK.x, NECK.y + a.headUp, NECK.z + a.headFwd);
-    mLoc.compose(piv, qa, one);
-    mOut.multiplyMatrices(mRoot, mLoc);
-    head.setMatrixAt(i, mOut);
-    bill.setMatrixAt(i, mOut);
-    eyes.setMatrixAt(i, mOut);
-    stripes.setMatrixAt(i, d.male ? mOut : hidden);
-    for (let k = 0; k < 2; k++) {
-      const s = k === 0 ? 1 : -1;
-      // Folded: plate tilted onto the flank, tips crossing over the tail. Open: spread out and flapping.
-      const open = a.wing;
-      qa.setFromAxisAngle(Z, s * a.flap * open);
-      qb.setFromAxisAngle(Y, -s * (open * 1.45 - (1 - open) * 0.07));
-      qc.setFromAxisAngle(Z, -s * (1 - open) * 1.1);
-      qa.multiply(qb).multiply(qc);
-      piv.set(s * SHOULDER.x, SHOULDER.y, SHOULDER.z);
-      mLoc.compose(piv, qa, one);
-      wings.setMatrixAt(i * 2 + k, mOut.multiplyMatrices(mRoot, mLoc));
-      qa.setFromAxisAngle(X, s * a.leg);
-      piv.set(s * HIP.x, HIP.y, HIP.z);
-      mLoc.compose(piv, qa, one);
-      legs.setMatrixAt(i * 2 + k, mOut.multiplyMatrices(mRoot, mLoc));
-    }
+  const hideDuck = (i: number) => herd.hide(i);
+  /** Hand the duck to the shared animal: where it is and what the water / rocks / air are doing. */
+  const pose = (i: number, d: Duck, a: { headYaw: number }, dt: number) => {
+    const first = Number.isNaN(d.px);
+    const sp = first || dt <= 0 ? 0 : Math.min(8, Math.hypot(d.x - d.px, d.z - d.pz) / dt);
+    const vy = first || dt <= 0 ? 0 : (d.y - d.py) / dt;
+    d.px = d.x;
+    d.py = d.y;
+    d.pz = d.z;
+    const onWater = d.mode === "swim" || d.mode === "float" || d.mode === "pop";
+    const air = d.mode === "hop" || d.mode === "run";
+    herd.set(i, d.x, d.y, d.z, d.yaw, {
+      speed: sp,
+      rm,
+      look: a.headYaw,
+      // Resting on the rocks at night: heads tucked.
+      quiet: lastNight && d.mode === "perch",
+      grounded: !air,
+      water: onWater,
+      under: d.mode === "dive",
+      vy: air ? vy : 0,
+      height: air ? 0.3 : 0,
+    });
   };
   const A = { roll: 0, headPitch: 0, headYaw: 0, headFwd: 0, headUp: 0, wing: 0, flap: 0, leg: 0, tail: 0 };
 
@@ -661,6 +628,7 @@ export const create: CreateAmbient = (env): Ambient => {
       if (show !== shown) {
         shown = show;
         for (const m of meshes) if (m !== rocks) m.visible = show;
+        herd.group.visible = show;
       }
       if (!show) return;
       env.camera.getWorldPosition(cam);
@@ -931,7 +899,7 @@ export const create: CreateAmbient = (env): Ambient => {
         body.z = d.z;
         body.solid = d.visible && d.mode === "perch";
         if (!d.visible) hideDuck(i);
-        else pose(i, d, A);
+        else pose(i, d, A, dt);
       }
 
       // Splash rings: grow and fade (additive, so dimming the color fades them out).
@@ -966,6 +934,7 @@ export const create: CreateAmbient = (env): Ambient => {
         drops.setMatrixAt(i, mOut);
       }
       for (const m of meshes) if (m !== rocks) m.instanceMatrix.needsUpdate = true;
+      herd.update(dt, clock, env.camera);
       if (rings.instanceColor) rings.instanceColor.needsUpdate = true;
 
       // Stamp on the first good look: close, in front of the camera, above water.
@@ -994,6 +963,7 @@ export const create: CreateAmbient = (env): Ambient => {
         m.geometry.dispose();
         m.dispose();
       }
+      herd.dispose();
       ringMat.dispose();
       dropMat.dispose();
     },

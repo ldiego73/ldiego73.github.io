@@ -17,10 +17,11 @@
  * Pure (no DOM, no Three).
  */
 import type { GridPiece, Piece } from "../build";
-import { type Field, toOffset } from "../drape";
+import { drapeArc, type Field, toOffset } from "../drape";
 import { bezier, type Grid, grid, joinGrids, lathe, profile, smoothstep, tube } from "../loft";
+import { REGION } from "../regions";
 import { mirrorX, type Prim, rotX, rotZ, type Vec3 } from "../sdf";
-import { HS } from "../slots";
+import { CLOTH_GROUPS, HS } from "../slots";
 import { type BoneRows, LOD_H, res, rigidGrid, tiltGrid, type WearCtx, type Worn } from "./ctx";
 
 export type HatKind =
@@ -38,7 +39,11 @@ export type HatKind =
   | "cap"
   | "trek-cap"
   | "feather-crown"
-  | "headband";
+  | "headband"
+  /** A woven band with a plume of feathers standing at the front (the chasqui's pillu). */
+  | "headband-plume"
+  /** A cloth over the head and down the back, the face open (the Taquile women's chukoo), `shawl` slots. */
+  | "head-shawl";
 
 /** Head scale: head radius over the traveler's (0.222). */
 const headS = (ctx: WearCtx) => ctx.hr[0] / 0.222;
@@ -73,6 +78,10 @@ export function hat(ctx: WearCtx, kind: HatKind): Worn {
       return { pieces: featherCrown(ctx) };
     case "headband":
       return { pieces: [band(ctx)] };
+    case "headband-plume":
+      return { pieces: [band(ctx), plume(ctx)] };
+    case "head-shawl":
+      return { pieces: [headShawl(ctx)] };
     default:
       return { pieces: [brimHat(ctx, BRIMS[kind])] };
   }
@@ -384,7 +393,18 @@ interface Brim {
 }
 
 const BRIMS: Record<
-  Exclude<HatKind, "chullo" | "montera" | "montera-fiesta" | "cap" | "trek-cap" | "feather-crown" | "headband">,
+  Exclude<
+    HatKind,
+    | "chullo"
+    | "montera"
+    | "montera-fiesta"
+    | "cap"
+    | "trek-cap"
+    | "feather-crown"
+    | "headband"
+    | "headband-plume"
+    | "head-shawl"
+  >,
   Brim
 > = {
   felt: {
@@ -682,4 +702,83 @@ function band(ctx: WearCtx, w = 0.035): GridPiece {
   return rigidGrid("headband", g, ctx.b("head"), (p) =>
     Math.abs(p[1] - y - w * s * 0.5) < w * s * 0.18 ? HS.hatTrim : HS.hatBand,
   );
+}
+
+/** A plume of feathers standing at the front of a headband (pillu): three, the middle one tallest. */
+function plume(ctx: WearCtx): Piece {
+  const s = headS(ctx);
+  const head = ctx.b("head");
+  const y = ctx.hc[1] + 0.42 * ctx.hr[1];
+  const z = ctx.hc[2] + ctx.hr[2] * 0.82;
+  const prims: Prim[] = [-1, 0, 1].map((i) => {
+    const len = (i === 0 ? 0.17 : 0.13) * s;
+    return {
+      shape: {
+        kind: "ellipsoid",
+        c: [ctx.hc[0] + i * 0.035 * s, y + len * 0.8, z + 0.01 * s],
+        r: [0.02 * s, len, 0.007 * s],
+        rot: rotZ(-i * 0.3),
+      },
+      bone: head,
+      blend: 0,
+      slot: i === 0 ? HS.feather1 : HS.feather2,
+    } as Prim;
+  });
+  return { kind: "field", name: "plume", prims, h: 0.01 * LOD_H[ctx.lod]!, rigid: head };
+}
+
+/**
+ * A head cloth: it leaves the crown, slides over the head and falls down the back to the shoulder blades and
+ * to the shoulders at the sides; the face stays open (a gap of columns in front). Cloth on the wind, skinned to
+ * the head above the neck and to the chest below.
+ */
+function headShawl(ctx: WearCtx): GridPiece {
+  const s = headS(ctx);
+  const k = ctx.k;
+  const hc = ctx.hc;
+  const rows = res(ctx, 16, 6);
+  const cols = res(ctx, 40, 14);
+  const gap = 0.85;
+  const top = hc[1] + ctx.hr[1] * 0.95;
+  const neckY = hc[1] - 0.18 * s;
+  const d = drapeArc(ctx.field, {
+    rows,
+    cols,
+    span: [gap, Math.PI * 2 - gap],
+    start: (a) => [hc[0] + Math.sin(a) * 0.05 * s, top + 0.02 * s, hc[2] + Math.cos(a) * 0.05 * s - 0.01 * s],
+    dir0: (a) => [Math.sin(a), 0.1, Math.cos(a)],
+    off: 0.022 * s,
+    ds: 0.012 * s,
+    gravity: 0.1,
+    flare: 0.008,
+    stop: (a, p) => {
+      // Front edges stop at the jaw, the back falls to the shoulder blades (1.05 traveler units).
+      const back = Math.min(1, Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) / Math.PI);
+      const jaw = hc[1] - 0.12 * s;
+      return p[1] <= jaw + (1.05 * k - jaw) * smoothstep(0.25, 0.9, back);
+    },
+    ripple: (t, a) => t * t * 0.006 * s * Math.sin(a * 7),
+  });
+  const head = ctx.b("head");
+  const chest = ctx.b("chest");
+  const rowOf = (v: number) => Math.floor(v / cols) / (rows - 1);
+  const [base, r, g, b, w] = CLOTH_GROUPS.shawl;
+  return {
+    kind: "grid",
+    name: "head-shawl",
+    grid: d.grid,
+    layer: "cloth",
+    paint: base,
+    cloth: [r, g, b, w],
+    uvRect: REGION.plain,
+    skin: (p) => {
+      const t = smoothstep(neckY + 0.05 * s, neckY - 0.08 * s, p[1]);
+      return [
+        [head, 1 - t],
+        [chest, t],
+      ];
+    },
+    flex: (_p, v) => smoothstep(0.35, 1, rowOf(v)) * 0.6,
+    shade: (_p, v) => 1 - 0.1 * rowOf(v),
+  };
 }

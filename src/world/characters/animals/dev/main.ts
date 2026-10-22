@@ -55,6 +55,7 @@ export const GROUPS: Record<string, SpeciesKey[]> = {
   waterbirds: ["heron", "flamingo", "grebe", "duck"],
   smallbirds: ["dove", "sparrow", "tinamou"],
   marine: ["sea-lion", "bufeo", "trout"],
+  phaseb: ["sheep", "dog", "howler-monkey", "ibis", "goose", "parrot"],
   reptiles: ["caiman", "taricaya", "iguana", "lizard", "frog"],
   forest: ["sajino", "tapir", "taruca", "squirrel-monkey", "sloth"],
 };
@@ -135,6 +136,7 @@ function animalItem(key: SpeciesKey, x: number, z: number, o: { lod?: Lod; varia
       a.update(dt, t, {
         ...(q.get("amode") ? { mode: q.get("amode") as AnimalMode } : {}),
         quiet: true,
+        ...(q.get("spread") ? { spread: Number(q.get("spread")) } : {}),
         speed: speedFor(key),
         rm: state.rm,
         windX: w.x,

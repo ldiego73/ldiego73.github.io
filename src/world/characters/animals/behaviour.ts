@@ -14,6 +14,7 @@
  *   shake    a quick shiver along the body (wet or dusty animals)
  *   sleep    lie down, eyes closed, slow breathing (long; only when the world says it is quiet)
  *   sit      haunches down (dogs, cats, vizcachas sit up)
+ *   stretch  birds open and raise both wings for a moment (flamingos, herons); quadrupeds bow, forelegs out
  *
  * The animators (./anim-quad.ts, ./anim-bird.ts) turn {action, t, w} into a pose; the scheduler only decides
  * what and when. Deterministic per seed (a herd does not graze in lockstep).
@@ -21,7 +22,18 @@
  * Pure (no DOM, no Three).
  */
 
-export type IdleAction = "none" | "graze" | "chew" | "look" | "groom" | "scratch" | "yawn" | "shake" | "sleep" | "sit";
+export type IdleAction =
+  | "none"
+  | "graze"
+  | "chew"
+  | "look"
+  | "groom"
+  | "scratch"
+  | "yawn"
+  | "shake"
+  | "sleep"
+  | "sit"
+  | "stretch";
 
 export interface IdleProfile {
   /** Relative weights of the actions a species does (missing = never). */
@@ -43,6 +55,7 @@ export const IDLE_TIMES: Record<
   yawn: { min: 1.5, max: 1.9, fadeIn: 0.35, fadeOut: 0.4 },
   shake: { min: 0.7, max: 0.9, fadeIn: 0.08, fadeOut: 0.15 },
   sleep: { min: 10, max: 24, fadeIn: 1.4, fadeOut: 1.0 },
+  stretch: { min: 1.4, max: 2.2, fadeIn: 0.45, fadeOut: 0.5 },
   sit: { min: 4, max: 10, fadeIn: 0.8, fadeOut: 0.7 },
 };
 

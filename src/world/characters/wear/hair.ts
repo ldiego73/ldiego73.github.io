@@ -323,3 +323,59 @@ function longHair(ctx: WearCtx, over: number): Worn {
     ],
   };
 }
+
+/**
+ * A beard: a shell over the jaw (a little larger than it), cut above the mouth line in front and kept as
+ * sideburns up the cheeks, the mouth itself left clear for the face decal. Short: close trimmed; full: fuller
+ * and lower on the chest.
+ */
+export function beard(ctx: WearCtx, kind: "short" | "full"): Piece {
+  const s = headS(ctx);
+  const hc = ctx.hc;
+  const head = ctx.b("head");
+  const full = kind === "full";
+  const grow = (full ? 0.026 : 0.012) * s;
+  // The jaw of ./human.ts sits at the head base + (0, 0.05, 0.034) with radii (0.158, 0.112, 0.148).
+  const base: Vec3 = [hc[0], hc[1] - 0.15 * s, hc[2]];
+  const jc: Vec3 = [base[0], base[1] + (full ? 0.03 : 0.045) * s, base[2] + 0.04 * s];
+  const prims: Prim[] = [
+    {
+      shape: {
+        kind: "ellipsoid",
+        c: jc,
+        r: [0.158 * s + grow, (0.112 + (full ? 0.04 : 0)) * s + grow, 0.148 * s + grow],
+      },
+      bone: head,
+      blend: 0,
+      slot: HS.hair,
+    },
+    // Remove the top: everything above a plane rising toward the back (the sideburns stay up the cheeks).
+    {
+      shape: {
+        kind: "box",
+        // Plane through P = base + (0, 0.06, 0.15)·s with normal (0, cos A, sin A): the box sits on it.
+        c: [base[0], base[1] + 0.06 * s + 0.3 * Math.cos(0.75), base[2] + 0.15 * s + 0.3 * Math.sin(0.75)],
+        h: [0.5, 0.3, 0.5],
+        round: 0,
+        rot: rotX(0.75),
+      },
+      bone: head,
+      blend: 0.015 * s,
+      slot: HS.hair,
+      carve: true,
+    },
+    // Keep the mouth clear.
+    {
+      shape: {
+        kind: "ellipsoid",
+        c: [base[0], base[1] + 0.005 * s, base[2] + 0.2 * s],
+        r: [0.05 * s, 0.025 * s, 0.06 * s],
+      },
+      bone: head,
+      blend: 0.01 * s,
+      slot: HS.hair,
+      carve: true,
+    },
+  ];
+  return { kind: "field", name: "beard", prims, h: 0.014 * LOD_H[ctx.lod]!, rigid: head };
+}

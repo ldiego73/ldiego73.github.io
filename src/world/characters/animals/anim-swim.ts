@@ -77,7 +77,7 @@ export class SwimAnimator {
     // ---------------------------------------------------------------- body: porpoise arcs in water, lollop on land
     let y = rb.y;
     let pitch = 0;
-    if (m.porpoise && !rm && moving && land < 0.5) {
+    if (m.porpoise && s.porpoise !== false && !rm && moving && land < 0.5) {
       const p = porpoise(t, 7, 2.2, rb.y * 1.6);
       y += p.y;
       pitch = -p.pitch;

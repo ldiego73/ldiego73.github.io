@@ -102,6 +102,23 @@ export const ACTIONS = [
   // the traveler
   "type",
   "ride",
+  // phase B additions
+  "photo",
+  "cheer",
+  "balance",
+  "play-arcade",
+  "raise-hand",
+  "read-cord",
+  "hold-front",
+  "hold-up",
+  "stretch",
+  "place",
+  "tug",
+  "point-up",
+  "bind",
+  "kneel-offer",
+  "pray",
+  "whip-circle",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -637,6 +654,180 @@ export function actionPose(a: Action, c: PoseCtx, p: Pose): Pose {
       arm(p, "L", -0.62, 0.12, -0.75, -0.2);
       arm(p, "R", -0.62, 0.12, -0.75, -0.2);
       p.legs = true;
+      p.arms = true;
+      break;
+    }
+    // ---------------------------------------------------------------- phase B additions
+    case "photo": {
+      // Both hands up before the face holding a phone or camera; lowered to look now and then.
+      const up = c.rm ? 1 : Math.max(0, Math.min(1, 0.5 + 1.5 * Math.sin((c.t + c.seed) * 0.18 * TAU)));
+      for (const [sd, s] of [
+        ["L", 1],
+        ["R", -1],
+      ] as const) {
+        set(p, `arm${sd}`, r(-0.55 - 0.45 * up, 0.25 * s, 0.12 * s));
+        set(p, `fore${sd}`, r(-1.2 - 0.85 * up, -0.55 * s, 0, "YXZ"));
+        set(p, `hand${sd}`, r(-0.2, 0, 0));
+      }
+      set(p, "head", r(-0.05 * up, 0, 0));
+      p.arms = true;
+      break;
+    }
+    case "cheer": {
+      // Both arms up pumping, a small hop on the beat.
+      const b = Math.abs(Math.sin((c.t + c.seed) * 1.6 * TAU)) * A;
+      hips(p, b * 0.05);
+      arm(p, "L", -0.4, 2.5 - b * 0.3, -0.3 - b * 0.4);
+      arm(p, "R", -0.4, 2.5 - b * 0.3, -0.3 - b * 0.4);
+      set(p, "head", r(-0.15, 0, 0));
+      p.arms = true;
+      p.face = "smile";
+      break;
+    }
+    case "balance": {
+      // Arms out to the sides, wobbling (walking a log); the legs keep walking.
+      const w = osc(c, 0.7) * A;
+      arm(p, "L", -0.1, 1.35 + w * 0.25, -0.15);
+      arm(p, "R", -0.1, 1.35 - w * 0.25, -0.15);
+      set(p, "spine", r(0.05, 0, w * 0.06));
+      p.arms = true;
+      break;
+    }
+    case "play-arcade": {
+      // Standing at a cabinet: the left hand circles a joystick, the right taps buttons, leaning in.
+      const j = (c.t + c.seed) * 1.3 * TAU;
+      const tap = Math.max(0, Math.sin((c.t + c.seed) * 4.3 * TAU)) ** 3 * A;
+      set(p, "spine", r(0.16, 0, 0));
+      arm(p, "L", -0.8 + Math.sin(j) * 0.08 * A, 0.2 + Math.cos(j) * 0.08 * A, -0.7);
+      arm(p, "R", -0.8 - tap * 0.08, 0.15, -0.75 + tap * 0.12, 0, -0.2 - tap * 0.3);
+      set(p, "head", r(0.05, 0, 0));
+      p.arms = true;
+      break;
+    }
+    case "raise-hand": {
+      // A hand up to ask a question (works over a seated pose through the arms layer).
+      const s = S(c, "arm", true).slice(-1) as "L" | "R";
+      arm(p, s, -0.35, 2.6 + osc(c, 0.4) * 0.05 * A, -0.2);
+      break;
+    }
+    case "read-cord": {
+      // Reaching up to a hanging cord at head height and tracing it down, the head following.
+      const s = S(c, "arm", true).slice(-1) as "L" | "R";
+      const k = c.rm ? 0.5 : ((((c.t + c.seed) * 0.15) % 1) + 1) % 1;
+      arm(p, s, -1.75 + k * 1.0, 0.15, -0.35 - k * 0.3, 0, 0.2);
+      set(p, "head", r(-0.3 + k * 0.6, 0.1 * sx(c, true), 0));
+      p.head = true;
+      break;
+    }
+    case "hold-front": {
+      // A tablet or a book held in front with both hands, head down reading.
+      for (const [sd, s] of [
+        ["L", 1],
+        ["R", -1],
+      ] as const) {
+        set(p, `arm${sd}`, r(-0.35, 0.15 * s, 0.08 * s));
+        set(p, `fore${sd}`, r(-1.35, -0.35 * s, 0, "YXZ"));
+        set(p, `hand${sd}`, r(0.3, 0, 0));
+      }
+      set(p, "head", r(0.32, 0, 0));
+      p.arms = true;
+      p.head = true;
+      break;
+    }
+    case "hold-up": {
+      // One forearm raised showing something to someone.
+      const s = S(c, "arm", true).slice(-1) as "L" | "R";
+      arm(p, s, -0.75, 0.25, -1.55, 0, 0.1);
+      break;
+    }
+    case "stretch": {
+      const k = c.rm ? 0.6 : 0.6 + 0.4 * Math.sin((c.t + c.seed) * 0.25 * TAU);
+      arm(p, "L", -0.5 * k, 2.6 * k + 0.1, -0.2);
+      arm(p, "R", -0.5 * k, 2.6 * k + 0.1, -0.2);
+      set(p, "spine", r(-0.12 * k, 0, 0));
+      set(p, "head", r(-0.25 * k, 0, 0));
+      p.arms = true;
+      p.head = true;
+      break;
+    }
+    case "place": {
+      // Stoop and set something down in front, then straighten (a 2.4 s loop).
+      const k = c.rm ? 0.5 : Math.sin((((c.t + c.seed) / 2.4) % 1) * Math.PI);
+      hips(p, -0.12 * k);
+      leg(p, "L", -0.45 * k, 0.08, 0.8 * k);
+      leg(p, "R", -0.1 * k, 0.08, 0.45 * k);
+      set(p, "spine", r(0.75 * k, 0, 0));
+      arm(p, "L", -0.9 * k, 0.15, -0.3);
+      arm(p, "R", -0.9 * k, 0.15, -0.3);
+      p.legs = true;
+      p.arms = true;
+      break;
+    }
+    case "tug": {
+      // Kite string held up in both hands, tugging now and then.
+      const t = Math.max(0, osc(c, 0.35)) ** 3 * A;
+      set(p, "spine", r(-0.05 - t * 0.1, 0, 0));
+      arm(p, "L", -1.5 + t * 0.4, 0.25, -0.5 - t * 0.3);
+      arm(p, "R", -1.2 + t * 0.4, 0.2, -0.7 - t * 0.3);
+      set(p, "head", r(-0.4, 0, 0));
+      p.arms = true;
+      p.head = true;
+      break;
+    }
+    case "point-up": {
+      const s = S(c, "arm", true).slice(-1) as "L" | "R";
+      arm(p, s, -2.5, 0.25, -0.05);
+      set(p, "head", r(-0.45, 0.1 * sx(c, true), 0));
+      p.head = true;
+      break;
+    }
+    case "bind": {
+      // Kneeling, bent over a bundle of reeds, both hands winding a cord round it.
+      hips(p, -0.37, 0, -0.06);
+      leg(p, "L", -0.15, 0.12, 1.6, -0.9);
+      leg(p, "R", -0.15, 0.12, 1.6, -0.9);
+      const w = (c.t + c.seed) * 0.9 * TAU;
+      set(p, "spine", r(0.45, 0, 0));
+      set(p, "chest", r(0.15, 0, 0));
+      arm(p, "L", -0.95 + Math.sin(w) * 0.15 * A, 0.2, -0.6 + Math.cos(w) * 0.2 * A);
+      arm(p, "R", -0.95 - Math.sin(w) * 0.15 * A, 0.2, -0.6 - Math.cos(w) * 0.2 * A);
+      set(p, "head", r(0.2, 0, 0));
+      p.legs = true;
+      p.arms = true;
+      p.head = true;
+      break;
+    }
+    case "kneel-offer": {
+      // Kneeling, the right hand lifting a k'intu of coca leaves to the lips, the left on the knee.
+      hips(p, -0.37, 0, -0.06);
+      leg(p, "L", -0.15, 0.08, 1.6, -0.9);
+      leg(p, "R", -0.15, 0.08, 1.6, -0.9);
+      const lift = c.rm ? 1 : Math.max(0, Math.min(1, 0.5 + 1.5 * Math.sin((c.t + c.seed) * 0.2 * TAU)));
+      arm(p, "R", -0.6 - 0.5 * lift, 0.3, -0.8 - 1.4 * lift, -0.5 * lift, 0.2);
+      arm(p, "L", -0.4, 0.15, -0.6);
+      set(p, "head", r(0.1 - 0.2 * lift, 0, 0));
+      p.legs = true;
+      p.arms = true;
+      break;
+    }
+    case "pray": {
+      // Standing, both hands raised palms up toward a sacred place.
+      const k = c.rm ? 1 : 0.85 + 0.15 * Math.sin((c.t + c.seed) * 0.3 * TAU);
+      arm(p, "L", -1.1 * k, 0.6, -0.5, -0.8, 0.4);
+      arm(p, "R", -1.1 * k, 0.6, -0.5, -0.8, 0.4);
+      set(p, "head", r(-0.25, 0, 0));
+      p.arms = true;
+      p.head = true;
+      break;
+    }
+    case "whip-circle": {
+      // The ukuku: the right arm overhead circling a whip, a bouncing step.
+      const a1 = (c.t + c.seed) * 1.3 * TAU;
+      const s = S(c, "arm", true).slice(-1) as "L" | "R";
+      const o = s === "L" ? "R" : "L";
+      arm(p, s, -0.5 + Math.sin(a1) * 0.3 * A, 2.5 + Math.cos(a1) * 0.25 * A, -0.4);
+      arm(p, o, -0.3, 0.5, -0.6);
+      hips(p, Math.abs(Math.sin(a1 * 1.5)) * 0.05 * A);
       p.arms = true;
       break;
     }

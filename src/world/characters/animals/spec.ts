@@ -147,6 +147,8 @@ export interface AnimalSpec {
   variants?: Record<string, readonly string[]>;
   eye: EyeStyle;
   motion: Motion;
+  /** Default optional parts (bones scaled to zero when off): the llama's "tika" and "pack", the alpaca's "tika". */
+  features?: Record<string, boolean>;
 }
 
 /** Replace some slots of a palette (variants). */

@@ -41,7 +41,10 @@ export type PropKind =
   | "stick"
   | "pot"
   | "brush"
-  | "ball";
+  | "ball"
+  | "camera"
+  | "phone"
+  | "whip";
 
 export interface PropHolder {
   /** World matrix of a bone of the person. */
@@ -50,12 +53,20 @@ export interface PropHolder {
   readonly shown?: boolean;
 }
 
-interface PropDef {
+/**
+ * A prop kind: the bone it follows, its offset there, and its geometry. Build the geometry with `PropKit`
+ * (vertex colours plus "tint" parts); a plain geometry also works (drawn white, or in `color` when given).
+ */
+export interface PropDef {
   bone: string;
   /** Offset in the bone frame (body units) and rotation (Euler XYZ). */
   pos: [number, number, number];
   rot?: [number, number, number];
   build(): THREE.BufferGeometry;
+  /** Colour of a geometry built without vertex colours. */
+  color?: THREE.ColorRepresentation;
+  /** Spin about a local axis (radians/s), e.g. a whip or a sling circling (calmed with reduced motion). */
+  spin?: { axis: "x" | "y" | "z"; speed: number };
 }
 
 const WOOD = "#7a5233";
@@ -66,8 +77,8 @@ const CLAY = "#b5653b";
 const STRAW = "#c99a55";
 const TINT = "tint";
 
-/** Builds a merged prop geometry from primitives with a colour (or "tint") each. */
-class Kit {
+/** Builds a merged prop geometry from primitives with a colour (or "tint") each. Public for world props. */
+export class PropKit {
   private list: THREE.BufferGeometry[] = [];
   add(
     g: THREE.BufferGeometry,
@@ -129,7 +140,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     pos: at(GRIP, [0, 0, 0]),
     rot: [-1.15, 0, 0],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.028, 0.028, 1.4, 6), WOOD, [0, -0.25, 0])
         .add(cyl(0.026, 0.026, 0.25, 6), WOOD, [0, 0.5, -0.04], [-0.35, 0, 0])
         .add(box(0.16, 0.04, 0.05), WOOD_D, [0.07, -0.71, 0])
@@ -140,7 +151,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     bone: "handR",
     pos: at(GRIP, [0, 0, 0]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.022, 0.026, 1.55, 6), WOOD, [0, 0.12, 0])
         .add(ico(0.04), WOOD_D, [0, 0.9, 0])
         .build(),
@@ -149,7 +160,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     bone: "handR",
     pos: at(GRIP, [0, -0.02, 0]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(new THREE.TorusGeometry(0.13, 0.012, 4, 12, Math.PI), "#b8873f", [0, -0.02, 0], [0, Math.PI / 2, 0])
         .add(cyl(0.17, 0.13, 0.16, 10), STRAW, [0, -0.22, 0])
         .add(cyl(0.165, 0.165, 0.02, 10), TINT, [0, -0.15, 0])
@@ -163,7 +174,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     pos: [0, -0.06, -0.24],
     rot: [0.12, 0, 0],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.19, 0.14, 0.42, 10), STRAW, [0, 0, 0])
         .add(cyl(0.195, 0.195, 0.03, 10), TINT, [0, 0.2, 0])
         .add(cyl(0.18, 0.18, 0.02, 10), "#8a6633", [0, -0.1, 0])
@@ -177,7 +188,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     pos: [0, -0.07, -0.25],
     rot: [0.1, 0, 0],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(box(0.4, 0.32, 0.2), TINT, [0, 0, 0])
         .add(cyl(0.1, 0.1, 0.36, 8), TINT, [0, 0, 0], [0, 0, Math.PI / 2], [1, 1, 1.05])
         .add(box(0.41, 0.03, 0.205), COTTON, [0, -0.08, 0])
@@ -190,13 +201,13 @@ export const PROPS: Record<PropKind, PropDef> = {
   pouch: {
     bone: "hips",
     pos: [0.08, 0.1, 0.16],
-    build: () => new Kit().add(sph(0.11, 8, 6), TINT, [0, 0, 0], [0, 0, 0], [1, 0.8, 0.6]).build(),
+    build: () => new PropKit().add(sph(0.11, 8, 6), TINT, [0, 0, 0], [0, 0, 0], [1, 0.8, 0.6]).build(),
   },
   panuelo: {
     bone: "handR",
     pos: at(GRIP, [0, -0.02, 0.03]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(box(0.2, 0.2, 0.012), COTTON, [0, -0.1, 0], [0, 0, 0.2])
         .add(box(0.2, 0.02, 0.013), TINT, [0.02, -0.2, 0], [0, 0, 0.2])
         .build(),
@@ -205,7 +216,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     bone: "handR",
     pos: at(GRIP, [0, 0.0, 0.03]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.05, 0.04, 0.11, 8), CLAY, [0, 0.03, 0])
         .add(cyl(0.052, 0.052, 0.015, 8), COTTON, [0, 0.07, 0])
         .add(cyl(0.044, 0.044, 0.01, 8), "#5b2a4e", [0, 0.08, 0])
@@ -216,7 +227,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     pos: at(GRIP, [0, 0, 0.02]),
     rot: [0.3, 0, 0],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.016, 0.016, 0.5, 6), WOOD, [0, -0.2, 0])
         .add(sph(0.06, 8, 4), "#6a4329", [0, -0.47, 0], [Math.PI, 0, 0], [1, 0.7, 1])
         .build(),
@@ -224,14 +235,14 @@ export const PROPS: Record<PropKind, PropDef> = {
   stone: {
     bone: "handR",
     pos: at(GRIP, [0, -0.04, 0.03]),
-    build: () => new Kit().add(ico(0.08), "#9a9184", [0, 0, 0], [0.4, 0.7, 0], [1.1, 0.8, 0.95]).build(),
+    build: () => new PropKit().add(ico(0.08), "#9a9184", [0, 0, 0], [0.4, 0.7, 0], [1.1, 0.8, 0.95]).build(),
   },
   spool: {
     bone: "handR",
     pos: at(GRIP, [0, 0, 0.02]),
     rot: [0, 0, Math.PI / 2],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.012, 0.012, 0.22, 6), WOOD, [0, 0, 0])
         .add(cyl(0.035, 0.035, 0.1, 8), COTTON, [0, 0, 0])
         .build(),
@@ -241,7 +252,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     bone: "handR",
     pos: at(GRIP, [0, -0.05, 0.03]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.012, 0.012, 0.36, 6), WOOD, [0, -0.12, 0])
         .add(cyl(0.05, 0.05, 0.02, 8), WOOD, [0, -0.24, 0])
         .add(ico(0.06), TINT, [0, -0.08, 0], [0, 0, 0], [1, 1.3, 1])
@@ -254,7 +265,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     pos: [0, -0.05, 0.24],
     rot: [-0.3, 0, 0],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(new THREE.ConeGeometry(0.09, 0.16, 8), TINT, [0, 0, 0])
         .add(cyl(0.092, 0.092, 0.025, 8), COTTON, [0, -0.07, 0])
         .add(cyl(0.006, 0.006, 0.26, 4), "#d9d3c4", [0.07, 0.04, 0.03], [0, 0, 0.5])
@@ -265,7 +276,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     bone: "handR",
     pos: at(GRIP, [0, 0, 0]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.022, 0.022, 1.1, 6), WOOD, [0, -0.25, 0])
         .add(box(0.15, 0.36, 0.02), WOOD_D, [0, -0.95, 0])
         .add(box(0.08, 0.04, 0.04), WOOD_D, [0, 0.3, 0])
@@ -274,14 +285,14 @@ export const PROPS: Record<PropKind, PropDef> = {
   pole: {
     bone: "handR",
     pos: at(GRIP, [0, 0, 0]),
-    build: () => new Kit().add(cyl(0.025, 0.03, 3.2, 6), WOOD, [0, -0.6, 0]).build(),
+    build: () => new PropKit().add(cyl(0.025, 0.03, 3.2, 6), WOOD, [0, -0.6, 0]).build(),
   },
   net: {
     // A cast net gathered over the arm (a cone of mesh read as a soft bundle).
     bone: "handR",
     pos: at(GRIP, [0, -0.15, 0.05]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(new THREE.ConeGeometry(0.22, 0.45, 10, 1, true), "#cfc6b0", [0, -0.12, 0])
         .add(new THREE.TorusGeometry(0.2, 0.015, 4, 12), "#8f877b", [0, -0.34, 0], [Math.PI / 2, 0, 0])
         .build(),
@@ -292,7 +303,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     pos: [-0.17, 0.2, -0.02],
     rot: [0, 0, -0.4],
     build: () => {
-      const k = new Kit().add(cyl(0.03, 0.03, 0.5, 6), "#6b5a3a", [0, 0, 0], [0, 0, Math.PI / 2]);
+      const k = new PropKit().add(cyl(0.03, 0.03, 0.5, 6), "#6b5a3a", [0, 0, 0], [0, 0, Math.PI / 2]);
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
         k.add(
@@ -310,7 +321,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     pos: at(GRIP, [0.04, 0.05, -0.05]),
     rot: [0, 0, 0],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(box(0.05, 1.7, 0.44), TINT, [0.04, 0.15, 0], [0, 0, 0], [1, 1, 1])
         .add(box(0.052, 1.6, 0.03), COTTON, [0.04, 0.15, 0])
         .build(),
@@ -319,7 +330,7 @@ export const PROPS: Record<PropKind, PropDef> = {
     bone: "hips",
     pos: [0.24, 0.0, 0.0],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(box(0.16, 0.22, 0.3), TINT, [0, 0, 0])
         .add(box(0.17, 0.04, 0.31), COTTON, [0, 0.12, 0])
         .add(box(0.02, 0.5, 0.03), "#2a2420", [-0.09, 0.32, 0], [0, 0, 0.6])
@@ -329,13 +340,13 @@ export const PROPS: Record<PropKind, PropDef> = {
     bone: "handR",
     pos: at(GRIP, [0, 0, 0.02]),
     rot: [-1.1, 0, 0],
-    build: () => new Kit().add(cyl(0.014, 0.018, 0.7, 5), WOOD_D, [0, -0.25, 0]).build(),
+    build: () => new PropKit().add(cyl(0.014, 0.018, 0.7, 5), WOOD_D, [0, -0.25, 0]).build(),
   },
   pot: {
     bone: "handL",
     pos: at(GRIP, [0, 0.02, 0.06]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(sph(0.12, 10, 8), CLAY, [0, 0, 0], [0, 0, 0], [1, 0.9, 1])
         .add(cyl(0.05, 0.06, 0.06, 8), CLAY, [0, 0.12, 0])
         .add(cyl(0.122, 0.122, 0.03, 10), COTTON, [0, 0.0, 0])
@@ -347,16 +358,55 @@ export const PROPS: Record<PropKind, PropDef> = {
     pos: at(GRIP, [0, 0, 0.03]),
     rot: [-0.9, 0, 0],
     build: () =>
-      new Kit()
+      new PropKit()
         .add(cyl(0.007, 0.007, 0.18, 4), WOOD, [0, -0.06, 0])
         .add(cyl(0.012, 0.004, 0.04, 4), "#2a1d17", [0, -0.16, 0])
         .build(),
+  },
+  camera: {
+    // A small camera held up in both hands before the face (the "photo" action).
+    bone: "handR",
+    pos: at(GRIP, [0.05, 0.04, 0.05]),
+    build: () =>
+      new PropKit()
+        .add(box(0.13, 0.08, 0.06), "#24262c", [0, 0, 0])
+        .add(cyl(0.025, 0.028, 0.04, 10), "#3a3d45", [0, 0, 0.045], [Math.PI / 2, 0, 0])
+        .add(cyl(0.016, 0.016, 0.006, 10), "#7fb6d6", [0, 0, 0.066], [Math.PI / 2, 0, 0])
+        .build(),
+  },
+  phone: {
+    bone: "handR",
+    pos: at(GRIP, [0.03, 0.03, 0.04]),
+    build: () =>
+      new PropKit()
+        .add(box(0.07, 0.13, 0.012), "#1f2128", [0, 0, 0])
+        .add(box(0.06, 0.115, 0.002), "#9fd7d0", [0, 0, -0.007])
+        .build(),
+  },
+  whip: {
+    // A braided whip (the ukuku's chicote, a herder's huaraca): a short handle and a thong that circles.
+    bone: "handR",
+    pos: at(GRIP, [0, 0, 0.02]),
+    spin: { axis: "y", speed: 7 },
+    build: () => {
+      const k = new PropKit().add(cyl(0.018, 0.02, 0.22, 6), WOOD_D, [0, 0.06, 0]);
+      for (let i = 0; i < 8; i++) {
+        const t = i / 8;
+        k.add(
+          cyl(0.011 - t * 0.006, 0.011 - t * 0.006, 0.12, 5),
+          i % 2 ? "#3b2a20" : TINT,
+          [Math.sin(t * 1.4) * 0.35 * t + 0.04 * i, 0.17 + 0.02 * i - t * t * 0.3, 0],
+          [0, 0, -1.2 + t * 0.6],
+        );
+      }
+      return k.build();
+    },
   },
   ball: {
     bone: "handR",
     pos: at(GRIP, [0, -0.06, 0.06]),
     build: () =>
-      new Kit()
+      new PropKit()
         .add(sph(0.13, 10, 8), TINT)
         .add(cyl(0.131, 0.131, 0.05, 10), COTTON)
         .build(),
@@ -376,9 +426,30 @@ function propMaterial(): THREE.MeshToonMaterial {
   return paintStrength(m, 0);
 }
 
+/** Every prop kind, built in and world-defined (`HeldProps.define`). */
+const REGISTRY = new Map<string, PropDef>();
+const defOf = (kind: string): PropDef => {
+  const d = REGISTRY.get(kind) ?? (PROPS as Record<string, PropDef>)[kind];
+  if (!d) throw new Error(`characters: no prop kind "${kind}" (HeldProps.define it first)`);
+  return d;
+};
+
+/** A geometry ready for the prop material: vertex colours and the tint mask (defaults when missing). */
+function ready(g: THREE.BufferGeometry, color?: THREE.ColorRepresentation): THREE.BufferGeometry {
+  const n = g.getAttribute("position").count;
+  if (!g.getAttribute("color")) {
+    const c = new THREE.Color(color ?? "#ffffff");
+    const a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute("color", new THREE.BufferAttribute(a, 3));
+  }
+  if (!g.getAttribute("aTint")) g.setAttribute("aTint", new THREE.BufferAttribute(new Float32Array(n), 1));
+  return g;
+}
+
 interface Slot {
   holder: PropHolder;
-  kind: PropKind;
+  kind: string;
   index: number;
   visible: boolean;
 }
@@ -386,6 +457,10 @@ interface Slot {
 const tmp = new THREE.Matrix4();
 const off = new THREE.Matrix4();
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const spinM = new THREE.Matrix4();
+const AX = new THREE.Vector3(1, 0, 0);
+const AY = new THREE.Vector3(0, 1, 0);
+const AZ = new THREE.Vector3(0, 0, 1);
 
 export interface PropHandle {
   /** Show or hide this prop (e.g. the plough over the shoulder only while walking to the terrace). */
@@ -398,7 +473,22 @@ export interface PropHandle {
 /** Instanced held props (one InstancedMesh per kind in use). */
 export class HeldProps {
   readonly group = new THREE.Group();
-  private meshes = new Map<PropKind, { mesh: THREE.InstancedMesh; used: number; offset: THREE.Matrix4 }>();
+  private meshes = new Map<string, { mesh: THREE.InstancedMesh; used: number; offset: THREE.Matrix4; def: PropDef }>();
+  /** Reduced motion: spinning props turn slowly. */
+  rm = false;
+
+  /**
+   * Register a prop kind for every HeldProps on the page (a world's khipu, conch, satchel…). Re-defining a
+   * kind only affects the HeldProps that have not drawn it yet.
+   */
+  static define(kind: string, def: PropDef) {
+    REGISTRY.set(kind, def);
+  }
+
+  /** True when the kind is built in or defined. */
+  static has(kind: string): boolean {
+    return REGISTRY.has(kind) || kind in PROPS;
+  }
   private slots: Slot[] = [];
   private mat = propMaterial();
 
@@ -406,11 +496,11 @@ export class HeldProps {
     this.group.name = "characters:props";
   }
 
-  attach(holder: PropHolder, kind: PropKind, tint?: THREE.ColorRepresentation): PropHandle {
+  attach(holder: PropHolder, kind: PropKind | (string & {}), tint?: THREE.ColorRepresentation): PropHandle {
     let m = this.meshes.get(kind);
     if (!m) {
-      const def = PROPS[kind];
-      const mesh = new THREE.InstancedMesh(def.build(), this.mat, this.capacity);
+      const def = defOf(kind);
+      const mesh = new THREE.InstancedMesh(ready(def.build(), def.color), this.mat, this.capacity);
       mesh.name = `characters:prop:${kind}`;
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.castShadow = true;
@@ -422,7 +512,7 @@ export class HeldProps {
         new THREE.Quaternion().setFromEuler(new THREE.Euler(...(def.rot ?? [0, 0, 0]))),
         new THREE.Vector3(1, 1, 1),
       );
-      m = { mesh, used: 0, offset };
+      m = { mesh, used: 0, offset, def };
       this.meshes.set(kind, m);
       this.group.add(mesh);
     }
@@ -450,16 +540,22 @@ export class HeldProps {
     return handle;
   }
 
-  /** Follow the bones (call after the people are posed). */
-  update() {
+  /** Follow the bones (call after the people are posed). `t` (seconds) drives spinning props. */
+  update(t = performance.now() / 1000) {
     for (const s of this.slots) {
       const m = this.meshes.get(s.kind);
       if (!m) continue;
       if (!s.visible || s.holder.shown === false) m.mesh.setMatrixAt(s.index, ZERO);
       else {
-        const def = PROPS[s.kind];
+        const def = m.def;
         s.holder.boneWorld(def.bone, tmp);
-        m.mesh.setMatrixAt(s.index, off.multiplyMatrices(tmp, m.offset));
+        off.multiplyMatrices(tmp, m.offset);
+        if (def.spin) {
+          const a = t * def.spin.speed * (this.rm ? 0.25 : 1) + s.index;
+          spinM.makeRotationAxis(def.spin.axis === "x" ? AX : def.spin.axis === "y" ? AY : AZ, a);
+          off.multiply(spinM);
+        }
+        m.mesh.setMatrixAt(s.index, off);
       }
     }
     for (const m of this.meshes.values()) m.mesh.instanceMatrix.needsUpdate = true;

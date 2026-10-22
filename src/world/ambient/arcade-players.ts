@@ -19,15 +19,15 @@
  * gestures are written over the animator's pose (gente/overlay.ts) until the catalogue has them.
  */
 import * as THREE from "three";
-import type { Ambient, CreateAmbient } from "../contract";
-import type { WorldEnvExtra } from "../env";
-import { on } from "../events";
-import { cabsFor, LOOK_AHEAD, nextCheer, type Roster, roster, shouldYield } from "./arcade-players/logic";
 import type { HumanSpec } from "../characters/archetype";
 import { HumanCrowd } from "../characters/crowd";
 import { prefetchHumans } from "../characters/pipeline";
 import { PEOPLE, wardrobe } from "../characters/presets";
 import type { Dress } from "../characters/slots";
+import type { Ambient, CreateAmbient } from "../contract";
+import type { WorldEnvExtra } from "../env";
+import { on } from "../events";
+import { cabsFor, LOOK_AHEAD, nextCheer, type Roster, roster, shouldYield } from "./arcade-players/logic";
 import { arcadePlay, cheer, overlay, peek, play } from "./gente/overlay";
 import { jumped } from "./people/logic";
 import { rng } from "./people/models";

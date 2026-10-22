@@ -67,6 +67,8 @@ export class Npc {
   lift = 0;
   /** Look at the traveler within this distance (0 = never). */
   lookRange = 6;
+  /** Look at this world point instead of the traveler (the storyteller, the fire, a kite); null = the traveler. */
+  lookAt: THREE.Vector3 | null = null;
   private props: PropHandle[] = [];
 
   constructor(o: NpcOpts) {
@@ -79,7 +81,7 @@ export class Npc {
   }
 
   /** Give the person a prop to hold or carry (shown while active). */
-  hold(props: HeldProps, kind: PropKind, tint?: THREE.ColorRepresentation): PropHandle {
+  hold(props: HeldProps, kind: PropKind | (string & {}), tint?: THREE.ColorRepresentation): PropHandle {
     const h = props.attach(this.member, kind, tint);
     h.show(this.active);
     this.props.push(h);
@@ -98,10 +100,17 @@ export class Npc {
     for (const p of this.props) p.show(on);
   }
 
-  /** Out of view (site far away): drawn nowhere, still in the world. */
+  /** Out of view (site far away): drawn nowhere, still in the world. `show()` or the next `commit` undo it. */
   hide() {
     this.member.show(false);
     for (const p of this.props) p.show(false);
+  }
+
+  /** Back in view after `hide()` (only while active: an inactive person stays out of the world). */
+  show() {
+    if (!this.active) return;
+    this.member.show(true);
+    for (const p of this.props) p.show(true);
   }
 
   place(x: number, z: number, yaw = this.yaw) {
@@ -152,12 +161,17 @@ export class Npc {
   /** Animate (walk cycle from the speed, the current action, a glance at the traveler) and draw. */
   commit(f: NpcFrame) {
     const m = this.member;
+    // A person hidden while their group was out of view comes back as soon as it is committed again.
+    if (this.active && !m.shown) this.show();
     m.place(this.x, this.y + this.lift, this.z, this.yaw);
     // Far people animate at a lower rate (the bone texture still uploads once per frame for everyone).
     if (m.lod === 2 && m.dist > 40 && Math.floor(f.clock * 20 + this.seed) % 3 !== 0) return;
     const ax = f.avatar.x - this.x;
     const az = f.avatar.z - this.z;
-    if (this.lookRange > 0 && ax * ax + az * az < this.lookRange * this.lookRange) {
+    if (this.lookAt) {
+      local.set(this.lookAt.x - this.x, this.lookAt.y - this.y, this.lookAt.z - this.z).applyAxisAngle(UP, -this.yaw);
+      this.anim.look(local);
+    } else if (this.lookRange > 0 && ax * ax + az * az < this.lookRange * this.lookRange) {
       local.set(ax, f.avatar.y + 1.4 - this.y, az).applyAxisAngle(UP, -this.yaw);
       this.anim.look(local);
     } else this.anim.look(null);

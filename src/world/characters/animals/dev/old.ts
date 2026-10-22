@@ -1,21 +1,15 @@
 /**
- * The animals the worlds draw TODAY, standing still next to the new ones in the harness lineup. Static bind
- * poses only (this is a looks comparison): the legacy fauna parts (./legacy/fauna-models.ts, a snapshot taken
- * before fauna-models.ts moved onto the new builders), the legacy mounts, and the worlds' own vertex-coloured
- * models (read-only imports; nothing in those modules is changed).
+ * The animals the worlds drew BEFORE the new characters, standing still next to the new ones in the harness
+ * lineup. Static bind poses only (a looks comparison), all from dev-only snapshots in ./legacy/ (no world
+ * file is imported, so the worlds can delete their old models): the fauna parts (fauna-models.ts before it
+ * moved onto the new builders), the mounts, and the coast's vertex-coloured models. Species without a
+ * snapshot show only the new model.
  */
 import * as THREE from "three";
-import { colibriModel, condorModel } from "../../../ambient/birds/models";
-import { foxParts, pumaParts } from "../../../ambient/nightfauna/models";
 import type { WorldEnv } from "../../../contract";
-import * as Costa from "../../../costa/ambient/fauna/models";
 import * as NewParts from "../../../fauna-models";
-import * as Birds from "../../../selva/ambient/wild/birds";
-import * as Critters from "../../../selva/ambient/wild/critters";
-import * as Mammals from "../../../selva/ambient/wild/mammals";
-import { hoatzinModel } from "../../../selva/ambient/wild/riverbirds";
-import * as Titi from "../../../titicaca/ambient/fauna/models";
 import { noOutline, type ToonCache } from "../../../toon";
+import * as Costa from "./legacy/costa-models";
 import { ALPACA, camelidParts, condorParts, LLAMA, VICUNA, vizcachaParts } from "./legacy/fauna-models";
 import { buildPasoHorse } from "./legacy/horse";
 import { buildSaddledLlama } from "./legacy/model";
@@ -82,69 +76,12 @@ export const OLD: Record<string, OldBuilder> = {
   "llama-saddled": (toon, scene) => buildSaddledLlama(env(toon, scene)).group,
   vizcacha: (toon) => vizcacha(toon, vizcachaParts),
   condor: (toon) => condor(toon, condorParts),
-  puma: (toon) => quadParts(pumaParts(), toon, "#b4834f"),
-  fox: (toon) => quadParts(foxParts(), toon, "#9a6a44"),
-  capybara: vc(() => Mammals.capybaraModel().geo),
-  jaguar: vc(() => Mammals.jaguarModel().geo),
-  "squirrel-monkey": vc(() => Mammals.squirrelMonkeyModel().geo),
-  sloth: vc(() => Mammals.slothModel().geo),
-  caiman: vc(() => Mammals.caimanModel().geo),
-  bufeo: vc(() => Mammals.dolphinModel().geo),
-  sajino: vc(() => Critters.peccaryModel().geo),
-  agouti: vc(() => Critters.agoutiModel().geo),
-  tapir: vc(() => Critters.tapirModel().geo),
-  taricaya: vc(() => Critters.turtleModel().geo),
-  macaw: vc(() => Birds.macawModel("scarlet").geo),
-  toucan: vc(() => Birds.toucanModel().geo),
-  heron: vc(() => Birds.egretModel().geo),
-  hoatzin: vc(() => hoatzinModel().geo),
-  hummingbird: vc(() => colibriModel().geo),
   "sea-lion": vc(() => Costa.seaLionUp()),
   penguin: vc(() => Costa.penguin()),
   pelican: vc(() => Costa.pelicanStand()),
   gull: vc(() => Costa.gullStand()),
   guanay: vc(() => Costa.cormorantStand()),
-  grebe: vc(() => Titi.grebeGeometry()),
-  frog: vc(() => Titi.frogGeometry()),
-  "condor-old-bird": vc(() => condorModel().geo),
 };
-
-function quadParts(P: ReturnType<typeof pumaParts>, toon: ToonCache, coat: string) {
-  // Bind pose of the night-fauna rig (../../../ambient/nightfauna/rig.ts): body at bodyY, head on the neck,
-  // straight legs (upper then lower) under the shoulders and hips, a straight tail.
-  const r = P.rig;
-  const root = new THREE.Group();
-  const m = toon.vertexToon();
-  const mat = (g: THREE.BufferGeometry) => (g.getAttribute("color") ? m : toon.toon(coat));
-  const body = new THREE.Group();
-  body.position.y = r.bodyY;
-  root.add(body);
-  body.add(mesh(P.body, mat(P.body)));
-  const head = mesh(P.head, mat(P.head));
-  head.position.copy(r.neck);
-  body.add(head);
-  for (const hind of [false, true])
-    for (const sx of [1, -1]) {
-      const j = hind ? r.hip : r.shoulder;
-      const up = mesh(P.upper, mat(P.upper));
-      up.position.set(j.x * sx, j.y, j.z);
-      up.scale.y = (hind ? r.upperH : r.upperF) / r.upperGeo;
-      body.add(up);
-      const lo = mesh(P.lower, mat(P.lower));
-      lo.position.set(j.x * sx, j.y - (hind ? r.upperH : r.upperF), j.z);
-      lo.scale.y = (hind ? r.lowerH : r.lowerF) / r.lowerGeo;
-      body.add(lo);
-    }
-  let z = r.tailBase.z;
-  for (const t of r.tailTaper) {
-    const seg = mesh(P.tail, mat(P.tail));
-    seg.position.set(0, r.tailBase.y, z);
-    seg.scale.set(t, t, 1);
-    body.add(seg);
-    z -= r.tailSeg;
-  }
-  return root;
-}
 
 function vizcacha(toon: ToonCache, parts: typeof vizcachaParts) {
   const P = parts();

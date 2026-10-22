@@ -15,6 +15,10 @@
  * staff a held prop) + hearth/seats (1) + flames (2) + glow (1, night). Low quality: 2 children, 1 reader.
  */
 import * as THREE from "three";
+import { HumanCrowd } from "../characters/crowd";
+import { prefetchHumans } from "../characters/pipeline";
+import { PEOPLE, wardrobe } from "../characters/presets";
+import { HeldProps, type PropHandle } from "../characters/props";
 import type { Ambient, CreateAmbient } from "../contract";
 import { creatures } from "../creatures";
 import { worldData } from "../data";
@@ -23,12 +27,8 @@ import { on } from "../events";
 import { DYE } from "../palette";
 import { glowSprite } from "../props";
 import { lxOf, lzOf, stationFrame, wx, wz } from "./fields/geo";
-import { jumped, within } from "./people/logic";
-import { HumanCrowd } from "../characters/crowd";
-import { prefetchHumans } from "../characters/pipeline";
-import { PEOPLE, wardrobe } from "../characters/presets";
-import { HeldProps, type PropHandle } from "../characters/props";
 import { commitLooking, overlay, play, raiseHand, traceCord } from "./gente/overlay";
+import { jumped, within } from "./people/logic";
 import { rng } from "./people/models";
 import { Npc, type NpcFrame } from "./people/npc";
 import { angleDamp, damp } from "./people/person";
@@ -39,7 +39,6 @@ import {
   cordX,
   FIRE_LIT,
   FZ,
-  headYaw,
   type Mode,
   modeAt,
   type P2,
@@ -150,8 +149,13 @@ export const create: CreateAmbient = (envIn): Ambient => {
     actors.push(a);
     return a;
   };
-  const npc = (kind: string, spec: Npc["member"]["spec"], palette: ReturnType<typeof wardrobe.andeanMan>, scale: number, radius: number) =>
-    new Npc({ kind, crowd, spec, palette, scale, radius, seed: 3 + actors.length * 9.7 });
+  const npc = (
+    kind: string,
+    spec: Npc["member"]["spec"],
+    palette: ReturnType<typeof wardrobe.andeanMan>,
+    scale: number,
+    radius: number,
+  ) => new Npc({ kind, crowd, spec, palette, scale, radius, seed: 3 + actors.length * 9.7 });
 
   const elderPal = wardrobe.andeanMan(R);
   elderPal.hair = "#8a8178";

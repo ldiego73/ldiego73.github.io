@@ -341,7 +341,37 @@ export const PEOPLE = {
     feet: "ojotas",
     layers: [{ kind: "pollera", region: "bordado" }, { kind: "lliclla" }],
   },
+  // A Taquile woman: the dark head cloth (chukoo) over a blouse, pollera and woven belt.
+  taquileWoman: {
+    sex: "f",
+    hair: "braids",
+    hat: "head-shawl",
+    top: "blouse",
+    bottom: "bare",
+    feet: "ojotas",
+    layers: [{ kind: "pollera" }],
+    worn: ["chumpi"],
+  },
+  // A chasqui runner of the royal road: unku tunic, woven belt, a plumed headband.
+  chasqui: {
+    sex: "m",
+    hair: "crop",
+    hat: "headband-plume",
+    top: "unku",
+    bottom: "bare",
+    feet: "ojotas",
+    worn: ["chumpi"],
+  },
   valleyMan: { sex: "m", hair: "crop", hat: "felt", top: "shirt", bottom: "trousers", feet: "shoes" },
+  hikerBeard: {
+    sex: "m",
+    hair: "crop",
+    beard: "short",
+    top: "jacket",
+    bottom: "cargo",
+    feet: "boots",
+    worn: ["daypack", "sunglasses"],
+  },
   hiker: { sex: "m", hair: "crop", hat: "cap", top: "jacket", bottom: "cargo", feet: "boots", worn: ["daypack"] },
   hikerWoman: {
     sex: "f",

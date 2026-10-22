@@ -18,23 +18,23 @@ import {
   saveErrands,
   targetT,
 } from "./ambient/errand/state";
-import type { Ambient, CreateAmbient, WorldEnv } from "./contract";
-import { STATIONS } from "./contract";
-import { type Body, creatures } from "./creatures";
-import { emit } from "./events";
-import { type Convo, DialogMachine, MISSION_DIALOGS, NPC_DIALOGS, type NpcDialog } from "./npc-dialogs";
-import { GearKit, type GearHandle, BoneBatch } from "./ambient/gente/bone-batch";
+import { BoneBatch, type GearHandle, GearKit } from "./ambient/gente/bone-batch";
 import { buildGear, GEAR_BONE, type Gear, type Glow } from "./ambient/gente/chasqui-gear";
 import { holdFront, holdUp, overlay } from "./ambient/gente/overlay";
 import { HumanAnimator } from "./characters/anim-human";
-import type { HumanSpec } from "./characters/archetype";
 import type { Animal } from "./characters/animals/animal";
 import { loadAnimal, prefetchAnimals } from "./characters/animals/assets";
+import type { HumanSpec } from "./characters/archetype";
 import { type CrowdMember, HumanCrowd } from "./characters/crowd";
 import { prefetchHumans } from "./characters/pipeline";
 import type { Action } from "./characters/poses";
 import { HeldProps, type PropHandle } from "./characters/props";
 import type { Dress } from "./characters/slots";
+import type { Ambient, CreateAmbient } from "./contract";
+import { STATIONS } from "./contract";
+import { type Body, creatures } from "./creatures";
+import { emit } from "./events";
+import { type Convo, DialogMachine, MISSION_DIALOGS, NPC_DIALOGS, type NpcDialog } from "./npc-dialogs";
 import { DYE } from "./palette";
 import { paintStrength } from "./style-gl";
 import { liveWind } from "./wind";
@@ -1142,7 +1142,11 @@ export const createNpcs: CreateAmbient = (env, hudRoot) => {
     let want: Action = "none";
     if (n.mode === "talk" && !L.carry.includes("tablet")) want = "talk";
     else if ((resting || winded) && n.gs < 0.3)
-      want = runner ? "hands-hips" : L.carry.includes("staff") || L.carry.some((c) => c.startsWith("tablet")) ? "none" : "hands-back";
+      want = runner
+        ? "hands-hips"
+        : L.carry.includes("staff") || L.carry.some((c) => c.startsWith("tablet"))
+          ? "none"
+          : "hands-back";
     if (want !== n.action) {
       n.action = want;
       n.anim.act(want, { fade: 0.4 });

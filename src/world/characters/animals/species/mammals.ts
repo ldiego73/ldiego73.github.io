@@ -988,6 +988,232 @@ export const SLOTH = spec({
   }),
 });
 
+// ---------------------------------------------------------------- phase B: sheep, dog, howler monkey
+
+const SHEEP_PAL = qpal({
+  coat: "#efe7d6",
+  hair: "#efe6d8",
+  belly: "#e2d8c4",
+  nose: "#6a544a",
+  hoof: "#3a302a",
+  inner: "#d8b0a0",
+});
+
+export const SHEEP = spec({
+  key: "sheep",
+  name: { es: "oveja", en: "sheep" },
+  latin: "Ovis aries",
+  size: 1.2,
+  speeds: { walk: 0.9, run: 2.4, max: 5 },
+  h: 0.022,
+  woolNormal: 0.3,
+  shape: {
+    bodyY: 0.56,
+    bodyR: [0.22, 0.23],
+    half: 0.3,
+    rumpUp: 0.02,
+    neck: { len: 0.17, angle: 0.95, r: [0.13, 0.085], arch: 0.02 },
+    head: { r: [0.065, 0.078, 0.095], muzzle: 0.1, mr: [0.052, 0.04], drop: 0.55 },
+    ears: { len: 0.085, w: 0.045, kind: "flat", tilt: 1.25, back: 0.15 },
+    tail: { len: 0.13, r: [0.045, 0.04], angle: -1.3, segs: 1 },
+    legs: { r: [0.075, 0.028, 0.022, 0.026], knee: 0.45, hock: 0.42, hockBack: 0.06 },
+    foot: "hoof",
+    // Fleece: big soft lumps on the barrel, neck and upper legs; the face and lower legs short-haired.
+    coat: FUR(0.045, 9),
+    short: FUR(0.002, 60),
+    eye: { dir: [0.9, 0.35, 0.25], w: 0.05 },
+    hoofY: 0.03,
+  },
+  tune: (p) => {
+    p.slots = { head: Q.hair, muzzle: Q.hair, ears: Q.hair, legs: Q.hair };
+    p.muzzle.noseAt = (p.muzzle.noseAt ?? 0) + 0.01;
+  },
+  palette: SHEEP_PAL,
+  variants: {
+    white: SHEEP_PAL,
+    "black-face": recolor(SHEEP_PAL, { 1: "#2e2826", 3: "#1e1a18", 9: "#4a3a34" }),
+    brown: qpal({
+      coat: "#7a5a40",
+      hair: "#6a4a34",
+      belly: "#6e5038",
+      nose: "#2e2420",
+      hoof: "#2e2620",
+      inner: "#a07060",
+    }),
+    black: qpal({
+      coat: "#2e2a28",
+      hair: "#262220",
+      belly: "#2a2624",
+      nose: "#1a1614",
+      hoof: "#1e1a18",
+      inner: "#4a3a34",
+    }),
+  },
+  eye: { ...DARK_EYE, iris: "#3a2a18", irisLow: "#a08040", size: 0.42, lashes: 2 },
+  motion: quadMotion({
+    gaits: [
+      { gait: "walk", speed: 0.9, stride: 0.9 },
+      { gait: "trot", speed: 2.2, stride: 1.4 },
+      { gait: "gallop", speed: 4, stride: 2.1 },
+    ],
+    idles: { weights: { graze: 5, chew: 3, look: 2, sleep: 1, shake: 0.4, scratch: 0.3 }, gap: [1, 4] },
+    graze: 0.9,
+    tailRest: -0.2,
+    tailSwish: 0.3,
+    earK: 80,
+    earFlick: 1.2,
+  }),
+});
+
+const DOG_PAL = qpal({
+  coat: "#b8844e",
+  hair: "#b8844e",
+  belly: "#e8d4b4",
+  nose: "#1e1614",
+  points: "#1e1614",
+  spot: "#b8844e",
+  inner: "#d8a898",
+});
+
+export const DOG = spec({
+  key: "dog",
+  name: { es: "perro", en: "dog" },
+  latin: "Canis familiaris",
+  size: 0.95,
+  speeds: { walk: 1.1, run: 4, max: 9 },
+  h: 0.015,
+  shape: {
+    bodyY: 0.4,
+    bodyR: [0.11, 0.13],
+    half: 0.28,
+    neck: { len: 0.16, angle: 0.85, r: [0.08, 0.065], arch: 0.05 },
+    head: { r: [0.07, 0.07, 0.08], muzzle: 0.11, mr: [0.048, 0.034], drop: 0.2 },
+    // Semi-erect ears that fold over at the tips.
+    ears: { len: 0.08, w: 0.05, kind: "pointed", tilt: 0.45, back: 0.55 },
+    tail: { len: 0.3, r: [0.025, 0.018], angle: 0.35, segs: 2, curl: 0.45 },
+    legs: { r: [0.048, 0.03, 0.023, 0.028], knee: 0.48, hock: 0.4, hockBack: 0.07, mass: 1.1 },
+    foot: "paw",
+    coat: FUR(0.004, 48),
+    eye: { dir: [0.75, 0.38, 0.55], w: 0.042 },
+    bellyY: 0.33,
+  },
+  tune: (p) => {
+    p.slots = { muzzle: Q.hair };
+    // Piebald patches (shown by the variants whose spot colour differs from the coat).
+    p.spots = { freq: 5, ring: [0.2, 9], seed: 21, legs: false };
+  },
+  palette: DOG_PAL,
+  variants: {
+    tan: DOG_PAL,
+    piebald: qpal({
+      coat: "#f0e8dc",
+      hair: "#f0e8dc",
+      belly: "#f4ede2",
+      nose: "#1e1614",
+      spot: "#2a2220",
+      inner: "#d8a898",
+    }),
+    brown: qpal({
+      coat: "#6e4630",
+      hair: "#6e4630",
+      belly: "#9a6a48",
+      nose: "#1e1614",
+      spot: "#6e4630",
+      inner: "#b07860",
+    }),
+    black: qpal({
+      coat: "#2a2422",
+      hair: "#2a2422",
+      belly: "#3a3230",
+      nose: "#141010",
+      spot: "#2a2422",
+      inner: "#6a4a44",
+    }),
+  },
+  eye: { ...DARK_EYE, iris: "#2a1a10", irisLow: "#8a5a30", size: 0.48, lashes: 1 },
+  motion: quadMotion({
+    gaits: [
+      { gait: "walk", speed: 1.1, stride: 0.85 },
+      { gait: "trot", speed: 2.6, stride: 1.3 },
+      { gait: "bound", speed: 6, stride: 2.2 },
+    ],
+    idles: {
+      weights: { look: 3, sit: 3, scratch: 1.5, yawn: 1, sleep: 1.5, shake: 0.6, groom: 0.5, stretch: 0.6 },
+      gap: [1, 4],
+    },
+    carry: 0.05,
+    tailRest: 0.4,
+    tailK: 35,
+    tailWag: 0.22,
+    earK: 90,
+    earFlick: 1,
+    swim: "paddle",
+  }),
+});
+
+export const HOWLER = spec({
+  key: "howler-monkey",
+  name: { es: "coto (mono aullador)", en: "red howler monkey" },
+  latin: "Alouatta seniculus",
+  size: 1.1,
+  speeds: { walk: 0.5, run: 1.6, max: 3 },
+  h: 0.012,
+  shape: {
+    bodyY: 0.32,
+    bodyR: [0.085, 0.1],
+    half: 0.17,
+    chestK: 1.1,
+    neck: { len: 0.05, angle: 0.7, r: [0.07, 0.065], arch: 0 },
+    head: { r: [0.068, 0.072, 0.07], muzzle: 0.05, mr: [0.042, 0.038], drop: 0.3, up: 0.1 },
+    ears: { len: 0.02, w: 0.02, kind: "round", tilt: 1.0, back: 0.0 },
+    // The long prehensile tail, its tip curled.
+    tail: { len: 0.62, r: [0.028, 0.016], angle: -0.25, segs: 3, curl: 0.42 },
+    legs: { r: [0.034, 0.025, 0.019, 0.022], hind: [0.04, 0.027, 0.02, 0.024], knee: 0.52, hock: 0.45, hockBack: 0.03 },
+    foot: "hand",
+    coat: FUR(0.012, 32),
+    short: FUR(0.004, 60),
+    eye: { dir: [0.5, 0.25, 0.83], w: 0.05 },
+  },
+  tune: (p) => {
+    p.slots = { muzzle: Q.points, head: Q.coat, ears: Q.points };
+  },
+  extra: (k, p) => {
+    // The bearded throat (the swollen hyoid of the howlers), shaggy, under the jaw.
+    const h = p.head.c;
+    k.add(
+      k.ell(
+        [0, h[1] - p.head.r[1] * 0.75, h[2] + p.head.r[2] * 0.25],
+        [0.05, 0.06, 0.05],
+        "head",
+        0.03,
+        Q.coat,
+        FUR(0.012, 40),
+      ),
+    );
+  },
+  palette: qpal({
+    coat: "#8a3a1e",
+    hair: "#7a3218",
+    belly: "#7a3218",
+    nose: "#1e1410",
+    points: "#2e1c14",
+    hoof: "#2e1c14",
+    inner: "#2e1c14",
+  }),
+  eye: { ...DARK_EYE, size: 0.4, lashes: 0, patch: { color: "#2e1c14", kind: "mask" } },
+  motion: quadMotion({
+    gaits: [
+      { gait: "walk", speed: 0.5, stride: 0.45 },
+      { gait: "bound", speed: 1.6, stride: 0.9 },
+    ],
+    // "yawn" opens the jaw wide: the howl.
+    idles: { weights: { look: 4, sit: 4, yawn: 2, groom: 2, sleep: 2, scratch: 0.5 }, gap: [1.5, 5] },
+    tailRest: -0.4,
+    tailK: 18,
+    climb: true,
+  }),
+});
+
 export const MAMMALS = {
   horse: HORSE,
   mule: MULE,
@@ -1005,6 +1231,9 @@ export const MAMMALS = {
   taruca: DEER,
   "squirrel-monkey": MONKEY,
   sloth: SLOTH,
+  sheep: SHEEP,
+  dog: DOG,
+  "howler-monkey": HOWLER,
 };
 
 export { recolor };

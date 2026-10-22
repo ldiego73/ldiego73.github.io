@@ -17,7 +17,7 @@
  */
 import * as THREE from "three";
 import { prefetchAnimals } from "./characters/animals/assets";
-import { createHerd, type Herd as AnimalHerd } from "./characters/animals/crowd";
+import { type Herd as AnimalHerd, createHerd } from "./characters/animals/crowd";
 import type { Ambient, CreateAmbient, WorldEnv } from "./contract";
 import { type Body, creatures } from "./creatures";
 import {

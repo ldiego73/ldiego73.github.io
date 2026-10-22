@@ -351,6 +351,8 @@ export const ALPACA: AnimalSpec = {
   family: "quad",
   size: 1.4,
   speeds: { walk: 0.9, run: 2.1, max: 4.5 },
+  // Dyed ear tassels on some alpacas: off unless a member asks for them (features: { tika: true }).
+  features: { tika: false },
   plan: () => ({
     kit: quadKit(
       camelidPlan({
@@ -361,6 +363,7 @@ export const ALPACA: AnimalSpec = {
         banana: false,
         legWool: true,
         girth: 1.08,
+        tikas: true,
         topknot: 2.1,
       }),
     ),

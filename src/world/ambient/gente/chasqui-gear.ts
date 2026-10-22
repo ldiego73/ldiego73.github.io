@@ -9,16 +9,7 @@ import type * as THREE from "three";
 import { DYE } from "../../palette";
 import type { GearKit } from "./bone-batch";
 
-export type Gear =
-  | "plume"
-  | "khipuHand"
-  | "khipuHip"
-  | "pututo"
-  | "rack"
-  | "satchel"
-  | "strap"
-  | "tablet"
-  | "tabletL";
+export type Gear = "plume" | "khipuHand" | "khipuHip" | "pututo" | "rack" | "satchel" | "strap" | "tablet" | "tabletL";
 /** Lit pieces drawn by the unlit batch. */
 export type Glow = "leds" | "screen" | "screenL";
 
@@ -91,7 +82,19 @@ export function buildGear(k: GearKit, g: Gear | Glow): THREE.BufferGeometry {
     case "leds":
       for (let i = 0; i < 4; i++)
         for (let j = 0; j < 3; j++)
-          k.add("box", j === 1 && i % 2 ? "#ffd36b" : "#5cf0bd", -0.12 + j * 0.045, -0.17 + i * 0.12, -0.39, 0, 0, 0, 0.022, 0.022, 0.01);
+          k.add(
+            "box",
+            j === 1 && i % 2 ? "#ffd36b" : "#5cf0bd",
+            -0.12 + j * 0.045,
+            -0.17 + i * 0.12,
+            -0.39,
+            0,
+            0,
+            0,
+            0.022,
+            0.022,
+            0.01,
+          );
       break;
     case "satchel":
       // Laptop satchel at the right hip; the lid peeks out.

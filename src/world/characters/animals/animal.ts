@@ -22,6 +22,7 @@ import type { IdleAction } from "./behaviour";
 import { buildAnimal } from "./build";
 import { eyeAtlas } from "./eyes";
 import { type Lod, lodFor } from "./lod";
+import { withNightRim } from "./night";
 import type { AnimalSpec } from "./spec";
 import { type SpeciesKey, speciesOf } from "./species";
 
@@ -88,9 +89,11 @@ export function createAnimal(key: SpeciesKey | string, o: AnimalOptions = {}): A
   const asset = animalAsset(spec, lod);
   const inst = createCharacter(asset, { palette: paletteOf(spec, o.variant), face: eyeAtlas(spec.eye) });
   inst.group.name = `animal:${spec.key}`;
+  // The moonlit night rim (./night.ts), driven by setAnimalNight from the world's sky.
+  withNightRim(inst.body.material as THREE.Material, "ch-night");
   if (o.shadows === false) inst.body.castShadow = false;
   const anim = animatorFor(spec, inst, o.seed ?? 1);
-  anim.features = { tika: true, pack: false, ...o.features };
+  anim.features = { tika: true, pack: false, ...spec.features, ...o.features };
   const tmp = { x: 0, y: 0, z: 0 };
   const a: Animal = {
     spec,

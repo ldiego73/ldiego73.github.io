@@ -10,11 +10,11 @@
  */
 import "./eggs/eggs.css";
 import * as THREE from "three";
+import { createHerd } from "../characters/animals/crowd";
 import type { Ambient, CreateAmbient, L } from "../contract";
 import { type Body, creatures } from "../creatures";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
-import { createHerd } from "../characters/animals/crowd";
 import { noPaint } from "../style-gl";
 import { createEggKit } from "./eggs/models";
 import { khipuNiche, type Nook, type PlaceEnv, vizcachaNooks } from "./eggs/placement";

@@ -7,12 +7,12 @@
  * state machine reads its soaring from the motion. Registered in `creatures` (kind "condor", not solid).
  */
 import * as THREE from "three";
-import type { Ambient, CreateAmbient, L } from "../contract";
-import { creatures } from "../creatures";
-import { emit } from "../events";
 import type { Animal } from "../characters/animals/animal";
 import { loadAnimal } from "../characters/animals/assets";
 import { bpal } from "../characters/animals/species/birds";
+import type { Ambient, CreateAmbient, L } from "../contract";
+import { creatures } from "../creatures";
+import { emit } from "../events";
 import { noPaint } from "../style-gl";
 
 const DAWN0 = 0.2;

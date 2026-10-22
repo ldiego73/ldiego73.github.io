@@ -22,11 +22,11 @@ import { type BoneDef, boneIndex, type GridPiece, type Piece, skeleton } from ".
 import { makeField } from "./drape";
 import { type BandSpec, type BodyPaint, type HumanOpts, humanBody, humanSkeletonRows } from "./human";
 import type { RegionName } from "./regions";
-import { type Prim, prepare, type Vec3 } from "./sdf";
+import { type Prim, prepare, type Shape, type Vec3 } from "./sdf";
 import { CLOTH_GROUPS, type ClothGroup, HS } from "./slots";
 import { apron, clothBones, lliclla, poncho, skirt, vest } from "./wear/cloth";
 import { LOD_H, LOD_Q, type Lod, type WearCtx } from "./wear/ctx";
-import { type HairStyle, hair, hairBones } from "./wear/hair";
+import { beard, type HairStyle, hair, hairBones } from "./wear/hair";
 import { type HatKind, hat, hatBones } from "./wear/hats";
 import { sandals, type WornKind, worn, wornBones } from "./wear/worn";
 
@@ -56,6 +56,8 @@ export type TopKind =
   | "windbreaker"
   /** The Amazonian cushma's upper half: vertical warp stripes (pair it with the "cushma" layer). */
   | "cushma"
+  /** The unku: a sleeveless tunic to the knee (its skirt is added for you, with a woven band at the waist). */
+  | "unku"
   /** Bare torso (children swimming). */
   | "bare";
 export type Sleeves = "long" | "short" | "none";
@@ -108,6 +110,28 @@ export interface HumanSpec {
   worn?: WornKind[];
   /** Face atlas row (./faces.ts); default from sex and age. */
   face?: number;
+  /** Facial hair (in the `hair` slot: grey for elders through the palette). */
+  beard?: "short" | "full";
+  /** No painted face (a knitted mask, a costume head built with `extra`). */
+  hideFace?: boolean;
+  /**
+   * World-specific extra shapes (a costume, a mask, a fleece): signed-distance primitives in traveler units
+   * (scaled with the body), each on a named bone of the skeleton and painted with a palette slot. Grouped by
+   * bone into rigid pieces of the body draw; `wool` gives a lumpy fleece. Plain data, so it travels to the
+   * worker and keys the cache like the rest of the spec.
+   */
+  extra?: ExtraPrim[];
+}
+
+export interface ExtraPrim {
+  bone: string;
+  shape: Shape;
+  slot: number;
+  /** Smooth-union radius with the shapes before it on the same bone (default 0.02). */
+  blend?: number;
+  carve?: boolean;
+  wool?: number;
+  woolFreq?: number;
 }
 
 /** Face atlas rows (./faces.ts draws them in this order). */
@@ -196,7 +220,7 @@ export function bodyPaint(spec: HumanSpec): BodyPaint {
   const top = topOf(spec);
   const tucked = top.kind === "shirt" || top.kind === "polo" || top.kind === "sweater";
   const waistY = top.hem ?? (tucked ? 0.845 : top.kind === "jobona" ? 0.86 : 0.8);
-  const topSlot = top.kind === "cushma" ? HS.wrap : top.kind === "bare" ? HS.skin : HS.top;
+  const topSlot = top.kind === "cushma" || top.kind === "unku" ? HS.wrap : top.kind === "bare" ? HS.skin : HS.top;
   const bareLegs = spec.bottom === "bare";
   const legSlot = bareLegs ? HS.skin : HS.legs;
   // ---- waist: legs | (belt) | top
@@ -327,6 +351,7 @@ function wornOf(spec: HumanSpec): Set<WornKind> {
 
 function clothOf(spec: HumanSpec): Set<string> {
   const c = new Set<string>();
+  if (topOf(spec).kind === "unku") c.add("skirt");
   for (const l of spec.layers ?? []) {
     if (l.kind === "poncho") c.add("poncho");
     if (l.kind === "pollera" || l.kind === "skirt" || l.kind === "cushma") c.add("skirt");
@@ -455,6 +480,7 @@ export function composeHuman(spec: HumanSpec, lod: Lod = 0): Composed {
   const hk = o.head ?? 1;
   const bones = rig.bones;
   const layers = spec.layers ?? [];
+  const top = topOf(spec);
   const wornKinds = wornOf(spec);
   const body = humanBody(o, bones, bodyPaint(spec));
   const prims = prepare(body.prims);
@@ -481,7 +507,7 @@ export function composeHuman(spec: HumanSpec, lod: Lod = 0): Composed {
       prims: body.prims,
       h: 0.02 * (LOD_H[lod] as number) * Math.min(1, Math.max(0.75, k)),
       bands: body.bands,
-      faces: [body.face],
+      faces: spec.hideFace ? [] : [body.face],
       relax: 2,
     },
   ];
@@ -495,6 +521,23 @@ export function composeHuman(spec: HumanSpec, lod: Lod = 0): Composed {
       : 0.012;
   const brim = spec.hat !== undefined && !NO_BRIM.has(spec.hat);
   take(hair(ctx, spec.hair, { over: overBack, underBrim: brim }));
+  if (spec.beard) pieces.push(beard(ctx, spec.beard));
+  if (spec.extra?.length) pieces.push(...extraPieces(ctx, spec.extra));
+  if (top.kind === "unku" && !layers.some((l) => l.kind === "cushma"))
+    pieces.push(
+      skirt(ctx, {
+        name: "unku",
+        top: 0.98,
+        hem: 0.44,
+        off: 0.03,
+        flare: 0.2,
+        pleats: 4,
+        pleatK: 0.25,
+        group: "wrap",
+        region: "pollera",
+        flex: 0.5,
+      }),
+    );
   if (spec.hat) take(hat(ctx, spec.hat));
   for (const w of wornKinds) take(worn(ctx, w));
   if (spec.feet === "ojotas" || spec.feet === "sandals") pieces.push(...sandals(ctx, spec.feet));
@@ -583,8 +626,44 @@ function foldCloth(p: Piece): Piece {
   return out;
 }
 
+/** World extra shapes: one rigid field piece per bone (scaled with the body). */
+function extraPieces(ctx: WearCtx, list: readonly ExtraPrim[]): Piece[] {
+  const k = ctx.k;
+  const byBone = new Map<string, Prim[]>();
+  const S = (v: Vec3): Vec3 => [v[0] * k, v[1] * k, v[2] * k];
+  for (const e of list) {
+    const bone = ctx.b(e.bone);
+    const sh = e.shape;
+    const shape: Prim["shape"] =
+      sh.kind === "cone"
+        ? { kind: "cone", a: S(sh.a), b: S(sh.b), ra: sh.ra * k, rb: sh.rb * k }
+        : sh.kind === "ellipsoid"
+          ? { kind: "ellipsoid", c: S(sh.c), r: S(sh.r), ...(sh.rot ? { rot: sh.rot } : {}) }
+          : { kind: "box", c: S(sh.c), h: S(sh.h), round: sh.round * k, ...(sh.rot ? { rot: sh.rot } : {}) };
+    const prim: Prim = {
+      shape,
+      bone,
+      blend: (e.blend ?? 0.02) * k,
+      slot: e.slot,
+      ...(e.carve ? { carve: true } : {}),
+      ...(e.wool && ctx.lod < 2 ? { wool: e.wool * k, woolFreq: (e.woolFreq ?? 30) / k } : {}),
+    };
+    const arr = byBone.get(e.bone) ?? [];
+    arr.push(prim);
+    byBone.set(e.bone, arr);
+  }
+  return [...byBone.entries()].map(([name, prims]) => ({
+    kind: "field" as const,
+    name: `extra-${name}`,
+    prims,
+    h: 0.02 * (LOD_H[ctx.lod] as number) * Math.min(1, Math.max(0.75, k)),
+    rigid: ctx.b(name),
+    woolNormal: 0.4,
+  }));
+}
+
 /** Hats without a brim over the forehead (bangs still show under them). */
-const NO_BRIM = new Set<HatKind>(["chullo", "headband", "feather-crown"]);
+const NO_BRIM = new Set<HatKind>(["chullo", "headband", "headband-plume", "feather-crown"]);
 
 /** Every slot a cloth group uses (for palette checks). */
 export const clothSlots = (g: ClothGroup) => CLOTH_GROUPS[g];

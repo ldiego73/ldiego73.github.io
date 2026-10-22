@@ -45,6 +45,8 @@ export interface AnimalState {
   quiet?: boolean;
   /** Turn rate (radians/s, + left): the body leans into turns. */
   turn?: number;
+  /** Swimmers: false = the world drives surfacing (no own porpoising arcs). */
+  porpoise?: boolean;
 }
 
 const damp = (cur: number, target: number, rate: number, dt: number) =>
@@ -202,13 +204,15 @@ export class QuadAnimator {
     const swimSink = 0;
     const lungeK = this.lungeT >= 0 ? Math.sin(Math.min(1, this.lungeT / 0.45) * Math.PI) : 0;
     const shake = act("shake");
+    // Stretch: a play bow (chest down, forelegs reaching forward, rump up).
+    const bow = act("stretch") * (1 - walkW);
     body.position.set(
       0,
       restBody.y + bob - crouch - lie - sit * L * 0.32 + breath * 0.004 * L * (1 - walkW) - swimSink,
       restBody.z + lungeK * L * 0.35 - sit * L * 0.12,
     );
     body.rotation.set(
-      flex * 0.35 - sit * 0.5 + Math.sin(a * 2 + 0.6) * 0.012 * walkW * amp,
+      flex * 0.35 - sit * 0.5 + bow * 0.22 + Math.sin(a * 2 + 0.6) * 0.012 * walkW * amp,
       m.sprawl ? Math.sin(a) * g.wave * 0.5 * walkW : 0,
       roll + (rm ? 0 : Math.sin(t * 38) * 0.1 * shake) + (s.turn ?? 0) * 0.04 * walkW,
     );
@@ -251,6 +255,7 @@ export class QuadAnimator {
         az = mix(az, restFt.z + (l.front ? -0.1 : 0.32) * info.len, k);
         ax = mix(ax, restFt.x * 1.25, k);
       }
+      if (bow > 0 && l.front) az += info.len * 0.4 * bow;
       if (sit > 0 && !l.front) {
         ay = mix(ay, restFt.y + 0.02, sit);
         az = mix(az, restFt.z + info.len * 0.55, sit);

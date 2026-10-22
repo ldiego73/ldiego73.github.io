@@ -124,3 +124,48 @@ describe("face decal projection", () => {
     expect(out[2]).toBeCloseTo(1);
   });
 });
+
+describe("phase B wardrobe", () => {
+  const extra: HumanSpec = {
+    sex: "m",
+    hair: "crop",
+    top: "sweater",
+    bottom: "trousers",
+    feet: "boots",
+    hideFace: true,
+    extra: [
+      { bone: "chest", shape: { kind: "ellipsoid", c: [0, 1.05, 0], r: [0.2, 0.2, 0.17] }, slot: HS.wrap, wool: 0.01 },
+      { bone: "head", shape: { kind: "ellipsoid", c: [0, 1.5, 0], r: [0.13, 0.14, 0.13] }, slot: HS.dark },
+    ],
+  };
+  const specs: Array<[string, HumanSpec]> = [
+    ["beard", { sex: "m", age: "elder", hair: "crop", beard: "full", top: "tee", bottom: "trousers", feet: "ojotas" }],
+    [
+      "unku + chumpi + plume",
+      { sex: "m", hair: "crop", hat: "headband-plume", top: "unku", bottom: "bare", feet: "ojotas", worn: ["chumpi"] },
+    ],
+    ["head-shawl", { sex: "f", hair: "braids", hat: "head-shawl", top: "jobona", bottom: "bare", feet: "ojotas" }],
+    ["extra + hideFace", extra],
+  ];
+  for (const [name, spec] of specs)
+    for (const lod of [0, 2] as const)
+      test(`${name} builds (LOD ${lod})`, () => {
+        const c = composeHuman(spec, lod);
+        const built = buildArchetype(c.bones, c.pieces);
+        sound(built.body, c.bones.length);
+        if (built.cloth) sound(built.cloth, c.bones.length);
+      });
+  test("named pieces appear", () => {
+    const names = (s: HumanSpec) => composeHuman(s, 1).pieces.map((p) => p.name);
+    expect(names(specs[0]![1])).toContain("beard");
+    expect(names(specs[1]![1])).toEqual(expect.arrayContaining(["chumpi", "plume", "unku"]));
+    expect(names(specs[2]![1])).toContain("head-shawl");
+  });
+  test("hideFace drops the face decal; extra adds pieces on named bones only", () => {
+    const c = composeHuman(extra, 1);
+    expect(c.pieces.every((p) => !("faces" in p) || !p.faces?.length)).toBe(true);
+    const base = composeHuman({ ...extra, extra: undefined, hideFace: undefined }, 1);
+    expect(c.pieces.length).toBe(base.pieces.length + 2);
+    expect(base.pieces.some((p) => "faces" in p && (p.faces?.length ?? 0) > 0)).toBe(true);
+  });
+});

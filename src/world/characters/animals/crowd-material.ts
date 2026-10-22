@@ -15,6 +15,7 @@
 import * as THREE from "three";
 import { inkAwareMaterial, paintStrength } from "../../style-gl";
 import { gradientMap } from "../../toon";
+import { injectNightRim } from "./night";
 
 export interface CrowdUniforms {
   chBones: { value: THREE.DataTexture };
@@ -99,6 +100,7 @@ export function crowdMaterial(u: CrowdUniforms): THREE.MeshToonMaterial {
     sh.fragmentShader = sh.fragmentShader
       .replace("#include <common>", `#include <common>\n${FRAG_PARS}`)
       .replace("#include <color_fragment>", `#include <color_fragment>\n${FRAG_COLOR}`);
+    injectNightRim(sh);
   };
   m.customProgramCacheKey = () => "ch-crowd";
   paintStrength(m, 0);

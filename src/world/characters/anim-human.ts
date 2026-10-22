@@ -90,6 +90,9 @@ const ss = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
+/** Bones the arms layer may drive. */
+const ARM_BONES = new Set(["clavL", "armL", "foreL", "handL", "clavR", "armR", "foreR", "handR"]);
+
 const qA = new THREE.Quaternion();
 const qB = new THREE.Quaternion();
 const eA = new THREE.Euler(0, 0, 0, "ZXY");
@@ -105,6 +108,12 @@ export class HumanAnimator {
   /** Freeze the cycle at a phase (screenshots of a walk strip); null = run freely. */
   hold: number | null = null;
   readonly mixer = new ActionMixer();
+  /**
+   * The arms layer: an upper-body action composed OVER the main action, so a seated, kneeling or crouching
+   * person can wave, paint, point, knit or raise a hand (`actArms("wave")` while `act("sit-stool")`). It only
+   * drives the arms, hands and clavicles (and the neck and head when the action owns the head).
+   */
+  readonly arms = new ActionMixer();
   /** Per-person time offset so a group's idle and actions do not move in lockstep. */
   seed: number;
   /** Body scale (rest hips height over the traveler's 0.8). */
@@ -155,6 +164,15 @@ export class HumanAnimator {
     this.mixer.play(a, o);
   }
 
+  /** Play an upper-body action over the main one (arms layer); "none" clears it. */
+  actArms(a: Action, o?: PlayOpts) {
+    this.arms.play(a, o);
+  }
+
+  get armsAction(): Action {
+    return this.arms.action;
+  }
+
   get action(): Action {
     return this.mixer.action;
   }
@@ -174,6 +192,7 @@ export class HumanAnimator {
     const rm = s.rm;
     const k = this.k;
     this.mixer.step(dt);
+    this.arms.step(dt);
     // ---------------------------------------------------------------- locomotion weights and cadence
     const virtual = s.speed === undefined;
     const target = virtual ? (s.mode === "run" ? st.runSpeed : s.mode === "walk" ? st.walkSpeed : 0) : s.speed;
@@ -378,6 +397,27 @@ export class HumanAnimator {
         hips.quaternion.slerp(qHips, w);
       }
       if (p.legs) legsW += l.weight;
+      if (p.head && l.weight > 0.5) headOwned = true;
+      if (p.face && l.weight > 0.5) face = p.face;
+    }
+
+    // ---------------------------------------------------------------- arms layer (over the main action)
+    for (const l of this.arms.layers()) {
+      if (l.action === "none" || l.weight <= 0.001) continue;
+      pc.t = l.t;
+      pc.side = l.side;
+      pc.seat = l.seat;
+      const p = actionPose(l.action, pc, this.pose);
+      for (const name of Object.keys(p.rot)) {
+        const upper = ARM_BONES.has(name) || (p.head && (name === "head" || name === "neck"));
+        if (!upper) continue;
+        const r = p.rot[name] as NonNullable<Pose["rot"][string]>;
+        const bone = this.b[name];
+        if (!bone) continue;
+        eA.set(r.x, r.y, r.z, r.o ?? bone.rotation.order);
+        qA.setFromEuler(eA);
+        bone.quaternion.slerp(qA, l.weight);
+      }
       if (p.head && l.weight > 0.5) headOwned = true;
       if (p.face && l.weight > 0.5) face = p.face;
     }

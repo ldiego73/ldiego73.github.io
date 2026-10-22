@@ -86,4 +86,32 @@ describe("poses", () => {
     };
     expect(swing(true)).toBeLessThan(swing(false) * 0.6);
   });
+  test("phase B poses: kneeling ones own the legs, hand gestures leave them to the walk or a seat", () => {
+    const added = [
+      "photo",
+      "cheer",
+      "balance",
+      "play-arcade",
+      "raise-hand",
+      "read-cord",
+      "hold-front",
+      "hold-up",
+      "stretch",
+      "place",
+      "tug",
+      "point-up",
+      "bind",
+      "kneel-offer",
+      "pray",
+      "whip-circle",
+    ] as const;
+    for (const a of added) expect(ACTIONS).toContain(a);
+    for (const a of ["bind", "kneel-offer", "place"] as const) expect(ownsLegs(a)).toBe(true);
+    // These compose over a seated pose through the arms layer (HumanAnimator.actArms).
+    for (const a of ["photo", "raise-hand", "read-cord", "hold-front", "point-up", "pray", "whip-circle"] as const) {
+      expect(ownsLegs(a)).toBe(false);
+      const p = actionPose(a, ctx(0.5), emptyPose());
+      expect(Object.keys(p.rot).some((b) => b.startsWith("arm") || b.startsWith("fore"))).toBe(true);
+    }
+  });
 });

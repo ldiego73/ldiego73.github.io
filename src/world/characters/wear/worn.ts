@@ -10,12 +10,13 @@
  *   tupu        the silver pin of the lliclla;
  *   zip, placket, buckle, pockets: the details of a jacket, polo, belt and cargo trousers;
  *   sunglasses  two dark lenses and their temples;
+ *   chumpi      the woven belt wound round the waist over the skirt or unku, a two-row checker of dyes;
  *   ojotas, sandals: soles with straps over bare feet.
  *
  * Pure (no DOM, no Three).
  */
 import type { Piece } from "../build";
-import { hugPath } from "../drape";
+import { hugPath, toOffset } from "../drape";
 import { bezier, type Grid, joinGrids, lathe, profile, tube } from "../loft";
 import { mirrorX, type Prim, rotX, rotZ, type Vec3 } from "../sdf";
 import { HS } from "../slots";
@@ -34,7 +35,8 @@ export type WornKind =
   | "placket"
   | "buckle"
   | "pockets"
-  | "sunglasses";
+  | "sunglasses"
+  | "chumpi";
 
 export function wornBones(kinds: ReadonlySet<WornKind>, k: number): BoneRows {
   const rows: BoneRows = [];
@@ -72,6 +74,8 @@ export function worn(ctx: WearCtx, kind: WornKind): Worn {
       return { pieces: ctx.lod < 2 ? [pockets(ctx)] : [] };
     case "sunglasses":
       return { pieces: sunglasses(ctx) };
+    case "chumpi":
+      return { pieces: [chumpi(ctx)] };
   }
 }
 
@@ -531,3 +535,29 @@ export function sandals(ctx: WearCtx, kind: "ojotas" | "sandals"): Piece[] {
 }
 
 export { profile };
+
+/**
+ * The chumpi: a woven belt wound twice round the waist (two stacked cords at 0.893 and 0.857 traveler units,
+ * hugged onto whatever the waist wears), its dyes in a checker of `accent`, `accent2` and `white` that shifts
+ * between the two turns like a warp pattern.
+ */
+function chumpi(ctx: WearCtx): Piece {
+  const k = ctx.k;
+  const n = res(ctx, 32, 12);
+  const segs = n;
+  const turns: Grid[] = [];
+  for (const y of [0.893, 0.857]) {
+    const pts: Vec3[] = [];
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      pts.push(toOffset(ctx.field, [Math.sin(a) * 0.12 * k * ctx.hw, y * k, Math.cos(a) * 0.1 * k], 0.034 * k));
+    }
+    turns.push(tube(pts, () => 0.017 * k, 6));
+  }
+  const SLOTS = [HS.accent, HS.white, HS.accent2, HS.white];
+  const seg = (p: Vec3) => Math.floor(((Math.atan2(p[0], p[2]) + Math.PI) / (Math.PI * 2)) * segs);
+  return rigidGrid("chumpi", joinGrids(turns), ctx.b("hips"), (p) => {
+    const row = p[1] > 0.875 * k ? 0 : 2;
+    return SLOTS[(seg(p) + row) % 4] as number;
+  });
+}

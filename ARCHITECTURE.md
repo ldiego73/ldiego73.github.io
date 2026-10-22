@@ -314,12 +314,12 @@ Colours never live in a spec: every piece paints slots of the shared table `HS` 
 
 #### Animals (`src/world/characters/animals/`)
 
-Every animal is built like the people: one continuous surface per body (a smooth union of primitives polygonised by surface nets, `../sdf.ts`, `../surface-nets.ts`), skinned to a small skeleton (≤ 26 bones), coloured from palette slots with crisp cuts (`../paint.ts`), with a painted eye decal and procedural motion. A species is data (`spec.ts`): a body plan that fills a `Kit` (`kit.ts`), a palette with coat variants, an eye style and a motion profile. Forty-four species are registered in `species/index.ts` (`SPECIES`, keys below).
+Every animal is built like the people: one continuous surface per body (a smooth union of primitives polygonised by surface nets, `../sdf.ts`, `../surface-nets.ts`), skinned to a small skeleton (≤ 26 bones), coloured from palette slots with crisp cuts (`../paint.ts`), with a painted eye decal and procedural motion. A species is data (`spec.ts`): a body plan that fills a `Kit` (`kit.ts`), a palette with coat variants, an eye style and a motion profile. Fifty species are registered in `species/index.ts` (`SPECIES`, keys below).
 
 | Family | Plan | Animator | Species keys |
 | --- | --- | --- | --- |
-| Quadrupeds | `plan-quad.ts` (`QuadPlan`), most presets through `species/shape.ts` proportions | `anim-quad.ts` | `llama`, `alpaca`, `vicuna`, `guanaco`, `horse`, `mule`, `donkey`, `puma`, `jaguar`, `fox`, `bear`, `vizcacha`, `capybara`, `agouti`, `cuy`, `sajino`, `tapir`, `taruca`, `squirrel-monkey`, `sloth`, `caiman`, `taricaya`, `iguana`, `lizard`, `frog` |
-| Birds | `plan-bird.ts` (field body, lofted airfoil wings with scalloped feathers and fingered primaries, a folded-wing piece, fine legs) | `anim-bird.ts` | `condor`, `macaw`, `toucan`, `hummingbird`, `hoatzin`, `pelican`, `guanay`, `gull`, `penguin`, `heron`, `flamingo`, `grebe`, `duck`, `dove`, `sparrow`, `tinamou` |
+| Quadrupeds | `plan-quad.ts` (`QuadPlan`), most presets through `species/shape.ts` proportions | `anim-quad.ts` | `llama`, `alpaca`, `vicuna`, `guanaco`, `horse`, `mule`, `donkey`, `puma`, `jaguar`, `fox`, `bear`, `vizcacha`, `capybara`, `agouti`, `cuy`, `sajino`, `tapir`, `taruca`, `squirrel-monkey`, `sloth`, `sheep`, `dog`, `howler-monkey`, `caiman`, `taricaya`, `iguana`, `lizard`, `frog` |
+| Birds | `plan-bird.ts` (field body, lofted airfoil wings with scalloped feathers and fingered primaries, a folded-wing piece, fine legs) | `anim-bird.ts` | `condor`, `macaw`, `toucan`, `hummingbird`, `hoatzin`, `pelican`, `guanay`, `gull`, `penguin`, `heron`, `flamingo`, `grebe`, `duck`, `dove`, `sparrow`, `tinamou`, `ibis`, `goose`, `parrot` |
 | Swimmers | `plan-swim.ts` (spine sections, fins, fluke, countershading) | `anim-swim.ts` | `sea-lion`, `bufeo`, `trout` |
 
 **Using them.**
@@ -338,13 +338,15 @@ fox.autoLod(camera);                                             // a few times 
 const herd = createHerd("vicuna", { max: 30, variants: ["default"] });
 scene.add(herd.group);
 const id = herd.add({ seed: 7, variant: 0 });
-herd.set(id, x, y, z, yaw, { speed, rm });                       // from the world's own sim, every frame
+herd.set(id, x, y, z, yaw, { speed, rm }, { scale, pitch, roll }); // every frame; the pose is optional
 herd.update(dt, t, camera);                                      // poses, LOD, uploads the bone texture
 ```
 
-- **State.** `AnimalState`: `speed` (units/s; the gait follows it, the stride matches it so feet do not slide), `mode` (`"auto"`, `"sit"`, `"sleep"`, `"swim"`, `"climb"`, `"hang"`), `look` (head turn, radians; undefined lets the idles look around), `rm`, `windX`, `quiet`, `turn`. Birds add `BirdState`: `grounded`, `vy`, `height`, `water`, `under`; the flight state machine (`flight.ts`) reads perch, walk/hop, takeoff, flap, glide, soar, hover, land, swim and dive from them. One-shots: `anim.play("graze" | "yawn" | …)`, `anim.lunge()` (caiman snap, cat pounce).
+- **State.** `AnimalState`: `speed` (units/s; the gait follows it, the stride matches it so feet do not slide), `mode` (`"auto"`, `"sit"`, `"sleep"`, `"swim"`, `"climb"`, `"hang"`), `look` (head turn, radians; undefined lets the idles look around), `rm`, `windX`, `quiet`, `turn`, `porpoise` (false: the world drives a dolphin's surfacing). Birds add `BirdState`: `grounded`, `vy`, `height`, `water`, `under`, `spread` (0..1, wings held open to the sun while perched); the flight state machine (`flight.ts`) reads perch, walk/hop, takeoff, flap, glide, soar, hover, land, swim and dive from them. One-shots: `anim.play("graze" | "yawn" | "stretch" | …)` (stretch: birds raise their wings, quadrupeds bow), `anim.lunge()` (caiman snap, cat pounce).
 - **Speeds.** `spec.speeds` gives the walk, run and top speed the gaits were tuned for; feed the world's sim with them.
-- **Optional parts.** Bones scaled to zero hide parts: the llama's `tika` (shown by default) and `pack` (hidden). Pass `features: { pack: true }` to `createAnimal` / `createHerd` / `herd.add`.
+- **Optional parts.** Bones scaled to zero hide parts: the llama's `tika` (shown by default) and `pack` (hidden), the alpaca's `tika` (hidden; `spec.features` holds the defaults). Pass `features: { pack: true }` to `createAnimal` / `createHerd` / `herd.add`.
+- **Herd pose.** `herd.set`'s optional last argument `{ scale, pitch, roll }` sizes an instance (LOD distances are divided by the scale) and tips its body after the yaw.
+- **Night.** `setAnimalNight(sky night amount, 0..1)` (`night.ts`) adds a faint moonlit rim to every animal material (singles and herds) so dark coats read after dusk; `withNightRim(material, key)` adds it to any toon material.
 - **Coats.** `spec.variants` (llama: white, brown, black, spotted, cafe; alpaca, horse, mule, macaw, caiman…). `animal.setVariant(name)`; a herd takes a list and each member picks one by index.
 
 **Pure modules (tested).** `gaits.ts` (footfall tables: walk, paso, pace, trot, canter, gallop, bound, hop, stalk, crawl; `pickGait` blends by speed), `behaviour.ts` (seeded idle scheduler: graze, chew, look, groom, scratch, yawn, shake, sit, sleep; reduced motion keeps the calm ones), `flight.ts`, `swim.ts` (spine wave, porpoising, the sea lion's lollop), `lod.ts`, `kit.ts`, the plans and the species.

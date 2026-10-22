@@ -30,6 +30,8 @@ export interface BirdState {
   /** On the water surface; under water. */
   water?: boolean;
   under?: boolean;
+  /** Perched with the wings held open (0..1): condors and cormorants sunning themselves in the morning. */
+  spread?: number;
 }
 
 const damp = (cur: number, target: number, rate: number, dt: number) =>
@@ -52,6 +54,8 @@ export class BirdAnimator {
   private pitch = 0;
   private curl = 0;
   private airW = 0;
+  private sunW = 0;
+  private strW = 0;
   private flapS = 0;
   private lag1 = 0;
   private lag2 = 0;
@@ -105,7 +109,12 @@ export class BirdAnimator {
     const idle = this.idle.step(dt, { moving: moving || air || st === "swim" || st === "dive", rm, quiet: s.quiet });
     const act = (a: IdleAction) => (idle.action === a ? idle.w : 0);
     const rate = air ? 14 : 8;
-    this.fold = damp(this.fold, pose.fold, rate, dt);
+    // Wings opened while perched: held out to the sun (`spread`) or raised high in a stretch (idle).
+    const down = !air && st !== "swim" && st !== "dive";
+    this.sunW = damp(this.sunW, down ? Math.min(1, Math.max(0, s.spread ?? 0)) : 0, 3, dt);
+    this.strW = damp(this.strW, down ? act("stretch") : 0, 5, dt);
+    const openW = Math.max(this.sunW, this.strW);
+    this.fold = damp(this.fold, pose.fold * (1 - openW), rate, dt);
     this.legs = damp(this.legs, pose.legs, 6, dt);
     this.fan = damp(this.fan, pose.fan, 6, dt);
     this.pitch = damp(this.pitch, pose.pitch, 4, dt);
@@ -113,7 +122,7 @@ export class BirdAnimator {
     // In the air (and swimming or diving) the body levels out from its perched, upright build.
     this.airW = damp(this.airW, air || st === "dive" ? 1 : st === "swim" ? 0.6 : 0, 5, dt);
     // The flap itself is not smoothed (it is the beat); its lagged copies drive the forearm and hand.
-    const flap = pose.flap;
+    const flap = pose.flap + this.sunW * 0.06 + this.strW * 0.6;
     this.flapS = flap;
     this.lag1 = damp(this.lag1, flap, 22, dt);
     this.lag2 = damp(this.lag2, this.lag1, 18, dt);
@@ -160,7 +169,12 @@ export class BirdAnimator {
       // Elevation (flap) about z, sweep back about y as the wing folds, a little twist (pitch) on the downstroke.
       const sweep = this.fold * 1.1;
       // The wing was built level with the perched (pitched) body: keep it level when the body levels out.
-      arm.rotation.set((this.flapS - this.lag1) * 0.25 + (m.pitch ?? 0) * this.airW, sweep * sg, sg * this.flapS);
+      // Sunning: the open wing turns its face to the front (twisted about the span, trailing edge down).
+      arm.rotation.set(
+        (this.flapS - this.lag1) * 0.25 + (m.pitch ?? 0) * this.airW - 1.25 * this.sunW,
+        sweep * sg,
+        sg * this.flapS,
+      );
       fore.rotation.set(0, sweep * 0.5 * sg, sg * (this.lag1 - this.flapS) * 0.55);
       hand.rotation.set(
         (this.lag1 - this.lag2) * 0.4,

@@ -29,6 +29,10 @@
  */
 import * as THREE from "three";
 import { festivalOf } from "../calendar";
+import { HumanCrowd } from "../characters/crowd";
+import { prefetchHumans } from "../characters/pipeline";
+import { PEOPLE } from "../characters/presets";
+import { HeldProps } from "../characters/props";
 import type { Ambient, CreateAmbient } from "../contract";
 import { type Body, creatures, type KeepOut, park } from "../creatures";
 import type { WorldEnvExtra } from "../env";
@@ -36,10 +40,6 @@ import { on } from "../events";
 import { glowSprite, localWind } from "../props";
 import { dateWatch } from "./festival/datewatch";
 import { jumped } from "./people/logic";
-import { HumanCrowd } from "../characters/crowd";
-import { prefetchHumans } from "../characters/pipeline";
-import { PEOPLE } from "../characters/presets";
-import { HeldProps } from "../characters/props";
 import { Static } from "./people/models";
 import { createFolk, type FolkCtx, type FolkSpots } from "./summit-camp/folk";
 import { createKite } from "./summit-camp/kite";

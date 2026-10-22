@@ -5,10 +5,13 @@
  * stored ghost when it is faster. On the summit the chip shows the time against the record and the first
  * completed climb stamps `record:climb`. Fast travel and the guided tour void the attempt (core voids the
  * tracker; we just hear about it). The ghost is not a Body: it walks through everything.
+ * Its body is the traveler's own (characters: the andean outfit, the walk cycle from the replayed speed),
+ * drawn with a translucent cel-banded shader instead of the toon palette.
  */
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CATALOG } from "../../lib/passport";
+import { createHuman, type Human } from "../characters/hero";
+import { TRAVELER, TRAVELER_DRESS } from "../characters/presets";
 import type { CreateAmbient, L } from "../contract";
 import type { WorldEnvExtra } from "../env";
 import { emit, on } from "../events";
@@ -58,16 +61,22 @@ function ghostMaterial() {
       uCore: { value: CORE },
       uRim: { value: RIM },
     },
+    // Skinned (the traveler's body): three's skinning chunks, then the view-space normal for the rim.
     vertexShader: /* glsl */ `
       #include <common>
+      #include <skinning_pars_vertex>
       #include <fog_pars_vertex>
       varying vec3 vN;
       varying vec3 vV;
       void main() {
-        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        vN = normalize(normalMatrix * normal);
+        #include <beginnormal_vertex>
+        #include <skinbase_vertex>
+        #include <skinnormal_vertex>
+        #include <begin_vertex>
+        #include <skinning_vertex>
+        #include <project_vertex>
+        vN = normalize(normalMatrix * objectNormal);
         vV = -mvPosition.xyz;
-        gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
     fragmentShader: /* glsl */ `
@@ -93,87 +102,21 @@ function ghostMaterial() {
   });
 }
 
-type Geo = THREE.BufferGeometry;
-const tmpM = new THREE.Matrix4();
-const tmpQ = new THREE.Quaternion();
-const tmpE = new THREE.Euler();
-const tmpP = new THREE.Vector3();
-const tmpS = new THREE.Vector3();
-/** Clone a primitive with a transform (position, rotation, scale). */
-function part(src: Geo, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1): Geo {
-  const g = (src.index ? src.toNonIndexed() : src.clone()) as Geo;
-  for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
-  tmpQ.setFromEuler(tmpE.set(rx, ry, rz));
-  return g.applyMatrix4(tmpM.compose(tmpP.set(x, y, z), tmpQ, tmpS.set(sx, sy, sz)));
+/** The ghost's body: the traveler (andean outfit), every mesh on the ghost material, drawn after the world. */
+function buildGhost(mat: THREE.Material): Human {
+  const h = createHuman(TRAVELER.andean, TRAVELER_DRESS.andean, { lod: 1, seed: 7 });
+  h.group.name = "ghost-traveler";
+  ghostify(h, mat);
+  return h;
 }
-
-/** Low-poly traveler silhouette (chullo, poncho, pack), ~1.6 u tall, origin at the feet, facing +Z. */
-function buildGhost(mat: THREE.Material) {
-  const P = {
-    cap: new THREE.CapsuleGeometry(1, 1, 2, 7),
-    cyl: new THREE.CylinderGeometry(1, 1, 1, 8),
-    cone: new THREE.CylinderGeometry(0.42, 1, 1, 10),
-    sph: new THREE.IcosahedronGeometry(1, 1),
-    box: new THREE.BoxGeometry(1, 1, 1),
-    chullo: new THREE.ConeGeometry(1, 1, 8),
-  };
-  const geos: Geo[] = [];
-  const mesh = (parts: Geo[], name: string) => {
-    const g = mergeGeometries(parts, false);
-    for (const p of parts) p.dispose();
-    geos.push(g);
-    const m = new THREE.Mesh(g, mat);
-    m.name = name;
-    m.renderOrder = 3;
-    return m;
-  };
-  const group = new THREE.Group();
-  group.name = "ghost-traveler";
-  const rig = new THREE.Group();
-  group.add(rig);
-  const legs: THREE.Group[] = [];
-  for (const side of [1, -1]) {
-    const pivot = new THREE.Group();
-    pivot.position.set(0.105 * side, 0.56, 0);
-    pivot.add(
-      mesh(
-        [part(P.cap, 0, -0.25, 0, 0, 0, 0, 0.085, 0.3, 0.085), part(P.box, 0, -0.5, 0.035, 0, 0, 0, 0.15, 0.11, 0.24)],
-        "ghost:leg",
-      ),
-    );
-    rig.add(pivot);
-    legs.push(pivot);
-  }
-  const torso = new THREE.Group();
-  torso.position.y = 0.56;
-  rig.add(torso);
-  torso.add(
-    mesh(
-      [
-        part(P.cone, 0, 0.27, 0, 0, 0, 0, 0.4, 0.48, 0.33), // poncho
-        part(P.sph, 0, 0.84, 0, 0, 0, 0, 0.25, 0.24, 0.235), // head
-        part(P.chullo, 0, 1.1, -0.02, -0.12, 0, 0, 0.255, 0.3, 0.255), // chullo
-        part(P.sph, 0, 1.27, -0.05, 0, 0, 0, 0.06, 0.06, 0.06), // pompom
-        part(P.box, 0, 0.28, -0.26, 0, 0, 0, 0.36, 0.38, 0.18), // pack
-      ],
-      "ghost:body",
-    ),
-  );
-  const arms: THREE.Group[] = [];
-  for (const side of [1, -1]) {
-    const pivot = new THREE.Group();
-    pivot.position.set(0.27 * side, 0.43, 0);
-    pivot.add(
-      mesh(
-        [part(P.cap, 0, -0.18, 0, 0, 0, 0, 0.065, 0.26, 0.065), part(P.sph, 0, -0.37, 0.01, 0, 0, 0, 0.07, 0.07, 0.07)],
-        "ghost:arm",
-      ),
-    );
-    torso.add(pivot);
-    arms.push(pivot);
-  }
-  for (const g of Object.values(P)) g.dispose();
-  return { group, rig, torso, legs, arms, geos };
+/** Put the ghost material on the body and the cloth (the cloth mesh can appear when a finer LOD arrives). */
+function ghostify(h: Human, mat: THREE.Material) {
+  for (const m of [h.inst.body, h.inst.cloth])
+    if (m && m.material !== mat) {
+      m.material = mat;
+      m.renderOrder = 3;
+      m.castShadow = false;
+    }
 }
 
 export const create: CreateAmbient = (env, hudRoot) => {
@@ -186,10 +129,16 @@ export const create: CreateAmbient = (env, hudRoot) => {
 
   // ---- 3D ghost
   const mat = ghostMaterial();
-  const G = buildGhost(mat);
-  G.group.visible = false;
-  env.noOutline(G.group);
-  env.scene.add(G.group);
+  // Built the first time a ghost runs (the traveler's own build is cached, so it is ready at once).
+  let G: Human | null = null;
+  const ghostBody = () => {
+    if (!G) {
+      G = buildGhost(mat);
+      env.noOutline(G.group);
+      env.scene.add(G.group);
+    }
+    return G;
+  };
 
   // ---- HUD: clock chip in the shared trail chip stack + a polite live region for start/void/finish
   const chips = trailChips(hudRoot);
@@ -208,7 +157,6 @@ export const create: CreateAmbient = (env, hudRoot) => {
   let tainted = false;
   let fade = 0;
   let ghostDone = false;
-  let phase = 0;
   let resultTimer = 0;
   let chipClock = 0;
   let aheadClock = 0;
@@ -334,31 +282,24 @@ export const create: CreateAmbient = (env, hudRoot) => {
     const want = show && !ghostDone ? 1 : 0;
     fade = Math.max(0, Math.min(1, fade + (want ? dt / 0.6 : -dt / 1.6)));
     if (fade <= 0) {
-      if (G.group.visible) G.group.visible = false;
+      if (G?.group.visible) G.group.visible = false;
       return;
     }
-    G.group.visible = true;
+    const g = ghostBody();
+    g.group.visible = true;
+    ghostify(g, mat);
     const sx = pose.x - prevPose.x;
     const sz = pose.z - prevPose.z;
     const speed = dt > 0 ? Math.hypot(sx, sz) / dt : 0;
     prevPose.x = pose.x;
     prevPose.z = pose.z;
-    G.group.position.set(pose.x, groundAt(pose.x, pose.z), pose.z);
-    G.group.rotation.y = pose.yaw;
+    g.group.position.set(pose.x, groundAt(pose.x, pose.z), pose.z);
+    g.group.rotation.y = pose.yaw;
     // Fainter when it overlaps the traveler, so it never hides them.
     const near = Math.min(1, Math.max(0.3, Math.sqrt((pose.x - avatar.x) ** 2 + (pose.z - avatar.z) ** 2) / 2.5));
     mat.uniforms.uOpacity!.value = fade * near * 0.9;
-    // Walk cycle from the replayed speed (no cycle with reduced motion: it glides).
-    const amp = rm ? 0 : Math.min(1, speed / 3);
-    const run = Math.min(1, Math.max(0, (speed - 4.2) / 2.5));
-    phase += (dt * speed * Math.PI) / (0.62 + run * 0.5);
-    const sw = Math.sin(phase);
-    G.legs[0]!.rotation.x = sw * (0.55 + 0.25 * run) * amp;
-    G.legs[1]!.rotation.x = -sw * (0.55 + 0.25 * run) * amp;
-    G.arms[0]!.rotation.x = -sw * (0.4 + 0.3 * run) * amp;
-    G.arms[1]!.rotation.x = sw * (0.4 + 0.3 * run) * amp;
-    G.rig.position.y = Math.abs(Math.cos(phase)) * 0.05 * amp + (rm ? 0 : Math.sin(elapsed * 2.2) * 0.03);
-    G.torso.rotation.x = 0.06 * amp + 0.16 * run * amp;
+    // Walk / run cycle from the replayed speed (the animator calms it with reduced motion).
+    g.update(dt, elapsed, { speed, rm, expression: "auto" });
   };
 
   // Dev hook (screenshots): current trial state.
@@ -372,8 +313,8 @@ export const create: CreateAmbient = (env, hudRoot) => {
     update,
     dispose() {
       offClimb();
-      G.group.removeFromParent();
-      for (const g of G.geos) g.dispose();
+      G?.group.removeFromParent();
+      G?.dispose();
       mat.dispose();
       chip.chip.remove();
       live.remove();
