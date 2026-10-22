@@ -52,7 +52,6 @@ mount(el, ctx) => { start, pause, resume, destroy, onThemeChange }
 
 The owner wants the arcade simple and calm: a blocky, Minecraft-like look with FEW colors, so the games
 showcase the work (infra concepts) instead of effects.
-
 - **Geometry:** everything is built from cubes on a grid (voxels): `BoxGeometry` blocks, instanced when many.
   Characters are blocky (bug = a few cubes with cube legs; pod = a crate; packet = a small cube; player = a
   blocky robot/miner). No spheres/tubes/capsules unless made of cubes. Hard edges, no bevels.

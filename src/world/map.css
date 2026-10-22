@@ -71,7 +71,6 @@
   min-height: 44px;
   display: grid;
   grid-template-columns: auto auto 1fr;
-  grid-template-areas: "dot n name" "dot n state";
   align-items: center;
   column-gap: 8px;
   padding: 6px 10px;
@@ -103,7 +102,7 @@
   background: #dda63c;
 }
 .kw-map-dot {
-  grid-area: dot;
+  grid-area: 1 / 1 / 3 / 2;
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -114,16 +113,16 @@
   background: transparent;
 }
 .kw-map-n {
-  grid-area: n;
+  grid-area: 1 / 2 / 3 / 3;
   font: 400 0.7rem / 1 var(--font-arcade, monospace);
   min-width: 1.6em;
 }
 .kw-map-name {
-  grid-area: name;
+  grid-area: 1 / 3;
   font: 700 0.92rem / 1.2 var(--font-display, sans-serif);
 }
 .kw-map-state {
-  grid-area: state;
+  grid-area: 2 / 3;
   font: 400 0.62rem / 1.3 var(--font-arcade, monospace);
   text-transform: uppercase;
   letter-spacing: 0.04em;
