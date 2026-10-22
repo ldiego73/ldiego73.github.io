@@ -13,7 +13,7 @@
 import type * as THREE from "three";
 import type { BirdState } from "../../../characters/animals/anim-bird";
 import type { AnimalState } from "../../../characters/animals/anim-quad";
-import { createHerd, type Herd } from "../../../characters/animals/crowd";
+import { createHerd, type Herd, type HerdPose } from "../../../characters/animals/crowd";
 
 export interface CondorPose {
   x: number;
@@ -27,7 +27,7 @@ export interface CondorPose {
   flap?: boolean;
   /** On its perch (wings folded, standing). */
   perched?: boolean;
-  /** Perched and opening its wings to the sun (honoured once the bird animator has a spread pose). */
+  /** Perched and opening its wings to the sun (BirdState.spread). */
   sunning?: boolean;
   /** Head turn relative to the body (radians), perched birds. */
   look?: number;
@@ -49,6 +49,7 @@ export class CondorFlock {
   readonly group: THREE.Group;
   private tracks: Track[];
   private dt = 1 / 60;
+  private pose: HerdPose;
 
   /** `variants`: coat palettes (the white condor's leucistic one); every bird takes the first. */
   constructor(
@@ -56,7 +57,10 @@ export class CondorFlock {
     readonly n: number,
     private rm = false,
     variants?: ReadonlyArray<readonly string[]>,
+    /** Instance scale (the white condor is drawn a touch bigger so it reads as the one to look at). */
+    scale = 1,
   ) {
+    this.pose = { scale };
     this.herd = createHerd("condor", { max: n, ...(variants ? { variants } : {}) });
     this.group = this.herd.group;
     this.group.name = name;
@@ -92,7 +96,7 @@ export class CondorFlock {
     tr.z = p.z;
     tr.seen = true;
     // A fresh state object per bird: the herd keeps the reference until its update.
-    const s: AnimalState & Partial<BirdState> & { spread?: number } = { speed: 0, rm: this.rm };
+    const s: AnimalState & Partial<BirdState> = { speed: 0, rm: this.rm };
     if (p.perched) {
       s.grounded = true;
       s.speed = 0;
@@ -108,7 +112,7 @@ export class CondorFlock {
       s.height = 60;
       s.turn = p.bank / BANK_PER_TURN;
     }
-    this.herd.set(tr.id, p.x, p.y, p.z, p.yaw, s);
+    this.herd.set(tr.id, p.x, p.y, p.z, p.yaw, s, this.pose);
   }
 
   hide(i: number) {

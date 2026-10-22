@@ -514,6 +514,10 @@ export const create: CreateAmbient = (envIn): Ambient => {
     actors: actors.map((a) => ({
       role: a.role,
       state: a.p.state,
+      action: a.p.anim.action,
+      hipsY: +(a.p.member.bones.hips?.position.y ?? 0).toFixed(2),
+      lod: a.p.member.lod,
+      shown: a.p.member.shown,
       mode: a.mode,
       lx: +lxOf(f, a.p.x, a.p.z).toFixed(2),
       lz: +lzOf(f, a.p.x, a.p.z).toFixed(2),

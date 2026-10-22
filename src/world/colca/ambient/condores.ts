@@ -23,6 +23,7 @@
 
 import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
+import { setAnimalNight } from "../../characters/animals/night";
 import type { CreateAmbient } from "../../contract";
 import { creatures } from "../../creatures";
 import { emit } from "../../events";
@@ -47,6 +48,7 @@ import {
   thermalFor,
 } from "./condores/logic";
 import { CondorFlock } from "./condores/model";
+import { nightAmount } from "./wild/logic";
 
 const STAMP = "colca:fauna:condor";
 /** The perched pair's headings (./condores/logic.ts perchPose turns about these). */
@@ -109,6 +111,8 @@ export const create: CreateAmbient = (baseEnv) => {
     update(dt, avatar, t) {
       clock += env.reducedMotion ? dt * 0.5 : dt;
       flock.begin(dt);
+      // The moonlit rim on every animal of the world (one shared uniform; the condors are always here).
+      setAnimalNight(nightAmount(env.sky.time()));
       const time = env.sky.time();
       const out = !flying(time);
       const avS = avatar.z - rimZ(avatar.x);

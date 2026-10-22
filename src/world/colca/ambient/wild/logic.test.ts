@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fleeFrom, foxHours, hoverPlan, seenWithin } from "./logic";
+import { fleeFrom, foxHours, hoverPlan, nightAmount, seenWithin } from "./logic";
 
 describe("Kuntisuyu wildlife helpers", () => {
   test("fleeing heads away from the traveler but stays on the home range", () => {
@@ -24,5 +24,15 @@ describe("Kuntisuyu wildlife helpers", () => {
     expect(foxHours(0.1)).toBe(true);
     expect(foxHours(0.5)).toBe(false);
     expect(seenWithin({ x: 0, z: 0 }, { x: 3, z: 4 }, 6)).toBe(true);
+  });
+});
+
+describe("nightAmount", () => {
+  test("day 0, midnight 1, dusk in between", () => {
+    expect(nightAmount(0.5)).toBe(0);
+    expect(nightAmount(0)).toBe(1);
+    const dusk = nightAmount(0.76);
+    expect(dusk).toBeGreaterThan(0);
+    expect(dusk).toBeLessThan(1);
   });
 });

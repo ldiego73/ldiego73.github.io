@@ -68,7 +68,7 @@ export const create: CreateAmbient = (baseEnv) => {
   const over = passOver(anchor);
 
   // ---------------------------------------------------------------- bird
-  const bird = new CondorFlock("colca-white-condor", 1, rm, [WHITE]);
+  const bird = new CondorFlock("colca-white-condor", 1, rm, [WHITE], 1.08);
   env.scene.add(bird.group);
 
   const body0 = creatures.add("condor", 1.4, { solid: false, x: 1e5, z: 1e5 });

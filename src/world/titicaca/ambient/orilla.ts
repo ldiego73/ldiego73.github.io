@@ -18,6 +18,7 @@ import * as THREE from "three";
 import { CATALOG } from "../../../lib/passport";
 import type { Animal } from "../../characters/animals/animal";
 import type { Herd } from "../../characters/animals/crowd";
+import { setAnimalNight } from "../../characters/animals/night";
 import type { Ambient, CreateAmbient } from "../../contract";
 import { type Body, creatures } from "../../creatures";
 import { emit } from "../../events";
@@ -41,6 +42,8 @@ interface Grazer {
   speed: number;
   /** Seconds to the next grazing bout. */
   graze: number;
+  /** Size spread (herd pose scale). */
+  scale: number;
   body: Body;
   id: number;
 }
@@ -77,6 +80,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         pause: R() * 6,
         speed: 0,
         graze: R() * 3,
+        scale: 0.92 + R() * 0.14,
         body: creatures.add(kind, r, { x: p.x, z: p.z, give: 0.6 }),
         id: -1,
       };
@@ -229,7 +233,15 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       const y = L.heightAt(g.x, g.z);
       // At night they lie down where they are (the kush, legs folded under), asleep.
       if (h && g.id >= 0)
-        h.set(g.id, g.x, y, g.z, g.yaw, { speed: g.speed, rm: rmo, look, mode: day ? "auto" : "sleep" });
+        h.set(
+          g.id,
+          g.x,
+          y,
+          g.z,
+          g.yaw,
+          { speed: g.speed, rm: rmo, look, mode: day ? "auto" : "sleep" },
+          { scale: g.scale },
+        );
       if (dAv < 18 && onScreen(g.x, y + 1, g.z)) seen = true;
     }
     if (looks[id].update(dt, seen)) stamp(`titicaca:fauna:${id}`);
@@ -244,7 +256,10 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     update(dtIn, avatar) {
       const dt = Math.min(dtIn, 0.05);
       clock += dt;
-      const day = daylight(env.sky.time()) > 0.3;
+      const light = daylight(env.sky.time());
+      const day = light > 0.3;
+      // The moon-blue rim on every animal of the core (shared by all the lake's fauna ambients).
+      setAnimalNight(1 - light);
       stepHerd(alpacas, herds.get("alpaca"), HERDS.alpacas, dt, avatar, day, "alpaca");
       stepHerd(llamas, herds.get("llama"), HERDS.llamas, dt, avatar, day, "llama");
 

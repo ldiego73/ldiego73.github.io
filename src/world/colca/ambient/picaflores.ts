@@ -5,13 +5,12 @@
  * they read at walking distance.
  *
  * Passport: within 7 u of one stamps `colca:fauna:picaflor`. Rendering: the shared animals' hummingbird in the
- * giant's dull olive and cinnamon, one skinned body per bird (two or three draw calls), each scaled up as a
- * scene object; built off the main thread (prefetchAnimals) and shown once ready. The bird animator's flight
- * machine reads the hover and the dart from the speed.
+ * giant's dull olive and cinnamon, one herd (one instanced draw per LOD), each bird scaled up by the herd pose;
+ * built off the main thread. The bird animator's flight machine reads the hover and the dart from the speed.
  */
 import * as THREE from "three";
-import { type Animal, createAnimal } from "../../characters/animals/animal";
 import { prefetchAnimals } from "../../characters/animals/assets";
+import { createHerd } from "../../characters/animals/crowd";
 import { bpal } from "../../characters/animals/species/birds";
 import type { CreateAmbient } from "../../contract";
 import type { SuyuEnv } from "../../suyu/contract";
@@ -46,20 +45,12 @@ export const create: CreateAmbient = (baseEnv) => {
     return { ...w, y: env.heightAt(w.x, w.z) + 1.1 };
   });
   const n = env.quality === "high" ? 3 : 2;
-  const birds: Array<Animal | null> = Array.from({ length: n }, () => null);
-  let disposed = false;
-  // Every LOD is built off the main thread first, so the LOD switches never build on a frame.
-  void prefetchAnimals(["hummingbird"]).then(() => {
-    if (disposed) return;
-    for (let i = 0; i < n; i++) {
-      const a = createAnimal("hummingbird", { variant: GIANT, seed: 21 + i * 5, lod: 1 });
-      a.group.name = "colca-picaflores";
-      a.group.scale.setScalar(SCALE);
-      a.group.visible = false;
-      env.scene.add(a.group);
-      birds[i] = a;
-    }
-  });
+  prefetchAnimals(["hummingbird"]);
+  const herd = createHerd("hummingbird", { max: n, variants: [GIANT] });
+  herd.group.name = "colca-picaflores";
+  env.scene.add(herd.group);
+  const ids = Array.from({ length: n }, (_, i) => herd.add({ seed: 21 + i * 5 }));
+  const pose = { scale: SCALE };
   const stamp = faunaStamp("picaflor");
   const prev = Array.from({ length: n }, () => new THREE.Vector3(Number.NaN, 0, 0));
   let t = 0;
@@ -71,10 +62,9 @@ export const create: CreateAmbient = (baseEnv) => {
       const day = time > 0.28 && time < 0.72;
       const nearby = Math.hypot(env.camera.position.x - pl.x, env.camera.position.z - pl.z) < 120;
       for (let i = 0; i < n; i++) {
-        const bird = birds[i];
-        if (!bird) continue;
+        const id = ids[i] as number;
         if (!day || !nearby) {
-          bird.group.visible = false;
+          herd.hide(id);
           (prev[i] as THREE.Vector3).x = Number.NaN;
           continue;
         }
@@ -102,20 +92,13 @@ export const create: CreateAmbient = (baseEnv) => {
         const speed = Number.isNaN(p.x) ? 0 : Math.hypot(x - p.x, z - p.z) / dt / SCALE;
         const vy = Number.isNaN(p.x) ? 0 : (y - p.y) / dt / SCALE;
         p.set(x, y, z);
-        bird.group.visible = true;
-        bird.group.position.set(x, y, z);
-        bird.group.rotation.y = yaw;
-        bird.update(dt, clock, { speed, rm: env.reducedMotion, grounded: false, vy, height: 1 });
-        bird.autoLod(env.camera, SCALE);
+        herd.set(id, x, y, z, yaw, { speed, rm: env.reducedMotion, grounded: false, vy, height: 1 }, pose);
         if (seenWithin({ x, z }, avatar, 7)) stamp();
       }
+      herd.update(dt, clock, env.camera);
     },
     dispose() {
-      disposed = true;
-      for (const b of birds) {
-        b?.group.removeFromParent();
-        b?.dispose();
-      }
+      herd.dispose();
     },
   };
 };

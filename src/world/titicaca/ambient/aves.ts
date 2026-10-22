@@ -7,7 +7,7 @@
  *    within a few metres, one dives and comes up a few metres off some seconds later.
  *  - Andean flamingos (parihuana, Phoenicoparrus andinus): a flock wading in the shallow bay between Taquile and
  *    the Isla del Sol, heads down sweeping the water for food, walking on slowly; now and then one lifts its
- *    head and shakes out its feathers; they walk away from a traveler who comes close.
+ *    head and spreads its wings (black flight feathers); they walk away from a traveler who comes close.
  *  - Andean gulls (Chroicocephalus serranus): circling over the Uros bay, Taquile and the shore, and a few
  *    resting on the water by the islands.
  * By day. At night the grebes sleep on the water among the reeds, the flamingos stand still asleep and the
@@ -156,6 +156,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
     /** Seconds to the next feeding bout / shake. */
     feed: number;
     shakeT: number;
+    scale: number;
     speed: number;
     body: Body;
     id: number;
@@ -173,6 +174,7 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
       pause: R() * 4,
       feed: R() * 2,
       shakeT: 8 + R() * 20,
+      scale: 0.92 + R() * 0.14,
       speed: 0,
       body: creatures.add("flamingo", 0.35, { x, z, give: 0.5 }),
       id: -1,
@@ -316,7 +318,8 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
             f.shakeT -= dt;
             f.feed -= dt;
             if (f.shakeT <= 0) {
-              if (!rm) fh.play(f.id, "shake", 1.6);
+              // The wing stretch: wings opened wide for a moment, black flight feathers showing.
+              if (!rm) fh.play(f.id, "stretch", 2.2);
               f.shakeT = 14 + R() * 25;
               f.feed = 2;
             } else if (f.feed <= 0) {
@@ -337,7 +340,15 @@ export const create: CreateAmbient = (baseEnv): Ambient => {
         f.body.z = f.z;
         const y = Math.max(L.heightAt(f.x, f.z), LEVEL - 0.8);
         if (fh && f.id >= 0)
-          fh.set(f.id, f.x, y, f.z, f.yaw, { speed: f.speed, rm, grounded: true, vy: 0, height: 0, look, quiet: !day });
+          fh.set(
+            f.id,
+            f.x,
+            y,
+            f.z,
+            f.yaw,
+            { speed: f.speed, rm, grounded: true, vy: 0, height: 0, look, quiet: !day },
+            { scale: f.scale },
+          );
         if (dAv < 30 && onScreen(f.x, y + 1.2, f.z, 30)) flamSeen = true;
       });
       if (looks.flamingo.update(dt, flamSeen)) stamp("titicaca:fauna:flamenco");
